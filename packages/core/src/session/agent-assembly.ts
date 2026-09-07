@@ -28,6 +28,20 @@ export function composeStreamFn(
   return fn;
 }
 
+const OPENCODE_SESSION_PROVIDERS = new Set(["opencode-go", "opencode"]);
+
+export function withOpenCodeSessionHeader(sessionId: string, base: StreamFn): StreamFn {
+  return (model, context, options) => {
+    if (!OPENCODE_SESSION_PROVIDERS.has(model.provider)) {
+      return base(model, context, options);
+    }
+    return base(model, context, {
+      ...options,
+      headers: { "x-opencode-session": sessionId, ...options?.headers },
+    });
+  };
+}
+
 function resolveSources<T>(
   capabilities: ReadonlyArray<Capability>,
   select: (capability: Capability) => ReadonlyArray<(view: SessionView) => T | undefined> | undefined,
@@ -205,10 +219,13 @@ export async function buildAgent(
     deps.logger.warn({ agentId: profile.id }, "model not resolvable, agent will wait for model config");
   }
 
-  const streamFn = composeStreamFn(
-    deps.modelCatalog,
-    deps.runConfig.current().sampling,
-    streamDecoratorsFor(deps.capabilities, { agentId: profile.id, profile, projectStore: deps.projectStore, stores: deps.stores }),
+  const streamFn = withOpenCodeSessionHeader(
+    sessionId,
+    composeStreamFn(
+      deps.modelCatalog,
+      deps.runConfig.current().sampling,
+      streamDecoratorsFor(deps.capabilities, { agentId: profile.id, profile, projectStore: deps.projectStore, stores: deps.stores }),
+    ),
   );
 
   const view = {
