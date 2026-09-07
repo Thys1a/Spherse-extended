@@ -1,8 +1,13 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useI18n } from "@spherse/i18n/react";
 import type { TranslationKey } from "@spherse/i18n";
+import type { ProviderCatalogItem } from "@spherse/core";
 import { parseAgentMarkdown, buildAgentMarkdown } from "./agent-markdown";
 import type { AgentFormData } from "./agent-markdown";
+import { useProjectCtx } from "../../context/project-context";
+import { useApiClient } from "../../lib/use-connection";
+import { useHostBridge } from "../../context/host-bridge-context";
+import { AgentModelField } from "./AgentModelField";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../../components/ui/tabs";
 import {
   AlertDialog,
@@ -42,12 +47,41 @@ interface AgentDialogFormProps {
 
 export function AgentDialogForm({ initial, mode, onSubmit, onCancel }: AgentDialogFormProps) {
   const { t } = useI18n();
+  const { projectId } = useProjectCtx();
+  const client = useApiClient(projectId);
+  const bridge = useHostBridge();
   const parsed = useMemo(() => parseAgentMarkdown(initial.raw), [initial.raw]);
   const [formData, setFormData] = useState<AgentFormData>(parsed.formData);
   const [themeContent, setThemeContent] = useState(initial.theme);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmTemplate, setConfirmTemplate] = useState<PromptTemplate | null>(null);
+  const [providers, setProviders] = useState<Record<string, ProviderCatalogItem>>({});
+  const [globalDefault, setGlobalDefault] = useState("");
+  const [apiKeys, setApiKeys] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const [catalog, settings] = await Promise.all([
+          client.getSupportedProviders(),
+          bridge.getSettings(),
+        ]);
+        if (cancelled) return;
+        setProviders(catalog);
+        setGlobalDefault(settings?.models?.text?.defaultModel ?? "");
+        const keys: Record<string, string> = {};
+        for (const [id, c] of Object.entries(settings?.models?.text?.providers ?? {})) {
+          if (c?.apiKey) keys[id] = c.apiKey;
+        }
+        setApiKeys(keys);
+      } catch {
+        // providers 加载失败时保持空态，字段显示「请先配置」
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [client, bridge]);
 
   const handleSelectTemplate = (template: PromptTemplate) => {
     if (formData.systemPrompt.trim() === "") {
@@ -128,6 +162,13 @@ export function AgentDialogForm({ initial, mode, onSubmit, onCancel }: AgentDial
                 placeholder={t("agent-dialog.aliasPlaceholder")}
               />
             </Field>
+            <AgentModelField
+              providers={providers}
+              apiKeys={apiKeys}
+              globalDefault={globalDefault}
+              value={formData.model ?? ""}
+              onChange={(model) => setFormData((prev) => ({ ...prev, model: model || undefined }))}
+            />
             <ToolPicker selectedTools={formData.tools} onToggleGroup={toggleGroup} />
             {hasAdvancedTool && (
               <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">

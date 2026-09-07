@@ -1,4 +1,4 @@
-import type { ProviderCatalogItem, ModelGroupSettings, CustomProviderDef } from "@spherse/core";
+import type { ProviderCatalogItem, ModelGroupSettings, CustomProviderDef, TtsSettings } from "@spherse/core";
 import type { ReactNode } from "react";
 
 export interface RestoredProject {
@@ -64,6 +64,7 @@ export interface HostSettings {
   customProviders?: CustomProviderDef[];
   debugToolsEnabled?: boolean;
   theme?: ThemeMode;
+  tts?: TtsSettings;
 }
 
 export type TunnelStatus = "stopped" | "starting" | "running" | "error";

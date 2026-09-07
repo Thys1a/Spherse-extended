@@ -1,9 +1,14 @@
-import { useMemo } from "react";
+import { useMemo, useEffect } from "react";
 import type { AgentSummary } from "../../lib/types";
 import { useProjectCtx } from "../../context/project-context";
 import { useApiClient, useConnection } from "../../lib/use-connection";
 import { toast } from "sonner";
 import { useI18n } from "@spherse/i18n/react";
+import { stopIfSession } from "./tts/tts-controller";
+import { speak } from "./tts/tts-controller";
+import { onAssistantTurnComplete } from "./tts/bridge";
+import { useHostBridge } from "../../context/host-bridge-context";
+import { useSettingsStore } from "../../stores/settings-store";
 import { Composer } from "./Composer";
 import { Header } from "./Header";
 import { MessageList } from "./MessageList";
@@ -27,7 +32,9 @@ export function Chat({ sessionId, agent, onNavigateToPath, initialMessage, onClo
   const { projectId } = useProjectCtx();
   const client = useApiClient(projectId);
   const { baseUrl, accessToken } = useConnection();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const bridge = useHostBridge();
+  const autoRead = useSettingsStore((s) => s.tts.autoRead ?? false);
   const {
     messages,
     streaming,
@@ -74,6 +81,25 @@ export function Chat({ sessionId, agent, onNavigateToPath, initialMessage, onClo
 
   const runtime = useMemo(() => ({ sessionId, agentId: agent.id }), [sessionId, agent.id]);
 
+  useEffect(() => {
+    stopIfSession(sessionId);
+  }, [sessionId]);
+
+  useEffect(() => {
+    if (!autoRead) return;
+    return onAssistantTurnComplete((sid, text) => {
+      if (sid !== sessionId || document.hidden) return;
+      void (async () => {
+        const settings = await bridge.getSettings();
+        speak(`${sessionId}:auto`, sessionId, text, {
+          voiceURI: settings?.tts?.voiceURI,
+          rate: settings?.tts?.rate,
+          locale,
+        });
+      })();
+    });
+  }, [autoRead, sessionId, bridge, locale]);
+
   return (
     <ChatRuntimeProvider runtime={runtime}>
       <div className="flex flex-col h-full" data-chat-root>
@@ -89,6 +115,7 @@ export function Chat({ sessionId, agent, onNavigateToPath, initialMessage, onClo
         <MessageList
           messages={messages}
           agent={agent}
+          sessionId={sessionId}
           streaming={streaming}
           loading={loading}
           containerRef={containerRef}

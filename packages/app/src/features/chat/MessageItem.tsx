@@ -15,6 +15,7 @@ import { ThinkingIndicator } from "./ThinkingIndicator";
 import { MessageAttachments } from "./MessageAttachments";
 import { SendFailedBar } from "./SendFailedBar";
 import { WithdrawButton } from "./WithdrawButton";
+import { SpeakButton } from "./SpeakButton";
 import { useOpenExternalLink } from "../browser/open-external-url";
 import { formatMessageTime } from "./lib/format-time";
 
@@ -22,6 +23,7 @@ interface MessageItemProps {
   message: ChatMessage;
   agent: AgentSummary;
   showTime?: boolean;
+  sessionId?: string;
   supersededToolCallIds?: Set<string>;
   onNavigateToPath?: (path: string) => void;
   onRespondApproval?: (requestId: string, approved: boolean) => void;
@@ -30,7 +32,7 @@ interface MessageItemProps {
   onWithdraw?: () => void;
 }
 
-export function MessageItem({ message, agent, showTime, supersededToolCallIds, onNavigateToPath, onRespondApproval, onRespondQuestion, onRetry, onWithdraw }: MessageItemProps) {
+export function MessageItem({ message, agent, showTime, sessionId, supersededToolCallIds, onNavigateToPath, onRespondApproval, onRespondQuestion, onRetry, onWithdraw }: MessageItemProps) {
   const isUser = message.role === "user";
   const openLink = useOpenExternalLink();
 
@@ -125,6 +127,9 @@ export function MessageItem({ message, agent, showTime, supersededToolCallIds, o
         {!message._streaming && (
           <div className={`flex items-center gap-1 pb-1 opacity-100 md:opacity-0 md:transition-opacity md:group-hover:opacity-100 ${isUser ? "md:flex-row-reverse" : ""}`}>
             {isUser && onWithdraw && <WithdrawButton onWithdraw={onWithdraw} />}
+            {!isUser && message._messageId != null && (
+              <SpeakButton messageId={String(message._messageId)} text={message.content} sessionId={sessionId} />
+            )}
             <CopyButton text={message.content} />
             {showTime && message.timestamp && (
               <time className="text-[11px] text-muted-foreground whitespace-nowrap">

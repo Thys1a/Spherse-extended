@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { normalizeLocale, type Locale } from "@spherse/i18n";
+import type { TtsSettings } from "@spherse/core";
 import type { HostBridge, ThemeMode } from "../lib/host-bridge";
 
 export type SettingsStoreApi = Pick<HostBridge, "getSettings" | "saveSettings">;
@@ -8,16 +9,19 @@ interface SettingsStore {
   locale: Locale;
   debugToolsEnabled: boolean;
   theme: ThemeMode;
+  tts: TtsSettings;
   loadLocale: (api: SettingsStoreApi) => Promise<void>;
   changeLocale: (api: SettingsStoreApi, locale: Locale) => Promise<boolean>;
   setDebugToolsEnabled: (api: SettingsStoreApi, enabled: boolean) => Promise<boolean>;
   setTheme: (api: SettingsStoreApi, theme: ThemeMode) => Promise<boolean>;
+  setTts: (api: SettingsStoreApi, patch: Partial<TtsSettings>) => Promise<boolean>;
 }
 
 export const useSettingsStore = create<SettingsStore>((set, get) => ({
   locale: "zh-CN",
   debugToolsEnabled: false,
   theme: "system",
+  tts: {},
 
   async loadLocale(api) {
     const settings = await api.getSettings();
@@ -25,6 +29,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
       locale: normalizeLocale(settings?.locale),
       debugToolsEnabled: settings?.debugToolsEnabled ?? false,
       theme: settings?.theme ?? "system",
+      tts: settings?.tts ?? {},
     });
   },
 
@@ -36,6 +41,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
       models: settings?.models,
       debugToolsEnabled: get().debugToolsEnabled,
       theme: get().theme,
+      tts: get().tts,
     });
     return true;
   },
@@ -48,6 +54,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
       models: settings?.models,
       debugToolsEnabled: enabled,
       theme: get().theme,
+      tts: get().tts,
     });
     return true;
   },
@@ -60,6 +67,21 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
       models: settings?.models,
       debugToolsEnabled: get().debugToolsEnabled,
       theme,
+      tts: get().tts,
+    });
+    return true;
+  },
+
+  async setTts(api, patch) {
+    const next = { ...get().tts, ...patch };
+    set({ tts: next });
+    const settings = await api.getSettings();
+    await api.saveSettings({
+      locale: settings?.locale ?? get().locale,
+      models: settings?.models,
+      debugToolsEnabled: get().debugToolsEnabled,
+      theme: get().theme,
+      tts: next,
     });
     return true;
   },

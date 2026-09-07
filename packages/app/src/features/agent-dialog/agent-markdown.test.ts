@@ -82,10 +82,29 @@ describe("parseAgentMarkdown", () => {
     expect(result.formData.alias).toBeUndefined();
   });
 
-  it("keeps extra frontmatter keys separate from form data", () => {
-    const raw = "---\nname: Agent\nautoRun: true\nmodel: gpt-4\n---\n\nsystem prompt";
+  it("keeps unknown extra frontmatter keys separate from form data", () => {
+    const raw = "---\nname: Agent\nautoRun: true\n---\n\nsystem prompt";
     const result = parseAgentMarkdown(raw);
-    expect(result.extraFrontmatter).toEqual({ autoRun: true, model: "gpt-4" });
+    expect(result.extraFrontmatter).toEqual({ autoRun: true });
+  });
+
+  it("parses model into form data as a first-class field", () => {
+    const raw = "---\nname: Agent\nmodel: gpt-4\n---\n\nsystem prompt";
+    const result = parseAgentMarkdown(raw);
+    expect(result.formData.model).toBe("gpt-4");
+    expect(result.extraFrontmatter).not.toHaveProperty("model");
+  });
+
+  it("returns undefined model when missing", () => {
+    const raw = "---\nname: Agent\n---\n\nsystem prompt";
+    const result = parseAgentMarkdown(raw);
+    expect(result.formData.model).toBeUndefined();
+  });
+
+  it("returns undefined model when whitespace-only", () => {
+    const raw = "---\nname: Agent\nmodel: '   '\n---\n\nsystem prompt";
+    const result = parseAgentMarkdown(raw);
+    expect(result.formData.model).toBeUndefined();
   });
 
   it("handles CRLF line endings", () => {
@@ -218,13 +237,53 @@ describe("buildAgentMarkdown", () => {
   it("preserves alias through a round-trip with extra frontmatter", () => {
     const md = buildAgentMarkdown(
       { name: "Agent", alias: "小明", tools: ["read_file"], context: [], systemPrompt: "hello", yolo: false },
-      { model: "gpt-4" },
+      { autoRun: true },
       false,
     );
     const parsed = parseAgentMarkdown(md);
     expect(parsed.formData.alias).toBe("小明");
-    expect(parsed.extraFrontmatter).toEqual({ model: "gpt-4" });
+    expect(parsed.extraFrontmatter).toEqual({ autoRun: true });
     expect(parsed.extraFrontmatter).not.toHaveProperty("alias");
+  });
+
+  it("writes model into frontmatter when set", () => {
+    const md = buildAgentMarkdown(
+      { name: "Agent", tools: [], context: [], systemPrompt: "hello", yolo: false, model: "gpt-4" },
+      {},
+      false,
+    );
+    expect(md).toContain("model");
+    const parsed = parseAgentMarkdown(md);
+    expect(parsed.formData.model).toBe("gpt-4");
+    expect(parsed.extraFrontmatter).not.toHaveProperty("model");
+  });
+
+  it("omits model from frontmatter when not set", () => {
+    const md = buildAgentMarkdown(
+      { name: "Agent", tools: [], context: [], systemPrompt: "hello", yolo: false },
+      {},
+      false,
+    );
+    expect(md).not.toContain("model");
+  });
+
+  it("omits model from frontmatter when whitespace-only", () => {
+    const md = buildAgentMarkdown(
+      { name: "Agent", tools: [], context: [], systemPrompt: "hello", yolo: false, model: "   " },
+      {},
+      false,
+    );
+    expect(md).not.toContain("model");
+  });
+
+  it("does not double-write model when it is both form data and extra", () => {
+    const md = buildAgentMarkdown(
+      { name: "Agent", tools: [], context: [], systemPrompt: "hello", yolo: false, model: "gpt-4" },
+      { model: "claude" },
+      false,
+    );
+    const parsed = parseAgentMarkdown(md);
+    expect(parsed.formData.model).toBe("gpt-4");
   });
 
   it("writes timePerception when enabled", () => {

@@ -16,6 +16,7 @@ import {
 import { planRetry } from "../model/retry-plan";
 import { lastWithdrawableUserIndex } from "../model/withdrawable";
 import type { SendableImage, ChatMessage } from "../types";
+import { emitAssistantTurnComplete, turnSpeechText } from "../tts/bridge";
 
 const DEFAULT_TTL_MS = 5 * 60 * 1000;
 const CLEANUP_INTERVAL_MS = 30 * 1000;
@@ -182,6 +183,10 @@ export const useStreamingStore = create<StreamingStoreState & StreamingStoreActi
   }
 
   function enqueueEvent(sessionId: string, event: AgentEvent) {
+    if (event.type === "agent_end") {
+      const text = turnSpeechText(event.messages as Parameters<typeof turnSpeechText>[0]);
+      if (text) emitAssistantTurnComplete(sessionId, text);
+    }
     let queue = eventQueue.get(sessionId);
     if (!queue) {
       queue = [];

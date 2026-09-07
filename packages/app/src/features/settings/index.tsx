@@ -25,6 +25,7 @@ import { AdvancedSettings } from "./AdvancedSettings";
 import { UpdateChecker } from "./UpdateChecker";
 import { MobileAccessPanel } from "./MobileAccessPanel";
 import { HelpPanel } from "./HelpPanel";
+import { TtsSettingsPanel } from "./TtsSettingsPanel";
 import { SUPPORTED_LOCALES, normalizeLocale } from "@spherse/i18n";
 import { useI18n } from "@spherse/i18n/react";
 import type { CustomProviderDef } from "@spherse/core";
@@ -209,6 +210,8 @@ function SettingsTabs() {
   const setTheme = useSettingsStore((s) => s.setTheme);
   const debugToolsEnabled = useSettingsStore((s) => s.debugToolsEnabled);
   const setDebugToolsEnabled = useSettingsStore((s) => s.setDebugToolsEnabled);
+  const tts = useSettingsStore((s) => s.tts);
+  const setTts = useSettingsStore((s) => s.setTts);
   const mobileAccessEnabled = bridge.capabilities.mobileAccess;
   const settingsApi = useMemo<SettingsApi>(() => ({
     getSettings: bridge.getSettings,
@@ -269,6 +272,7 @@ function SettingsTabs() {
               />
             </div>
           </FieldGroup>
+          <TtsSettingsPanel tts={tts} onChange={(patch) => { void setTts(settingsApi, patch); }} />
         </TabsContent>
 
         {mobileAccessEnabled && (

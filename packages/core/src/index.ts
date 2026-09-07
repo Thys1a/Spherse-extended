@@ -6,6 +6,7 @@ export type {
   ThinkingLevel,
   ModelGroupSettings,
   MobileAccessSettings,
+  TtsSettings,
   AppSettings,
   ProviderCatalog,
   ProviderCatalogItem,

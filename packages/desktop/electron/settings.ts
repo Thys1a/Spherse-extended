@@ -62,6 +62,7 @@ export function getMaskedSettings(): AppSettings | null {
     customProviders: settings.customProviders ?? [],
     debugToolsEnabled: settings.debugToolsEnabled ?? false,
     theme: settings.theme ?? "system",
+    tts: settings.tts,
   };
 }
 
@@ -100,6 +101,7 @@ export function saveSettings(incoming: AppSettings): void {
     debugToolsEnabled: incoming.debugToolsEnabled ?? prev?.debugToolsEnabled ?? false,
     theme: incoming.theme ?? prev?.theme ?? "system",
     mobileAccess: prev?.mobileAccess,
+    tts: incoming.tts ?? prev?.tts,
   };
   settingsStore.set("settings", merged);
   applySettingsToEnv(merged);

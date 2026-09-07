@@ -9,7 +9,8 @@ export type FeatureName =
   | "floating-content-browser"
   | "browser"
   | "text-selection-session"
-  | "open-project";
+  | "open-project"
+  | "tts";
 
 const ELECTRON_ONLY: ReadonlySet<HostKind> = new Set(["electron"]);
 const ALL_HOSTS: ReadonlySet<HostKind> = new Set(["electron", "web"]);
@@ -24,6 +25,7 @@ export const FEATURE_HOST_MATRIX: Record<FeatureName, ReadonlySet<HostKind>> = {
   browser: ELECTRON_ONLY,
   "text-selection-session": ELECTRON_ONLY,
   "open-project": ELECTRON_ONLY,
+  tts: ELECTRON_ONLY,
 };
 
 export function isFeatureEnabled(feature: FeatureName, kind: HostKind): boolean {

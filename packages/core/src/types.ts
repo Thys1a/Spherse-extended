@@ -116,6 +116,12 @@ export interface MobileAccessSettings {
   publicDomain?: string;
 }
 
+export interface TtsSettings {
+  voiceURI?: string;
+  rate?: number;
+  autoRead?: boolean;
+}
+
 export interface AppSettings {
   locale: string;
   models: {
@@ -126,6 +132,7 @@ export interface AppSettings {
   debugToolsEnabled?: boolean;
   theme?: ThemeMode;
   mobileAccess?: MobileAccessSettings;
+  tts?: TtsSettings;
 }
 
 export interface ProviderCatalogItem {

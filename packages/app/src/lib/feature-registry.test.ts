@@ -17,6 +17,7 @@ describe("feature-registry", () => {
         "open-project",
         "settings",
         "text-selection-session",
+        "tts",
       ].sort(),
     );
     for (const feature of allFeatures) {

@@ -14,7 +14,7 @@ function createApi(overrides: Partial<SettingsApi> = {}): SettingsApi {
 
 describe("useSettingsStore", () => {
   beforeEach(() => {
-    useSettingsStore.setState({ locale: "zh-CN", debugToolsEnabled: false, theme: "system" });
+    useSettingsStore.setState({ locale: "zh-CN", debugToolsEnabled: false, theme: "system", tts: {} });
   });
 
   it("loads locale from settings", async () => {
@@ -53,6 +53,7 @@ describe("useSettingsStore", () => {
       models,
       debugToolsEnabled: false,
       theme: "system",
+      tts: {},
     });
   });
 
@@ -88,6 +89,7 @@ describe("useSettingsStore", () => {
       models: undefined,
       debugToolsEnabled: true,
       theme: "system",
+      tts: {},
     });
   });
 
@@ -123,6 +125,7 @@ describe("useSettingsStore", () => {
       models: undefined,
       debugToolsEnabled: false,
       theme: "dark",
+      tts: {},
     });
   });
 
@@ -139,6 +142,35 @@ describe("useSettingsStore", () => {
       models: undefined,
       debugToolsEnabled: true,
       theme: "light",
+      tts: {},
+    });
+  });
+
+  it("loads tts settings from settings", async () => {
+    const api = createApi({
+      getSettings: vi.fn().mockResolvedValue({ tts: { voiceURI: "v1", rate: 1.2, autoRead: true } }),
+    });
+
+    await useSettingsStore.getState().loadLocale(api);
+
+    expect(useSettingsStore.getState().tts).toEqual({ voiceURI: "v1", rate: 1.2, autoRead: true });
+  });
+
+  it("setTts merges patch and persists", async () => {
+    const api = createApi({
+      getSettings: vi.fn().mockResolvedValue({ models: undefined }),
+    });
+
+    const ok = await useSettingsStore.getState().setTts(api, { autoRead: true });
+
+    expect(ok).toBe(true);
+    expect(useSettingsStore.getState().tts).toEqual({ autoRead: true });
+    expect(api.saveSettings).toHaveBeenCalledWith({
+      locale: "zh-CN",
+      models: undefined,
+      debugToolsEnabled: false,
+      theme: "system",
+      tts: { autoRead: true },
     });
   });
 });

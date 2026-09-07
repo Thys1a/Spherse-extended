@@ -436,6 +436,18 @@ export const zhCN = {
   "agent-dialog.yoloLabel": "自动放行（Yolo）",
   // Yolo 模式开关行提示语：说明启用后哪些工具会跳过用户确认直接执行
   "agent-dialog.yoloHint": "启用后，命令执行、Agent 与 Trigger 配置变更将跳过确认直接运行。文件访问策略不受影响。",
+  // Agent 默认模型选择器标签
+  "agent-dialog.modelLabel": "默认模型",
+  // Agent 默认模型选择器提示语
+  "agent-dialog.modelHint": "为该智能体指定默认模型。留空则跟随全局默认。",
+  // Agent 默认模型选择器首项（跟随全局默认），{model} 为当前全局默认模型
+  "agent-dialog.modelFollowGlobal": "跟随全局默认（当前：{model}）",
+  // Agent 默认模型选择器：未配置 API Key 时的提示
+  "agent-dialog.modelConfigureFirst": "请先在设置中配置 API Key",
+  // Agent 默认模型选择器搜索框占位符
+  "agent-dialog.modelSearchPlaceholder": "搜索模型…",
+  // Agent 默认模型选择器无结果提示
+  "agent-dialog.modelNoResults": "未找到匹配的模型",
 
   // --- Agent Session List ---
   // 新建对话按钮文案
@@ -684,6 +696,10 @@ export const zhCN = {
   "chat.htmlCard.collapse": "折叠",
   // 复制按钮悬停提示
   "chat.copyTooltip": "复制",
+  // 朗读按钮悬停提示（开始朗读该条消息）
+  "chat.ttsSpeak": "朗读",
+  // 朗读按钮悬停提示（停止朗读）
+  "chat.ttsStop": "停止朗读",
   // 最新一条用户消息气泡旁的「撤回」按钮悬停提示，点击撤回该消息及本轮回复
   "chat.withdrawTooltip": "撤回",
   // 撤回按钮两段式确认：点击撤回后出现的 ✓ 确认按钮悬停提示
@@ -993,6 +1009,18 @@ export const zhCN = {
   "settings.debugTools": "调试工具",
   // 设置 > 通用：调试工具开关下方的说明文案
   "settings.debugToolsDesc": "在侧边栏显示调试菜单入口",
+  // 设置 > 通用：朗读设置小节标题
+  "settings.tts.title": "朗读",
+  // 设置 > 通用：自动朗读开关
+  "settings.tts.autoRead": "自动朗读新回复",
+  // 设置 > 通用：自动朗读开关说明
+  "settings.tts.autoReadDesc": "每轮回复结束后自动朗读（仅桌面端）",
+  // 设置 > 通用：语音下拉框标签
+  "settings.tts.voice": "语音",
+  // 设置 > 通用：语音下拉框默认项（跟随系统）
+  "settings.tts.voiceDefault": "跟随系统默认",
+  // 设置 > 通用：语速输入框标签
+  "settings.tts.rate": "语速",
   // 图片生成设置中默认模型下拉框的标签
   "settings.image.defaultModel": "默认生图模型",
 
