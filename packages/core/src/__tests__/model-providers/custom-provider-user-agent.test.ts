@@ -73,9 +73,9 @@ async function captureRequestHeaders(
   return requestHeaders;
 }
 
-function registerCustomProvider() {
+function registerCustomProvider(headers?: Record<string, string>) {
   catalog.syncCustomProviders(
-    [{ id: "custom-ua", name: "UA Test", baseUrl: "https://ua.example.com/v1", models: ["model-a"], keyless: false }],
+    [{ id: "custom-ua", name: "UA Test", baseUrl: "https://ua.example.com/v1", models: ["model-a"], keyless: false, ...(headers ? { headers } : {}) }],
     { "custom-ua": "sk-test" },
   );
   return catalog.resolveModelById("custom-ua/model-a");
@@ -165,5 +165,35 @@ describe("custom provider user-agent", () => {
 
     expect(requestHeaders).toHaveLength(1);
     expect(requestHeaders[0].get("user-agent")).toMatch(/^pi \(/);
+  });
+
+  it("sends custom provider headers on every request", async () => {
+    const model = registerCustomProvider({ "X-Custom-Auth": "token-123" });
+
+    const requestHeaders = await captureRequestHeaders(model);
+
+    expect(requestHeaders).toHaveLength(1);
+    expect(requestHeaders[0].get("x-custom-auth")).toBe("token-123");
+  });
+
+  it("sends a custom provider user-agent header despite suppression", async () => {
+    const model = registerCustomProvider({ "User-Agent": "KimiCLI/1.30.0" });
+
+    const requestHeaders = await captureRequestHeaders(model);
+
+    expect(requestHeaders).toHaveLength(1);
+    expect(requestHeaders[0].get("user-agent")).toBe("KimiCLI/1.30.0");
+  });
+
+  it("allows a per-request header to override a custom provider header", async () => {
+    const model = registerCustomProvider({ "X-Custom-Auth": "provider-value" });
+
+    const requestHeaders = await captureRequestHeaders(model, {
+      apiKey: "sk-test",
+      headers: { "X-Custom-Auth": "request-value" },
+    });
+
+    expect(requestHeaders).toHaveLength(1);
+    expect(requestHeaders[0].get("x-custom-auth")).toBe("request-value");
   });
 });

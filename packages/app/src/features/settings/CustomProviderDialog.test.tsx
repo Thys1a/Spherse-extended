@@ -121,4 +121,85 @@ describe("CustomProviderDialog", () => {
       keyless: true,
     });
   });
+
+  it("submits custom headers when rows are filled", async () => {
+    const user = userEvent.setup();
+    const { onSubmit, onClose } = renderDialog();
+
+    await fillValidForm(user);
+    await user.click(screen.getByRole("button", { name: "添加" }));
+    await user.type(screen.getByPlaceholderText("Header 名"), "X-Custom-Auth");
+    await user.type(screen.getByPlaceholderText("值"), "token-123");
+    await user.click(screen.getByRole("button", { name: "保存" }));
+
+    expect(onSubmit).toHaveBeenCalledWith({
+      id: "",
+      name: "My Provider",
+      baseUrl: "https://api.example/v1",
+      models: ["m1", "m2", "m3"],
+      keyless: false,
+      headers: { "X-Custom-Auth": "token-123" },
+    });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("omits headers when rows are left empty", async () => {
+    const user = userEvent.setup();
+    const { onSubmit } = renderDialog();
+
+    await fillValidForm(user);
+    await user.click(screen.getByRole("button", { name: "添加" }));
+    await user.click(screen.getByRole("button", { name: "保存" }));
+
+    expect(onSubmit).toHaveBeenCalledWith({
+      id: "",
+      name: "My Provider",
+      baseUrl: "https://api.example/v1",
+      models: ["m1", "m2", "m3"],
+      keyless: false,
+    });
+    expect(onSubmit.mock.calls[0][0]).not.toHaveProperty("headers");
+  });
+
+  it("rejects an invalid header name and keeps Save disabled", async () => {
+    const user = userEvent.setup();
+    const { onSubmit } = renderDialog();
+
+    await fillValidForm(user);
+    await user.click(screen.getByRole("button", { name: "添加" }));
+    await user.type(screen.getByPlaceholderText("Header 名"), "Bad Header");
+
+    expect(screen.getByText("Header 名含非法字符")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "保存" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "保存" }));
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("prefills headers from initial and allows removal", async () => {
+    const user = userEvent.setup();
+    const { onSubmit } = renderDialog({
+      open: true,
+      initial: {
+        id: "custom-x",
+        name: "Existing",
+        baseUrl: "https://existing.example",
+        models: ["m1"],
+        keyless: false,
+        headers: { "X-A": "1", "X-B": "2" },
+      },
+    });
+
+    expect(screen.getAllByPlaceholderText("Header 名")).toHaveLength(2);
+    await user.click(screen.getAllByRole("button", { name: "删除请求头" })[0]);
+    await user.click(screen.getByRole("button", { name: "保存" }));
+
+    expect(onSubmit).toHaveBeenCalledWith({
+      id: "custom-x",
+      name: "Existing",
+      baseUrl: "https://existing.example",
+      models: ["m1"],
+      keyless: false,
+      headers: { "X-B": "2" },
+    });
+  });
 });

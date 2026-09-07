@@ -111,10 +111,10 @@ function customAuth(apiKey: string | undefined, keyless: boolean): ApiKeyAuth {
   };
 }
 
-function suppressUserAgent(api: ProviderStreams): ProviderStreams {
+function suppressUserAgent(api: ProviderStreams, customHeaders?: ProviderHeaders): ProviderStreams {
   const inject = <T extends { headers?: ProviderHeaders }>(options?: T): T => ({
     ...(options ?? ({} as T)),
-    headers: { "User-Agent": null, ...options?.headers },
+    headers: { "User-Agent": null, ...customHeaders, ...options?.headers },
   });
   const wrapped: ProviderStreams = {
     stream: (model, context, options) => api.stream(model, context, inject(options)),
@@ -149,7 +149,7 @@ function buildCustomProvider(def: CustomProviderDef, apiKey: string | undefined)
     baseUrl: def.baseUrl,
     auth: { apiKey: customAuth(apiKey, def.keyless) },
     models: modelList,
-    api: suppressUserAgent(openAICompletionsApi()),
+    api: suppressUserAgent(openAICompletionsApi(), def.headers),
   });
 }
 

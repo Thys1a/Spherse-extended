@@ -128,6 +128,24 @@ export const zhCN = {
   "settings.provider.dialog.limitsHint": "单位为 token，留空使用默认值；应用于该供应商的全部模型",
   // 校验错误：上下文长度或最大输出长度填写后不是正整数
   "settings.provider.dialog.errLimitInvalid": "请输入正整数",
+  // 自定义供应商对话框「请求头」区块标签
+  "settings.provider.dialog.headers": "请求头",
+  // 请求头区块说明，提示用于网关鉴权/路由，勿放长效密钥
+  "settings.provider.dialog.headersHint": "随每次请求发送。用于网关鉴权或路由；请勿放入与 API Key 等价的长效密钥",
+  // 添加请求头按钮
+  "settings.provider.dialog.addHeader": "添加",
+  // 请求头 name 输入框 placeholder
+  "settings.provider.dialog.headerNamePlaceholder": "Header 名",
+  // 请求头 value 输入框 placeholder
+  "settings.provider.dialog.headerValuePlaceholder": "值",
+  // 删除请求头行的按钮 aria-label
+  "settings.provider.dialog.removeHeader": "删除请求头",
+  // 校验错误：请求头名包含非法字符
+  "settings.provider.dialog.errHeaderName": "Header 名含非法字符",
+  // 校验错误：请求头值包含换行或过长
+  "settings.provider.dialog.errHeaderValue": "值不能含换行且不超过 1KB",
+  // 校验错误：请求头数量超上限
+  "settings.provider.dialog.errHeadersTooMany": "请求头最多 {count} 条",
   // 自定义供应商对话框保存按钮
   "settings.provider.dialog.save": "保存",
   // 自定义供应商对话框取消按钮

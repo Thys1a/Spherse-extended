@@ -19,7 +19,16 @@ import {
 import { Input } from "../../components/ui/input";
 import { Switch } from "../../components/ui/switch";
 import { Textarea } from "../../components/ui/textarea";
+import { Plus, X } from "lucide-react";
 import { customProviderDefaults } from "./custom-provider-defaults";
+import {
+  headersToRecord,
+  isValidHeaderName,
+  isValidHeaderValue,
+  MAX_HEADER_COUNT,
+  recordToHeaderRows,
+  type HeaderRow,
+} from "./custom-provider-headers";
 
 interface CustomProviderDialogProps {
   open: boolean;
@@ -66,6 +75,7 @@ export function CustomProviderDialog({
   const [keyless, setKeyless] = useState(false);
   const [contextWindowText, setContextWindowText] = useState("");
   const [maxTokensText, setMaxTokensText] = useState("");
+  const [headerRows, setHeaderRows] = useState<HeaderRow[]>([]);
 
   useEffect(() => {
     if (!open) return;
@@ -75,6 +85,7 @@ export function CustomProviderDialog({
     setKeyless(initial?.keyless ?? false);
     setContextWindowText(initial?.contextWindow != null ? String(initial.contextWindow) : "");
     setMaxTokensText(initial?.maxTokens != null ? String(initial.maxTokens) : "");
+    setHeaderRows(recordToHeaderRows(initial?.headers));
   }, [open, initial]);
 
   const parsedModels = parseModelIds(modelsText);
@@ -106,12 +117,36 @@ export function CustomProviderDialog({
       ? ""
       : t("settings.provider.dialog.errLimitInvalid");
 
+  const headerErrors = headerRows.map((row) => {
+    if (row.name.trim() === "") return "";
+    if (!isValidHeaderName(row.name)) return t("settings.provider.dialog.errHeaderName");
+    if (!isValidHeaderValue(row.value)) return t("settings.provider.dialog.errHeaderValue");
+    return "";
+  });
+  const headersCountError =
+    headerRows.filter((row) => row.name.trim() !== "").length > MAX_HEADER_COUNT
+      ? t("settings.provider.dialog.errHeadersTooMany")
+      : "";
+
   const hasErrors = Boolean(
-    nameError || baseUrlError || modelsError || contextWindowError || maxTokensError,
+    nameError || baseUrlError || modelsError || contextWindowError || maxTokensError || headersCountError || headerErrors.some(Boolean),
   );
+
+  const updateHeaderRow = (index: number, patch: Partial<HeaderRow>) => {
+    setHeaderRows((prev) => prev.map((row, i) => (i === index ? { ...row, ...patch } : row)));
+  };
+
+  const removeHeaderRow = (index: number) => {
+    setHeaderRows((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const addHeaderRow = () => {
+    setHeaderRows((prev) => [...prev, { name: "", value: "" }]);
+  };
 
   const handleSubmit = () => {
     if (hasErrors) return;
+    const headers = headersToRecord(headerRows);
     onSubmit({
       id: initial?.id ?? "",
       name: trimmedName,
@@ -122,6 +157,7 @@ export function CustomProviderDialog({
         ? { contextWindow }
         : {}),
       ...(maxTokens !== undefined && !Number.isNaN(maxTokens) ? { maxTokens } : {}),
+      ...(headers ? { headers } : {}),
     });
     onClose();
   };
@@ -235,6 +271,61 @@ export function CustomProviderDialog({
               </span>
             </div>
             <Switch checked={keyless} onCheckedChange={setKeyless} />
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex flex-col gap-1">
+                <span className="text-sm font-medium leading-none">
+                  {t("settings.provider.dialog.headers")}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  {t("settings.provider.dialog.headersHint")}
+                </span>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={addHeaderRow}
+                disabled={headerRows.length >= MAX_HEADER_COUNT}
+              >
+                <Plus />
+                {t("settings.provider.dialog.addHeader")}
+              </Button>
+            </div>
+            {headersCountError ? (
+              <p className="text-xs text-destructive">{headersCountError}</p>
+            ) : null}
+            {headerRows.map((row, index) => (
+              <div key={index} className="space-y-1">
+                <div className="grid grid-cols-[1fr_1fr_auto] items-center gap-2">
+                  <Input
+                    value={row.name}
+                    onChange={(event) => updateHeaderRow(index, { name: event.target.value })}
+                    placeholder={t("settings.provider.dialog.headerNamePlaceholder")}
+                    aria-invalid={Boolean(headerErrors[index])}
+                  />
+                  <Input
+                    value={row.value}
+                    onChange={(event) => updateHeaderRow(index, { value: event.target.value })}
+                    placeholder={t("settings.provider.dialog.headerValuePlaceholder")}
+                    aria-invalid={Boolean(headerErrors[index])}
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => removeHeaderRow(index)}
+                    aria-label={t("settings.provider.dialog.removeHeader")}
+                  >
+                    <X />
+                  </Button>
+                </div>
+                {headerErrors[index] ? (
+                  <p className="text-xs text-destructive">{headerErrors[index]}</p>
+                ) : null}
+              </div>
+            ))}
           </div>
         </FieldGroup>
         <DialogFooter>
