@@ -65,6 +65,8 @@
 - [ ] **Chat Debug 模式**：在对话界面提供 debug 模式，展示 agent 的 tool call 请求、响应、system prompt 等原始数据，方便开发和调试
 - [ ] **思考强度 composer 会话级覆盖（二期）**：全局默认已落地（settings → RunConfig 传播链）；二期在聊天输入框加快捷档位切换，仅当前会话生效。要点：chat WS `message` payload 加 `thinkingLevel?` 字段（contracts + 契约测试）、`AgentRunner.sendMessage` turn 前一次性覆盖 `agent.state.thinkingLevel`、composer 按 sessionId sticky 状态（同 draft 键控模式）、档位按当前生效模型 `getSupportedThinkingLevels` 动态显示。参见 `docs/dev/features/2026-08-28-model-thinking-intensity/design.md` 二期草图
 - [ ] **Presets i18n**：为 `@spherse/presets` 内置模板和预置内容增加多语言支持，作为 i18n 基础设施完成后的独立任务
+- [ ] **自定义 Provider 请求头**：给自定义 LLM provider 的 HTTP 请求注入 headers（网关/代理/鉴权/UA 场景）。要点：pi-ai 0.84.4 已原生支持，仅 Spherse 侧配置链补齐——`CustomProviderDef` 加 `headers` → `buildCustomProvider` 传 `createProvider.headers`（provider 级）；`CustomProviderDialog` 加键值对编辑器 + 头注入校验（RFC 7230 token 名 / 禁 CRLF / 上限）；设置保存即热生效。作用域仅 chat completions，image 与内置 provider 不做。参见 `docs/dev/features/2026-09-07-custom-provider-headers/design.md`
+- [ ] **实时聊天面板嵌入 HTML（一期：host 覆盖层 dock）**：agent 构建的 HTML 工作区里内嵌可对话的实时聊天块。SDK 加 `dockChat` fire action + `<spherse-chat>` 占位元素 + rect 上报（ResizeObserver + scroll 监听 rAF 节流）；host 侧 `chat-dock/rect/undock` handler + `DockedChatManager` portal 渲染真 `Chat`（复用 floating chat 先例，外观跟 app 主题）；`chat.rect` 入 rate-limit 不计数白名单；feature `embedded-chat` 双开。SDK 自绘 widget 留二期按需立项。参见 `docs/dev/features/2026-09-07-embedded-chat/design.md`
 
 ## 基础设施
 
