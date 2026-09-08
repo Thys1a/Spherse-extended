@@ -14,6 +14,21 @@ import { llmPolicyOf } from "../capabilities/shared/llm-policy.js";
 import { escapeXmlAttr } from "../utils/xml-escape.js";
 import type { RuntimeDeps } from "./runtime.js";
 
+const OPENCODE_SESSION_PROVIDERS = new Set(["opencode-go", "opencode"]);
+
+function openCodeSessionHeader(base: StreamFn): StreamFn {
+  return (model, context, options) => {
+    const sessionId = options?.sessionId;
+    if (!sessionId || !OPENCODE_SESSION_PROVIDERS.has(model.provider)) {
+      return base(model, context, options);
+    }
+    return base(model, context, {
+      ...options,
+      headers: { "x-opencode-session": sessionId, ...options?.headers },
+    });
+  };
+}
+
 export function composeStreamFn(
   catalog: Pick<import("../model-providers/catalog.js").ModelCatalog, "getChatStreamFn">,
   sampling: SamplingParams | undefined,
@@ -25,21 +40,7 @@ export function composeStreamFn(
   for (const decorate of decorators) {
     fn = decorate(fn);
   }
-  return fn;
-}
-
-const OPENCODE_SESSION_PROVIDERS = new Set(["opencode-go", "opencode"]);
-
-export function withOpenCodeSessionHeader(sessionId: string, base: StreamFn): StreamFn {
-  return (model, context, options) => {
-    if (!OPENCODE_SESSION_PROVIDERS.has(model.provider)) {
-      return base(model, context, options);
-    }
-    return base(model, context, {
-      ...options,
-      headers: { "x-opencode-session": sessionId, ...options?.headers },
-    });
-  };
+  return openCodeSessionHeader(fn);
 }
 
 function resolveSources<T>(
@@ -219,13 +220,10 @@ export async function buildAgent(
     deps.logger.warn({ agentId: profile.id }, "model not resolvable, agent will wait for model config");
   }
 
-  const streamFn = withOpenCodeSessionHeader(
-    sessionId,
-    composeStreamFn(
-      deps.modelCatalog,
-      deps.runConfig.current().sampling,
-      streamDecoratorsFor(deps.capabilities, { agentId: profile.id, profile, projectStore: deps.projectStore, stores: deps.stores }),
-    ),
+  const streamFn = composeStreamFn(
+    deps.modelCatalog,
+    deps.runConfig.current().sampling,
+    streamDecoratorsFor(deps.capabilities, { agentId: profile.id, profile, projectStore: deps.projectStore, stores: deps.stores }),
   );
 
   const view = {
