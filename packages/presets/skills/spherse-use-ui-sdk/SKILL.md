@@ -95,8 +95,9 @@ await spherse.sendMessage({ sessionId: rt.sessionId, message: "继续分析" });
 ```
 
 - 成功：resolve
-- 失败：reject（`session_not_found` / `iframe_not_found` / `invalid_params` / `feature_disabled`）
+- 失败：reject（`session_not_found` / `iframe_not_found` / `invalid_params` / `feature_disabled` / `dock_not_allowed`）
 - 同一卡片重复调用会重新绑定（切换 `sessionId` 会替换面板中的会话）
+- `dockChat` / `undockChat` 仅在聊天 HtmlCard 中可用；其它注入了 SDK 的预览页（如 Content Browser 预览）中 auto-dock 不会发生，显式调用也应避免
 
 ### `spherse.undockChat()`
 
@@ -493,7 +494,7 @@ document.getElementById("agent-select").innerHTML = html;
 
 - **SDK 自动注入**：App 向每个 HTML 注入 `<script src="__spherse-sdk.js">`（同源加载，保留 iframe 真实 origin）。**不要**自己加载或复制 SDK 源码
 - **媒体播放**：Preview Server 支持 mp3/mp4/wav/webm/ogg/flac/mov 等音视频格式（含 Range 请求，可拖动进度条）。HTML 中直接用相对路径的 `<audio src="music.mp3">` 或 `<video src="clip.mp4">` 即可播放
-- **频率限制**：每分钟最多触发 30 次操作，超出会被静默丢弃。`data.get`、`data.keys`、`data.entries`、`data.mutate` 与聊天面板的位置上报（SDK 内部自动发送）不受限，交互式页面仍应优先通过事件刷新而非高频轮询
+- **频率限制**：每分钟最多触发 30 次操作，超出会被静默丢弃。`data.get`、`data.keys`、`data.entries`、`data.mutate` 与聊天面板的 dock/位置上报（SDK 内部自动发送）不受限，交互式页面仍应优先通过事件刷新而非高频轮询
 - **事件订阅限制**：每个 HTML 最多同时订阅 100 个事件；订阅控制消息不计入 action 频率限制
 - **无 script-src 加载失败时**：若 HTML 自身设了限制性 CSP（如 `meta http-equiv="Content-Security-Policy"` 禁止同源 script），SDK 可能无法加载。应放宽 CSP 允许同源 script 加载，不要绕开 SDK 自行拼装 `postMessage`
 - **参数校验**：缺少必填参数或类型不匹配时操作会被静默忽略

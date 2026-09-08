@@ -76,14 +76,4 @@ describe("actions surface", () => {
     actions.emitAgentTriggerEvent({ eventName: "e" });
     expect(mockFire).toHaveBeenCalledWith("emitAgentTriggerEvent", { eventName: "e" });
   });
-
-  it("dockChat calls (request-response) chat.dock with params", () => {
-    actions.dockChat({ sessionId: "s1" });
-    expect(mockCall).toHaveBeenCalledWith("chat.dock", { sessionId: "s1" });
-  });
-
-  it("undockChat fires chat.undock", () => {
-    actions.undockChat();
-    expect(mockFire).toHaveBeenCalledWith("chat.undock", {});
-  });
 });

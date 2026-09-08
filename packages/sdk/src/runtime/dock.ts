@@ -1,4 +1,4 @@
-import { fire } from "./messaging.js";
+import { call, fire } from "./messaging.js";
 import { getRuntime } from "./context.js";
 
 /**
@@ -7,8 +7,9 @@ import { getRuntime } from "./context.js";
  * host so the host can overlay a real chat panel on top of the iframe.
  *
  * - One dock per document: the first placeholder wins; later calls re-bind.
- * - Rect updates are rAF-coalesced (~150ms) and self-limited to ~10/s because
- *   `chat.rect` is rate-limit whitelisted on the host side.
+ * - Rect updates are time-throttled with a leading-edge send (~100ms) and
+ *   self-limited to ~10/s because `chat.rect` is rate-limit whitelisted on the
+ *   host side.
  * - `pagehide` or placeholder removal sends `chat.undock`.
  */
 
@@ -121,14 +122,14 @@ export async function dockChat(
   slotElement = slot;
   boundSessionId = sessionId;
   startObservers();
-  fire("chat.dock", { sessionId });
+  await call<void>("chat.dock", { sessionId });
   scheduleRect();
 }
 
 /** Auto-dock once the runtime context arrives (chat HtmlCard only). */
 export function installAutoDock(): void {
   void getRuntime().then((runtime) => {
-    if (runtime.sessionId) void dockChat();
+    if (runtime.sessionId) void dockChat().catch(() => {});
   });
   window.addEventListener("pagehide", () => undock());
 }

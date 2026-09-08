@@ -92,3 +92,10 @@ npm run verify:e2e    # 合并/发布前
 ```
 
 可选（桌面实测）：`npm run dev` 打开含 `<spherse-chat>` 占位元素的 HtmlCard，验证定位跟随外层滚动、卡片折叠清理、float 同 session 共存。
+
+## 实施偏差记录
+
+- E2E spec 实际位于 packages/desktop/e2e/ui-sdk-dock-chat.spec.ts（唯一 E2E 位置，本计划 Task 4 所写 packages/app/e2e/ 有误）
+- Task 3 Step 4 的「streaming store attach 计数 +1」断言未在 DockedChatManager 测试中实现（attach 逻辑由 streaming-store.test.ts 独立覆盖，manager 测试 mock 了 Chat）
+- rect 上报节流口径为 leading-edge 时间节流 ~100ms（非 rAF ~150ms）
+- 审查反馈修复：dockChat 收敛为 call 型（错误码 reject 生效）、chat.dock 入 rate-limit 白名单、同 source 同 session 重复 dock 保留 slotRect（防重载闪断）、四边 clamp、host 侧 slotRect 同值短路

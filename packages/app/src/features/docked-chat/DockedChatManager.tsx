@@ -19,10 +19,10 @@ function computeViewportRect(entry: DockedChatEntry) {
   const slot = entry.slotRect;
   if (!slot) return null;
   const iframeRect = entry.iframe.getBoundingClientRect();
-  const left = iframeRect.left + slot.x;
-  const top = iframeRect.top + slot.y;
-  const right = Math.min(left + slot.width, iframeRect.right);
-  const bottom = Math.min(top + slot.height, iframeRect.bottom);
+  const left = Math.max(iframeRect.left, iframeRect.left + slot.x);
+  const top = Math.max(iframeRect.top, iframeRect.top + slot.y);
+  const right = Math.min(iframeRect.right, left + slot.width);
+  const bottom = Math.min(iframeRect.bottom, top + slot.height);
   const width = right - left;
   const height = bottom - top;
   if (width <= 0 || height <= 0) return null;
@@ -49,16 +49,11 @@ function DockedChatItem({
     const observer =
       typeof ResizeObserver !== "undefined" ? new ResizeObserver(bump) : null;
     observer?.observe(iframe);
-    // Streaming re-renders can reload/replace the card iframe (srcDoc change or
-    // remount) without a reliable pagehide from the old document; watch the DOM
-    // so liveness checks below re-run promptly.
+    // Streaming re-renders can remount the card iframe (element removed from
+    // the DOM) without a reliable pagehide from the old document; watch the
+    // DOM so the liveness check below re-runs promptly.
     const domObserver = new MutationObserver(bump);
-    domObserver.observe(document, {
-      childList: true,
-      subtree: true,
-      attributes: true,
-      attributeFilter: ["srcdoc", "src"],
-    });
+    domObserver.observe(document, { childList: true, subtree: true });
     document.addEventListener("scroll", bump, { capture: true, passive: true });
     window.addEventListener("resize", bump);
     return () => {

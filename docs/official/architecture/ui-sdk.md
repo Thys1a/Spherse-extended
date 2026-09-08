@@ -36,7 +36,7 @@ SDK 由两半组成，仅以 postMessage 协议耦合：
 ## host 侧 action 桥
 
 - 入站校验：`type === "spherse:action"` 且 origin 在白名单——renderer origin、server origin，以及 `"null"`（防御性放行，当前无实际产生场景）
-- **rate limit**：外部调用 30 次 / 60s，超限静默丢弃；白名单 `{ data.get, data.keys, data.entries, data.mutate, chat.rect }` 不计数（`data.set` / `data.delete` / `api.call` 不在白名单）
+- **rate limit**：外部调用 30 次 / 60s，超限静默丢弃；白名单 `{ data.get, data.keys, data.entries, data.mutate, chat.rect, chat.dock }` 不计数（dock 幂等：重载驱动的重复 dock 不能耗尽配额；`data.set` / `data.delete` / `api.call` 不在白名单）
   - 配额为模块级单数组，跨全部 iframe 共享——高频写页面会耗尽配额
   - 对 call 型 action，静默丢弃在 SDK 侧表现为 10s 超时而非错误返回；参数校验失败的早退路径同样不 respond
 - `registry` 是 `Map<action, handler>`，handlers 文件以 import 副作用注册；新增 action = `handlers/` 新文件 + `registerAction` + 在 `ui-sdk/index.ts` barrel 补 import（无自动发现）
@@ -92,12 +92,13 @@ SDK 由两半组成，仅以 postMessage 协议耦合：
 
 HtmlCard 页面声明 `<spherse-chat>` / `[data-spherse-chat]` 占位元素，App 在其位置叠加真实聊天面板（复用 `<Chat hideHeader>`，portal 到 document.body）：
 
-- **SDK 侧**（`packages/sdk/src/runtime/dock.ts`）：加载即扫描占位元素，runtime 存在时自动 dock；ResizeObserver + capture 阶段 scroll 监听，leading-edge 节流（~100ms）fire `chat.rect`（**iframe 文档坐标**，自限 ~10/s）；MutationObserver 检测占位元素移出文档、`pagehide` 时 fire `chat.undock`
+- **SDK 侧**（`packages/sdk/src/runtime/dock.ts`）：加载即扫描占位元素，runtime 存在时自动 dock（`getRuntime()` 双路径兜底）；ResizeObserver + capture 阶段 scroll 监听，leading-edge 时间节流（~100ms）fire `chat.rect`（**iframe 文档坐标**，自限 ~10/s）；MutationObserver 检测占位元素移出文档、`pagehide` 时 fire `chat.undock`；`dockChat` 为 call 型（reject 透传 host 错误码），auto-dock 失败静默吞掉
 - **host 侧 handler**（`handlers/chat-dock.ts`）：`chat.dock` 为 call 型——`ActionContext.source` 遍历 `document` iframe 匹配 `contentWindow`（找不到 → `iframe_not_found`），sessionId 经 `ensureProjectSession` 校验（跨项目会话 → `session_not_found`），通过后登记 dock 并 respond；**位于既有面板内的 iframe 直接拒绝（`dock_not_allowed`）**——面板镜像同一会话的消息流、含同一张卡片，放行会无限递归；`chat.rect` 校验有限数字后更新 slotRect；`chat.undock` 删除条目
 - **状态**（`features/docked-chat/store.ts`）：zustand `Map<source, { dockId, sessionId, slotRect, iframe }>`；同 source 同 sessionId 重复 dock 复用 dockId（不重挂 Chat），换 sessionId 才换 dockId
 - **渲染**（`features/docked-chat/DockedChatManager.tsx`，挂 ProjectRuntimeBridges，feature `embedded-chat` ALL_HOSTS）：viewport rect = `iframe.getBoundingClientRect()` + slotRect 合成，**clamp 到 iframe 元素可视区**（伪造 rect 不能溢出卡片区域）；SDK 只能感知 iframe 内部滚动，外层文档滚动/iframe 尺寸变化由 host 侧 iframe 元素 ResizeObserver + capture scroll 监听触发重算
-- **清理**：session 消失（useProjectSession 确认）、iframe 脱离文档或 contentWindow 被替换（流式重渲染会重载卡片 iframe，旧文档 pagehide 不可靠）→ host 侧 undock；SDK pagehide / 占位元素移除 → `chat.undock`
-- rect 到达前不渲染面板（避免以错误几何挂 Chat）；`chat.rect` 在 rate-limit 白名单（面板拖动滚动期间高频上报）
+- **清理**：session 消失（useProjectSession 确认）或 iframe 脱离文档 → host 侧 undock；SDK pagehide / 占位元素移除 → `chat.undock`。srcDoc 重载时 WindowProxy 恒定（同一 browsing context），靠同 source 重复 dock 收敛（复用 dockId、保留 slotRect，面板不闪断）
+- **已知取舍**：占位元素 `display:none`（未移除）时面板滞留旧位置；floating chat 渲染同 session 消息流时其内卡片 iframe 也会 dock（非递归，第二层已被拦）——视觉上形成画中画，design 未覆盖该组合
+- rect 到达前不渲染面板（避免以错误几何挂 Chat）；`chat.rect` / `chat.dock` 在 rate-limit 白名单（前者高频上报、后者重载驱动重放）
 
 ## 会话 action 语义
 

@@ -14,6 +14,7 @@ interface ActionMsg {
 }
 
 type DockModule = typeof import("../runtime/dock.js");
+type MessagingModule = typeof import("../runtime/messaging.js");
 
 let posted: ActionMsg[];
 let dock: DockModule | undefined;
@@ -28,6 +29,8 @@ async function loadDock(sessionId?: string): Promise<DockModule> {
   vi.resetModules();
   setRuntime(sessionId);
   dock = await import("../runtime/dock.js");
+  const messaging: MessagingModule = await import("../runtime/messaging.js");
+  messaging.installResponseListener();
   return dock;
 }
 
@@ -58,7 +61,18 @@ describe("dock", () => {
     document.body.innerHTML = "";
     setRuntime(undefined);
     Object.defineProperty(window, "parent", {
-      value: { postMessage: (msg: ActionMsg) => posted.push(msg) },
+      value: {
+        postMessage: (msg: ActionMsg) => {
+          posted.push(msg);
+          if (msg.requestId) {
+            window.dispatchEvent(
+              new MessageEvent("message", {
+                data: { type: "spherse:response", requestId: msg.requestId, ok: true },
+              }),
+            );
+          }
+        },
+      },
       configurable: true,
     });
   });

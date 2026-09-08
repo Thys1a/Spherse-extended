@@ -30,9 +30,11 @@ export const useDockedChatStore = create<DockedChatStore>((set) => ({
     set((s) => {
       const next = new Map(s.entries);
       const existing = next.get(source);
-      const dockId =
-        existing && existing.sessionId === sessionId ? existing.dockId : nextDockId++;
-      next.set(source, { dockId, sessionId, slotRect: null, iframe });
+      if (existing && existing.sessionId === sessionId) {
+        next.set(source, { ...existing, iframe });
+        return { entries: next };
+      }
+      next.set(source, { dockId: nextDockId++, sessionId, slotRect: null, iframe });
       return { entries: next };
     });
   },
@@ -41,6 +43,16 @@ export const useDockedChatStore = create<DockedChatStore>((set) => ({
     set((s) => {
       const current = s.entries.get(source);
       if (!current) return s;
+      const prev = current.slotRect;
+      if (
+        prev
+        && prev.x === slotRect.x
+        && prev.y === slotRect.y
+        && prev.width === slotRect.width
+        && prev.height === slotRect.height
+      ) {
+        return s;
+      }
       const next = new Map(s.entries);
       next.set(source, { ...current, slotRect });
       return { entries: next };
