@@ -29,6 +29,7 @@ describe("ProjectRuntimeBridges structure", () => {
 
     for (const mount of [
       "FloatingChatManager",
+      "DockedChatManager",
       "FloatingContentBrowserManager",
       "BrowserManager",
       "UiSdkBridge",

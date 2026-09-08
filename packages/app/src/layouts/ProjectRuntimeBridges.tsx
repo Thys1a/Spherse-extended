@@ -1,5 +1,6 @@
 import { FloatingChatManager } from "../features/floating-chat";
 import { FloatingContentBrowserManager } from "../features/floating-content-browser";
+import { DockedChatManager } from "../features/docked-chat/DockedChatManager";
 import { BrowserManager } from "../features/browser";
 import { TriggerEventBridge } from "../features/agent-trigger";
 import { FeatureGate } from "../components/FeatureGate";
@@ -13,6 +14,9 @@ export function ProjectRuntimeBridges() {
     <>
       <FeatureGate feature="floating-chat">
         <FloatingChatManager />
+      </FeatureGate>
+      <FeatureGate feature="embedded-chat">
+        <DockedChatManager />
       </FeatureGate>
       <FeatureGate feature="floating-content-browser">
         <FloatingContentBrowserManager />

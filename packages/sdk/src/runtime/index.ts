@@ -10,6 +10,7 @@ import { actions } from "./actions.js";
 import { data } from "./data.js";
 import { api } from "./api.js";
 import { events, installEventListener } from "./events.js";
+import { dockChat, installAutoDock, undock } from "./dock.js";
 
 declare global {
   interface Window {
@@ -34,6 +35,7 @@ if (!window.__SPHERSE_SDK__) {
   installRuntimeListener();
   installEventListener();
   seedFromInjectedGlobal();
+  installAutoDock();
 
   const spherse = {
     version: SDK_VERSION,
@@ -47,6 +49,8 @@ if (!window.__SPHERSE_SDK__) {
     data,
     api,
     events,
+    dockChat,
+    undockChat: undock,
   };
 
   window.spherse = spherse;

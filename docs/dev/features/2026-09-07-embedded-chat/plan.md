@@ -17,8 +17,8 @@
 
 ### Task 0: 定位坐标系定稿（伪代码/时序，阻塞 Task 2/3）
 
-- [ ] **Step 1**: 写定位合成 + 滚动重算伪代码/时序图（viewport = iframeElement.getBoundingClientRect() + slotRect；外层滚动/ResizeObserver 触发重算；节流策略）。
-- [ ] **Step 2**: 与用户确认 dock 容器挂载位置（`document.body` 绝对定位 + 双向同步 vs 跟随 iframe 元素的稳定容器）后再进入 Task 2/3。
+- [x] **Step 1**: 写定位合成 + 滚动重算伪代码/时序图（viewport = iframeElement.getBoundingClientRect() + slotRect；外层滚动/ResizeObserver 触发重算；节流策略）。
+- [x] **Step 2**: 与用户确认 dock 容器挂载位置（`document.body` 绝对定位 + 双向同步 vs 跟随 iframe 元素的稳定容器）后再进入 Task 2/3。
 
 ### Task 1: SDK 侧（`packages/sdk`）
 
@@ -28,11 +28,11 @@
 - Modify: 订阅生命周期（pagehide/元素移除 → `chat.undock`）
 - Add: SDK 单测
 
-- [ ] **Step 1: `dockChat({ sessionId? })`**：fire `chat.dock`；扫描 `<spherse-chat>` / `[data-spherse-chat]`，默认绑 `runtime.sessionId`；sessionId 缺省时支持 `createSession({agentSlug, open:false})` 后 dock。
-- [ ] **Step 2: rect 上报**：ResizeObserver + iframe scroll 监听（rAF 节流 ~150ms）fire `chat.rect { x,y,w,h }`（iframe 文档坐标）；自限 ~10/s。
-- [ ] **Step 3: undock**：pagehide / 占位元素移除 fire `chat.undock`。
-- [ ] **Step 4: 单测**：占位扫描、rect 计算、dock/undock 生命周期 postMessage 序列。
-- [ ] **Step 5: 验证**：`npm run build --workspace=packages/sdk`；`npm test --workspace=packages/sdk`（若 sdk 无测试则 `npm run build`）。
+- [x] **Step 1: `dockChat({ sessionId? })`**：fire `chat.dock`；扫描 `<spherse-chat>` / `[data-spherse-chat]`，默认绑 `runtime.sessionId`；sessionId 缺省时支持 `createSession({agentSlug, open:false})` 后 dock。
+- [x] **Step 2: rect 上报**：ResizeObserver + iframe scroll 监听（rAF 节流 ~150ms）fire `chat.rect { x,y,w,h }`（iframe 文档坐标）；自限 ~10/s。
+- [x] **Step 3: undock**：pagehide / 占位元素移除 fire `chat.undock`。
+- [x] **Step 4: 单测**：占位扫描、rect 计算、dock/undock 生命周期 postMessage 序列。
+- [x] **Step 5: 验证**：`npm run build --workspace=packages/sdk`；`npm test --workspace=packages/sdk`（若 sdk 无测试则 `npm run build`）。
 
 ### Task 2: host handler + rate limit（`packages/app/src/ui-sdk/`）
 
@@ -42,11 +42,11 @@
 - Modify: `packages/app/src/ui-sdk/index.ts`（barrel import）
 - Add: handler 单测
 
-- [ ] **Step 1: `chat.dock` handler**：校验 sessionId 属当前 project；rect 数值化 clamp 到 iframe 可视区；`event.source` → iframe 元素映射。
-- [ ] **Step 2: `chat.rect` / `chat.undock`**：更新/清除 dock 状态（source→dock map）。
-- [ ] **Step 3: rate-limit**：`RATE_LIMIT_WHITELIST` 加 `chat.rect`。
-- [ ] **Step 4: 单测**：registry、非法 rect clamp、非本 project sessionId 拒绝、白名单行为。
-- [ ] **Step 5: 验证**：`npm run build --workspace=packages/app`；`npm test --workspace=packages/app`。
+- [x] **Step 1: `chat.dock` handler**：校验 sessionId 属当前 project；rect 数值化 clamp 到 iframe 可视区；`event.source` → iframe 元素映射。
+- [x] **Step 2: `chat.rect` / `chat.undock`**：更新/清除 dock 状态（source→dock map）。
+- [x] **Step 3: rate-limit**：`RATE_LIMIT_WHITELIST` 加 `chat.rect`。
+- [x] **Step 4: 单测**：registry、非法 rect clamp、非本 project sessionId 拒绝、白名单行为。
+- [x] **Step 5: 验证**：`npm run build --workspace=packages/app`；`npm test --workspace=packages/app`。
 
 ### Task 3: DockedChatManager（渲染 + 生命周期）
 
@@ -55,11 +55,11 @@
 - Modify: `packages/app/src/lib/feature-registry.ts`（`embedded-chat` ALL_HOSTS）
 - Add: 组件测试
 
-- [ ] **Step 1: DockedChatManager**：复用 FloatingChatManager 的 `session→agent` 解析（useProjectCatalog/useProjectSession）；createPortal 渲染 `<Chat hideHeader>`；按 Task 0 坐标定位。
-- [ ] **Step 2: 生命周期清理**：session 消失 / project close → undock；iframe 卸载（HtmlCard 折叠/去重折叠）→ 清理。
-- [ ] **Step 3: feature gate**：`embedded-chat`（ALL_HOSTS）；入口按 host 条件渲染。
-- [ ] **Step 4: 组件测试**：渲染 `<Chat>` 且 streaming store attach 计数 +1；session 消失触发清理。
-- [ ] **Step 5: 验证**：`npm run build --workspace=packages/app`；`npm test --workspace=packages/app`。
+- [x] **Step 1: DockedChatManager**：复用 FloatingChatManager 的 `session→agent` 解析（useProjectCatalog/useProjectSession）；createPortal 渲染 `<Chat hideHeader>`；按 Task 0 坐标定位。
+- [x] **Step 2: 生命周期清理**：session 消失 / project close → undock；iframe 卸载（HtmlCard 折叠/去重折叠）→ 清理。
+- [x] **Step 3: feature gate**：`embedded-chat`（ALL_HOSTS）；入口按 host 条件渲染。
+- [x] **Step 4: 组件测试**：渲染 `<Chat>` 且 streaming store attach 计数 +1；session 消失触发清理。
+- [x] **Step 5: 验证**：`npm run build --workspace=packages/app`；`npm test --workspace=packages/app`。
 
 ### Task 4: 文档 + E2E
 
@@ -68,10 +68,10 @@
 - Modify: `docs/official/architecture/ui-sdk.md`（机制节）
 - Add: E2E spec（`packages/app/e2e/`）
 
-- [ ] **Step 1: SDK 文档**：SKILL.md 加 `dockChat`/占位元素/rect 说明（面向 LLM 权威手册）；ui-sdk.md 补 `chat.dock/rect/undock` 与 DockedChatManager 机制。
-- [ ] **Step 2: E2E**：agent 产出带 `<spherse-chat>` 的 HTML 卡片 → 面板出现 → 发消息 → 流式回包全链路。
-- [ ] **Step 3: presets 同步构建**（改 SKILL.md 后）：`npm run build --workspace=packages/presets`。
-- [ ] **Step 4: 验证**：`npm run build --workspace=packages/presets`；`npm run verify`；`npm run verify:e2e`（按影响面选 e2e spec）。
+- [x] **Step 1: SDK 文档**：SKILL.md 加 `dockChat`/占位元素/rect 说明（面向 LLM 权威手册）；ui-sdk.md 补 `chat.dock/rect/undock` 与 DockedChatManager 机制。
+- [x] **Step 2: E2E**：agent 产出带 `<spherse-chat>` 的 HTML 卡片 → 面板出现 → 发消息 → 流式回包全链路。
+- [x] **Step 3: presets 同步构建**（改 SKILL.md 后）：`npm run build --workspace=packages/presets`。
+- [x] **Step 4: 验证**：`npm run build --workspace=packages/presets`；`npm run verify`；`npm run verify:e2e`（按影响面选 e2e spec）。
 
 ---
 

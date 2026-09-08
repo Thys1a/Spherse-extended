@@ -18,8 +18,8 @@ SDK 由两半组成，仅以 postMessage 协议耦合：
 - 常量：文件名 `__spherse-sdk.js`、幂等标记 `data-spherse-sdk`；双载守卫 + 别名 `window.Spherse`
 - 两种调用模式：`call(action, params)` 携 requestId 走请求-响应（默认 10s 超时）；`fire(action, params)` 单向触发
 - `window.spherse` API 面：
-  - 触发型：openFile / openExternalLink / openSession / floatSession / unfloatSession / floatContent / unfloatContent / emitAgentTriggerEvent / toast
-  - 请求型：createSession（resolve `{sessionId}`）/ sendMessage
+  - 触发型：openFile / openExternalLink / openSession / floatSession / unfloatSession / floatContent / unfloatContent / emitAgentTriggerEvent / undockChat / toast
+  - 请求型：createSession（resolve `{sessionId}`）/ sendMessage / dockChat（占位元素位置叠加聊天面板）
   - 数据：`data.get / set / delete / keys / entries / mutate`
   - 只读 HTTP bridge：`api.call(op, args)` 及 agents / sessions / content / fileTree 快捷方法
   - 订阅：`events.on("file:update", { path }, handler)` 返回取消函数
@@ -36,7 +36,7 @@ SDK 由两半组成，仅以 postMessage 协议耦合：
 ## host 侧 action 桥
 
 - 入站校验：`type === "spherse:action"` 且 origin 在白名单——renderer origin、server origin，以及 `"null"`（防御性放行，当前无实际产生场景）
-- **rate limit**：外部调用 30 次 / 60s，超限静默丢弃；白名单 `{ data.get, data.keys, data.entries, data.mutate }` 不计数（`data.set` / `data.delete` / `api.call` 不在白名单）
+- **rate limit**：外部调用 30 次 / 60s，超限静默丢弃；白名单 `{ data.get, data.keys, data.entries, data.mutate, chat.rect }` 不计数（`data.set` / `data.delete` / `api.call` 不在白名单）
   - 配额为模块级单数组，跨全部 iframe 共享——高频写页面会耗尽配额
   - 对 call 型 action，静默丢弃在 SDK 侧表现为 10s 超时而非错误返回；参数校验失败的早退路径同样不 respond
 - `registry` 是 `Map<action, handler>`，handlers 文件以 import 副作用注册；新增 action = `handlers/` 新文件 + `registerAction` + 在 `ui-sdk/index.ts` barrel 补 import（无自动发现）
@@ -46,6 +46,7 @@ SDK 由两半组成，仅以 postMessage 协议耦合：
 |---|---|
 | 导航 | openFile（可 float 浮窗）、openExternalLink（loopback 且 browser feature 开启时走内置浏览器，否则 openExternal）、floatContent / unfloatContent |
 | 会话 | createSession、sendMessage、openSession（仅打开不发消息）、floatSession / unfloatSession |
+| 聊天嵌入 | chat.dock（校验会话 + source→iframe 映射后登记 dock）、chat.rect（占位 rect 上报，白名单豁免）、chat.undock |
 | 数据 | data.get / set / delete / keys / entries / mutate（见下节） |
 | 其它 | showToast（sonner variant 分派）、api.call（只读白名单）、emitAgentTriggerEvent（经 bus WS） |
 
@@ -86,6 +87,17 @@ SDK 由两半组成，仅以 postMessage 协议耦合：
   - 同源 srcDoc 时双通道注入都可用；fetch 失败降级为跨源 `src` iframe 时丢同步直写通道，postMessage 异步通道仍可送达（前提是页面与 server 注入的 SDK 正常加载）
 - `file_path` 指向图片文件时不经 iframe，直接 `<img src={previewUrl}>`
 - 去重折叠：`computeSupersededToolCallIds` 对同 `file_path` 的卡片仅保留消息流最后一张展开，其余折叠为占位条（不挂载 iframe，点击懒加载）；用户手动展开过的卡片标记 `userTouched`，不再被自动收回
+
+## 嵌入聊天面板（chat.dock / chat.rect / chat.undock）
+
+HtmlCard 页面声明 `<spherse-chat>` / `[data-spherse-chat]` 占位元素，App 在其位置叠加真实聊天面板（复用 `<Chat hideHeader>`，portal 到 document.body）：
+
+- **SDK 侧**（`packages/sdk/src/runtime/dock.ts`）：加载即扫描占位元素，runtime 存在时自动 dock；ResizeObserver + capture 阶段 scroll 监听，leading-edge 节流（~100ms）fire `chat.rect`（**iframe 文档坐标**，自限 ~10/s）；MutationObserver 检测占位元素移出文档、`pagehide` 时 fire `chat.undock`
+- **host 侧 handler**（`handlers/chat-dock.ts`）：`chat.dock` 为 call 型——`ActionContext.source` 遍历 `document` iframe 匹配 `contentWindow`（找不到 → `iframe_not_found`），sessionId 经 `ensureProjectSession` 校验（跨项目会话 → `session_not_found`），通过后登记 dock 并 respond；**位于既有面板内的 iframe 直接拒绝（`dock_not_allowed`）**——面板镜像同一会话的消息流、含同一张卡片，放行会无限递归；`chat.rect` 校验有限数字后更新 slotRect；`chat.undock` 删除条目
+- **状态**（`features/docked-chat/store.ts`）：zustand `Map<source, { dockId, sessionId, slotRect, iframe }>`；同 source 同 sessionId 重复 dock 复用 dockId（不重挂 Chat），换 sessionId 才换 dockId
+- **渲染**（`features/docked-chat/DockedChatManager.tsx`，挂 ProjectRuntimeBridges，feature `embedded-chat` ALL_HOSTS）：viewport rect = `iframe.getBoundingClientRect()` + slotRect 合成，**clamp 到 iframe 元素可视区**（伪造 rect 不能溢出卡片区域）；SDK 只能感知 iframe 内部滚动，外层文档滚动/iframe 尺寸变化由 host 侧 iframe 元素 ResizeObserver + capture scroll 监听触发重算
+- **清理**：session 消失（useProjectSession 确认）、iframe 脱离文档或 contentWindow 被替换（流式重渲染会重载卡片 iframe，旧文档 pagehide 不可靠）→ host 侧 undock；SDK pagehide / 占位元素移除 → `chat.undock`
+- rect 到达前不渲染面板（避免以错误几何挂 Chat）；`chat.rect` 在 rate-limit 白名单（面板拖动滚动期间高频上报）
 
 ## 会话 action 语义
 

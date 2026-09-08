@@ -19,6 +19,7 @@ export type SendMessageParams = Params & {
 export interface CreateSessionResult {
   sessionId: string;
 }
+export type DockChatParams = Params & { sessionId?: string };
 
 const asPath = (value: PathLike): Params => (typeof value === "string" ? { path: value } : value);
 const asUrl = (value: PathLike): Params => (typeof value === "string" ? { url: value } : value);
@@ -43,4 +44,6 @@ export const actions = {
   unfloatContent: (value: PathLike): void => fire("unfloatContent", asPath(value)),
   emitAgentTriggerEvent: (params: Params): void => fire("emitAgentTriggerEvent", params),
   toast: (params: Params): void => fire("showToast", params),
+  dockChat: (params: DockChatParams = {}): Promise<void> => call<void>("chat.dock", params),
+  undockChat: (): void => fire("chat.undock", {}),
 };
