@@ -46,6 +46,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
       debugToolsEnabled: get().debugToolsEnabled,
       theme: get().theme,
       tts: get().tts,
+      proxy: get().proxy,
     });
     return true;
   },
@@ -59,6 +60,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
       debugToolsEnabled: enabled,
       theme: get().theme,
       tts: get().tts,
+      proxy: get().proxy,
     });
     return true;
   },
@@ -72,6 +74,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
       debugToolsEnabled: get().debugToolsEnabled,
       theme,
       tts: get().tts,
+      proxy: get().proxy,
     });
     return true;
   },
@@ -86,12 +89,16 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
       debugToolsEnabled: get().debugToolsEnabled,
       theme: get().theme,
       tts: next,
+      proxy: get().proxy,
     });
     return true;
   },
 
   async setProxy(api, patch) {
     const next = { ...get().proxy, ...patch };
+    for (const key of Object.keys(next) as (keyof typeof next)[]) {
+      if (next[key] === undefined) delete next[key];
+    }
     set({ proxy: next });
     const settings = await api.getSettings();
     await api.saveSettings({

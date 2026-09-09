@@ -54,6 +54,7 @@ describe("useSettingsStore", () => {
       debugToolsEnabled: false,
       theme: "system",
       tts: {},
+      proxy: {},
     });
   });
 
@@ -90,6 +91,7 @@ describe("useSettingsStore", () => {
       debugToolsEnabled: true,
       theme: "system",
       tts: {},
+      proxy: {},
     });
   });
 
@@ -126,6 +128,7 @@ describe("useSettingsStore", () => {
       debugToolsEnabled: false,
       theme: "dark",
       tts: {},
+      proxy: {},
     });
   });
 
@@ -143,6 +146,7 @@ describe("useSettingsStore", () => {
       debugToolsEnabled: true,
       theme: "light",
       tts: {},
+      proxy: {},
     });
   });
 
@@ -171,6 +175,7 @@ describe("useSettingsStore", () => {
       debugToolsEnabled: false,
       theme: "system",
       tts: { autoRead: true },
+      proxy: {},
     });
   });
 
@@ -201,5 +206,35 @@ describe("useSettingsStore", () => {
       tts: {},
       proxy: { url: "http://127.0.0.1:7890" },
     });
+  });
+
+  it("old setters preserve pre-existing proxy", async () => {
+    useSettingsStore.setState({ proxy: { url: "http://127.0.0.1:7890" } });
+    const api = createApi({
+      getSettings: vi.fn().mockResolvedValue({ locale: "zh-CN", models: undefined }),
+    });
+
+    await useSettingsStore.getState().setTheme(api, "dark");
+
+    expect(api.saveSettings).toHaveBeenCalledWith({
+      locale: "zh-CN",
+      models: undefined,
+      debugToolsEnabled: false,
+      theme: "dark",
+      tts: {},
+      proxy: { url: "http://127.0.0.1:7890" },
+    });
+  });
+
+  it("setProxy drops undefined keys", async () => {
+    useSettingsStore.setState({ proxy: { url: "http://127.0.0.1:7890", noProxy: "localhost" } });
+    const api = createApi({
+      getSettings: vi.fn().mockResolvedValue({ models: undefined }),
+    });
+
+    await useSettingsStore.getState().setProxy(api, { url: undefined });
+
+    expect(useSettingsStore.getState().proxy).toEqual({ noProxy: "localhost" });
+    expect("url" in useSettingsStore.getState().proxy).toBe(false);
   });
 });

@@ -23,7 +23,7 @@ export function ProxyPanel({
           className="w-full"
           placeholder={t("settings.proxy.urlPlaceholder")}
           value={proxy.url ?? ""}
-          onChange={(e) => onChange({ url: e.target.value || undefined })}
+          onChange={(e) => onChange({ url: e.target.value.trim() || undefined })}
         />
       </Field>
       <Field>
@@ -33,7 +33,7 @@ export function ProxyPanel({
           className="w-full"
           placeholder={t("settings.proxy.noProxyPlaceholder")}
           value={proxy.noProxy ?? ""}
-          onChange={(e) => onChange({ noProxy: e.target.value || undefined })}
+          onChange={(e) => onChange({ noProxy: e.target.value.trim() || undefined })}
         />
       </Field>
     </FieldGroup>
