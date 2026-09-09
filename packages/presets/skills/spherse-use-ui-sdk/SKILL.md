@@ -107,6 +107,8 @@ await spherse.sendMessage({ sessionId: rt.sessionId, message: "继续分析" });
 spherse.undockChat();
 ```
 
+用法模式、布局建议与排错见 `spherse-embed-chat` skill。
+
 ## 触发型 Action
 
 ### `spherse.openFile(path)` / `spherse.openFile(params)`

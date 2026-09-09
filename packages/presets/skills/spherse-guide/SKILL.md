@@ -121,6 +121,7 @@ agent-level > .spherse/skills > .agents/skills > builtin
 - `spherse-create-ui-theme`：项目 UI 主题
 - `spherse-create-agent-chat-theme`：Agent 聊天主题
 - `spherse-use-ui-sdk`：HTML 中使用 `window.spherse`
+- `spherse-embed-chat`：聊天卡片内嵌实时聊天面板
 - `spherse-build-data-app`：页面与 Agent 共同参与的数据应用
 - `spherse-write-html`：生成 Spherse HTML 页面
 - `spherse-create-skill`：创建自定义 Skill
@@ -169,10 +170,11 @@ HTML 可以：
 - 读取只读的项目、Agent、会话和文件信息
 - 读写 `*.data.json`
 - 订阅文件变化
+- 在聊天卡片的位置嵌入实时聊天面板（`<spherse-chat>` 占位，详见 `spherse-embed-chat` skill）
 
 只有聊天 HtmlCard 能通过 `spherse.runtime` / `getRuntime()` 获得当前 `projectId`、`agentId` 和 `sessionId`；欢迎页和普通文件预览没有会话上下文。
 
-生成或修改 HTML 前加载 `spherse-write-html`，查询 SDK 细节时加载 `spherse-use-ui-sdk`。
+生成或修改 HTML 前加载 `spherse-write-html`，查询 SDK 细节时加载 `spherse-use-ui-sdk`，要在卡片里嵌聊天面板时加载 `spherse-embed-chat`。
 
 ### 数据应用
 

@@ -233,6 +233,7 @@ spherse.openExternalLink("https://example.com");
 - `spherse.toast(params)` — 弹一条 toast 提示（`{ variant, message, description? }`）
 - `spherse.emitAgentTriggerEvent(params)` — 触发自定义事件，激活匹配的事件触发器
 - `spherse.floatSession(id)` / `spherse.unfloatSession()` — 浮窗显示/关闭会话
+- `spherse.dockChat(params?)` / `spherse.undockChat()` — 在占位元素位置叠加真实聊天面板（仅聊天 HtmlCard，用法见 `spherse-embed-chat` skill）
 - `spherse.openFile(path | { path, float })` — 在 Content Browser 打开项目文件；`float:true` 以浮窗打开（desktop）
 - `spherse.openExternalLink(url)` — 在系统默认浏览器打开外部链接（http/https/mailto/tel）
 - `spherse.data.get/set/delete(params)` → `Promise` — key-value 数据读写
@@ -257,6 +258,7 @@ spherse.openExternalLink("https://example.com");
 | 列出目录内容 | ui-sdk `api.content.listDir` |
 | 获取文件大小/类型/修改时间 | ui-sdk `api.content.stat` |
 | 播放音视频 | HTML `<audio src="music.mp3">` / `<video src="clip.mp4">`（相对路径，支持拖动进度条） |
+| 在卡片内嵌入实时聊天面板 | `<spherse-chat>` 占位元素，详见 `spherse-embed-chat` skill |
 | 点击打开项目内文件 | ui-sdk `openFile` |
 | 点击打开外部链接（网页/邮箱） | ui-sdk `openExternalLink`（http/https/mailto/tel），勿用 `<a href>` |
 | 打开/发送 chat 会话 | ui-sdk `createSession`（新建，返回 sessionId）/ `openSession`（只打开已有会话，不发消息）/ `sendMessage`（发消息）/ `floatSession` |
