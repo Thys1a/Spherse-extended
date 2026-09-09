@@ -29,6 +29,7 @@ function createMockHostBridge(): HostBridge {
       filePicker: true,
       mobileAccess: false,
       openFileExternal: false,
+      proxy: false,
       content: { editable: true },
     },
     getServerBaseUrl: vi.fn().mockResolvedValue("http://localhost:5173"),

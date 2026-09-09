@@ -27,7 +27,8 @@
     "@spherse/i18n": "*",
     "@spherse/server": "*",
     "electron-store": "^11.0.2",
-    "electron-updater": "^6.3.9"
+    "electron-updater": "^6.3.9",
+    "undici": "^7.29.0"
   },
   "devDependencies": {
     "@base-ui/react": "^1.5.0",

@@ -2,6 +2,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { nativeTheme } from "electron";
 import Store from "electron-store";
+import { setGlobalDispatcher, EnvHttpProxyAgent } from "undici";
 import type { AppSettings, ModelGroupSettings, ProviderCredentials, MobileAccessSettings } from "@spherse/core";
 import { getAppModelCatalog } from "./model-catalog.js";
 
@@ -63,6 +64,7 @@ export function getMaskedSettings(): AppSettings | null {
     debugToolsEnabled: settings.debugToolsEnabled ?? false,
     theme: settings.theme ?? "system",
     tts: settings.tts,
+    proxy: settings.proxy,
   };
 }
 
@@ -102,6 +104,7 @@ export function saveSettings(incoming: AppSettings): void {
     theme: incoming.theme ?? prev?.theme ?? "system",
     mobileAccess: prev?.mobileAccess,
     tts: incoming.tts ?? prev?.tts,
+    proxy: incoming.proxy ?? prev?.proxy,
   };
   settingsStore.set("settings", merged);
   applySettingsToEnv(merged);
@@ -144,6 +147,22 @@ function applySettingsToEnv(settings: AppSettings): void {
     settings.customProviders ?? [],
     extractProviderKeys(settings.models?.text?.providers),
   );
+
+  const proxyUrl = settings.proxy?.url?.trim();
+  if (proxyUrl) {
+    process.env.HTTPS_PROXY = proxyUrl;
+    process.env.HTTP_PROXY = proxyUrl;
+  } else {
+    delete process.env.HTTPS_PROXY;
+    delete process.env.HTTP_PROXY;
+  }
+  const noProxy = settings.proxy?.noProxy?.trim();
+  if (noProxy) {
+    process.env.NO_PROXY = noProxy;
+  } else {
+    delete process.env.NO_PROXY;
+  }
+  setGlobalDispatcher(new EnvHttpProxyAgent());
 }
 
 export function getOpenProjects(): OpenProjectEntry[] {

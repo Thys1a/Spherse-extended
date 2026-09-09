@@ -12,6 +12,7 @@ const WEB_CAPABILITIES: HostCapabilities = {
   filePicker: false,
   mobileAccess: false,
   openFileExternal: false,
+  proxy: false,
   content: { editable: false },
 };
 

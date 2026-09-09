@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { normalizeLocale, type Locale } from "@spherse/i18n";
-import type { TtsSettings } from "@spherse/core";
+import type { TtsSettings, ProxySettings } from "@spherse/core";
 import type { HostBridge, ThemeMode } from "../lib/host-bridge";
 
 export type SettingsStoreApi = Pick<HostBridge, "getSettings" | "saveSettings">;
@@ -10,11 +10,13 @@ interface SettingsStore {
   debugToolsEnabled: boolean;
   theme: ThemeMode;
   tts: TtsSettings;
+  proxy: ProxySettings;
   loadLocale: (api: SettingsStoreApi) => Promise<void>;
   changeLocale: (api: SettingsStoreApi, locale: Locale) => Promise<boolean>;
   setDebugToolsEnabled: (api: SettingsStoreApi, enabled: boolean) => Promise<boolean>;
   setTheme: (api: SettingsStoreApi, theme: ThemeMode) => Promise<boolean>;
   setTts: (api: SettingsStoreApi, patch: Partial<TtsSettings>) => Promise<boolean>;
+  setProxy: (api: SettingsStoreApi, patch: Partial<ProxySettings>) => Promise<boolean>;
 }
 
 export const useSettingsStore = create<SettingsStore>((set, get) => ({
@@ -22,6 +24,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   debugToolsEnabled: false,
   theme: "system",
   tts: {},
+  proxy: {},
 
   async loadLocale(api) {
     const settings = await api.getSettings();
@@ -30,6 +33,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
       debugToolsEnabled: settings?.debugToolsEnabled ?? false,
       theme: settings?.theme ?? "system",
       tts: settings?.tts ?? {},
+      proxy: settings?.proxy ?? {},
     });
   },
 
@@ -82,6 +86,21 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
       debugToolsEnabled: get().debugToolsEnabled,
       theme: get().theme,
       tts: next,
+    });
+    return true;
+  },
+
+  async setProxy(api, patch) {
+    const next = { ...get().proxy, ...patch };
+    set({ proxy: next });
+    const settings = await api.getSettings();
+    await api.saveSettings({
+      locale: settings?.locale ?? get().locale,
+      models: settings?.models,
+      debugToolsEnabled: get().debugToolsEnabled,
+      theme: get().theme,
+      tts: get().tts,
+      proxy: next,
     });
     return true;
   },

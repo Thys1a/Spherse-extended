@@ -1,4 +1,5 @@
 import { app } from "electron";
+import { setGlobalDispatcher, EnvHttpProxyAgent } from "undici";
 import { createWindow, getMainWindow } from "./window.js";
 import { restoreEnvFromSettings, getMobileAccess } from "./settings.js";
 import { fixPath } from "./fix-path.js";
@@ -12,6 +13,7 @@ import { settleWithin } from "@spherse/core";
 app.whenReady().then(async () => {
   await fixPath();
   restoreEnvFromSettings();
+  setGlobalDispatcher(new EnvHttpProxyAgent());
   await ensureServer();
   createWindow();
   setupContextMenu(getMainWindow()!);

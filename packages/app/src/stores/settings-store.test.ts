@@ -14,7 +14,7 @@ function createApi(overrides: Partial<SettingsApi> = {}): SettingsApi {
 
 describe("useSettingsStore", () => {
   beforeEach(() => {
-    useSettingsStore.setState({ locale: "zh-CN", debugToolsEnabled: false, theme: "system", tts: {} });
+    useSettingsStore.setState({ locale: "zh-CN", debugToolsEnabled: false, theme: "system", tts: {}, proxy: {} });
   });
 
   it("loads locale from settings", async () => {
@@ -171,6 +171,35 @@ describe("useSettingsStore", () => {
       debugToolsEnabled: false,
       theme: "system",
       tts: { autoRead: true },
+    });
+  });
+
+  it("loads proxy settings from settings", async () => {
+    const api = createApi({
+      getSettings: vi.fn().mockResolvedValue({ proxy: { url: "http://127.0.0.1:7890", noProxy: "localhost" } }),
+    });
+
+    await useSettingsStore.getState().loadLocale(api);
+
+    expect(useSettingsStore.getState().proxy).toEqual({ url: "http://127.0.0.1:7890", noProxy: "localhost" });
+  });
+
+  it("setProxy merges patch and persists", async () => {
+    const api = createApi({
+      getSettings: vi.fn().mockResolvedValue({ models: undefined }),
+    });
+
+    const ok = await useSettingsStore.getState().setProxy(api, { url: "http://127.0.0.1:7890" });
+
+    expect(ok).toBe(true);
+    expect(useSettingsStore.getState().proxy).toEqual({ url: "http://127.0.0.1:7890" });
+    expect(api.saveSettings).toHaveBeenCalledWith({
+      locale: "zh-CN",
+      models: undefined,
+      debugToolsEnabled: false,
+      theme: "system",
+      tts: {},
+      proxy: { url: "http://127.0.0.1:7890" },
     });
   });
 });

@@ -11,6 +11,7 @@ const ELECTRON_CAPABILITIES: HostCapabilities = {
   filePicker: true,
   mobileAccess: true,
   openFileExternal: true,
+  proxy: true,
   content: { editable: true },
 };
 

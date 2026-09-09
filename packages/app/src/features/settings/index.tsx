@@ -26,6 +26,7 @@ import { UpdateChecker } from "./UpdateChecker";
 import { MobileAccessPanel } from "./MobileAccessPanel";
 import { HelpPanel } from "./HelpPanel";
 import { TtsSettingsPanel } from "./TtsSettingsPanel";
+import { ProxyPanel } from "./ProxyPanel";
 import { SUPPORTED_LOCALES, normalizeLocale } from "@spherse/i18n";
 import { useI18n } from "@spherse/i18n/react";
 import type { CustomProviderDef } from "@spherse/core";
@@ -212,6 +213,9 @@ function SettingsTabs() {
   const setDebugToolsEnabled = useSettingsStore((s) => s.setDebugToolsEnabled);
   const tts = useSettingsStore((s) => s.tts);
   const setTts = useSettingsStore((s) => s.setTts);
+  const proxy = useSettingsStore((s) => s.proxy);
+  const setProxy = useSettingsStore((s) => s.setProxy);
+  const proxyEnabled = bridge.capabilities.proxy;
   const mobileAccessEnabled = bridge.capabilities.mobileAccess;
   const settingsApi = useMemo<SettingsApi>(() => ({
     getSettings: bridge.getSettings,
@@ -273,6 +277,9 @@ function SettingsTabs() {
             </div>
           </FieldGroup>
           <TtsSettingsPanel tts={tts} onChange={(patch) => { void setTts(settingsApi, patch); }} />
+          {proxyEnabled && (
+            <ProxyPanel proxy={proxy} onChange={(patch) => { void setProxy(settingsApi, patch); }} />
+          )}
         </TabsContent>
 
         {mobileAccessEnabled && (
