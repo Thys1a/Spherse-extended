@@ -21,7 +21,7 @@
 5. **i18n**（加载 i18n skill）→ verify: `npm run` i18n check
    - en / zh-CN / zh-TW 加 `settings.proxy.*`
 6. **冒烟 + 手动** → verify: 抓包确认
-   - undici symbol 兼容；失败则 fallback（undici `fetch` 覆盖 `globalThis.fetch`）
+   - Node 侧冒烟通过（setGlobalDispatcher 生效，本地 CONNECT 中继 200 OK）；Electron 实机待 Clash 抓包
    - Clash 7890 + OpenCode Go 请求经代理
 
 ## 范围外

@@ -92,4 +92,20 @@ describe("save-settings ipc propagation", () => {
     expect(updateSamplingMock).toHaveBeenCalledWith({ temperature: 0.5 });
     expect(updateThinkingLevelMock).toHaveBeenCalledWith("low");
   });
+
+  it("forwards proxy settings to saveSettings untouched", () => {
+    saveSettingsHandler()({
+      locale: "zh-CN",
+      models: {
+        text: { defaultModel: "", providers: {} },
+        image: { defaultModel: "", providers: {} },
+      },
+      proxy: { url: "http://127.0.0.1:7890", noProxy: "localhost" },
+    });
+
+    expect(saveSettingsMock).toHaveBeenCalledTimes(1);
+    expect(saveSettingsMock).toHaveBeenCalledWith(
+      expect.objectContaining({ proxy: { url: "http://127.0.0.1:7890", noProxy: "localhost" } }),
+    );
+  });
 });

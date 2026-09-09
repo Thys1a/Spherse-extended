@@ -122,6 +122,11 @@ export interface TtsSettings {
   autoRead?: boolean;
 }
 
+export interface ProxySettings {
+  url?: string;
+  noProxy?: string;
+}
+
 export interface AppSettings {
   locale: string;
   models: {
@@ -133,6 +138,7 @@ export interface AppSettings {
   theme?: ThemeMode;
   mobileAccess?: MobileAccessSettings;
   tts?: TtsSettings;
+  proxy?: ProxySettings;
 }
 
 export interface ProviderCatalogItem {

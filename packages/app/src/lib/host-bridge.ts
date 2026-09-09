@@ -1,4 +1,4 @@
-import type { ProviderCatalogItem, ModelGroupSettings, CustomProviderDef, TtsSettings } from "@spherse/core";
+import type { ProviderCatalogItem, ModelGroupSettings, CustomProviderDef, TtsSettings, ProxySettings } from "@spherse/core";
 import type { ReactNode } from "react";
 
 export interface RestoredProject {
@@ -65,6 +65,7 @@ export interface HostSettings {
   debugToolsEnabled?: boolean;
   theme?: ThemeMode;
   tts?: TtsSettings;
+  proxy?: ProxySettings;
 }
 
 export type TunnelStatus = "stopped" | "starting" | "running" | "error";
@@ -107,6 +108,7 @@ export interface HostCapabilities {
   filePicker: boolean;
   mobileAccess: boolean;
   openFileExternal: boolean;
+  proxy: boolean;
   content: { editable: boolean };
 }
 

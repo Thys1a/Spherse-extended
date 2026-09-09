@@ -16,6 +16,14 @@ vi.mock("electron", () => ({
   nativeTheme: { themeSource: "system" },
 }));
 
+const { setGlobalDispatcherMock } = vi.hoisted(() => ({ setGlobalDispatcherMock: vi.fn() }));
+vi.mock("undici", () => ({
+  setGlobalDispatcher: setGlobalDispatcherMock,
+  EnvHttpProxyAgent: class {},
+}));
+
+import { setGlobalDispatcher } from "undici";
+
 import { maskModelGroup, mergeModelGroup, getMaskedSettings, saveSettings, settingsStore, getMobileAccess, setMobileAccess, getServerToken, setServerToken, generateAccessToken } from "./settings.js";
 import { getAppModelCatalog } from "./model-catalog.js";
 
@@ -323,6 +331,167 @@ describe("mobileAccess persistence", () => {
       mode: "manual",
       publicDomain: "https://x.com",
     });
+  });
+});
+
+describe("proxy persistence", () => {
+  const proxyEnvKeys = ["HTTPS_PROXY", "HTTP_PROXY", "NO_PROXY"] as const;
+  const savedEnv = { ...process.env };
+
+  function clearProxyEnv() {
+    for (const key of proxyEnvKeys) delete process.env[key];
+  }
+
+  function baseSettings() {
+    return {
+      locale: "zh-CN",
+      models: { text: { defaultModel: "", providers: {} }, image: { defaultModel: "", providers: {} } },
+    };
+  }
+
+  it("saveSettings persists incoming proxy", () => {
+    settingsStore.set("settings", undefined);
+    clearProxyEnv();
+    try {
+      saveSettings({ ...baseSettings(), proxy: { url: "http://127.0.0.1:7890", noProxy: "localhost" } });
+      expect(settingsStore.get("settings")?.proxy).toEqual({ url: "http://127.0.0.1:7890", noProxy: "localhost" });
+    } finally {
+      clearProxyEnv();
+    }
+  });
+
+  it("saveSettings falls back to prev proxy when incoming omits it", () => {
+    settingsStore.set("settings", { ...baseSettings(), proxy: { url: "http://127.0.0.1:7890" } });
+    clearProxyEnv();
+    try {
+      saveSettings({ ...baseSettings(), locale: "en" });
+      expect(settingsStore.get("settings")?.proxy).toEqual({ url: "http://127.0.0.1:7890" });
+    } finally {
+      clearProxyEnv();
+    }
+  });
+
+  it("saveSettings writes proxy env vars", () => {
+    settingsStore.set("settings", undefined);
+    clearProxyEnv();
+    try {
+      saveSettings({ ...baseSettings(), proxy: { url: "http://127.0.0.1:7890", noProxy: "localhost" } });
+      expect(process.env.HTTPS_PROXY).toBe("http://127.0.0.1:7890");
+      expect(process.env.HTTP_PROXY).toBe("http://127.0.0.1:7890");
+      expect(process.env.NO_PROXY).toBe("localhost");
+    } finally {
+      clearProxyEnv();
+    }
+  });
+
+  it("saveSettings clears proxy env vars when proxy is empty", () => {
+    settingsStore.set("settings", undefined);
+    process.env.HTTPS_PROXY = "http://127.0.0.1:7890";
+    process.env.HTTP_PROXY = "http://127.0.0.1:7890";
+    process.env.NO_PROXY = "localhost";
+    try {
+      saveSettings({ ...baseSettings(), proxy: {} });
+      expect(process.env.HTTPS_PROXY).toBeUndefined();
+      expect(process.env.HTTP_PROXY).toBeUndefined();
+      expect(process.env.NO_PROXY).toBeUndefined();
+    } finally {
+      for (const key of proxyEnvKeys) {
+        if (savedEnv[key] === undefined) delete process.env[key];
+        else process.env[key] = savedEnv[key] as string;
+      }
+    }
+  });
+
+  it("getMaskedSettings passes proxy through", () => {
+    settingsStore.set("settings", { ...baseSettings(), proxy: { url: "http://127.0.0.1:7890" } });
+    clearProxyEnv();
+    try {
+      expect(getMaskedSettings()?.proxy).toEqual({ url: "http://127.0.0.1:7890" });
+    } finally {
+      clearProxyEnv();
+    }
+  });
+
+  it("saveSettings writes lowercase proxy env vars too", () => {
+    settingsStore.set("settings", undefined);
+    clearProxyEnv();
+    try {
+      saveSettings({ ...baseSettings(), proxy: { url: "http://127.0.0.1:7890", noProxy: "localhost" } });
+      expect(process.env.https_proxy).toBe("http://127.0.0.1:7890");
+      expect(process.env.http_proxy).toBe("http://127.0.0.1:7890");
+      expect(process.env.no_proxy).toBe("localhost");
+    } finally {
+      clearProxyEnv();
+    }
+  });
+
+  it("saveSettings clears lowercase proxy env vars when proxy is empty", () => {
+    settingsStore.set("settings", undefined);
+    const savedLower = {
+      https_proxy: process.env.https_proxy,
+      http_proxy: process.env.http_proxy,
+      no_proxy: process.env.no_proxy,
+    };
+    process.env.https_proxy = "http://127.0.0.1:7890";
+    process.env.http_proxy = "http://127.0.0.1:7890";
+    process.env.no_proxy = "localhost";
+    try {
+      saveSettings({ ...baseSettings(), proxy: {} });
+      expect(process.env.https_proxy).toBeUndefined();
+      expect(process.env.http_proxy).toBeUndefined();
+      expect(process.env.no_proxy).toBeUndefined();
+    } finally {
+      for (const key of proxyEnvKeys) {
+        if (savedEnv[key] === undefined) delete process.env[key];
+        else process.env[key] = savedEnv[key] as string;
+      }
+      for (const key of Object.keys(savedLower) as (keyof typeof savedLower)[]) {
+        if (savedLower[key] === undefined) delete process.env[key];
+        else process.env[key] = savedLower[key] as string;
+      }
+    }
+  });
+
+  it.each(["abc", "socks5://127.0.0.1:1080", "://missing-scheme", "http://"])(
+    "saveSettings ignores invalid proxy URL %s without throwing",
+    (url) => {
+      settingsStore.set("settings", undefined);
+      clearProxyEnv();
+      try {
+        expect(() => saveSettings({ ...baseSettings(), proxy: { url } })).not.toThrow();
+        expect(process.env.HTTPS_PROXY).toBeUndefined();
+        expect(process.env.HTTP_PROXY).toBeUndefined();
+        expect(process.env.https_proxy).toBeUndefined();
+        expect(process.env.http_proxy).toBeUndefined();
+      } finally {
+        clearProxyEnv();
+      }
+    },
+  );
+
+  it("saveSettings leaves system proxy env untouched when proxy is unconfigured", () => {
+    settingsStore.set("settings", { ...baseSettings() });
+    process.env.HTTPS_PROXY = "http://system-proxy:8080";
+    process.env.http_proxy = "http://system-proxy:8080";
+    try {
+      saveSettings({ ...baseSettings(), locale: "en" });
+      expect(process.env.HTTPS_PROXY).toBe("http://system-proxy:8080");
+      expect(process.env.http_proxy).toBe("http://system-proxy:8080");
+    } finally {
+      clearProxyEnv();
+    }
+  });
+
+  it("saveSettings re-sets the global dispatcher for hot-switch", () => {
+    settingsStore.set("settings", undefined);
+    clearProxyEnv();
+    setGlobalDispatcherMock.mockClear();
+    try {
+      saveSettings({ ...baseSettings(), proxy: { url: "http://127.0.0.1:7890" } });
+      expect(setGlobalDispatcher).toHaveBeenCalledTimes(1);
+    } finally {
+      clearProxyEnv();
+    }
   });
 });
 

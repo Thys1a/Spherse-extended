@@ -7,6 +7,9 @@ import { useAgentBusRefresh } from "../hooks/useAgentBusRefresh";
 import { useSidePanel } from "../hooks/use-side-panel";
 import { useAppStore } from "../stores/app-store";
 import { useProjectNavHistory } from "../lib/use-project-navigation";
+import { useFeature } from "../lib/use-feature";
+import { TabStrip, TabContainer } from "../features/tabs";
+import { useTabRouteSync } from "../features/tabs/use-tab-route-sync";
 import { ProjectProvider } from "../context/project-context";
 import { useHostBridge } from "../context/host-bridge-context";
 import { useApiClient } from "../lib/use-connection";
@@ -18,6 +21,8 @@ export function ProjectScope() {
   const location = useLocation();
   const { t } = useI18n();
   const bridge = useHostBridge();
+  const tabsEnabled = useFeature("tabs");
+  useTabRouteSync(projectId, tabsEnabled);
   const project = useAppStore((s) => (projectId ? s.projects.get(projectId) : undefined));
   const client = useApiClient(projectId);
   const connection = useConnection();
@@ -61,7 +66,14 @@ export function ProjectScope() {
           className="flex-1 overflow-hidden flex flex-col"
           {...clickAwayProps}
         >
-          <Outlet />
+          {tabsEnabled ? (
+            <>
+              <TabStrip projectId={projectId} />
+              <TabContainer projectId={projectId} />
+            </>
+          ) : (
+            <Outlet />
+          )}
         </main>
         <ProjectRuntimeBridges />
       </div>

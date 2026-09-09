@@ -7,6 +7,7 @@ export type {
   ModelGroupSettings,
   MobileAccessSettings,
   TtsSettings,
+  ProxySettings,
   AppSettings,
   ProviderCatalog,
   ProviderCatalogItem,

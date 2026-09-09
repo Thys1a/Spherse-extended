@@ -2,7 +2,8 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { nativeTheme } from "electron";
 import Store from "electron-store";
-import type { AppSettings, ModelGroupSettings, ProviderCredentials, MobileAccessSettings } from "@spherse/core";
+import { setGlobalDispatcher, EnvHttpProxyAgent } from "undici";
+import type { AppSettings, ModelGroupSettings, ProviderCredentials, MobileAccessSettings, ProxySettings } from "@spherse/core";
 import { getAppModelCatalog } from "./model-catalog.js";
 
 export interface OpenProjectEntry {
@@ -63,6 +64,7 @@ export function getMaskedSettings(): AppSettings | null {
     debugToolsEnabled: settings.debugToolsEnabled ?? false,
     theme: settings.theme ?? "system",
     tts: settings.tts,
+    proxy: settings.proxy,
   };
 }
 
@@ -102,6 +104,7 @@ export function saveSettings(incoming: AppSettings): void {
     theme: incoming.theme ?? prev?.theme ?? "system",
     mobileAccess: prev?.mobileAccess,
     tts: incoming.tts ?? prev?.tts,
+    proxy: incoming.proxy ?? prev?.proxy,
   };
   settingsStore.set("settings", merged);
   applySettingsToEnv(merged);
@@ -115,6 +118,43 @@ export function restoreEnvFromSettings(): void {
 
 export function applyThemeSource(theme: AppSettings["theme"]): void {
   nativeTheme.themeSource = theme ?? "system";
+}
+
+function parseHttpProxyUrl(raw: string | undefined): string | undefined {
+  const url = raw?.trim();
+  if (!url) return undefined;
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return undefined;
+    return url;
+  } catch {
+    return undefined;
+  }
+}
+
+function applyProxyEnv(proxy: ProxySettings): void {
+  const proxyUrl = parseHttpProxyUrl(proxy.url);
+  if (proxyUrl) {
+    process.env.HTTPS_PROXY = proxyUrl;
+    process.env.HTTP_PROXY = proxyUrl;
+    process.env.https_proxy = proxyUrl;
+    process.env.http_proxy = proxyUrl;
+  } else {
+    if (proxy.url?.trim()) console.warn("[settings] ignoring invalid proxy URL");
+    delete process.env.HTTPS_PROXY;
+    delete process.env.HTTP_PROXY;
+    delete process.env.https_proxy;
+    delete process.env.http_proxy;
+  }
+  const noProxy = proxy.noProxy?.trim();
+  if (noProxy) {
+    process.env.NO_PROXY = noProxy;
+    process.env.no_proxy = noProxy;
+  } else {
+    delete process.env.NO_PROXY;
+    delete process.env.no_proxy;
+  }
+  setGlobalDispatcher(new EnvHttpProxyAgent());
 }
 
 function applySettingsToEnv(settings: AppSettings): void {
@@ -144,6 +184,10 @@ function applySettingsToEnv(settings: AppSettings): void {
     settings.customProviders ?? [],
     extractProviderKeys(settings.models?.text?.providers),
   );
+
+  if (settings.proxy !== undefined) {
+    applyProxyEnv(settings.proxy);
+  }
 }
 
 export function getOpenProjects(): OpenProjectEntry[] {

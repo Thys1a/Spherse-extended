@@ -4,6 +4,7 @@ import { useAppStore, type ProjectState } from "../stores/app-store";
 import { useProjectDataStore } from "../stores/project-data-store";
 import { useStreamingStore } from "../features/chat/runtime/streaming-store";
 import { useAgentSessionListUiStore } from "../features/agent-session-list/store";
+import { useTabStore } from "../features/tabs/tab-store";
 import { queryClient } from "../queries/client";
 import { projectQueryKeys } from "../queries/keys";
 import { getLastRoute, setLastRoute } from "../lib/localstorage/last-route";
@@ -102,8 +103,20 @@ describe("closeProjectCascade", () => {
     expect(clearProjectNavHistory).toHaveBeenCalledWith("p1");
   });
 
-  it("leaves local state untouched when the host close fails", async () => {
+  it("clears tab state on close", async () => {
     seedClosedProject();
+    useTabStore.setState({ byProject: {} });
+    useTabStore.getState().openTab("p1", { kind: "chat", label: "s1", sessionId: "s1" });
+    useTabStore.getState().openTab("p2", { kind: "chat", label: "s2", sessionId: "s2" });
+    const bridge = createBridge();
+
+    await closeProjectCascade(bridge, "p1");
+
+    expect(useTabStore.getState().byProject["p1"]).toBeUndefined();
+    expect(useTabStore.getState().byProject["p2"].tabs).toHaveLength(1);
+  });
+
+  it("leaves local state untouched when the host close fails", async () => {    seedClosedProject();
     const bridge = createBridge(vi.fn().mockRejectedValue(new Error("host close failed")));
 
     await expect(closeProjectCascade(bridge, "p1")).rejects.toThrow("host close failed");

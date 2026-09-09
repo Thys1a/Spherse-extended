@@ -1039,6 +1039,26 @@ export const zhCN = {
   "settings.tts.voiceDefault": "跟随系统默认",
   // 设置 > 通用：语速输入框标签
   "settings.tts.rate": "语速",
+  // 设置 > 通用：代理设置小节标题
+  "settings.proxy.title": "代理",
+  // 设置 > 通用：代理地址输入框标签
+  "settings.proxy.url": "代理地址",
+  // 设置 > 通用：代理地址输入框说明
+  "settings.proxy.urlDesc": "出站流量走 HTTP 代理，例如本地 Clash 混合端口（仅桌面端）",
+  // 设置 > 通用：代理地址输入框占位提示
+  "settings.proxy.urlPlaceholder": "http://127.0.0.1:7890",
+  // 设置 > 通用：不走代理输入框标签
+  "settings.proxy.noProxy": "不走代理（NO_PROXY）",
+  // 设置 > 通用：不走代理输入框说明
+  "settings.proxy.noProxyDesc": "多个主机用英文逗号分隔",
+  // 设置 > 通用：不走代理输入框占位提示
+  "settings.proxy.noProxyPlaceholder": "localhost, 127.0.0.1",
+  // 标签页栏的无障碍标签
+  "tabs.list": "打开的标签页",
+  // 无标题标签页的回退显示
+  "tabs.home": "首页",
+  // 关闭标签页按钮的无障碍标签
+  "tabs.closeTab": "关闭标签页",
   // 图片生成设置中默认模型下拉框的标签
   "settings.image.defaultModel": "默认生图模型",
 

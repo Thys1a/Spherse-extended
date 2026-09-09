@@ -1,5 +1,5 @@
 import { useCallback, useEffect } from "react";
-import { useLocation, useNavigate } from "react-router";
+import { useLocation, useNavigate, useNavigationType } from "react-router";
 import { useProjectCtx } from "../context/project-context";
 
 const projectNavStacks = new Map<string, string[]>();
@@ -18,6 +18,7 @@ export function projectBackTarget(stack: string[], projectId: string): string {
 
 export function useProjectNavHistory(projectId: string): void {
   const location = useLocation();
+  const navigationType = useNavigationType();
   useEffect(() => {
     const key = location.pathname + location.search;
     let stack = projectNavStacks.get(projectId);
@@ -25,10 +26,12 @@ export function useProjectNavHistory(projectId: string): void {
       stack = [];
       projectNavStacks.set(projectId, stack);
     }
-    if (stack[stack.length - 1] !== key) {
+    if (navigationType === "REPLACE" && stack.length > 0) {
+      stack[stack.length - 1] = key;
+    } else if (stack[stack.length - 1] !== key) {
       stack.push(key);
     }
-  }, [location.pathname, location.search, projectId]);
+  }, [location.pathname, location.search, projectId, navigationType]);
 }
 
 export function clearProjectNavHistory(projectId: string): void {
