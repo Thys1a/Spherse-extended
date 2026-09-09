@@ -1,6 +1,6 @@
-# 网络代理设置（用户可配置 HTTP/SOCKS 代理）
+# 网络代理设置（用户可配置 HTTP 代理）
 
-> 状态：**调研完成，未实施**。本文沉淀调研结论与推荐方案，供后续立项排期。
+> 状态：**待实施（优先）**。决策：仅 HTTP（`EnvHttpProxyAgent` 不支持 SOCKS，SOCKS 不做）；electron-updater 不走代理；web 端隐藏（新增 `proxy` capability，electron=true / web=false）。
 
 ## 背景
 
@@ -29,21 +29,24 @@
 | (b) 包装 `globalThis.fetch`（ProxyAgent） | ✅ | ✅ | ❌ | ✅ | ❌ | ✅ |
 | (c) StreamFn per-request `fetch`/`env` | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
 
-## 推荐方案（(a)，未实施）
+## 实施方案（方案 (a)，已确认，审查通过）
 
-1. **数据模型**：`AppSettings` 加 `proxy?: { url?: string; noProxy?: string }`（`packages/core/src/types.ts:125-136`）。
-2. **设置 UI**：general tab（`packages/app/src/features/settings/index.tsx`）加 URL + NO_PROXY 字段；desktop `applySettingsToEnv`（`packages/desktop/electron/settings.ts:120-147`，已有 provider key 写 env 的先例）写 `HTTPS_PROXY`/`HTTP_PROXY`/`NO_PROXY`，保存即热生效。
-3. **全局 dispatcher**：`main.ts` 在 `ensureServer()` 前 `setGlobalDispatcher(new undici.EnvHttpProxyAgent())`；undici 需显式声明为 desktop 依赖（现为传递依赖）。
-4. **同进程全部覆盖**：LLM（含 SDK 客户端）、MCP http/sse、marketplace 下载、MCP stdio 子进程（env 继承）。electron-updater 不覆盖（独立 net 栈，通常无需代理到 GitHub 时可接受；如需再单独处理）。
+1. **数据模型**：core `AppSettings`（`packages/core/src/types.ts:125-136`）与 app `HostSettings`（`packages/app/src/lib/host-bridge.ts:58`）各加 `proxy?: { url?: string; noProxy?: string }`；`HostCapabilities` 加 `proxy: boolean`。
+2. **capability 接线**：electron capabilities `proxy: true`（`packages/desktop/src/host-bridge-electron.ts`），web `proxy: false`（`packages/web/src/host-bridge-web.tsx`）；同步更新 `host-capabilities.structure.test.ts` 的字段白名单。
+3. **主进程**：`saveSettings` merged 加 `proxy: incoming.proxy ?? prev?.proxy`，`getMaskedSettings` 透传 `proxy`；`applySettingsToEnv`（`packages/desktop/electron/settings.ts:120-147`）写 `HTTPS_PROXY`/`HTTP_PROXY`/`NO_PROXY`（空则 `delete`）并重设 dispatcher，保存即热生效。
+4. **全局 dispatcher**：`main.ts` 在 `ensureServer()` 前 `setGlobalDispatcher(new undici.EnvHttpProxyAgent())`；undici 显式声明为 desktop 依赖（现为传递依赖，实测 7.29.0）。
+5. **renderer**：`settings-store.ts` 加 `proxy` 状态 + `setProxy`（仿 `setTts`）；新增 `ProxyPanel.tsx`（仿 `TtsSettingsPanel`）挂 general tab，用 `bridge.capabilities.proxy` 条件渲染；用户可见文案走 i18n。
+6. **覆盖范围**：LLM（含 SDK 客户端）、MCP http/sse、marketplace 下载、MCP stdio 子进程（env 继承）。electron-updater 明确不覆盖。
 
 ## 已知风险
 
 - **undici 版本偏移**：npm 版 undici 7 的 `setGlobalDispatcher` 与 Electron 41 内置 fetch 消费的 symbol（`undici.globalDispatcher.1`）兼容性需一次冒烟验证；fallback 是用 undici 自己的 `fetch` 绑定 dispatcher 后赋给 `globalThis.fetch`。
-- **热切换**：改代理设置后新 dispatcher 立即生效，但进行中的流式请求不受影响（可接受）。
+- **热切换**：保存时写 env + 重设 dispatcher，确定生效；进行中的流式请求不受影响（可接受）。已连接的 MCP stdio 子进程需重连才继承新 env（可接受）。
 - **electron-updater 走 Electron net**：如需代理，另走 `session.defaultSession.setProxy`（独立项，暂不做）。
 
 ## 验证思路（实施时）
 
-- core 单测：`EnvHttpProxyAgent` 注入后 pi-ai SDK 请求经代理（本地 echo 代理捕获）。
-- desktop：`applySettingsToEnv` 写 `HTTPS_PROXY`；settings IPC 链路。
-- 手动：Clash + OpenCode Go 请求经代理抓包确认。
+- desktop 单测（`electron/settings.test.ts`）：proxy 持久化/merge、env 写删。
+- app 单测：`settings-store.test.ts` 补 `setProxy`；capability 结构测试更新字段白名单。
+- 冒烟：undici symbol 兼容；失败则 fallback 用 undici 自带 `fetch` 覆盖 `globalThis.fetch`。
+- 手动：Clash 7890 + OpenCode Go 请求经代理抓包确认。

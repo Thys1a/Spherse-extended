@@ -1,6 +1,6 @@
 # 标签页式窗口（Tab 式多面板）
 
-> 状态：**调研完成，未实施**。本文沉淀可行性结论与方案 A 草案，供后续立项。
+> 状态：**待实施（次优先，独立分支）**。决策：架构 B（后台 tab 并行保活）；持久化走 localStorage（`spherse:tabs`）；默认打开走 tab，右键菜单保留「浮窗打开」（显式 float 路径不变）；首期即做。
 
 ## 背景
 
@@ -9,8 +9,10 @@
 ## 现状
 
 - 单 `BrowserWindow`（`packages/desktop/electron/window.ts:10-21`）+ renderer hash router：`/`、`project/:projectId`（子路由 `chat/:sessionId`、`content`、`browser`）（`packages/app/src/router.tsx`）。
-- 多面板现状 = ActivityBar 导航 + floating chat / floating content browser（`FEATURE_HOST_MATRIX` 中 `floating-*` 为 ELECTRON_ONLY，web 端降级为跳转）。
-- streaming store / bus store 全局单例，WS 按会话引用计数 attach/detach——**多面板并行消费同一会话已是既有能力**（floating chat 先例）。
+- 多面板现状 = ActivityBar 导航 + 三类 floating（floating-chat / floating-content-browser / floating-browser，`FEATURE_HOST_MATRIX` 中均为 ELECTRON_ONLY，web 端降级为跳转）。
+- **floating 的渲染模式是「路由外独立渲染」**：`FloatingChatContainer` 直接渲染 `<Chat hideHeader>`，`FloatingContentBrowserContainer` 直接渲染只读 `ContentView`，均经 portal 挂 body，与路由无关（docked-chat 同理）。
+- streaming store / bus store 全局单例，chat 滚动位置按 session 持久（`streaming-store` 的 `scrollPosition`）——后台 tab 恢复无需新工作。
+- floating 的调用入口是 SDK action handler（`ui-sdk/handlers/` 下 `float-session.ts` / `float-content.ts` / `open-file.ts` / `open-chat.ts` / `open-session.ts`），非裸 store 调用；`content`/`browser` 路由带 query（`?path=` / `?url=`）。
 
 ## 方案比选（Electron 41）
 
@@ -21,43 +23,56 @@
 | C. `webview` 标签 + electron-tabs 库 | webview 每标签独立进程 | webview tag 不受官方推荐、社区库半停滞，排除 |
 | D. 原生 `tabbingIdentifier` / `addTabbedWindow` | macOS 原生 tab | 仅 macOS，Windows 无效，排除 |
 
-## 方案 A 草案（未实施）
+## 方案 A 实施方案（已确认，架构 B：并行保活）
 
 ### 数据与状态
 
-- 新增 `features/tabs/tab-store.ts`（zustand）：
+- 新增 `features/tabs/tab-store.ts`（zustand，`byProject` 结构对齐现有 floating store）：
   ```
-  tabs: Array<{ id: string; route: string; label: string; kind: "chat"|"content"|"browser"|"home" }>
-  activeTabId: string | null
-  openTab({ route, label, kind, reuseKey? })   # reuseKey 相同则聚焦已有 tab
-  closeTab(id) / activate(id) / reorder(from, to)
+  byProject: Record<projectId, { tabs: Tab[]; activeTabId: string | null }>
+  Tab = { id: string; kind: "chat"|"content"|"browser"|"home"; projectId: string; label: string; sessionId?; filePath?; url? }
+  openTab(projectId, spec)   # 按身份（sessionId/filePath/url）复用或新建
+  closeTab(id) / activate(id) / reorder(from, to) / clearProject(projectId)
   ```
-- `id` 稳定（uuid）；`reuseKey` 支撑「同一会话/文件只开一个 tab」语义（对齐 floating 的 `byProject` 单例）。
+- `id` 稳定（uuid）；复用按「身份字段」派生（sessionId / filePath / url），不用整条 route 字符串（`content`/`browser` 带 query）。
+- 持久化：localStorage（key `spherse:tabs`），不走 `AppSettings`/IPC（对齐现有 floating store）。
 
-### 布局与联动
+### 渲染架构（TabContainer 并行渲染，对齐 floating 模式）
 
-- `App.tsx` 的 `<Outlet/>` 外包一层 TabStrip + tab 容器；激活 tab → `navigate(tab.route)`；路由变化（菜单/SDK openSession 等）→ `openTab` 聚焦或新建。
-- TabStrip 放顶部（ActivityBar 之上或替代其导航职责，实施时定）；支持拖拽排序（复用 floating-frame 的 drag 基建或现成 dnd 库）。
-- 关闭 tab 不等于关闭会话：chat WS attach 由路由挂载/卸载自然驱动（`useChatSession` 引用计数），后台 tab 的流式更新照常入 store。
+- `ProjectScope` 的 `main` 区域：`<Outlet/>` 替换为 `<TabStrip/> + <TabContainer/>`（`useFeature("tabs")` 关时回退 `<Outlet/>`；`router.tsx` 子路由 element 置空占位，保留 URL 结构供深链匹配）。
+- `TabContainer` 按 tab kind 独立渲染现成组件（全部已是可独立渲染的薄封装），`activeTabId` 控制 `display:none` 保活，后台 DOM 不卸载：
+  - chat → `<Chat>`（带 header；session/agent 解析参照 `FloatingChatContainer`）
+  - content → `<ContentBrowser>`（完整编辑版；filePath 来自 tab，逻辑参照 `ContentBrowserPage`）
+  - browser → `<BrowserPageView>`
+  - home → 项目首页（`WelcomePage`）
+- 进入 project 初始化：无 tab 时建一个 home tab；`setProjectLastRoute` 改由 activeTab 投影替代。
+- 关闭 tab 不等于关闭会话：chat WS attach 由组件挂载驱动（与 floating chat 相同语义），后台 tab 流式更新照常入全局 store。
 
-### 与 floating 面板的关系
+### 路由投影（tab store 为源，route 为投影，双向同步）
 
-- 方向：**tab 作为 floating 的收口替代**——`floatSession`/`floatContent` 在 tab 模式开启时改为「聚焦/新建对应 tab」（feature gate 切换），减少两套面板机制并行。
-- 保留 floating 的独立小窗场景或整体移除，实施时决策。
+- activeTab 变化 → `navigate(route, { replace: true })` 仅投影 URL。
+- `location` 变化（浏览器后退、深链、SDK navigate）→ 反向同步 `openTab`/`activate`；用 ref 标记「store 驱动的 navigate」跳过反向同步，避免循环。现有 `navigate(...)` 调用点无需改动。
+
+### 与 floating 面板的关系（已确认：默认 tab + 右键浮窗）
+
+- tabs 开启时 SDK handler（`openChat`/`openFile`/`floatContent`/`openSession`，含第三类 floating-browser 的 `openFloat`）默认走 `openTab`；显式 `float` 参数走原 floating store 路径。
+- 右键菜单保留「浮窗打开」（复用现有 `floatSession` 项，无需新增）；floating-* feature 保留，不删除。
 
 ### Feature gate 与范围
 
-- 新增 feature `tabs`（electron + web 双开；web 端同样受益于 tab 收口移动端跳转）。
-- 首期范围：chat / content / browser / 项目首页四类 tab；不做跨窗口拖出（detach to window）。
+- 新增静态 feature `tabs`（ALL_HOSTS；electron + web 双开，web 端同样受益于 tab 收口移动端跳转）。
+- TabStrip 放 `ProjectScope` 的 `main` 顶部（SidePanel 右侧）；支持拖拽排序。
+- tab 按 project 隔离（`byProject`）；不做跨窗口拖出（detach to window）。
+- 首期范围：chat / content / browser / 项目首页四类 tab。
 
 ### 风险
 
-- 路由 ↔ tab 状态双向同步需单一真相（tab store 为源，route 为投影），避免历史导航（浏览器后退）与 tab 激活打架。
-- `useChatScroll` 的滚动位置恢复按 tab 维度保存（沿用现有 per-session scrollPosition 即可）。
-- HtmlCard / preview iframe 在 tab 切换时若卸载会丢 iframe 状态——优先 `display:none` 保活而非卸载（或接受重载，实施时按内存取舍）。
+- 路由 ↔ tab 双向同步的循环防护（ref 标记 store 驱动的 navigate）。
+- Iframe 保活的内存代价（后台 tab 不卸载）；chat label 需调用方先查 session title 或进入后异步解析。
+- `useChatScroll` 无需新工作（沿用现有 per-session scrollPosition）。
 
 ## 验证思路（实施时）
 
 - tab-store 单测：openTab 复用/新建、closeTab 激活转移、reorder。
-- 组件测试：TabStrip 渲染/激活/关闭；路由联动（激活 tab → navigate）。
-- 手动：多会话 tab 并行流式、SDK `floatSession` 收口到 tab、关闭 app 后 tab 恢复（可选持久化）。
+- 组件测试：TabStrip 渲染/激活/关闭；路由投影（激活 tab → navigate replace）。
+- 手动：多 chat tab 并行流式、content 编辑态切 tab 保留、browser iframe 不重载、右键浮窗、重启后 tab 恢复。
