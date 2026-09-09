@@ -1,0 +1,5 @@
+export { useTabStore } from "./tab-store";
+export type { Tab, TabKind, OpenTabSpec } from "./tab-store";
+export { TabStrip } from "./TabStrip";
+export { TabContainer } from "./TabContainer";
+export { TabPanel } from "./TabPanel";

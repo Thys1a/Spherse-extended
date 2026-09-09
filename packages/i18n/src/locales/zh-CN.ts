@@ -1053,6 +1053,12 @@ export const zhCN = {
   "settings.proxy.noProxyDesc": "多个主机用英文逗号分隔",
   // 设置 > 通用：不走代理输入框占位提示
   "settings.proxy.noProxyPlaceholder": "localhost, 127.0.0.1",
+  // 标签页栏的无障碍标签
+  "tabs.list": "打开的标签页",
+  // 无标题标签页的回退显示
+  "tabs.home": "首页",
+  // 关闭标签页按钮的无障碍标签
+  "tabs.closeTab": "关闭标签页",
   // 图片生成设置中默认模型下拉框的标签
   "settings.image.defaultModel": "默认生图模型",
 

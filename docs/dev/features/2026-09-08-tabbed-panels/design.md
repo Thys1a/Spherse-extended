@@ -35,6 +35,7 @@
   closeTab(id) / activate(id) / reorder(from, to) / clearProject(projectId)
   ```
 - `id` 稳定（uuid）；复用按「身份字段」派生（sessionId / filePath / url），不用整条 route 字符串（`content`/`browser` 带 query）。
+- 不变量：单 project 恒有 ≥1 tab，关最后一个时 store 自动回退 home tab。
 - 持久化：localStorage（key `spherse:tabs`），不走 `AppSettings`/IPC（对齐现有 floating store）。
 
 ### 渲染架构（TabContainer 并行渲染，对齐 floating 模式）
@@ -55,7 +56,9 @@
 
 ### 与 floating 面板的关系（已确认：默认 tab + 右键浮窗）
 
-- tabs 开启时 SDK handler（`openChat`/`openFile`/`floatContent`/`openSession`，含第三类 floating-browser 的 `openFloat`）默认走 `openTab`；显式 `float` 参数走原 floating store 路径。
+- tabs 开启时默认打开一律走原 `navigate` 调用（不动），由 location→store 同步转为 tab；显式 `float` 参数走原 floating store 路径。
+- 三处补丁：`openChat` 与 `handleSelectSession` 的 floating-guard 在 tabs 开时放行（同会话浮窗中时默认打开仍建 tab）；`FloatingChatManager` 的路由 bounce 在 tabs 开时跳过。
+- chat 标题由 TabStrip 按 sessionId 查 catalog 解析（重命名自动跟随）。
 - 右键菜单保留「浮窗打开」（复用现有 `floatSession` 项，无需新增）；floating-* feature 保留，不删除。
 
 ### Feature gate 与范围

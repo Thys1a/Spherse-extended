@@ -9,6 +9,7 @@ export function openChat(
   float: boolean | undefined,
 ): void {
   const floatingEnabled = isFeatureEnabled("floating-chat", ctx.hostKind);
+  const tabsEnabled = isFeatureEnabled("tabs", ctx.hostKind);
   const currentFloating = useFloatingChatStore.getState().byProject[ctx.projectId]?.sessionId;
   if (float && floatingEnabled) {
     if (currentFloating !== sessionId) {
@@ -16,7 +17,7 @@ export function openChat(
     }
     return;
   }
-  if (currentFloating !== sessionId) {
+  if (currentFloating !== sessionId || tabsEnabled) {
     ctx.navigate(`/project/${ctx.projectId}/chat/${sessionId}`);
   }
 }

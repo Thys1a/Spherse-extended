@@ -16,14 +16,15 @@
    - TabContainer：按 kind 独立渲染 `Chat` / `ContentBrowser` / `BrowserPageView` / `WelcomePage`，active 控 `display:none`
 3. **ProjectScope 改造** → verify: 手动（进入 project、切 project）
    - `main` 内 `<Outlet/>` 换 `<TabStrip/> + <TabContainer/>`（`useFeature("tabs")` 关时回退 `<Outlet/>`）
-   - 进入 project 无 tab 时建 home tab；`setProjectLastRoute` 改由 activeTab 投影替代
-   - `router.tsx` 子路由 element 置空占位（保留 URL 结构供深链匹配）
+   - 进入 project 无 tab 时由 location→store 同步按当前路由建 tab（index 建 home）；`setProjectLastRoute` 保留（投影 URL 天然喂给它）
+   - `router.tsx` 未动（子路由保留匹配，gate 关时旧页照常渲染）
 4. **路由投影双向同步**（核心难点）→ verify: 组件测试 + 手动（浏览器后退、深链）
    - activeTab → `navigate(route, { replace: true })`；`location` 变化 → `openTab`/`activate`
    - ref 标记 store 驱动的 navigate 以防循环；现有 `navigate(...)` 调用点不动
-5. **SDK handler 拦截** → verify: 现有 handler 单测更新 + 手动
-   - `openChat`/`openFile`/`floatContent`/`openSession`（含 floating-browser `openFloat`）：tabs 开且非显式 float → `openTab`
-   - 显式 `float` → 原 floating 路径；右键「浮窗打开」复用现有项
+5. **SDK handler 拦截**（实为 navigate→sync 统一收口，仅三处补丁）→ verify: 现有 handler 单测全过 + 手动
+   - 默认打开一律走原 `navigate` 调用（不动），由 location→store 同步转为 tab；显式 `float` 走原 floating 路径；右键「浮窗打开」复用现有项
+   - `openChat` floating-guard 在 tabs 开时放行（同会话浮窗中时默认打开仍建 tab）；`handleSelectSession` 同理；`FloatingChatManager` 的路由 bounce 在 tabs 开时跳过
+   - chat 标题由 TabStrip 按 sessionId 查 catalog 解析（重命名自动跟随），调用方无需传 label
 6. **feature gate** → verify: typecheck
    - `feature-registry.ts` 加 `"tabs"`（ALL_HOSTS）
 7. **i18n**（加载 i18n skill）→ verify: i18n check
@@ -35,7 +36,7 @@
 
 跨窗口拖出（detach）、跨 project tab 混排（tab 按 project 隔离）。
 
-## 待定（实施时定）
+## 待定（已定）
 
-- chat tab label：调用方先查 session title，还是进入后异步解析。
-- 无 tab 时是否始终强制一个 home tab。
+- chat tab label：TabStrip 按 sessionId 查 catalog 解析标题（重命名自动跟随），openTab 的 label 仅作回退。
+- 关最后一个 tab 时 store 自动回退到 home tab（project 恒有 ≥1 tab）。

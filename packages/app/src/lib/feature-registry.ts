@@ -11,7 +11,8 @@ export type FeatureName =
   | "text-selection-session"
   | "open-project"
   | "tts"
-  | "embedded-chat";
+  | "embedded-chat"
+  | "tabs";
 
 const ELECTRON_ONLY: ReadonlySet<HostKind> = new Set(["electron"]);
 const ALL_HOSTS: ReadonlySet<HostKind> = new Set(["electron", "web"]);
@@ -28,6 +29,7 @@ export const FEATURE_HOST_MATRIX: Record<FeatureName, ReadonlySet<HostKind>> = {
   "open-project": ELECTRON_ONLY,
   tts: ELECTRON_ONLY,
   "embedded-chat": ALL_HOSTS,
+  tabs: ALL_HOSTS,
 };
 
 export function isFeatureEnabled(feature: FeatureName, kind: HostKind): boolean {

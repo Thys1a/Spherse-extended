@@ -50,6 +50,7 @@ export function AgentSessionList() {
   const { projectId } = useProjectCtx();
   const client = useApiClient(projectId);
   const agentDialogEnabled = useFeature("agent-dialog");
+  const tabsEnabled = useFeature("tabs");
   const { agents, sessions, sessionPaging } = useProjectCatalog(projectId, client);
   const floatingSessionId = useFloatingSessionId(projectId);
   const [dialog, setDialog] = useState<DialogState>({ kind: "none" });
@@ -61,7 +62,7 @@ export function AgentSessionList() {
   const { effectiveCollapsedAgentIds, toggleAgentCollapsed } = useCollapsedAgents(projectId, agents, activeAgentId);
 
   const handleSelectSession = (session: SessionInfo) => {
-    if (floatingSessionId === session.id) return;
+    if (floatingSessionId === session.id && !tabsEnabled) return;
     navigate(`/project/${projectId}/chat/${session.id}`);
   };
 
