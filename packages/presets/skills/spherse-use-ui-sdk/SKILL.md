@@ -1,6 +1,6 @@
 ---
 name: spherse-use-ui-sdk
-description: 在 Spherse 的 HTML 内容中使用注入的 window.spherse SDK 调用 App 能力（创建会话并获取会话 ID、静默后台发送消息、打开已有会话、打开文件、向会话发消息、读写数据、枚举数据、目录列表、文件元信息、订阅文件变化、只读查询项目信息、弹 toast 提示）
+description: 在 Spherse 的 HTML 内容中使用注入的 window.spherse SDK 调用 App 能力（创建会话并获取会话 ID、静默后台发送消息、打开已有会话、打开文件、向会话发消息、读写数据、枚举数据、目录列表、文件元信息、订阅文件变化、只读查询项目信息、弹 toast 提示、在卡片内嵌入实时聊天面板）
 ---
 
 # UI SDK — `window.spherse`
@@ -28,11 +28,12 @@ SDK 已由 App 注入，**不要**再自己写 `<script>` 加载它，也**不�
 
 | 类别 | 方法 | 说明 |
 |------|------|------|
-| 触发型（fire-and-forget） | `openSession` / `openFile` / `openExternalLink` / `floatSession` / `unfloatSession` / `floatContent` / `unfloatContent` / `emitAgentTriggerEvent` / `toast` | 单向触发，无返回值 |
+| 触发型（fire-and-forget） | `openSession` / `openFile` / `openExternalLink` / `floatSession` / `unfloatSession` / `floatContent` / `unfloatContent` / `emitAgentTriggerEvent` / `undockChat` / `toast` | 单向触发，无返回值 |
 | 请求型（Promise） | `createSession(params)` → `Promise<{ sessionId }>` | 创建会话，返回新会话 ID |
 | 请求型（Promise） | `sendMessage(params)` → `Promise` | 等待发送结果 |
 | 请求型（Promise） | `data.get` / `data.set` / `data.delete` / `data.keys` / `data.entries` / `data.mutate` | key-value 持久化 + manifest 结构性变更 |
 | 请求型（Promise） | `api.call(op, args)` 及 `api.*` 命名方法 | 只读查询项目信息（agents / sessions / content / fileTree） |
+| 请求型（Promise） | `dockChat(params?)` → `Promise` | 在占位元素位置叠加真实聊天面板（仅聊天 HtmlCard） |
 | 事件型 | `events.on("file:update", filter, handler)` | 订阅指定项目文件的变化信号 |
 | 运行时 | `spherse.runtime`（同步读）/ `spherse.getRuntime()`（Promise） | 获取当前会话上下文（仅 HtmlCard 有值） |
 
@@ -50,6 +51,63 @@ const rt = await spherse.getRuntime();
 // rt.sessionId / rt.agentId / rt.projectId
 await spherse.sendMessage({ sessionId: rt.sessionId, message: "继续分析" });
 ```
+
+## 实时聊天面板嵌入（聊天 HtmlCard 专属）
+
+聊天 HtmlCard 可以声明一个**占位元素**，App 会在其位置上叠加一个真实的聊天面板（完整消息流 + 输入框，外观跟随 App 主题）。页面本身不需要实现任何对话 UI，只需要给面板留出布局空间。
+
+### 占位元素
+
+在 HTML 中放置以下任意一种（第一个匹配的元素生效）：
+
+```html
+<spherse-chat></spherse-chat>
+<!-- 或 -->
+<div data-spherse-chat></div>
+```
+
+行为约定：
+
+- 仅在**聊天 HtmlCard**（存在 `spherse.runtime`）中生效；Welcome Page 与 Content Browser 预览中无效
+- 占位元素存在时 SDK **自动 dock**，无需调用任何 API
+- 面板尺寸/位置完全跟随占位元素的几何位置（占位元素正常参与页面布局，可通过 CSS 控制大小），滚动与缩放时面板自动跟随
+- 占位元素被移出文档或页面卸载时，面板自动关闭
+- 每张卡片最多一个面板；重复声明时只有第一个占位元素生效
+
+### `spherse.dockChat(params?)` → `Promise<void>`
+
+显式绑定聊天面板（自动 dock 之外的可选入口）。默认绑定当前会话；`sessionId` 可指定其它会话，典型场景是配合 `createSession({ open: false })` 创建后台会话后在卡片内展示它。
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| sessionId | string | 否 | 目标会话 ID，缺省绑定当前会话（`spherse.runtime.sessionId`） |
+
+```html
+<spherse-chat></spherse-chat>
+<script>
+  // 显式绑定当前会话（与自动 dock 等价）
+  await spherse.dockChat();
+
+  // 创建后台会话并在卡片内展示
+  const { sessionId } = await spherse.createSession({ agentSlug: "writer", open: false });
+  await spherse.dockChat({ sessionId });
+</script>
+```
+
+- 成功：resolve
+- 失败：reject（`session_not_found` / `iframe_not_found` / `invalid_params` / `feature_disabled` / `dock_not_allowed`）
+- 同一卡片重复调用会重新绑定（切换 `sessionId` 会替换面板中的会话）
+- `dockChat` / `undockChat` 仅在聊天 HtmlCard 中可用；其它注入了 SDK 的预览页（如 Content Browser 预览）中 auto-dock 不会发生，显式调用也应避免
+
+### `spherse.undockChat()`
+
+关闭当前卡片上打开的聊天面板。fire-and-forget，无返回值。
+
+```javascript
+spherse.undockChat();
+```
+
+用法模式、布局建议与排错见 `spherse-embed-chat` skill。
 
 ## 触发型 Action
 
@@ -438,7 +496,7 @@ document.getElementById("agent-select").innerHTML = html;
 
 - **SDK 自动注入**：App 向每个 HTML 注入 `<script src="__spherse-sdk.js">`（同源加载，保留 iframe 真实 origin）。**不要**自己加载或复制 SDK 源码
 - **媒体播放**：Preview Server 支持 mp3/mp4/wav/webm/ogg/flac/mov 等音视频格式（含 Range 请求，可拖动进度条）。HTML 中直接用相对路径的 `<audio src="music.mp3">` 或 `<video src="clip.mp4">` 即可播放
-- **频率限制**：每分钟最多触发 30 次操作，超出会被静默丢弃。`data.get`、`data.keys`、`data.entries` 与 `data.mutate` 不受限，交互式页面仍应优先通过事件刷新而非高频轮询
+- **频率限制**：每分钟最多触发 30 次操作，超出会被静默丢弃。`data.get`、`data.keys`、`data.entries`、`data.mutate` 与聊天面板的 dock/位置上报（SDK 内部自动发送）不受限，交互式页面仍应优先通过事件刷新而非高频轮询
 - **事件订阅限制**：每个 HTML 最多同时订阅 100 个事件；订阅控制消息不计入 action 频率限制
 - **无 script-src 加载失败时**：若 HTML 自身设了限制性 CSP（如 `meta http-equiv="Content-Security-Policy"` 禁止同源 script），SDK 可能无法加载。应放宽 CSP 允许同源 script 加载，不要绕开 SDK 自行拼装 `postMessage`
 - **参数校验**：缺少必填参数或类型不匹配时操作会被静默忽略

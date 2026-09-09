@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { FEATURE_HOST_MATRIX, isFeatureEnabled } from "./feature-registry";
 
-const WEB_ENABLED_FEATURES = ["agent-dialog", "agent-mcp", "agent-trigger"] as const;
+const WEB_ENABLED_FEATURES = ["agent-dialog", "agent-mcp", "agent-trigger", "embedded-chat"] as const;
 
 describe("feature-registry", () => {
   it("declares the full gated feature set in the current matrix", () => {
@@ -12,6 +12,7 @@ describe("feature-registry", () => {
         "agent-mcp",
         "agent-trigger",
         "browser",
+        "embedded-chat",
         "floating-chat",
         "floating-content-browser",
         "open-project",
@@ -32,7 +33,7 @@ describe("feature-registry", () => {
     }
   });
 
-  it("enables agent management features on the web host", () => {
+  it("enables all-host features on the web host", () => {
     for (const feature of WEB_ENABLED_FEATURES) {
       expect(isFeatureEnabled(feature, "web")).toBe(true);
     }

@@ -133,6 +133,7 @@ spherse/
 │   │       │   ├── messaging.ts      # call/fire + spherse:response 监听（requestId 匹配，10s 超时）
 │   │       │   ├── context.ts        # 运行时上下文种子化（window.__SPHERSE__ 同步 / spherse:runtime 异步）
 │   │       │   ├── actions.ts        # 触发型便捷方法（openFile/createSession/float* 等）
+│   │       │   ├── dock.ts           # 聊天面板嵌入：占位元素（spherse-chat）扫描、auto-dock（getRuntime 兜底）、rect leading-edge 节流上报、pagehide/占位移除 undock
 │   │       │   ├── data.ts           # data.get/set/delete 键值存储
 │   │       │   ├── api.ts            # api.* 只读 HTTP bridge（api.call + agents/sessions/content/... 子命名空间）
 │   │       │   └── events.ts         # events.on 订阅 API + spherse:event 消息分发与 pagehide 清理
@@ -140,6 +141,7 @@ spherse/
 │   │           ├── inject-head-script.test.ts # injectHeadScript + 打包产物（SDK_SOURCE）断言
 │   │           ├── messaging.test.ts          # postAction/fire/call（resolve/reject/超时/并发 requestId 匹配）
 │   │           ├── context.test.ts            # 运行时种子化（window.__SPHERSE__ 同步 + spherse:runtime 异步 + waiter 队列）
+│   │           ├── dock.test.ts               # 嵌入面板 dock/rect/undock postMessage 序列与生命周期
 │   │           └── events.test.ts             # 文件事件订阅、定向分发与幂等取消
 │   ├── contracts/                   # @spherse/contracts — 跨进程边界 wire 协议（HTTP/WS schema + parser）
 │   │   └── src/
@@ -256,6 +258,7 @@ spherse/
 │   │       │   │   └── file-update.ts           # 文件路径规范化、payload 校验与 300ms 去抖
 │   │       │   ├── index.ts              # barrel export + handler side-effect import
 │   │       │   └── handlers/
+│   │       │       ├── chat-dock.ts     # chat.dock/rect/undock：聊天卡片嵌入面板（source→iframe 匹配、会话校验、slotRect 登记，chat.dock/rect 免配额）
 │   │       │       ├── create-session.ts # 创建会话并导航，支持 float 参数直达浮窗（web 端降级为跳转 chat page）
 │   │       │       ├── float-content.ts  # 将指定文件以浮窗打开（web 端降级为跳转 content page）
 │   │       │       ├── float-session.ts  # 将指定会话移入浮窗（web 端降级为跳转 chat page）
@@ -273,6 +276,7 @@ spherse/
 │   │       │   ├── chat/                 # 对话 feature；model/ 放事件解析、历史投影、turn 分组派生与 reducer，runtime/ 放 streaming store、WS/心跳/重连 runtime，hooks/ 放 UI hooks，lib/ 放聚合/diff/format-time 纯函数，utils/ 放图片压缩（compress-image）；根目录保留页面组件、运行时 context、chat 专属类型与附件 UI（AttachmentBar/MessageAttachments）
 │   │       │   ├── content-browser/      # 文件浏览、预览（HTML/markdown/image）、编辑、复制路径/刷新、冲突提示，ContentQueryBridge 集中处理 fs-watch/reconnect 缓存失效；二进制文件拦截渲染占位卡 UnsupportedFileCard（桌面端经 HostCapabilities.openFileExternal 提供「用默认应用打开」按钮）
 │   │       │   ├── debug-tools/          # 调试菜单（开发模式或设置开启 debugToolsEnabled 时显示）+ Streaming Log 悬浮面板
+│   │       │   ├── docked-chat/          # 聊天 HtmlCard 嵌入的实时聊天面板（store 按 iframe source 记 dock 条目，DockedChatManager 合成 viewport rect portal 渲染 Chat；ui-sdk chat.dock/rect/undock 的消费方）
 │   │       │   ├── floating-chat/         # 浮动聊天窗口（Portal overlay、主题隔离），复用 components/floating-frame；含 useFloatingSessionId
 │   │       │   ├── floating-content-browser/ # 浮窗内容浏览器（多窗口、复用 ContentView 只读渲染 + components/floating-frame），含 useFloatedFilePaths；从文件树右键「浮窗」触发
 │   │       │   ├── onboarding/           # 新用户引导页（无项目时 `/` 路由）：打开或创建项目 / 打开示例项目
@@ -345,6 +349,7 @@ spherse/
 │   │       ├── floating-chat.spec.ts            # 浮窗聊天 E2E 测试（浮窗/关闭/拖动/调整大小/项目切换）
 │   │       ├── text-selection-session.spec.ts  # 划选会话 E2E 测试
 │   │       ├── ui-sdk.spec.ts          # UI SDK postMessage action E2E 测试
+│   │       ├── ui-sdk-dock-chat.spec.ts # 聊天卡片嵌入实时聊天面板 E2E 测试（占位元素 auto-dock → 面板 → 面板内发消息）
 │   │       ├── ui-sdk-data-crud.spec.ts # UI SDK data CRUD key-value 持久化 E2E 测试
 │   │       └── ui-sdk-bridge.spec.ts   # 注入式 @spherse/sdk 桥接 E2E 测试（window.spherse.* 暴露面 / fire 导航 / call 往返 / api.* HTTP 桥接 resolve+reject）
 │   ├── web/                          # @spherse/web — Web 版本壳 / 移动端 PWA（GitHub Pages 部署到 /web/）

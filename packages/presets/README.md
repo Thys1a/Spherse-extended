@@ -31,6 +31,7 @@
     { "dir": "spherse-create-ui-theme" },
     { "dir": "spherse-create-agent-chat-theme" },
     { "dir": "spherse-use-ui-sdk" },
+    { "dir": "spherse-embed-chat" },
     { "dir": "spherse-build-data-app" },
     { "dir": "spherse-write-html" },
     { "dir": "spherse-create-skill" }
