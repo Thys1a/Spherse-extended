@@ -140,4 +140,51 @@ describe("useTabStore", () => {
     const parsed = JSON.parse(raw ?? "{}") as Record<string, { tabs: Array<{ sessionId?: string }> }>;
     expect(parsed["p1"].tabs[0].sessionId).toBe("a");
   });
+
+  it("drops invalid tabs and repairs dangling activeTabId on load", async () => {
+    const dirty = {
+      p1: {
+        tabs: [
+          { id: "good", kind: "chat", projectId: "p1", label: "a", sessionId: "a" },
+          { id: "bad-kind", kind: "video", projectId: "p1", label: "x" },
+          { id: "no-identity", kind: "chat", projectId: "p1", label: "y" },
+          { id: "cross-project", kind: "chat", projectId: "p2", label: "z", sessionId: "z" },
+          { id: 42, kind: "home", projectId: "p1", label: "" },
+        ],
+        activeTabId: "missing",
+      },
+    };
+    const backing = new Map<string, string>([["spherse:tabs", JSON.stringify(dirty)]]);
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => backing.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        backing.set(key, value);
+      },
+      removeItem: (key: string) => {
+        backing.delete(key);
+      },
+      clear: () => backing.clear(),
+    });
+    vi.resetModules();
+    const { useTabStore: fresh } = await import("./tab-store");
+
+    const entry = fresh.getState().byProject["p1"];
+    expect(entry.tabs.map((t) => t.id)).toEqual(["good"]);
+    expect(entry.activeTabId).toBe("good");
+    vi.resetModules();
+  });
+
+  it("returns empty state for unparseable storage", async () => {
+    vi.stubGlobal("localStorage", {
+      getItem: () => "{{{",
+      setItem: () => {},
+      removeItem: () => {},
+      clear: () => {},
+    });
+    vi.resetModules();
+    const { useTabStore: fresh } = await import("./tab-store");
+
+    expect(fresh.getState().byProject).toEqual({});
+    vi.resetModules();
+  });
 });

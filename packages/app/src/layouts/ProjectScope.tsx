@@ -1,5 +1,5 @@
-import { useEffect, useRef } from "react";
-import { Outlet, useLocation, useNavigate, useParams } from "react-router";
+import { useEffect } from "react";
+import { Outlet, useLocation, useParams } from "react-router";
 import { useI18n } from "@spherse/i18n/react";
 import { SidePanel } from "../features/side-panel";
 import { useCustomTheme } from "../hooks/useCustomTheme";
@@ -8,8 +8,8 @@ import { useSidePanel } from "../hooks/use-side-panel";
 import { useAppStore } from "../stores/app-store";
 import { useProjectNavHistory } from "../lib/use-project-navigation";
 import { useFeature } from "../lib/use-feature";
-import { TabStrip, TabContainer, useTabStore } from "../features/tabs";
-import { tabToRoute, routeToTabSpec } from "../features/tabs/tab-route";
+import { TabStrip, TabContainer } from "../features/tabs";
+import { useTabRouteSync } from "../features/tabs/use-tab-route-sync";
 import { ProjectProvider } from "../context/project-context";
 import { useHostBridge } from "../context/host-bridge-context";
 import { useApiClient } from "../lib/use-connection";
@@ -19,12 +19,10 @@ import { ProjectRuntimeBridges } from "./ProjectRuntimeBridges";
 export function ProjectScope() {
   const { projectId } = useParams();
   const location = useLocation();
-  const navigate = useNavigate();
   const { t } = useI18n();
   const bridge = useHostBridge();
   const tabsEnabled = useFeature("tabs");
-  const projecting = useRef(false);
-  const activeTabId = useTabStore((s) => (projectId ? s.byProject[projectId]?.activeTabId ?? null : null));
+  useTabRouteSync(projectId, tabsEnabled);
   const project = useAppStore((s) => (projectId ? s.projects.get(projectId) : undefined));
   const client = useApiClient(projectId);
   const connection = useConnection();
@@ -51,28 +49,6 @@ export function ProjectScope() {
     const subRoute = fullPath.startsWith(prefix) ? fullPath.slice(prefix.length) || "/" : "/";
     void setProjectLastRoute(projectId, subRoute);
   }, [location.pathname, location.search, projectId, setProjectLastRoute]);
-
-  useEffect(() => {
-    if (!tabsEnabled || !projectId) return;
-    if (projecting.current) {
-      projecting.current = false;
-      return;
-    }
-    const spec = routeToTabSpec(projectId, location.pathname, location.search);
-    if (spec) useTabStore.getState().openTab(projectId, spec);
-  }, [tabsEnabled, projectId, location.pathname, location.search]);
-
-  useEffect(() => {
-    if (!tabsEnabled || !projectId || !activeTabId) return;
-    const tab = useTabStore.getState().byProject[projectId]?.tabs.find((t) => t.id === activeTabId);
-    if (!tab) return;
-    const route = tabToRoute(tab);
-    const current = location.pathname + location.search;
-    if (route !== current) {
-      projecting.current = true;
-      navigate(route, { replace: true });
-    }
-  }, [tabsEnabled, projectId, activeTabId, location.pathname, location.search, navigate]);
 
   if (!projectId || !project) {
     return (

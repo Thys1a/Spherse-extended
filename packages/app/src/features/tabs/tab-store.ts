@@ -47,6 +47,17 @@ function identityOfTab(tab: Tab): string | undefined {
   return identityOf(tab);
 }
 
+function isValidTab(tab: unknown, projectId: string): tab is Tab {
+  if (!tab || typeof tab !== "object") return false;
+  const o = tab as Record<string, unknown>;
+  if (o.projectId !== projectId || typeof o.id !== "string" || typeof o.label !== "string") return false;
+  if (o.kind === "chat") return typeof o.sessionId === "string" && o.sessionId.length > 0;
+  if (o.kind === "content") return typeof o.filePath === "string" && o.filePath.length > 0;
+  if (o.kind === "browser") return typeof o.url === "string" && o.url.length > 0;
+  if (o.kind === "home") return true;
+  return false;
+}
+
 function loadFromStorage(): Record<string, ProjectTabs> {
   if (typeof localStorage === "undefined") return {};
   try {
@@ -57,7 +68,11 @@ function loadFromStorage(): Record<string, ProjectTabs> {
     for (const [projectId, entry] of Object.entries(parsed)) {
       if (!entry || !Array.isArray(entry.tabs)) {
         delete parsed[projectId];
+        continue;
       }
+      const tabs = entry.tabs.filter((t) => isValidTab(t, projectId));
+      const activeTabId = tabs.some((t) => t.id === entry.activeTabId) ? entry.activeTabId : (tabs[0]?.id ?? null);
+      parsed[projectId] = { tabs, activeTabId };
     }
     return parsed;
   } catch {

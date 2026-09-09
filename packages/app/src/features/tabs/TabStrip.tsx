@@ -35,6 +35,9 @@ export function TabStrip({ projectId }: { projectId: string }) {
             onDragStart={() => {
               dragFrom.current = idx;
             }}
+            onDragEnd={() => {
+              dragFrom.current = null;
+            }}
             onDragOver={(e) => e.preventDefault()}
             onDrop={() => {
               if (dragFrom.current !== null) {

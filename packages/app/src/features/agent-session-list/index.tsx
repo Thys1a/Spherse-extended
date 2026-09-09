@@ -85,7 +85,7 @@ export function AgentSessionList() {
   const performDeleteSession = async (session: SessionInfo) => {
     setDialog({ kind: "none" });
     await deleteProjectSession(projectId, client, session).catch(() => undefined);
-    if (activeSessionId === session.id) {
+    if (activeSessionId === session.id && !tabsEnabled) {
       navigate(`/project/${projectId}`);
     }
   };
@@ -93,7 +93,7 @@ export function AgentSessionList() {
   const performDeleteAgent = async (agent: AgentSummary) => {
     setDialog({ kind: "none" });
     await deleteProjectAgent(projectId, client, agent.id).catch(() => undefined);
-    if (activeSessionId) {
+    if (activeSessionId && !tabsEnabled) {
       const deletedSessionBelongsToAgent = sessions.some(
         (s) => s.id === activeSessionId && s.agentId === agent.id,
       );

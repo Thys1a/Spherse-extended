@@ -65,4 +65,18 @@ describe("routeToTabSpec", () => {
     expect(routeToTabSpec("p1", "/", "")).toBeNull();
     expect(routeToTabSpec("p1", "/project/other/chat/s1", "")).toBeNull();
   });
+
+  it("returns null instead of throwing on malformed encodings", () => {
+    expect(routeToTabSpec("p1", "/project/p1/chat/%E0", "")).toBeNull();
+    expect(routeToTabSpec("p1", "/project/p1/chat/%2", "")).toBeNull();
+    expect(routeToTabSpec("p1", "/project/p1/chat/%", "")).toBeNull();
+    expect(routeToTabSpec("p1", "/project/p1/chat/%2F", "")).toBeNull();
+  });
+
+  it("round-trips chat sessionIds with special characters", () => {
+    const tab = makeTab({ kind: "chat", sessionId: "a b?c#d" });
+    const route = tabToRoute(tab);
+    const spec = routeToTabSpec("p1", route.split("?")[0], "");
+    expect(spec).toMatchObject({ kind: "chat", sessionId: "a b?c#d" });
+  });
 });

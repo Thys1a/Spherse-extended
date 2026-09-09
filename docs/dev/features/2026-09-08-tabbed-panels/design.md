@@ -40,19 +40,19 @@
 
 ### 渲染架构（TabContainer 并行渲染，对齐 floating 模式）
 
-- `ProjectScope` 的 `main` 区域：`<Outlet/>` 替换为 `<TabStrip/> + <TabContainer/>`（`useFeature("tabs")` 关时回退 `<Outlet/>`；`router.tsx` 子路由 element 置空占位，保留 URL 结构供深链匹配）。
+- `ProjectScope` 的 `main` 区域：`<Outlet/>` 替换为 `<TabStrip/> + <TabContainer/>`（`useFeature("tabs")` 关时回退 `<Outlet/>`；`router.tsx` 未动，子路由保留匹配，深链可进入）。
 - `TabContainer` 按 tab kind 独立渲染现成组件（全部已是可独立渲染的薄封装），`activeTabId` 控制 `display:none` 保活，后台 DOM 不卸载：
   - chat → `<Chat>`（带 header；session/agent 解析参照 `FloatingChatContainer`）
   - content → `<ContentBrowser>`（完整编辑版；filePath 来自 tab，逻辑参照 `ContentBrowserPage`）
   - browser → `<BrowserPageView>`
   - home → 项目首页（`WelcomePage`）
-- 进入 project 初始化：无 tab 时建一个 home tab；`setProjectLastRoute` 改由 activeTab 投影替代。
+- 进入 project 初始化：无 tab 时由 location→store 同步按当前路由建 tab（index 建 home）；`setProjectLastRoute` 保留（投影 URL 天然喂给它）。
 - 关闭 tab 不等于关闭会话：chat WS attach 由组件挂载驱动（与 floating chat 相同语义），后台 tab 流式更新照常入全局 store。
 
 ### 路由投影（tab store 为源，route 为投影，双向同步）
 
 - activeTab 变化 → `navigate(route, { replace: true })` 仅投影 URL。
-- `location` 变化（浏览器后退、深链、SDK navigate）→ 反向同步 `openTab`/`activate`；用 ref 标记「store 驱动的 navigate」跳过反向同步，避免循环。现有 `navigate(...)` 调用点无需改动。
+- `location` 变化（浏览器后退、深链、SDK navigate）→ 反向同步 `openTab`/`activate`；投影目标 route 快照比对跳过回声（并发导航不匹配快照则正常处理）。现有 `navigate(...)` 调用点无需改动。
 
 ### 与 floating 面板的关系（已确认：默认 tab + 右键浮窗）
 
@@ -70,9 +70,12 @@
 
 ### 风险
 
-- 路由 ↔ tab 双向同步的循环防护（ref 标记 store 驱动的 navigate）。
-- Iframe 保活的内存代价（后台 tab 不卸载）；chat label 需调用方先查 session title 或进入后异步解析。
+- 路由 ↔ tab 双向同步的循环防护（投影目标快照比对；`useProjectNavHistory` 对 replace 投影只替换栈顶，不污染后退栈）。
+- Iframe 保活的内存代价（后台 tab 不卸载）。
 - `useChatScroll` 无需新工作（沿用现有 per-session scrollPosition）。
+- 同会话浮窗 + tab 并存可接受：TTS 为全局单例（后调覆盖先调，不双发声）、输入面共用 store 的 streaming 互斥、WS attach 天然引用计数（docked-chat 早有同会话多实例先例）。
+- 删除会话/ Agent 时 tabs 开不导航回首页，完全交由 tab 层（关 tab → 邻居/home）决定终态。
+- Browser tab 复用 `browserEnabled + isLoopbackUrl` 门禁（路由解析与面板双层），深链非法 url 建不出 tab。
 
 ## 验证思路（实施时）
 

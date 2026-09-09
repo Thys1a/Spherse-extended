@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { screen, cleanup, fireEvent } from "@testing-library/react";
+import { translate } from "@spherse/i18n";
 
 const { mockUseProjectCatalog, mockUseApiClient } = vi.hoisted(() => ({
   mockUseProjectCatalog: vi.fn(),
@@ -82,7 +83,7 @@ describe("TabStrip", () => {
   it("closes a tab via the close button", () => {
     renderWithProviders(<TabStrip projectId="p1" />);
 
-    const closeButtons = screen.getAllByLabelText("关闭标签页");
+    const closeButtons = screen.getAllByLabelText(translate("zh-CN", "tabs.closeTab"));
     expect(closeButtons).toHaveLength(2);
     fireEvent.click(closeButtons[1]);
 

@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useNavigate } from "react-router";
 import { useI18n } from "@spherse/i18n/react";
 import type { ActiveSessionInfo } from "../../lib/types";
+import { useFeature } from "../../lib/use-feature";
 import { useProjectNavigation } from "../../lib/use-project-navigation";
 import { useApiClient } from "../../lib/use-connection";
 import { useProjectDataStore } from "../../stores/project-data-store";
@@ -9,6 +10,7 @@ import { createProjectSession, useProjectCatalog, useProjectSession } from "../.
 import { Chat } from "../chat";
 import { ContentBrowser } from "../content-browser";
 import { BrowserPageView } from "../browser/BrowserPageView";
+import { isLoopbackUrl } from "../browser/open-external-url";
 import { WelcomePage } from "../welcome-page";
 import { useFloatingSessionId } from "../floating-chat/use-floating-session-id";
 import { useTabStore, type Tab } from "./tab-store";
@@ -121,14 +123,24 @@ function ContentTabPanel({ projectId, tab, onClose }: { projectId: string; tab: 
 
 function BrowserTabPanel({ projectId, tab }: { projectId: string; tab: Tab }) {
   const { back } = useProjectNavigation();
-  if (!tab.url) return null;
-  return <BrowserPageView projectId={projectId} url={tab.url} onBack={back} />;
+  const browserEnabled = useFeature("browser");
+  const closeTab = useTabStore((s) => s.closeTab);
+  const url = tab.url ?? "";
+  const allowed = browserEnabled && isLoopbackUrl(url);
+
+  useEffect(() => {
+    if (url && !allowed) closeTab(projectId, tab.id);
+  }, [allowed, url, closeTab, projectId, tab.id]);
+
+  if (!allowed) return null;
+  return <BrowserPageView projectId={projectId} url={url} onBack={back} />;
 }
 
-function HomeTabPanel() {
+function HomeTabPanel({ projectId }: { projectId: string }) {
   const { t } = useI18n();
   return (
     <WelcomePage
+      key={projectId}
       fallback={
         <div className="flex h-full items-center justify-center text-muted-foreground">
           <p>{t("welcome-page.emptyState")}</p>
@@ -145,5 +157,5 @@ export function TabPanel({ projectId, tab }: { projectId: string; tab: Tab }) {
   if (tab.kind === "chat") return <ChatTabPanel projectId={projectId} tab={tab} onClose={onClose} />;
   if (tab.kind === "content") return <ContentTabPanel projectId={projectId} tab={tab} onClose={onClose} />;
   if (tab.kind === "browser") return <BrowserTabPanel projectId={projectId} tab={tab} />;
-  return <HomeTabPanel />;
+  return <HomeTabPanel projectId={projectId} />;
 }
