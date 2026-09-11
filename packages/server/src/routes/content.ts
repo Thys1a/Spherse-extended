@@ -5,10 +5,12 @@ import {
   serverAccessPolicy,
   AccessDeniedError,
   ConflictError,
+  NotFoundError,
+  ValidationError,
   isBinaryBuffer,
   BINARY_SAMPLE_SIZE,
 } from "@spherse/core";
-import { schemas, parseContract } from "@spherse/contracts";
+import { schemas, parseContract, type ContentMutationRequest } from "@spherse/contracts";
 import type { ProjectRegistry } from "../registry.js";
 import { forbidden, notFound, badRequest, conflict } from "../errors.js";
 
@@ -93,23 +95,33 @@ export function registerContentRoutes(fastify: FastifyInstance, _registry: Proje
     },
   );
 
-  fastify.post<{ Params: { projectId: string; "*": string }; Body: { action: "mkdir" | "touch" } }>(
+  fastify.post<{ Params: { projectId: string; "*": string }; Body: ContentMutationRequest }>(
     "/api/projects/:projectId/content/*",
-    { schema: { body: schemas.contentCreateRequest, response: { 200: schemas.okResponse } } },
+    { schema: { body: schemas.contentMutationRequest, response: { 200: schemas.okResponse } } },
     async (req) => {
       const relativePath = req.params["*"];
       const pm = req.projectCtx!.projectManager;
 
       const action = req.body?.action;
-      if (action !== "mkdir" && action !== "touch") {
-        throw badRequest("Invalid or missing 'action' (expected 'mkdir' or 'touch')");
+      if (action !== "mkdir" && action !== "touch" && action !== "move") {
+        throw badRequest("Invalid or missing 'action' (expected 'mkdir', 'touch' or 'move')");
       }
 
       try {
-        await pm.createEntry(relativePath, action);
+        if (action === "move") {
+          const destination = req.body.destination;
+          if (typeof destination !== "string" || destination.length === 0) {
+            throw badRequest("Missing or invalid 'destination'");
+          }
+          await pm.moveEntry(relativePath, destination);
+        } else {
+          await pm.createEntry(relativePath, action);
+        }
       } catch (err) {
         if (err instanceof AccessDeniedError) throw forbidden("Access denied");
         if (err instanceof ConflictError) throw conflict("Already exists");
+        if (err instanceof NotFoundError) throw notFound("Not found");
+        if (err instanceof ValidationError) throw badRequest((err as Error).message);
         throw err;
       }
       return { ok: true };

@@ -27,8 +27,11 @@ interface ProjectTabs {
 
 interface TabStore {
   byProject: Record<string, ProjectTabs>;
-  openTab: (projectId: string, spec: OpenTabSpec) => string;
+  openTab: (projectId: string, spec: OpenTabSpec, opts?: { force?: boolean }) => string;
   closeTab: (projectId: string, id: string) => void;
+  closeOthers: (projectId: string, keepId: string) => void;
+  closeAll: (projectId: string) => void;
+  remapPaths: (projectId: string, oldPath: string, newPath: string) => void;
   activate: (projectId: string, id: string) => void;
   reorder: (projectId: string, from: number, to: number) => void;
   clearProject: (projectId: string) => void;
@@ -96,10 +99,10 @@ function emptyProjectTabs(): ProjectTabs {
 export const useTabStore = create<TabStore>((set, get) => ({
   byProject: loadFromStorage(),
 
-  openTab(projectId, spec) {
+  openTab(projectId, spec, opts) {
     const identity = identityOf(spec);
     const existing = get().byProject[projectId];
-    if (identity !== undefined && existing) {
+    if (opts?.force !== true && identity !== undefined && existing) {
       const match = existing.tabs.find((t) => identityOfTab(t) === identity);
       if (match) {
         if (spec.label && spec.label !== match.label) {
@@ -167,6 +170,47 @@ export const useTabStore = create<TabStore>((set, get) => ({
         activeTabId = home.id;
       }
       const byProject = { ...s.byProject, [projectId]: { tabs, activeTabId } };
+      persist(byProject);
+      return { byProject };
+    });
+  },
+
+  closeOthers(projectId, keepId) {
+    set((s) => {
+      const entry = s.byProject[projectId];
+      if (!entry || !entry.tabs.some((t) => t.id === keepId)) return s;
+      const tabs = entry.tabs.filter((t) => t.id === keepId);
+      const byProject = { ...s.byProject, [projectId]: { tabs, activeTabId: keepId } };
+      persist(byProject);
+      return { byProject };
+    });
+  },
+
+  closeAll(projectId) {
+    set((s) => {
+      const entry = s.byProject[projectId];
+      if (!entry) return s;
+      const home: Tab = { id: crypto.randomUUID(), kind: "home", projectId, label: "" };
+      const byProject = { ...s.byProject, [projectId]: { tabs: [home], activeTabId: home.id } };
+      persist(byProject);
+      return { byProject };
+    });
+  },
+
+  remapPaths(projectId, oldPath, newPath) {
+    set((s) => {
+      const entry = s.byProject[projectId];
+      if (!entry) return s;
+      const prefix = `${oldPath}/`;
+      let changed = false;
+      const tabs = entry.tabs.map((t) => {
+        if (t.filePath !== oldPath && !t.filePath?.startsWith(prefix)) return t;
+        changed = true;
+        const filePath = t.filePath === oldPath ? newPath : newPath + t.filePath.slice(oldPath.length);
+        return { ...t, filePath, label: filePath.split("/").pop() ?? filePath };
+      });
+      if (!changed) return s;
+      const byProject = { ...s.byProject, [projectId]: { ...entry, tabs } };
       persist(byProject);
       return { byProject };
     });

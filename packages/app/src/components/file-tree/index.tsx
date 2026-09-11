@@ -1,9 +1,10 @@
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import { useI18n } from "@spherse/i18n/react";
 import { useProjectCtx } from "../../context/project-context";
 import { useApiClient } from "../../lib/use-connection";
 import { useProjectDirectory } from "../../queries/content";
 import { useFileTreeController } from "./hooks/useFileTreeController";
+import { useFileTreeSelection } from "./hooks/useFileTreeSelection";
 import { buildTreeItems } from "./tree-model";
 import { FileTreeItem } from "./FileTreeNode";
 import { FileTreeProvider } from "./file-tree-context";
@@ -13,7 +14,9 @@ import { DeleteConfirmDialog } from "./DeleteConfirmDialog";
 export interface FileTreeProps {
   selectedFilePath?: string;
   onSelectFile: (filePath: string) => void;
-  onDeleted?: (path: string) => void;
+  onDeleted?: (paths: string[]) => void;
+  onRenamed?: (oldPath: string, newPath: string) => void;
+  onOpenInNewTab?: (filePath: string) => void;
   onFloatFile?: (filePath: string) => void;
   floatedFilePaths?: Set<string>;
   rootPath?: string;
@@ -21,12 +24,14 @@ export interface FileTreeProps {
   readOnly?: boolean;
 }
 
-export function FileTree({ selectedFilePath, onSelectFile, onDeleted, onFloatFile, floatedFilePaths, rootPath, emptyLabel, readOnly }: FileTreeProps) {
+export function FileTree({ selectedFilePath, onSelectFile, onDeleted, onRenamed, onOpenInNewTab, onFloatFile, floatedFilePaths, rootPath, emptyLabel, readOnly }: FileTreeProps) {
   const { t } = useI18n();
   const { projectId } = useProjectCtx();
   const client = useApiClient(projectId);
   const basePath = rootPath ?? "";
-  const ctrl = useFileTreeController(client, onDeleted, projectId);
+  const ctrl = useFileTreeController(client, onDeleted, projectId, onRenamed);
+  const listRef = useRef<HTMLDivElement | null>(null);
+  const selection = useFileTreeSelection(listRef, projectId, onSelectFile);
   const rootQuery = useProjectDirectory(projectId, client, basePath);
   const items = useMemo(
     () => (rootQuery.data ? buildTreeItems(rootQuery.data, basePath) : []),
@@ -39,19 +44,32 @@ export function FileTree({ selectedFilePath, onSelectFile, onDeleted, onFloatFil
     selectedFilePath,
     expandedPaths: ctrl.expandedPaths,
     creating: ctrl.creating,
+    renaming: ctrl.renaming,
     selectFile: onSelectFile,
+    selectedPaths: selection.selected,
+    selectFileWithModifiers: selection.selectFileWithModifiers,
+    selectSingle: selection.selectSingle,
     toggleDir: ctrl.toggleDir,
+    expandDir: ctrl.expandDir,
     requestCreate: ctrl.requestCreate,
     submitCreate: ctrl.submitCreate,
     cancelCreate: ctrl.cancelCreate,
+    requestRename: ctrl.requestRename,
+    submitRename: ctrl.submitRename,
+    cancelRename: ctrl.cancelRename,
+    submitMove: ctrl.submitMove,
+    dropTarget: ctrl.dropTarget,
+    setDropTarget: ctrl.setDropTarget,
     requestDelete: ctrl.requestDelete,
+    requestDeleteMany: ctrl.requestDeleteMany,
+    onOpenInNewTab,
     onFloatFile,
     floatedFilePaths,
     readOnly,
   };
 
   return (
-    <div className="flex flex-col gap-px text-xs">
+    <div ref={listRef} className="flex flex-col gap-px text-xs">
       {rootQuery.isPending ? (
         <p className="px-2 text-xs text-sidebar-foreground/70">{t("common.loading")}</p>
       ) : items.length === 0 ? (
@@ -74,7 +92,7 @@ export function FileTree({ selectedFilePath, onSelectFile, onDeleted, onFloatFil
       )}
       {!readOnly && (
         <DeleteConfirmDialog
-          target={ctrl.deleteTarget}
+          targets={ctrl.deleteTargets}
           onConfirm={ctrl.confirmDelete}
           onCancel={ctrl.cancelDelete}
         />

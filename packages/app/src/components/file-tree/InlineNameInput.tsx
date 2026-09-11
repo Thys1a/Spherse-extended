@@ -4,10 +4,12 @@ import { INVALID_NAME_RE } from "./tree-model";
 
 export function InlineNameInput({
   depth,
+  initialValue,
   onSubmit,
   onCancel,
 }: {
   depth: number;
+  initialValue?: string;
   onSubmit: (name: string) => void;
   onCancel: () => void;
 }) {
@@ -15,12 +17,14 @@ export function InlineNameInput({
 
   useEffect(() => {
     inputRef.current?.focus();
-  }, []);
+    if (initialValue !== undefined) inputRef.current?.select();
+  }, [initialValue]);
 
   return (
     <div style={{ paddingLeft: (depth + 1) * 16 + 8 }}>
       <Input
         ref={inputRef}
+        defaultValue={initialValue}
         className="h-6 text-xs"
         onKeyDown={(e) => {
           if (e.key === "Enter") {

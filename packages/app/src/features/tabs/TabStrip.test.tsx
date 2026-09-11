@@ -90,6 +90,47 @@ describe("TabStrip", () => {
     expect(useTabStore.getState().byProject["p1"].tabs).toHaveLength(1);
   });
 
+  it("closes other tabs via context menu", () => {
+    renderWithProviders(<TabStrip projectId="p1" />);
+
+    const contentTab = screen.getByText("a.md").closest('[role="tab"]');
+    if (!contentTab) throw new Error("tab not found");
+    fireEvent.contextMenu(contentTab);
+    fireEvent.click(screen.getByText(translate("zh-CN", "tabs.closeOthers")));
+
+    const entry = useTabStore.getState().byProject["p1"];
+    expect(entry.tabs).toHaveLength(1);
+    expect(entry.tabs[0].filePath).toBe("a.md");
+    expect(entry.activeTabId).toBe(entry.tabs[0].id);
+  });
+
+  it("closes all tabs via context menu", () => {
+    renderWithProviders(<TabStrip projectId="p1" />);
+
+    const chatTab = screen.getByText("Session One").closest('[role="tab"]');
+    if (!chatTab) throw new Error("tab not found");
+    fireEvent.contextMenu(chatTab);
+    fireEvent.click(screen.getByText(translate("zh-CN", "tabs.closeAll")));
+
+    const entry = useTabStore.getState().byProject["p1"];
+    expect(entry.tabs).toHaveLength(1);
+    expect(entry.tabs[0].kind).toBe("home");
+  });
+
+  it("closes a tab via context menu", () => {
+    renderWithProviders(<TabStrip projectId="p1" />);
+
+    const contentTab = screen.getByText("a.md").closest('[role="tab"]');
+    if (!contentTab) throw new Error("tab not found");
+    fireEvent.contextMenu(contentTab);
+    const items = screen.getAllByText(translate("zh-CN", "tabs.closeTab"));
+    const menuItem = items.find((el) => el.closest('[data-slot="context-menu-item"]'));
+    if (!menuItem) throw new Error("menu item not found");
+    fireEvent.click(menuItem);
+
+    expect(useTabStore.getState().byProject["p1"].tabs).toHaveLength(1);
+  });
+
   it("reorders tabs via drag and drop", () => {
     renderWithProviders(<TabStrip projectId="p1" />);
     const before = useTabStore.getState().byProject["p1"].tabs.map((t) => t.kind);

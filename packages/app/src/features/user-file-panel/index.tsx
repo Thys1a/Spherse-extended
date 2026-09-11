@@ -15,6 +15,7 @@ import { useProjectCtx } from "../../context/project-context";
 import { useFeature } from "../../lib/use-feature";
 import { dispatchAction } from "../../ui-sdk";
 import { useFloatedFilePaths } from "../floating-content-browser";
+import { useTabStore } from "../tabs/tab-store";
 
 export function UserFilePanel() {
   const { projectId } = useProjectCtx();
@@ -26,6 +27,7 @@ export function UserFilePanel() {
   const contentPath = searchParams.get("path") ?? undefined;
   const canMutate = bridge.capabilities.content.editable;
   const floatEnabled = useFeature("floating-content-browser");
+  const tabsEnabled = useFeature("tabs");
   const floatedFilePaths = useFloatedFilePaths(projectId);
 
   const handleSelectFile = (filePath: string) => {
@@ -33,9 +35,16 @@ export function UserFilePanel() {
     navigate(`/project/${projectId}/content?path=${encodeURIComponent(filePath)}`);
   };
 
-  const handleFileDeleted = (deletedPath: string) => {
-    if (contentPath && (contentPath === deletedPath || contentPath.startsWith(`${deletedPath}/`))) {
+  const handleFileDeleted = (deletedPaths: string[]) => {
+    if (contentPath && deletedPaths.some((p) => contentPath === p || contentPath.startsWith(`${p}/`))) {
       if (projectId) navigate(`/project/${projectId}`);
+    }
+  };
+
+  const handleRenamed = (oldPath: string, newPath: string) => {
+    if (!contentPath || !projectId) return;
+    if (contentPath === oldPath || contentPath.startsWith(`${oldPath}/`)) {
+      navigate(`/project/${projectId}/content?path=${encodeURIComponent(newPath + contentPath.slice(oldPath.length))}`);
     }
   };
 
@@ -60,7 +69,20 @@ export function UserFilePanel() {
               selectedFilePath={contentPath}
               onSelectFile={handleSelectFile}
               onDeleted={handleFileDeleted}
+              onRenamed={handleRenamed}
               floatedFilePaths={floatEnabled ? floatedFilePaths : undefined}
+              onOpenInNewTab={
+                tabsEnabled
+                  ? (path) => {
+                      if (!projectId) return;
+                      useTabStore.getState().openTab(
+                        projectId,
+                        { kind: "content", label: path.split("/").pop() ?? path, filePath: path },
+                        { force: true },
+                      );
+                    }
+                  : undefined
+              }
               onFloatFile={
                 floatEnabled
                   ? (path) => {

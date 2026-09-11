@@ -65,6 +65,8 @@ export type {
   ContentResponseContract,
   StatResponseContract,
   ContentCreateRequest,
+  ContentMoveRequest,
+  ContentMutationRequest,
   ContentSaveRequest,
 } from "./content.js";
 

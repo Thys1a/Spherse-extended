@@ -92,6 +92,56 @@ describe("write facade contract: real ProjectManager through real routes", () =>
     expect(res.statusCode).toBe(409);
   });
 
+  it("content POST moveEntry: renames through the real facade", async () => {
+    fs.writeFileSync(path.join(tmpDir, "rename-me.md"), "data");
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/projects/p1/content/rename-me.md",
+      payload: { action: "move", destination: "renamed.md" },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(fs.existsSync(path.join(tmpDir, "rename-me.md"))).toBe(false);
+    expect(fs.readFileSync(path.join(tmpDir, "renamed.md"), "utf-8")).toBe("data");
+  });
+
+  it("content POST moveEntry: existing destination maps to 409", async () => {
+    fs.writeFileSync(path.join(tmpDir, "move-a.md"), "a");
+    fs.writeFileSync(path.join(tmpDir, "move-b.md"), "b");
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/projects/p1/content/move-a.md",
+      payload: { action: "move", destination: "move-b.md" },
+    });
+    expect(res.statusCode).toBe(409);
+  });
+
+  it("content POST moveEntry: missing source maps to 404, self-move to 400", async () => {
+    const missing = await app.inject({
+      method: "POST",
+      url: "/api/projects/p1/content/never-there.md",
+      payload: { action: "move", destination: "somewhere.md" },
+    });
+    expect(missing.statusCode).toBe(404);
+
+    fs.mkdirSync(path.join(tmpDir, "movedir"), { recursive: true });
+    const selfMove = await app.inject({
+      method: "POST",
+      url: "/api/projects/p1/content/movedir",
+      payload: { action: "move", destination: "movedir/sub" },
+    });
+    expect(selfMove.statusCode).toBe(400);
+  });
+
+  it("content POST moveEntry denies engine-internal destinations (403)", async () => {
+    fs.writeFileSync(path.join(tmpDir, "move-src.md"), "x");
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/projects/p1/content/move-src.md",
+      payload: { action: "move", destination: ".spherse/project.yaml" },
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
   it("content DELETE deletePath: removes entries through the real facade; missing is ok", async () => {
     const res = await app.inject({
       method: "DELETE",

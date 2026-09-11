@@ -793,6 +793,16 @@ export const zhCN = {
   "content-browser.find.next": "下一个匹配",
   // 查找栏「关闭查找」按钮的悬停提示与无障碍标签
   "content-browser.find.close": "关闭查找",
+  // 编辑态查找替换栏：替换文本输入框占位文案
+  "content-browser.find.replacementPlaceholder": "替换为",
+  // 编辑态查找替换栏：「替换」单个匹配按钮
+  "content-browser.find.replace": "替换",
+  // 编辑态查找替换栏：「全部替换」按钮
+  "content-browser.find.replaceAll": "全部替换",
+  // 空替换（删除）时的二次确认按钮文案，{count} 为匹配数
+  "content-browser.find.confirmDelete": "确认删除 {count} 处？",
+  // 全部替换成功后的 toast 提示，{count} 为替换处数
+  "content-browser.find.replaced": "共替换 {count} 处",
   // 文件被外部修改时的冲突提示横幅
   "content-browser.conflictBannerText": "文件已被外部修改",
   // 冲突时保留本地修改按钮
@@ -821,6 +831,12 @@ export const zhCN = {
   "content-browser.pathCopied": "路径已复制",
   // 刷新按钮（content browser Header，图标按钮 title/aria-label）
   "content-browser.refresh": "刷新",
+  // 大纲面板标题与开关按钮（content browser Header，图标按钮 title/aria-label）
+  "content-browser.toc.title": "大纲",
+  // 阅读态勾选 task 时存在未保存草稿的拒绝提示
+  "content-browser.taskToggleDirty": "有未保存的修改，请先保存或取消后再勾选",
+  // 阅读态勾选前重读发现外部变更的提示
+  "content-browser.taskToggleStale": "文件已被外部修改，请刷新后重试",
   // 点击 markdown 内部链接指向的文件不存在时的 toast 错误提示，{path} 为目标文件相对项目根的路径
   "content-browser.linkNotFound": "找不到文件：{path}",
   // 打开无法在应用内预览的二进制文件（如 PDF / Word / 音视频 / 压缩包）时，占位卡的主标题
@@ -841,12 +857,28 @@ export const zhCN = {
   "file-tree.confirmDeleteDir": "确定要删除目录「{name}」吗？此操作不可撤销。",
   // 删除文件确认弹窗内容，{name} 为文件名
   "file-tree.confirmDeleteFile": "确定要删除文件「{name}」吗？此操作不可撤销。",
+  // 批量删除确认弹窗内容，{count} 为选中文件数
+  "file-tree.confirmDeleteMany": "确定要删除选中的 {count} 个文件吗？此操作不可撤销。",
+  // 批量删除右键菜单项，{count} 为选中文件数
+  "file-tree.deleteSelected": "删除 {count} 项",
+  // 批量复制路径右键菜单项，{count} 为选中文件数
+  "file-tree.copyPaths": "复制 {count} 条路径",
   // 创建失败提示，{message} 为错误信息
   "file-tree.createFailed": "创建失败：{message}",
   // 删除失败提示，{message} 为错误信息
   "file-tree.deleteFailed": "删除失败：{message}",
   // 文件树右键菜单：复制路径
   "file-tree.copyPath": "复制路径",
+  // 文件右键菜单：在新标签页中打开
+  "file-tree.openInNewTab": "在新标签页中打开",
+  // 文件右键菜单：重命名
+  "file-tree.rename": "重命名",
+  // 重命名失败提示，{message} 为错误信息
+  "file-tree.renameFailed": "重命名失败：{message}",
+  // 重命名目标有未保存草稿时的拒绝提示
+  "file-tree.renameBlockedDirty": "有未保存的修改，请先保存或取消后再重命名",
+  // 拖动移动失败提示，{message} 为错误信息
+  "file-tree.moveFailed": "移动失败：{message}",
   // 文件树右键菜单（仅文件）：将文件在浮窗中打开
   "file-tree.float": "浮窗",
   // 文件树右键菜单（仅文件）：该文件已在浮窗中打开，点击关闭其浮窗
@@ -1059,6 +1091,10 @@ export const zhCN = {
   "tabs.home": "首页",
   // 关闭标签页按钮的无障碍标签
   "tabs.closeTab": "关闭标签页",
+  // 标签页右键菜单：关闭其他标签页
+  "tabs.closeOthers": "关闭其他标签页",
+  // 标签页右键菜单：关闭所有标签页
+  "tabs.closeAll": "关闭所有标签页",
   // 图片生成设置中默认模型下拉框的标签
   "settings.image.defaultModel": "默认生图模型",
 

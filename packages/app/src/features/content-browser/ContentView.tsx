@@ -8,8 +8,11 @@ import { useProjectCtx } from "../../context/project-context";
 import { useApiClient } from "../../lib/use-connection";
 import { mergeRefs } from "../../lib/utils";
 import { useOpenExternalLink } from "../browser/open-external-url";
+import { EditFindReplaceBar } from "./EditFindReplaceBar";
 import { FindBar } from "./FindBar";
 import { FrontMatterPanel } from "./FrontMatterPanel";
+import { TocPanel } from "./TocPanel";
+import { useContentToc } from "./useContentToc";
 import { UnsupportedFileCard } from "./UnsupportedFileCard";
 import { resolveMarkdownImagePath } from "./image-path";
 import { resolveMarkdownLink } from "./markdown-link";
@@ -32,6 +35,10 @@ interface ContentViewProps {
   refreshKey: number;
   findOpen?: boolean;
   onFindOpenChange?: (open: boolean) => void;
+  tocOpen?: boolean;
+  editFindOpen?: boolean;
+  onEditFindOpenChange?: (open: boolean) => void;
+  onTaskToggle?: (taskIndex: number, checked: boolean) => void;
 }
 
 export function ContentView({
@@ -51,6 +58,10 @@ export function ContentView({
   refreshKey,
   findOpen: findOpenProp,
   onFindOpenChange,
+  tocOpen = false,
+  editFindOpen: editFindOpenProp,
+  onEditFindOpenChange,
+  onTaskToggle,
 }: ContentViewProps) {
   const { t } = useI18n();
   const { projectId } = useProjectCtx();
@@ -105,9 +116,15 @@ export function ContentView({
     !(isHtml && htmlView === "preview");
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const tocVisible = tocOpen && isMarkdown && !loading && !error && !binary && content !== null;
+  const tocEntries = useContentToc(scrollRef, `${filePath}#${refreshKey}`, tocVisible);
   const [internalFindOpen, setInternalFindOpen] = useState(false);
   const findOpen = (findOpenProp ?? internalFindOpen) && findEnabled;
   const setFindOpen = onFindOpenChange ?? setInternalFindOpen;
+  const [internalEditFindOpen, setInternalEditFindOpen] = useState(false);
+  const editFindOpen = editFindOpenProp ?? internalEditFindOpen;
+  const setEditFindOpen = onEditFindOpenChange ?? setInternalEditFindOpen;
 
   useEffect(() => {
     if (!findEnabled) setFindOpen(false);
@@ -124,6 +141,22 @@ export function ContentView({
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [findEnabled, setFindOpen]);
+
+  useEffect(() => {
+    if (!isEditing) setEditFindOpen(false);
+  }, [isEditing, setEditFindOpen]);
+
+  useEffect(() => {
+    if (!isEditing) return;
+    const handler = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "f") {
+        event.preventDefault();
+        setEditFindOpen(true);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [isEditing, setEditFindOpen]);
 
   if (isHtml && htmlView === "preview" && !isEditing && !loading && !error) {
     return (
@@ -151,12 +184,23 @@ export function ContentView({
 
   if (isEditing) {
     return (
-      <Textarea
-        className="min-h-0 flex-1 resize-none rounded-none border-none bg-background p-4 font-mono !text-base leading-relaxed shadow-none focus-visible:ring-0"
-        value={editedContent}
-        onChange={(event) => onEditedContentChange(event.target.value)}
-        spellCheck={false}
-      />
+      <div className="flex min-h-0 flex-1 flex-col">
+        {editFindOpen && (
+          <EditFindReplaceBar
+            text={editedContent}
+            textareaRef={textareaRef}
+            onReplace={onEditedContentChange}
+            onClose={() => setEditFindOpen(false)}
+          />
+        )}
+        <Textarea
+          ref={textareaRef}
+          className="min-h-0 flex-1 resize-none rounded-none border-none bg-background p-4 font-mono !text-base leading-relaxed shadow-none focus-visible:ring-0"
+          value={editedContent}
+          onChange={(event) => onEditedContentChange(event.target.value)}
+          spellCheck={false}
+        />
+      </div>
     );
   }
 
@@ -169,20 +213,23 @@ export function ContentView({
           onClose={() => setFindOpen(false)}
         />
       )}
-      <div ref={mergeRefs(contentRef, scrollRef)} className="flex-1 overflow-y-auto p-4">
-        {loading && <p className="p-8 text-center text-muted-foreground">{t("common.loading")}</p>}
-        {error && <p className="p-8 text-center text-destructive">{error}</p>}
-        {!loading && !error && binary && <UnsupportedFileCard filePath={filePath} />}
-        {!loading && !error && !binary && content !== null && (
-          isMarkdown ? (
-            <div data-content-doc className="rounded-lg border border-border bg-card p-6 text-card-foreground">
-              {frontmatter && <FrontMatterPanel data={frontmatter} />}
-              <MarkdownContent variant="document" resolveImageSrc={resolveImageSrc} onLinkClick={handleLinkClick}>{body}</MarkdownContent>
-            </div>
-          ) : (
-            <pre className="break-words rounded-lg border border-border bg-card p-4 font-mono text-sm leading-relaxed whitespace-pre-wrap">{content}</pre>
-          )
-        )}
+      <div className="flex min-h-0 flex-1 flex-row">
+        <div ref={mergeRefs(contentRef, scrollRef)} className="min-w-0 flex-1 overflow-y-auto p-4">
+          {loading && <p className="p-8 text-center text-muted-foreground">{t("common.loading")}</p>}
+          {error && <p className="p-8 text-center text-destructive">{error}</p>}
+          {!loading && !error && binary && <UnsupportedFileCard filePath={filePath} />}
+          {!loading && !error && !binary && content !== null && (
+            isMarkdown ? (
+              <div data-content-doc className="rounded-lg border border-border bg-card p-6 text-card-foreground">
+                {frontmatter && <FrontMatterPanel data={frontmatter} />}
+                <MarkdownContent variant="document" resolveImageSrc={resolveImageSrc} onLinkClick={handleLinkClick} onTaskToggle={onTaskToggle}>{body}</MarkdownContent>
+              </div>
+            ) : (
+              <pre className="break-words rounded-lg border border-border bg-card p-4 font-mono text-sm leading-relaxed whitespace-pre-wrap">{content}</pre>
+            )
+          )}
+        </div>
+        {tocVisible && <TocPanel entries={tocEntries} containerRef={scrollRef} />}
       </div>
     </div>
   );

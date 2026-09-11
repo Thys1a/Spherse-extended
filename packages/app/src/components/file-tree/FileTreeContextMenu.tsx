@@ -14,49 +14,89 @@ export function FileTreeContextMenu({
   children,
   onCreate,
   onDelete,
+  onOpenInNewTab,
   onFloatFile,
   floatedFilePaths,
+  onRename,
+  selectedPaths,
+  onDeleteSelected,
+  readOnly,
 }: {
   node: TreeItem;
   children: React.ReactNode;
   onCreate: (action: CreateAction) => void;
   onDelete: () => void;
+  onOpenInNewTab?: (filePath: string) => void;
   onFloatFile?: (filePath: string) => void;
   floatedFilePaths?: Set<string>;
+  onRename?: () => void;
+  selectedPaths?: readonly string[];
+  onDeleteSelected?: (paths: string[]) => void;
+  readOnly?: boolean;
 }) {
   const { t } = useI18n();
   const isFloated = floatedFilePaths?.has(node.path) ?? false;
+  const batchPaths = selectedPaths ?? [];
+  const batch = !readOnly && batchPaths.length > 1 && batchPaths.includes(node.path);
+  const showOpenGroup = node.type === "file" && (onOpenInNewTab !== undefined || onFloatFile !== undefined);
   return (
     <ContextMenu>
       <ContextMenuTrigger>{children}</ContextMenuTrigger>
       <ContextMenuContent>
-        {onFloatFile && node.type === "file" && (
+        {showOpenGroup && (
           <>
-            <ContextMenuItem onClick={() => onFloatFile(node.path)}>
-              {isFloated ? t("file-tree.cancelFloat") : t("file-tree.float")}
+            {onOpenInNewTab && (
+              <ContextMenuItem onClick={() => onOpenInNewTab(node.path)}>
+                {t("file-tree.openInNewTab")}
+              </ContextMenuItem>
+            )}
+            {onFloatFile && (
+              <ContextMenuItem onClick={() => onFloatFile(node.path)}>
+                {isFloated ? t("file-tree.cancelFloat") : t("file-tree.float")}
+              </ContextMenuItem>
+            )}
+            <ContextMenuSeparator />
+          </>
+        )}
+        {!readOnly && (
+          <>
+            <ContextMenuItem onClick={() => onCreate("new-file")}>
+              {t("file-tree.newFile")}
+            </ContextMenuItem>
+            <ContextMenuItem onClick={() => onCreate("new-folder")}>
+              {t("file-tree.newFolder")}
             </ContextMenuItem>
             <ContextMenuSeparator />
           </>
         )}
-        <ContextMenuItem onClick={() => onCreate("new-file")}>
-          {t("file-tree.newFile")}
-        </ContextMenuItem>
-        <ContextMenuItem onClick={() => onCreate("new-folder")}>
-          {t("file-tree.newFolder")}
-        </ContextMenuItem>
-        <ContextMenuSeparator />
         <ContextMenuItem
           onClick={() => {
-            navigator.clipboard.writeText(node.path).catch(() => {});
+            const text = batch ? batchPaths.join("\n") : node.path;
+            navigator.clipboard.writeText(text).catch(() => {});
             toast.success(t("file-tree.pathCopied"));
           }}
         >
-          {t("file-tree.copyPath")}
+          {batch ? t("file-tree.copyPaths", { count: batchPaths.length }) : t("file-tree.copyPath")}
         </ContextMenuItem>
-        <ContextMenuSeparator />
-        <ContextMenuItem variant="destructive" onClick={onDelete}>
-          {t("common.delete")}
-        </ContextMenuItem>
+        {!readOnly && onRename && !batch && (
+          <ContextMenuItem onClick={onRename}>
+            {t("file-tree.rename")}
+          </ContextMenuItem>
+        )}
+        {!readOnly && (
+          <>
+            <ContextMenuSeparator />
+            {batch && onDeleteSelected ? (
+              <ContextMenuItem variant="destructive" onClick={() => onDeleteSelected([...batchPaths])}>
+                {t("file-tree.deleteSelected", { count: batchPaths.length })}
+              </ContextMenuItem>
+            ) : (
+              <ContextMenuItem variant="destructive" onClick={onDelete}>
+                {t("common.delete")}
+              </ContextMenuItem>
+            )}
+          </>
+        )}
       </ContextMenuContent>
     </ContextMenu>
   );

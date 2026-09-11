@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useI18n } from "@spherse/i18n/react";
 import { Button } from "../../components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "../../components/ui/toggle-group";
-import { ArrowLeftIcon, CheckIcon, CopyIcon, RefreshCwIcon, SearchIcon, XIcon } from "lucide-react";
+import { ArrowLeftIcon, CheckIcon, CopyIcon, ListIcon, RefreshCwIcon, SearchIcon, XIcon } from "lucide-react";
 
 interface HeaderProps {
   filePath: string;
@@ -13,6 +13,7 @@ interface HeaderProps {
   htmlView: "preview" | "source";
   saving: boolean;
   findable: boolean;
+  tocAvailable: boolean;
   onBack: () => void;
   onClose: () => void;
   onEnterEdit: () => void;
@@ -21,6 +22,7 @@ interface HeaderProps {
   onHtmlViewChange: (view: "preview" | "source") => void;
   onRefresh: () => void;
   onFindToggle: () => void;
+  onTocToggle: () => void;
 }
 
 export function Header({
@@ -32,6 +34,7 @@ export function Header({
   htmlView,
   saving,
   findable,
+  tocAvailable,
   onBack,
   onClose,
   onEnterEdit,
@@ -40,6 +43,7 @@ export function Header({
   onHtmlViewChange,
   onRefresh,
   onFindToggle,
+  onTocToggle,
 }: HeaderProps) {
   const { t } = useI18n();
   const [copied, setCopied] = useState(false);
@@ -77,7 +81,7 @@ export function Header({
         )}
       </div>
       <div className="flex shrink-0 items-center gap-2">
-        {findable && !isEditing && (
+        {findable && (
           <Button
             variant="ghost"
             size="icon-sm"
@@ -86,6 +90,17 @@ export function Header({
             aria-label={t("content-browser.find.placeholder")}
           >
             <SearchIcon />
+          </Button>
+        )}
+        {tocAvailable && !isEditing && (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={onTocToggle}
+            title={t("content-browser.toc.title")}
+            aria-label={t("content-browser.toc.title")}
+          >
+            <ListIcon />
           </Button>
         )}
         {isHtml && !isEditing && (

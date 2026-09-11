@@ -106,4 +106,41 @@ describe("ProjectManager extended write facades (M9)", () => {
       /not permitted/,
     );
   });
+
+  it("moveEntry renames a file", async () => {
+    await pm.writeFile("a.md", "content");
+    await pm.moveEntry("a.md", "b.md");
+    expect(fs.existsSync(path.join(tmpDir, "a.md"))).toBe(false);
+    expect(fs.readFileSync(path.join(tmpDir, "b.md"), "utf-8")).toBe("content");
+  });
+
+  it("moveEntry moves a directory with children", async () => {
+    await pm.writeFile("dir/nested.txt", "nested");
+    await pm.moveEntry("dir", "moved");
+    expect(fs.existsSync(path.join(tmpDir, "dir"))).toBe(false);
+    expect(fs.readFileSync(path.join(tmpDir, "moved/nested.txt"), "utf-8")).toBe("nested");
+  });
+
+  it("moveEntry rejects existing destinations with ConflictError", async () => {
+    await pm.writeFile("a.md", "a");
+    await pm.writeFile("b.md", "b");
+    await expect(pm.moveEntry("a.md", "b.md")).rejects.toThrow(/already exists/i);
+  });
+
+  it("moveEntry rejects moving into itself or its descendant", async () => {
+    await pm.createEntry("dir", "mkdir");
+    await expect(pm.moveEntry("dir", "dir")).rejects.toThrow(/into itself/i);
+    await expect(pm.moveEntry("dir", "dir/sub")).rejects.toThrow(/into itself/i);
+  });
+
+  it("moveEntry rejects missing sources with NotFoundError", async () => {
+    await expect(pm.moveEntry("never-existed.md", "b.md")).rejects.toThrow(/not found/i);
+  });
+
+  it("moveEntry denies engine-internal destinations", async () => {
+    await pm.writeFile("src.md", "content");
+    await expect(pm.moveEntry("src.md", ".spherse/project.yaml")).rejects.toThrow(
+      /not permitted/,
+    );
+  });
 });

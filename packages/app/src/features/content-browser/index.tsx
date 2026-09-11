@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
 import { useI18n } from "@spherse/i18n/react";
 import type { AgentSummary, ActiveSessionInfo } from "../../lib/types";
 import { useProjectCtx } from "../../context/project-context";
@@ -10,6 +11,7 @@ import { ConfirmDialogs } from "./ConfirmDialogs";
 import { ContentView } from "./ContentView";
 import { Header } from "./Header";
 import { classifyFileKind } from "./file-kind";
+import { toggleTaskInContent } from "./task-toggle";
 import { TextSelectionSession } from "../text-selection-session";
 import { useContentEditor } from "./hooks/useContentEditor";
 import { useContentFile } from "./hooks/useContentFile";
@@ -39,6 +41,9 @@ export function ContentBrowser({
   const [htmlView, setHtmlView] = useState<"preview" | "source">("preview");
   const [refreshKey, setRefreshKey] = useState(0);
   const [findOpen, setFindOpen] = useState(false);
+  const [tocOpen, setTocOpen] = useState(false);
+  const [editFindOpen, setEditFindOpen] = useState(false);
+  const [taskToggling, setTaskToggling] = useState(false);
   const { content, setContent, binary, loading, error, dataUpdatedAt, reload: reloadContent } = useContentFile(projectId, client, filePath);
   const editor = useContentEditor({
     client,
@@ -52,6 +57,38 @@ export function ContentBrowser({
     reloadContent();
     setRefreshKey((k) => k + 1);
   }, [reloadContent]);
+
+  const handleTaskToggle = useCallback(
+    async (taskIndex: number, checked: boolean) => {
+      if (taskToggling) return;
+      if (editor.isEditing && editor.isDirty) {
+        toast.error(t("content-browser.taskToggleDirty"));
+        return;
+      }
+      setTaskToggling(true);
+      try {
+        const latest = await client.getContent(filePath);
+        if (!latest) {
+          toast.error(t("content-browser.linkNotFound", { path: filePath }));
+          return;
+        }
+        if (latest.content !== content) {
+          toast.error(t("content-browser.taskToggleStale"));
+          return;
+        }
+        const { nextContent, changed } = toggleTaskInContent(latest.content, taskIndex, checked);
+        if (!changed) return;
+        await client.saveContent(filePath, nextContent);
+        setContent(nextContent);
+        setRefreshKey((k) => k + 1);
+      } catch (err) {
+        toast.error(t("content-browser.saveFailed", { error: (err as Error).message }));
+      } finally {
+        setTaskToggling(false);
+      }
+    },
+    [client, filePath, content, setContent, editor.isEditing, editor.isDirty, taskToggling, t],
+  );
 
   useEffect(() => {
     setRefreshKey((k) => k + 1);
@@ -72,6 +109,8 @@ export function ContentBrowser({
         htmlView={htmlView}
         saving={editor.saving}
         findable={findable}
+        tocAvailable={isMarkdown}
+        onTocToggle={() => setTocOpen((v) => !v)}
         onBack={() => editor.requestLeave(onBack)}
         onClose={() => editor.requestLeave(onClose)}
         onEnterEdit={editor.enterEdit}
@@ -79,7 +118,10 @@ export function ContentBrowser({
         onSave={() => void editor.save()}
         onHtmlViewChange={setHtmlView}
         onRefresh={handleRefresh}
-        onFindToggle={() => setFindOpen((v) => !v)}
+        onFindToggle={() => {
+          if (editor.isEditing) setEditFindOpen((v) => !v);
+          else setFindOpen((v) => !v);
+        }}
       />
       {editor.conflict && editor.isEditing && (
         <ConflictBanner
@@ -119,6 +161,10 @@ export function ContentBrowser({
               refreshKey={refreshKey}
               findOpen={findOpen}
               onFindOpenChange={setFindOpen}
+              tocOpen={tocOpen}
+              editFindOpen={editFindOpen}
+              onEditFindOpenChange={setEditFindOpen}
+              onTaskToggle={isMarkdown && !taskToggling ? handleTaskToggle : undefined}
             />
           )}
         </TextSelectionSession>
@@ -139,6 +185,10 @@ export function ContentBrowser({
           refreshKey={refreshKey}
           findOpen={findOpen}
           onFindOpenChange={setFindOpen}
+          tocOpen={tocOpen}
+          editFindOpen={editFindOpen}
+          onEditFindOpenChange={setEditFindOpen}
+          onTaskToggle={isMarkdown && !taskToggling ? handleTaskToggle : undefined}
         />
       )}
       <ConfirmDialogs

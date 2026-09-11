@@ -324,6 +324,38 @@ export class ProjectManager {
     });
   }
 
+  async moveEntry(fromRelative: string, toRelative: string): Promise<void> {
+    const src = resolveProjectPath(this.getRootPath(), fromRelative);
+    const dest = resolveProjectPath(this.getRootPath(), toRelative);
+    this.policy().assertRead(fromRelative);
+    this.policy().assertWrite(toRelative);
+    if (src === dest || dest.startsWith(src + path.sep)) {
+      throw new ValidationError(`Cannot move into itself: ${fromRelative} → ${toRelative}`);
+    }
+    const [first, second] = src < dest ? [src, dest] : [dest, src];
+    await this.fileWriteMutex.run(first, async () => {
+      await this.fileWriteMutex.run(second, async () => {
+        const srcStat = await fs.stat(src).catch(() => null);
+        if (!srcStat) throw new NotFoundError(`Source not found: ${fromRelative}`);
+        const destStat = await fs.stat(dest).catch(() => null);
+        if (destStat) throw new ConflictError(`Destination already exists: ${toRelative}`);
+        await fs.mkdir(path.dirname(dest), { recursive: true });
+        try {
+          await fs.rename(src, dest);
+        } catch (err) {
+          if ((err as NodeJS.ErrnoException)?.code !== "EXDEV") throw err;
+          if (srcStat.isDirectory()) {
+            await fs.cp(src, dest, { recursive: true });
+            await fs.rm(src, { recursive: true, force: true });
+          } else {
+            await fs.copyFile(src, dest);
+            await fs.unlink(src);
+          }
+        }
+      });
+    });
+  }
+
   async writeBinaryFile(relativePath: string, data: Uint8Array): Promise<void> {
     const resolved = resolveProjectPath(this.getRootPath(), relativePath);
     this.policy().assertWrite(relativePath);

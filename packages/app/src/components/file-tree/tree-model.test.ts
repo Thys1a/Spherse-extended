@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildTreeItems, childPath, parentDirPath } from "./tree-model";
+import { buildTreeItems, canDropEntry, childPath, parentDirPath } from "./tree-model";
 import type { FileEntry } from "../../lib/types";
 
 describe("buildTreeItems", () => {
@@ -68,5 +68,23 @@ describe("childPath", () => {
 
   it("returns the bare name at the project root", () => {
     expect(childPath("", "docs")).toBe("docs");
+  });
+});
+
+describe("canDropEntry", () => {
+  it("allows moving a file into another directory", () => {
+    expect(canDropEntry("a.md", "docs")).toBe(true);
+  });
+
+  it("rejects dropping onto itself", () => {
+    expect(canDropEntry("docs", "docs")).toBe(false);
+  });
+
+  it("rejects no-op drops into the current parent", () => {
+    expect(canDropEntry("docs/a.md", "docs")).toBe(false);
+  });
+
+  it("rejects moving a directory into its own descendant", () => {
+    expect(canDropEntry("docs", "docs/sub")).toBe(false);
   });
 });

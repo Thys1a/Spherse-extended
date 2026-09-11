@@ -11,18 +11,19 @@ import {
 import type { DeleteTarget } from "./tree-model";
 
 export function DeleteConfirmDialog({
-  target,
+  targets,
   onConfirm,
   onCancel,
 }: {
-  target: DeleteTarget | null;
+  targets: DeleteTarget[] | null;
   onConfirm: () => void;
   onCancel: () => void;
 }) {
   const { t } = useI18n();
+  const single = targets !== null && targets.length === 1 ? targets[0] : null;
   return (
     <AlertDialog
-      open={target !== null}
+      open={targets !== null && targets.length > 0}
       onOpenChange={(open) => {
         if (!open) onCancel();
       }}
@@ -30,10 +31,11 @@ export function DeleteConfirmDialog({
       <AlertDialogContent>
         <AlertDialogTitle>{t("file-tree.confirmDeleteTitle")}</AlertDialogTitle>
         <AlertDialogDescription>
-          {target &&
-            (target.type === "directory"
-              ? t("file-tree.confirmDeleteDir", { name: target.name })
-              : t("file-tree.confirmDeleteFile", { name: target.name }))}
+          {single
+            ? single.type === "directory"
+              ? t("file-tree.confirmDeleteDir", { name: single.name })
+              : t("file-tree.confirmDeleteFile", { name: single.name })
+            : targets && t("file-tree.confirmDeleteMany", { count: targets.length })}
         </AlertDialogDescription>
         <AlertDialogFooter>
           <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>

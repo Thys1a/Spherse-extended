@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, type DragEvent, type ReactNode } from "react";
 import { ChevronRightIcon, FileIcon, FolderIcon } from "lucide-react";
 import { useI18n } from "@spherse/i18n/react";
 import {
@@ -8,7 +8,7 @@ import {
 } from "../../components/ui/collapsible";
 import { TreeRow } from "../../components/ui/tree-row";
 import { useProjectDirectory } from "../../queries/content";
-import { buildTreeItems, type TreeItem } from "./tree-model";
+import { FILE_TREE_DRAG_MIME, buildTreeItems, canDropEntry, childPath, type TreeItem } from "./tree-model";
 import { FileTreeContextMenu } from "./FileTreeContextMenu";
 import { InlineNameInput } from "./InlineNameInput";
 import { useFileTreeCtx } from "./file-tree-context";
@@ -23,18 +23,55 @@ export function FileTreeItem({ item, depth }: { item: TreeItem; depth: number })
 function FileRow({ item, depth }: { item: TreeItem; depth: number }) {
   const {
     selectedFilePath,
-    selectFile,
+    selectedPaths,
+    selectFileWithModifiers,
+    selectSingle,
     requestCreate,
     requestDelete,
+    requestDeleteMany,
+    requestRename,
+    renaming,
+    submitRename,
+    cancelRename,
+    onOpenInNewTab,
     onFloatFile,
     floatedFilePaths,
+    setDropTarget,
     readOnly,
   } = useFileTreeCtx();
 
-  const isSelected = item.path === selectedFilePath;
+  const isSelected = item.path === selectedFilePath || selectedPaths.has(item.path);
+
+  const handleDragStart = (e: DragEvent) => {
+    e.dataTransfer.setData(FILE_TREE_DRAG_MIME, item.path);
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  if (renaming?.path === item.path) {
+    return (
+      <InlineNameInput
+        depth={depth - 1}
+        initialValue={renaming.name}
+        onSubmit={submitRename}
+        onCancel={cancelRename}
+      />
+    );
+  }
 
   const row = (
-    <TreeRow depth={depth} selected={isSelected} onClick={() => selectFile(item.path)}>
+    <TreeRow
+      depth={depth}
+      selected={isSelected}
+      aria-selected={isSelected}
+      data-path={item.path}
+      onClick={(e) => selectFileWithModifiers(e, item.path)}
+      onContextMenu={() => {
+        if (!selectedPaths.has(item.path)) selectSingle(item.path);
+      }}
+      draggable
+      onDragStart={handleDragStart}
+      onDragEnd={() => setDropTarget(null)}
+    >
       <FileIcon className="size-4 shrink-0 text-sidebar-foreground/70" />
       <span className="overflow-hidden text-ellipsis whitespace-nowrap">
         {item.name}
@@ -43,7 +80,19 @@ function FileRow({ item, depth }: { item: TreeItem; depth: number }) {
   );
 
   if (readOnly) {
-    return row;
+    return (
+      <FileTreeContextMenu
+        node={item}
+        onCreate={(action) => requestCreate(item, action)}
+        onDelete={() => requestDelete(item)}
+        onOpenInNewTab={onOpenInNewTab}
+        onFloatFile={onFloatFile}
+        floatedFilePaths={floatedFilePaths}
+        readOnly
+      >
+        {row}
+      </FileTreeContextMenu>
+    );
   }
 
   return (
@@ -51,8 +100,12 @@ function FileRow({ item, depth }: { item: TreeItem; depth: number }) {
       node={item}
       onCreate={(action) => requestCreate(item, action)}
       onDelete={() => requestDelete(item)}
+      onOpenInNewTab={onOpenInNewTab}
       onFloatFile={onFloatFile}
       floatedFilePaths={floatedFilePaths}
+      onRename={() => requestRename(item)}
+      selectedPaths={[...selectedPaths]}
+      onDeleteSelected={(paths) => requestDeleteMany(paths)}
     >
       {row}
     </FileTreeContextMenu>
@@ -66,15 +119,47 @@ function DirectoryNode({ item, depth }: { item: TreeItem; depth: number }) {
     client,
     expandedPaths,
     creating,
+    renaming,
     toggleDir,
+    expandDir,
     requestCreate,
     submitCreate,
     cancelCreate,
+    requestRename,
+    submitRename,
+    cancelRename,
+    submitMove,
+    dropTarget,
+    setDropTarget,
     requestDelete,
     readOnly,
   } = useFileTreeCtx();
 
   const expanded = expandedPaths.has(item.path);
+  const highlighted = dropTarget === item.path;
+
+  const handleDirDragStart = (e: DragEvent) => {
+    e.dataTransfer.setData(FILE_TREE_DRAG_MIME, item.path);
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleDirDragOver = (e: DragEvent) => {
+    if (!e.dataTransfer.types.includes(FILE_TREE_DRAG_MIME)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    if (dropTarget !== item.path) setDropTarget(item.path);
+  };
+
+  const handleDirDrop = (e: DragEvent) => {
+    e.preventDefault();
+    setDropTarget(null);
+    const source = e.dataTransfer.getData(FILE_TREE_DRAG_MIME);
+    if (!source || !canDropEntry(source, item.path)) return;
+    const name = source.split("/").pop() ?? source;
+    void submitMove(source, childPath(item.path, name)).then((moved) => {
+      if (moved) expandDir(item.path);
+    });
+  };
   const query = useProjectDirectory(projectId, client, item.path, { enabled: expanded });
   const items = useMemo(
     () => (query.data ? buildTreeItems(query.data, item.path) : []),
@@ -117,10 +202,44 @@ function DirectoryNode({ item, depth }: { item: TreeItem; depth: number }) {
     </CollapsibleContent>
   );
 
+  const renamingTrigger = renaming?.path === item.path ? (
+    <InlineNameInput
+      depth={depth - 1}
+      initialValue={renaming.name}
+      onSubmit={submitRename}
+      onCancel={cancelRename}
+    />
+  ) : (
+    trigger
+  );
+
+  const dropRow = (children: ReactNode) => (
+    <div
+      draggable
+      onDragStart={handleDirDragStart}
+      onDragEnd={() => setDropTarget(null)}
+      onDragOver={handleDirDragOver}
+      onDragLeave={() => {
+        if (dropTarget === item.path) setDropTarget(null);
+      }}
+      onDrop={handleDirDrop}
+      className={highlighted ? "rounded-md bg-sidebar-accent/70" : undefined}
+    >
+      {children}
+    </div>
+  );
+
   if (readOnly) {
     return (
       <Collapsible open={expanded} onOpenChange={() => toggleDir(item.path)}>
-        {trigger}
+        <FileTreeContextMenu
+          node={item}
+          onCreate={(action) => requestCreate(item, action)}
+          onDelete={() => requestDelete(item)}
+          readOnly
+        >
+          {renamingTrigger}
+        </FileTreeContextMenu>
         {content}
       </Collapsible>
     );
@@ -128,13 +247,16 @@ function DirectoryNode({ item, depth }: { item: TreeItem; depth: number }) {
 
   return (
     <Collapsible open={expanded} onOpenChange={() => toggleDir(item.path)}>
-      <FileTreeContextMenu
-        node={item}
-        onCreate={(action) => requestCreate(item, action)}
-        onDelete={() => requestDelete(item)}
-      >
-        {trigger}
-      </FileTreeContextMenu>
+      {dropRow(
+        <FileTreeContextMenu
+          node={item}
+          onCreate={(action) => requestCreate(item, action)}
+          onDelete={() => requestDelete(item)}
+          onRename={() => requestRename(item)}
+        >
+          {renamingTrigger}
+        </FileTreeContextMenu>,
+      )}
       {content}
     </Collapsible>
   );

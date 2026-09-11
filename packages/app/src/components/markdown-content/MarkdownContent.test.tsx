@@ -1,6 +1,6 @@
-import { render } from "@testing-library/react";
+import { fireEvent, render } from "@testing-library/react";
 import { createElement } from "react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { MarkdownContent } from "./MarkdownContent";
 
 function renderMd(children: string, plain?: boolean) {
@@ -137,5 +137,45 @@ describe("MarkdownContent full markdown mode", () => {
   it("does not convert single newline to <br> outside plain mode", () => {
     const md = renderMd("line one\nline two");
     expect(md.html()).not.toContain("<br");
+  });
+});
+
+describe("MarkdownContent document task toggle", () => {
+  it("enables checkboxes and reports the index with next state", () => {
+    const onTaskToggle = vi.fn();
+    const view = render(
+      createElement(MarkdownContent, {
+        variant: "document",
+        onTaskToggle,
+        children: "- [ ] todo\n- [x] done",
+      }),
+    );
+    const boxes = Array.from(view.container.querySelectorAll('input[type="checkbox"]'));
+    expect(boxes).toHaveLength(2);
+    expect(boxes[0]).not.toBeDisabled();
+
+    fireEvent.click(boxes[1]);
+    expect(onTaskToggle).toHaveBeenCalledWith(1, false);
+
+    fireEvent.click(boxes[0]);
+    expect(onTaskToggle).toHaveBeenCalledWith(0, true);
+  });
+
+  it("keeps checkboxes disabled without onTaskToggle", () => {
+    const view = render(
+      createElement(MarkdownContent, { variant: "document", children: "- [ ] todo" }),
+    );
+    expect(view.container.querySelector('input[type="checkbox"]')).toBeDisabled();
+  });
+
+  it("does not enable task toggle in chat variant", () => {
+    const view = render(
+      createElement(MarkdownContent, {
+        variant: "chat",
+        onTaskToggle: () => {},
+        children: "- [ ] todo",
+      }),
+    );
+    expect(view.container.querySelector('input[type="checkbox"]')).toBeDisabled();
   });
 });

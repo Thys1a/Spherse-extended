@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
@@ -14,6 +14,7 @@ interface MarkdownContentProps {
   resolveImageSrc?: (src: string) => string;
   linkClassName?: string;
   onLinkClick?: (href: string, event: React.MouseEvent<HTMLAnchorElement>) => void;
+  onTaskToggle?: (taskIndex: number, checked: boolean) => void;
 }
 
 const PLAIN_ALLOWED_ELEMENTS = ["p", "br", "blockquote", "pre", "code", "a"];
@@ -124,7 +125,22 @@ const CHAT_COMPONENTS: Components = {
   ),
 };
 
-export function MarkdownContent({ children, variant = "document", plain, resolveImageSrc, linkClassName, onLinkClick }: MarkdownContentProps) {
+export function MarkdownContent({ children, variant = "document", plain, resolveImageSrc, linkClassName, onLinkClick, onTaskToggle }: MarkdownContentProps) {
+  const docRef = useRef<HTMLDivElement | null>(null);
+
+  const handleTaskChange = (event: React.ChangeEvent<HTMLDivElement>) => {
+    if (!onTaskToggle) return;
+    const target = event.target;
+    if (!(target instanceof HTMLInputElement)) return;
+    if (target.type !== "checkbox" || !target.hasAttribute("data-md-task")) return;
+    const root = docRef.current;
+    if (!root) return;
+    const boxes = Array.from(root.querySelectorAll('input[data-md-task][type="checkbox"]'));
+    const index = boxes.indexOf(target);
+    if (index === -1) return;
+    onTaskToggle(index, target.checked);
+  };
+
   const components = useMemo<Components>(() => {
     const base = variant === "chat" ? CHAT_COMPONENTS : DOCUMENT_COMPONENTS;
     const overrides: Partial<Components> = {};
@@ -152,12 +168,21 @@ export function MarkdownContent({ children, variant = "document", plain, resolve
         />
       );
     }
+    if (variant === "document" && onTaskToggle) {
+      overrides.input = (props) => (
+        <input data-md-task {...props} disabled={undefined} onChange={() => {}} />
+      );
+    }
     if (Object.keys(overrides).length === 0) return base;
     return { ...base, ...overrides };
-  }, [variant, resolveImageSrc, linkClassName, onLinkClick]);
+  }, [variant, resolveImageSrc, linkClassName, onLinkClick, onTaskToggle]);
 
   return (
-    <div className={variant === "chat" ? "text-sm leading-6" : "text-sm leading-7"}>
+    <div
+      ref={docRef}
+      onChangeCapture={onTaskToggle ? handleTaskChange : undefined}
+      className={variant === "chat" ? "text-sm leading-6" : "text-sm leading-7"}
+    >
       <Markdown
         remarkPlugins={plain ? [remarkGfm, remarkPlainStructure, remarkBreaks] : [remarkGfm]}
         rehypePlugins={[rehypeSlug]}

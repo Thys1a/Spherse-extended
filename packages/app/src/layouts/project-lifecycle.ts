@@ -11,6 +11,7 @@ import { useFloatingChatStore } from "../features/floating-chat/store";
 import { useFloatingContentBrowserStore } from "../features/floating-content-browser/store";
 import { useBrowserStore } from "../features/browser/store";
 import { useTabStore } from "../features/tabs/tab-store";
+import { useDirtyPathsStore } from "../lib/dirty-paths";
 
 export async function closeProjectCascade(
   bridge: HostBridge,
@@ -25,6 +26,7 @@ export async function closeProjectCascade(
   useFloatingContentBrowserStore.getState().clearProject(projectId);
   useBrowserStore.getState().clearProject(projectId);
   useTabStore.getState().clearProject(projectId);
+  useDirtyPathsStore.getState().clearProject(projectId);
   useProjectDataStore.getState().clearProjectData(projectId);
   clearProjectNavHistory(projectId);
   clearLastRoute(projectId);

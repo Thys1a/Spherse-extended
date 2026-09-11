@@ -132,6 +132,23 @@ describe("api contracts", () => {
     expect(parseApiResponse(schemas.agentCreateResponse, { ok: true, id: "a1" })).toEqual({ ok: true, id: "a1" });
   });
 
+  it("validates content mutation requests (mkdir/touch/move)", () => {
+    expect(parseApiResponse(schemas.contentMutationRequest, { action: "mkdir" })).toEqual({ action: "mkdir" });
+    expect(parseApiResponse(schemas.contentMutationRequest, { action: "touch" })).toEqual({ action: "touch" });
+    expect(
+      parseApiResponse(schemas.contentMutationRequest, { action: "move", destination: "b.md" }),
+    ).toEqual({ action: "move", destination: "b.md" });
+    expect(() => parseApiResponse(schemas.contentMutationRequest, { action: "move" })).toThrow(
+      /Invalid payload/,
+    );
+    expect(() => parseApiResponse(schemas.contentMutationRequest, { action: "move", destination: "" })).toThrow(
+      /Invalid payload/,
+    );
+    expect(() => parseApiResponse(schemas.contentMutationRequest, { action: "delete" })).toThrow(
+      /Invalid payload/,
+    );
+  });
+
   it("validates session list and messages responses", () => {
     expect(parseApiResponse(schemas.sessionListResponse, [])).toEqual([]);
     expect(() => parseApiResponse(schemas.sessionListResponse, "nope")).toThrow(/Invalid payload/);

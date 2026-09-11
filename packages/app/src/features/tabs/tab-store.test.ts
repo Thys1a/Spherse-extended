@@ -63,6 +63,20 @@ describe("useTabStore", () => {
     expect(useTabStore.getState().byProject["p1"].tabs).toHaveLength(3);
   });
 
+  it("openTab with force creates a duplicate tab for the same file", () => {
+    const first = useTabStore.getState().openTab("p1", { kind: "content", label: "a.md", filePath: "a.md" });
+    const second = useTabStore.getState().openTab(
+      "p1",
+      { kind: "content", label: "a.md", filePath: "a.md" },
+      { force: true },
+    );
+
+    expect(second).not.toBe(first);
+    const entry = useTabStore.getState().byProject["p1"];
+    expect(entry.tabs).toHaveLength(2);
+    expect(entry.activeTabId).toBe(second);
+  });
+
   it("openTab reuses the single home tab per project", () => {
     const first = useTabStore.getState().openTab("p1", { kind: "home", label: "home" });
     const second = useTabStore.getState().openTab("p1", { kind: "home", label: "home" });
@@ -103,6 +117,74 @@ describe("useTabStore", () => {
     expect(entry.tabs).toHaveLength(1);
     expect(entry.tabs[0].kind).toBe("home");
     expect(entry.activeTabId).toBe(entry.tabs[0].id);
+  });
+
+  it("closeOthers keeps only the target tab and activates it", () => {
+    const a = useTabStore.getState().openTab("p1", { kind: "chat", label: "a", sessionId: "a" });
+    const b = useTabStore.getState().openTab("p1", { kind: "content", label: "b.md", filePath: "b.md" });
+    useTabStore.getState().activate("p1", a);
+
+    useTabStore.getState().closeOthers("p1", b);
+
+    const entry = useTabStore.getState().byProject["p1"];
+    expect(entry.tabs.map((t) => t.id)).toEqual([b]);
+    expect(entry.activeTabId).toBe(b);
+  });
+
+  it("closeOthers ignores unknown project or tab", () => {
+    const a = useTabStore.getState().openTab("p1", { kind: "chat", label: "a", sessionId: "a" });
+
+    useTabStore.getState().closeOthers("p1", "missing");
+    useTabStore.getState().closeOthers("nope", a);
+
+    const entry = useTabStore.getState().byProject["p1"];
+    expect(entry.tabs.map((t) => t.id)).toEqual([a]);
+    expect(entry.activeTabId).toBe(a);
+    expect(useTabStore.getState().byProject["nope"]).toBeUndefined();
+  });
+
+  it("closeAll rebuilds a single home tab", () => {
+    useTabStore.getState().openTab("p1", { kind: "chat", label: "a", sessionId: "a" });
+    useTabStore.getState().openTab("p1", { kind: "content", label: "b.md", filePath: "b.md" });
+
+    useTabStore.getState().closeAll("p1");
+
+    const entry = useTabStore.getState().byProject["p1"];
+    expect(entry.tabs).toHaveLength(1);
+    expect(entry.tabs[0].kind).toBe("home");
+    expect(entry.activeTabId).toBe(entry.tabs[0].id);
+  });
+
+  it("closeAll ignores unknown project", () => {
+    useTabStore.getState().openTab("p1", { kind: "chat", label: "a", sessionId: "a" });
+
+    useTabStore.getState().closeAll("nope");
+
+    expect(useTabStore.getState().byProject["p1"].tabs).toHaveLength(1);
+    expect(useTabStore.getState().byProject["nope"]).toBeUndefined();
+  });
+
+  it("remapPaths rewrites content tabs under the old prefix", () => {
+    const a = useTabStore.getState().openTab("p1", { kind: "content", label: "a.md", filePath: "docs/a.md" });
+    const b = useTabStore.getState().openTab("p1", { kind: "content", label: "b.md", filePath: "docs/sub/b.md" });
+    const c = useTabStore.getState().openTab("p1", { kind: "chat", label: "s", sessionId: "s" });
+
+    useTabStore.getState().remapPaths("p1", "docs", "notes");
+
+    const entry = useTabStore.getState().byProject["p1"];
+    expect(entry.tabs.find((t) => t.id === a)).toMatchObject({ filePath: "notes/a.md", label: "a.md" });
+    expect(entry.tabs.find((t) => t.id === b)).toMatchObject({ filePath: "notes/sub/b.md", label: "b.md" });
+    expect(entry.tabs.find((t) => t.id === c)).toMatchObject({ filePath: undefined });
+  });
+
+  it("remapPaths ignores unknown project or unmatched prefix", () => {
+    const a = useTabStore.getState().openTab("p1", { kind: "content", label: "a.md", filePath: "a.md" });
+
+    useTabStore.getState().remapPaths("p1", "other", "new");
+    useTabStore.getState().remapPaths("nope", "a.md", "b.md");
+
+    expect(useTabStore.getState().byProject["p1"].tabs.map((t) => t.id)).toEqual([a]);
+    expect(useTabStore.getState().byProject["nope"]).toBeUndefined();
   });
 
   it("reorder moves tabs", () => {

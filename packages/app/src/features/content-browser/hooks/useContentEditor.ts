@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ApiClient } from "../../../lib/api";
+import { useDirtyPathsStore } from "../../../lib/dirty-paths";
 import { useBusSubscription } from "../../../hooks/useBusSubscription";
 
 interface UseContentEditorOptions {
@@ -27,6 +28,16 @@ export function useContentEditor({
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const pendingLeaveRef = useRef<(() => void) | null>(null);
   const isDirty = isEditing && editedContent !== editBaseline;
+
+  useEffect(() => {
+    useDirtyPathsStore.getState().setDirty(projectId, filePath, isDirty);
+  }, [projectId, filePath, isDirty]);
+
+  useEffect(() => {
+    return () => {
+      useDirtyPathsStore.getState().setDirty(projectId, filePath, false);
+    };
+  }, [projectId, filePath]);
 
   useEffect(() => {
     setIsEditing(false);

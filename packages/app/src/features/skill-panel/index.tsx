@@ -38,9 +38,16 @@ export function SkillPanel() {
     navigate(`/project/${projectId}/content?path=${encodeURIComponent(filePath)}`);
   };
 
-  const handleFileDeleted = (deletedPath: string) => {
-    if (contentPath && (contentPath === deletedPath || contentPath.startsWith(`${deletedPath}/`))) {
+  const handleFileDeleted = (deletedPaths: string[]) => {
+    if (contentPath && deletedPaths.some((p) => contentPath === p || contentPath.startsWith(`${p}/`))) {
       if (projectId) navigate(`/project/${projectId}`);
+    }
+  };
+
+  const handleRenamed = (oldPath: string, newPath: string) => {
+    if (!contentPath || !projectId) return;
+    if (contentPath === oldPath || contentPath.startsWith(`${oldPath}/`)) {
+      navigate(`/project/${projectId}/content?path=${encodeURIComponent(newPath + contentPath.slice(oldPath.length))}`);
     }
   };
 
@@ -99,6 +106,7 @@ export function SkillPanel() {
               selectedFilePath={contentPath}
               onSelectFile={handleSelectFile}
               onDeleted={handleFileDeleted}
+              onRenamed={handleRenamed}
               emptyLabel={t("skill-panel.empty")}
               readOnly={!canCreate}
             />

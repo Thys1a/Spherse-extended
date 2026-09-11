@@ -15,6 +15,11 @@ export interface CreatingState {
   action: CreateAction;
 }
 
+export interface RenamingState {
+  path: string;
+  name: string;
+}
+
 export interface DeleteTarget {
   name: string;
   path: string;
@@ -30,6 +35,15 @@ export function childPath(parentPath: string, name: string): string {
 export function parentDirPath(path: string): string {
   const idx = path.lastIndexOf("/");
   return idx === -1 ? "" : path.slice(0, idx);
+}
+
+export const FILE_TREE_DRAG_MIME = "text/spherse-file-path";
+
+export function canDropEntry(draggedPath: string, targetDir: string): boolean {
+  if (draggedPath === targetDir) return false;
+  if (parentDirPath(draggedPath) === targetDir) return false;
+  if (targetDir.startsWith(`${draggedPath}/`)) return false;
+  return true;
 }
 
 export function buildTreeItems(entries: FileEntry[], parentPath: string): TreeItem[] {
