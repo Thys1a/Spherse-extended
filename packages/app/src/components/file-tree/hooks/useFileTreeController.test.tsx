@@ -103,6 +103,25 @@ describe("useFileTreeController submitMove", () => {
     expect(moved).toBe(false);
     expect(client.moveContent).not.toHaveBeenCalled();
   });
+
+  it("remaps dirty paths flagged while a move is in flight", async () => {
+    const client = mockClient();
+    let resolveMove!: (value: { ok: boolean }) => void;
+    client.moveContent.mockImplementationOnce(
+      () => new Promise<{ ok: boolean }>((resolve) => { resolveMove = resolve; }),
+    );
+    const { api } = renderController(client);
+
+    let moved = false;
+    const pending = api().submitMove("docs", "notes").then((result) => { moved = result; });
+    useDirtyPathsStore.getState().setDirty("p1", "docs/a.md", true);
+    resolveMove({ ok: true });
+    await act(async () => { await pending; });
+
+    expect(moved).toBe(true);
+    expect(useDirtyPathsStore.getState().isDirty("p1", "docs/a.md")).toBe(false);
+    expect(useDirtyPathsStore.getState().isDirty("p1", "notes/a.md")).toBe(true);
+  });
 });
 
 describe("useFileTreeController confirmDelete", () => {
@@ -143,6 +162,25 @@ describe("useFileTreeController confirmDelete", () => {
 
     await vi.waitFor(() => expect(onDeleted).toHaveBeenCalledWith(["b.md"]));
     expect(client.deleteContent).toHaveBeenCalledTimes(2);
+  });
+
+  it("clears dirty paths of deleted targets", async () => {
+    const client = mockClient();
+    useDirtyPathsStore.getState().setDirty("p1", "dir/b.md", true);
+    useDirtyPathsStore.getState().setDirty("p1", "other.md", true);
+    const onDeleted = vi.fn();
+    const { api } = renderController(client, { onDeleted });
+
+    act(() => {
+      api().requestDelete({ name: "dir", path: "dir", type: "directory" });
+    });
+    act(() => {
+      api().confirmDelete();
+    });
+
+    await vi.waitFor(() => expect(onDeleted).toHaveBeenCalledWith(["dir"]));
+    expect(useDirtyPathsStore.getState().isDirty("p1", "dir/b.md")).toBe(false);
+    expect(useDirtyPathsStore.getState().isDirty("p1", "other.md")).toBe(true);
   });
 
   it("does nothing without targets", async () => {

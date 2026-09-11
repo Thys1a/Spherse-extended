@@ -86,6 +86,7 @@ export function useFileTreeController(
       if (item.type === "directory") {
         expandDir(item.path);
       }
+      setRenaming(null);
       setCreating({ parentPath, action });
     },
     [expandDir],
@@ -147,6 +148,7 @@ export function useFileTreeController(
           return changed ? next : prev;
         });
         useTabStore.getState().remapPaths(projectId, source, destination);
+        useDirtyPathsStore.getState().remapPaths(projectId, source, destination);
         onRenamed?.(source, destination);
         await invalidateProjectFileQueries(projectId, source);
         await invalidateProjectFileQueries(projectId, destination);
@@ -205,6 +207,9 @@ export function useFileTreeController(
       });
       if (succeeded.length === 0) return;
       onDeleted?.(succeeded);
+      for (const path of succeeded) {
+        useDirtyPathsStore.getState().removePath(projectId, path);
+      }
       setExpandedPaths((prev) => {
         const next = new Set<string>();
         let changed = false;

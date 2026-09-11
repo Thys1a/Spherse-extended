@@ -5,7 +5,8 @@ import { useApiClient } from "../../lib/use-connection";
 import { useProjectDirectory } from "../../queries/content";
 import { useFileTreeController } from "./hooks/useFileTreeController";
 import { useFileTreeSelection } from "./hooks/useFileTreeSelection";
-import { buildTreeItems } from "./tree-model";
+import { buildTreeItems, type CreateAction } from "./tree-model";
+import { FileTreeBlankMenu } from "./FileTreeBlankMenu";
 import { FileTreeItem } from "./FileTreeNode";
 import { FileTreeProvider } from "./file-tree-context";
 import { InlineNameInput } from "./InlineNameInput";
@@ -68,8 +69,12 @@ export function FileTree({ selectedFilePath, onSelectFile, onDeleted, onRenamed,
     readOnly,
   };
 
-  return (
-    <div ref={listRef} className="flex flex-col gap-px text-xs">
+  const requestBlankCreate = (action: CreateAction) => {
+    ctrl.requestCreate({ name: "", path: basePath, type: "directory" }, action);
+  };
+
+  const list = (
+    <>
       {rootQuery.isPending ? (
         <p className="px-2 text-xs text-sidebar-foreground/70">{t("common.loading")}</p>
       ) : items.length === 0 ? (
@@ -97,6 +102,20 @@ export function FileTree({ selectedFilePath, onSelectFile, onDeleted, onRenamed,
           onCancel={ctrl.cancelDelete}
         />
       )}
-    </div>
+    </>
+  );
+
+  if (readOnly) {
+    return (
+      <div ref={listRef} className="flex flex-col gap-px text-xs">
+        {list}
+      </div>
+    );
+  }
+
+  return (
+    <FileTreeBlankMenu listRef={listRef} onCreate={requestBlankCreate}>
+      {list}
+    </FileTreeBlankMenu>
   );
 }
