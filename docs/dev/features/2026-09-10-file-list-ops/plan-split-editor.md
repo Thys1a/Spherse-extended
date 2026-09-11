@@ -18,7 +18,7 @@
 - `useContentEditor.ts`：`Ctrl+S` 仅在 `rootRef.current.contains(document.activeElement)` 时 `save()`（顺带修复隐藏 tab 串台）。
 - `ContentView.tsx`：两处 `Ctrl+F`（阅读/编辑）加同一判据。
 - `lib/dirty-paths.ts`：`byProject` 改为按 path 存实例 id 数组，`setDirty(projectId, filePath, instanceId, dirty)` 幂等 add/remove；`isDirty` 为数组非空，`isDirtyUnder` 语义不变。
-- `useContentEditor`：`useRef(crypto.randomUUID())` 作实例 id，mount/cleanup 上报带 id；同步更新 `dirty-paths` 单测。
+- `useContentEditor`：`useRef(crypto.randomUUID())` 作实例 id，mount/cleanup 上报带 id，`filePath` 变化时换 id（防同 mount 切文件串 dirty）；同步更新 `dirty-paths` 单测。
 
 ### 2 split store → verify: 单测
 
@@ -30,20 +30,27 @@
 
 - 新建 `SplitContentPane.tsx`：自算 `agents/activeSessions`，渲染 `ContentBrowser`（不传 `onSplit`）；`onBack/onClose → closeSplit`；`onNavigate → setFile`；`onStartSession` 透传主窗 chat。
 - `ContentBrowserProps` 加 `onSplit?`、`onNavigate?`；`ContentView` 加 `onNavigate?`（`handleLinkClick` 跨文件分支改用它，默认走原 `navigate`）；`Header` 加 `onSplit?`（仅传入且非编辑态显示）。
-- `TabContainer`：有 split 时改 `flex-row`，左=既有 tabs（保留 `display:none`），中=divider，右=`SplitContentPane`；`tabs.length===0` 早返改为无 tabs 但有 split 时仍渲染右栏。
-- divider：原生 pointer 事件，`pointerup` 才 `setRatio`（mousemove 不写盘），约 40 行，不引新库。
+- `TabContainer`：有 split 时改 `flex-row`，左=既有 tabs（保留 `display:none`），中=divider，右=`SplitContentPane`；无 tabs 但有 split 时左窗+divider 隐藏、右栏全宽。
+- divider：Pointer Events（`setPointerCapture`）+ 键盘（左右箭头 ±0.05，`role=separator` + `aria-valuenow`），`pointerup`/按键才 `setRatio`（拖拽中只写 CSS var，不写 store/盘），不引新库。
 - `use-tab-route-sync` 不动。
 
 ### 4 入口 + i18n → verify: 手动
 
 - 主窗 `ContentTabPanel` 传 `onSplit={() => openSplit(projectId, filePath)}`（`tabs` 门控）。
 - `FileTree`：仿 `onOpenInNewTab` 加 `onSplitFile` 管道到 `FileTreeContextMenu` 首段（仅文件，`tabs` 门控）。
-- i18n 三语言：`tabs.splitRight`、`tabs.closeSplit`、`file-tree.splitRight`。
+- i18n 三语言：`tabs.splitRight`、`file-tree.splitRight`（右窗关闭复用 Header 既有关闭按钮，不另加 key）。
 
 ## 验证
 
 - 单测：split open/replace/no-op/ratio 边界/持久化；双栏渲染；右窗 `onNavigate` 不触主路由；非聚焦窗 `Ctrl+S/F` 不触发；隐藏实例不响应；dirty 同 path 多实例归零才清。
 - 手动：双 md 并排滚动/编辑/保存互不干扰；右窗点相对链接在右窗内切换；divider 宽度刷新后复用；关闭项目清理 split；Web 端可用。
+
+## 已确认行为（review 结论，不修）
+
+- 右窗选词建会话切主窗到 chat（与主窗同逻辑，预期行为）。
+- 焦点落在两窗之外时 `Ctrl+S/F` 无响应（隐藏 tab 不再串台的代价）。
+- 右窗内导航切文件时若右窗正脏，直接丢草稿（`onNavigate` 绕过 `requestLeave` 确认）。
+- RTL 下 divider 拖拽方向未适配（无 RTL locale，暂不处理）；触屏靠 pointer 事件可用。
 
 ## 范围外
 

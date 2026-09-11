@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useSplitStore } from "./split-store";
 
 describe("useSplitStore", () => {
@@ -65,5 +65,45 @@ describe("useSplitStore", () => {
     useSplitStore.getState().clearProject("p1");
 
     expect(useSplitStore.getState().byProject["p1"]).toBeUndefined();
+  });
+
+  it("ignores empty file paths", () => {
+    useSplitStore.getState().openSplit("p1", "");
+    useSplitStore.getState().setFile("p1", "");
+
+    expect(useSplitStore.getState().byProject["p1"]).toBeUndefined();
+    expect(localStorage.getItem("spherse:split")).toBeNull();
+  });
+
+  it("setRatio is a no-op without an open split", () => {
+    const before = useSplitStore.getState().byProject;
+    useSplitStore.getState().setRatio("p1", 0.6);
+
+    expect(useSplitStore.getState().byProject).toBe(before);
+  });
+});
+
+describe("useSplitStore storage recovery", () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it("recovers from corrupt JSON", async () => {
+    localStorage.setItem("spherse:split", "{invalid");
+    vi.resetModules();
+    const mod = await import("./split-store");
+
+    expect(mod.useSplitStore.getState().byProject).toEqual({});
+  });
+
+  it("drops invalid entries and clamps out-of-range ratios", async () => {
+    localStorage.setItem(
+      "spherse:split",
+      JSON.stringify({ p1: { filePath: "a.md", ratio: 0.99 }, bad: { nope: 1 }, empty: { filePath: "", ratio: 0.5 } }),
+    );
+    vi.resetModules();
+    const mod = await import("./split-store");
+
+    expect(mod.useSplitStore.getState().byProject).toEqual({ p1: { filePath: "a.md", ratio: 0.8 } });
   });
 });

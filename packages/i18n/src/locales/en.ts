@@ -535,7 +535,6 @@ export const en: Record<TranslationKey, string> = {
   "tabs.closeOthers": "Close other tabs",
   "tabs.closeAll": "Close all tabs",
   "tabs.splitRight": "Split right",
-  "tabs.closeSplit": "Close split",
   "settings.image.defaultModel": "Default Image Model",
   "welcome-page-settings.title": "Set Welcome Page",
   "welcome-page-settings.description": "Select an HTML file or image in the project as the welcome page.",

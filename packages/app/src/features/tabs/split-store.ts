@@ -53,7 +53,7 @@ function persist(byProject: Record<string, SplitState | undefined>) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(byProject));
   } catch {
-    // storage full or unavailable — non-fatal
+    return;
   }
 }
 
@@ -61,6 +61,7 @@ export const useSplitStore = create<SplitStore>((set) => ({
   byProject: loadFromStorage(),
 
   openSplit(projectId, filePath) {
+    if (!filePath) return;
     set((s) => {
       const existing = s.byProject[projectId];
       if (existing?.filePath === filePath) return s;
@@ -74,6 +75,7 @@ export const useSplitStore = create<SplitStore>((set) => ({
   },
 
   setFile(projectId, filePath) {
+    if (!filePath) return;
     set((s) => {
       const existing = s.byProject[projectId];
       if (!existing) return s;

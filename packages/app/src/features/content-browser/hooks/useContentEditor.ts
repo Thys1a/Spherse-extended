@@ -33,6 +33,10 @@ export function useContentEditor({
   const isDirty = isEditing && editedContent !== editBaseline;
 
   useEffect(() => {
+    instanceIdRef.current = crypto.randomUUID();
+  }, [filePath]);
+
+  useEffect(() => {
     useDirtyPathsStore.getState().setDirty(projectId, filePath, instanceIdRef.current, isDirty);
   }, [projectId, filePath, isDirty]);
 

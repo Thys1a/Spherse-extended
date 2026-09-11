@@ -535,7 +535,6 @@ export const zhTW: Record<TranslationKey, string> = {
   "tabs.closeOthers": "關閉其他分頁",
   "tabs.closeAll": "關閉所有分頁",
   "tabs.splitRight": "拆分至右側",
-  "tabs.closeSplit": "關閉拆分",
   "settings.image.defaultModel": "預設生圖模型",
   "welcome-page-settings.title": "設定歡迎頁",
   "welcome-page-settings.description": "選擇專案內 HTML 檔案或圖片作為專案歡迎頁。",

@@ -1099,8 +1099,6 @@ export const zhCN = {
   "tabs.closeAll": "关闭所有标签页",
   // 内容浏览器：在右侧拆分打开
   "tabs.splitRight": "拆分到右侧",
-  // 关闭右侧拆分窗格
-  "tabs.closeSplit": "关闭拆分",
   // 图片生成设置中默认模型下拉框的标签
   "settings.image.defaultModel": "默认生图模型",
 

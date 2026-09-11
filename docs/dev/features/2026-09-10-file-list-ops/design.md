@@ -259,16 +259,16 @@
 **A. 轻量"右侧拆分打开"（仅 content，单分栏）：**
 
 1. 状态独立小 store（`useSplitStore`，key `spherse:split` 按 project 存 `{filePath, ratio}`），不动 `tab-store` 持久化结构，避免迁移；`openSplit` 对"右窗已是该文件" no-op，不同文件直接替换。
-2. `TabContainer` 有 split 时改 `flex-row`：左=现有 Tab 全量渲染（保留 `display:none`），右=新建 `SplitContentPane`（自算 `agents/activeSessions`，直接渲染 `ContentBrowser` 不传 `onSplit`），中间 divider 原生 pointer 拖拽调 `flex-basis`、`pointerup` 才 `setRatio`（约 40 行，不引库，与本系列"零新依赖"一致）；`tabs.length===0` 早返改为无 tabs 但有 split 时仍渲染右栏。
+2. `TabContainer` 有 split 时改 `flex-row`：左=现有 Tab 全量渲染（保留 `display:none`，无 tabs 时左窗+divider 隐藏、右栏全宽），右=新建 `SplitContentPane`（自算 `agents/activeSessions`，直接渲染 `ContentBrowser` 不传 `onSplit`），中间 divider 用 Pointer Events（`setPointerCapture`）+ 键盘左右箭头调 CSS var、`pointerup`/按键才 `setRatio`（不引库，与本系列"零新依赖"一致）。
 3. 路由仍只跟主 `activeTabId`，`use-tab-route-sync` 不动；右窗内导航本地裁决：`ContentBrowser`/`ContentView` 加 `onNavigate?`（`handleLinkClick` 跨文件分支改用它，默认走原 `navigate`），右窗切 `filePath`，`onBack/onClose → closeSplit`。
 4. 入口：`ContentBrowser Header` 加 split 按钮（`Header` 加 `onSplit?`，仅传入且非编辑态显示，主窗 `ContentTabPanel` 传 `() => openSplit(projectId, filePath)`）+ `FileTree` 仿 `onOpenInNewTab` 加 `onSplitFile` 管道到 `FileTreeContextMenu` 首段（仅文件）；门控 `tabs`；不做 `TabStrip` 右键。
 5. 约束：仅 `content` 种；最多一分栏；**同文件允许共存**（主窗后导航到分栏文件不干预；双编辑 last-write-wins 由既有 fs-watch 冲突横幅 `useContentEditor.ts:142-147` 提示，不加硬禁）；右窗允许编辑（独立 `ContentBrowser` 实例），但先做下条前置修复。
-6. i18n 新增（三语言同步）：`tabs.splitRight`、`tabs.closeSplit`、`file-tree.splitRight`（无需 `splitSameFileDenied`/`splitAlreadyOpen`）。
+6. i18n 新增（三语言同步）：`tabs.splitRight`、`file-tree.splitRight`（右窗关闭复用 Header 既有关闭按钮，不另加 key）。
 
 **前置修复（与 split 同 PR，先实施）：**
 
 - `ContentBrowser` 根 `div[data-content-browser]` 加 `rootRef`，传给 `useContentEditor` 与 `ContentView`；`Ctrl+S` + 两处 `Ctrl+F` 统一加 `rootRef.current.contains(document.activeElement)` 判据。
-- dirty 注册表：`byProject` 改为按 path 存实例 id 数组，`setDirty(projectId, filePath, instanceId, dirty)` 幂等 add/remove；`isDirty` 为数组非空，`isDirtyUnder` 语义不变；`useContentEditor` 以 `useRef(crypto.randomUUID())` 作实例 id 上报。
+- dirty 注册表：`byProject` 改为按 path 存实例 id 数组，`setDirty(projectId, filePath, instanceId, dirty)` 幂等 add/remove；`isDirty` 为数组非空，`isDirtyUnder` 语义不变；`useContentEditor` 以 `useRef(crypto.randomUUID())` 作实例 id 上报，`filePath` 变化时换 id。
 
 **B. 远期 editor groups（VSCode 模型，另立项）：** `byProject → {groups: {id, tabs, activeTabId}[], activeGroupId}`；`TabStrip` 分组渲染 + 跨组 DnD；路由跟焦点组；`spherse:tabs` 持久化迁移。A 的 split 状态可迁移为退化单 group。
 

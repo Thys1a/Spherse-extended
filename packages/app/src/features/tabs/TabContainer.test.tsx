@@ -50,26 +50,16 @@ describe("TabContainer split layout", () => {
     expect(screen.getByRole("separator")).toBeInTheDocument();
   });
 
-  it("commits the dragged ratio on mouseup", () => {
+  it("commits the dragged ratio on pointerup", () => {
     setTabs();
     useSplitStore.getState().openSplit("p1", "b.md");
-    vi.spyOn(Element.prototype, "getBoundingClientRect").mockReturnValue({
-      width: 1000,
-      height: 800,
-      x: 0,
-      y: 0,
-      top: 0,
-      left: 0,
-      right: 1000,
-      bottom: 800,
-      toJSON: () => {},
-    });
+    mockContainerWidth(1000);
     renderWithProviders(<TabContainer projectId="p1" />);
 
     const separator = screen.getByRole("separator");
-    fireEvent.mouseDown(separator, { clientX: 500 });
-    fireEvent.mouseMove(document, { clientX: 600 });
-    fireEvent.mouseUp(document);
+    fireEvent.pointerDown(separator, { clientX: 500, pointerId: 1 });
+    fireEvent.pointerMove(separator, { clientX: 600, pointerId: 1 });
+    fireEvent.pointerUp(separator, { pointerId: 1 });
 
     expect(useSplitStore.getState().byProject["p1"]?.ratio).toBeCloseTo(0.6);
   });
@@ -77,24 +67,47 @@ describe("TabContainer split layout", () => {
   it("clamps the dragged ratio into range", () => {
     setTabs();
     useSplitStore.getState().openSplit("p1", "b.md");
-    vi.spyOn(Element.prototype, "getBoundingClientRect").mockReturnValue({
-      width: 1000,
-      height: 800,
-      x: 0,
-      y: 0,
-      top: 0,
-      left: 0,
-      right: 1000,
-      bottom: 800,
-      toJSON: () => {},
-    });
+    mockContainerWidth(1000);
     renderWithProviders(<TabContainer projectId="p1" />);
 
     const separator = screen.getByRole("separator");
-    fireEvent.mouseDown(separator, { clientX: 500 });
-    fireEvent.mouseMove(document, { clientX: 1500 });
-    fireEvent.mouseUp(document);
+    fireEvent.pointerDown(separator, { clientX: 500, pointerId: 1 });
+    fireEvent.pointerMove(separator, { clientX: 1500, pointerId: 1 });
+    fireEvent.pointerUp(separator, { pointerId: 1 });
 
     expect(useSplitStore.getState().byProject["p1"]?.ratio).toBe(0.8);
   });
+
+  it("adjusts the ratio with arrow keys", () => {
+    setTabs();
+    useSplitStore.getState().openSplit("p1", "b.md");
+    renderWithProviders(<TabContainer projectId="p1" />);
+
+    fireEvent.keyDown(screen.getByRole("separator"), { key: "ArrowRight" });
+
+    expect(useSplitStore.getState().byProject["p1"]?.ratio).toBeCloseTo(0.55);
+  });
+
+  it("gives the full width to the split pane without tabs", () => {
+    useSplitStore.getState().openSplit("p1", "b.md");
+    renderWithProviders(<TabContainer projectId="p1" />);
+
+    expect(screen.queryByTestId("panel-t1")).toBeNull();
+    expect(screen.queryByRole("separator")).toBeNull();
+    expect(screen.getByTestId("split-pane")).toHaveTextContent("b.md");
+  });
 });
+
+function mockContainerWidth(width: number) {
+  vi.spyOn(Element.prototype, "getBoundingClientRect").mockReturnValue({
+    width,
+    height: 800,
+    x: 0,
+    y: 0,
+    top: 0,
+    left: 0,
+    right: width,
+    bottom: 800,
+    toJSON: () => {},
+  });
+}
