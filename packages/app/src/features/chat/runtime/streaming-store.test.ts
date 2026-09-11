@@ -472,7 +472,7 @@ describe("streaming-store resilience", () => {
     ]);
   });
 
-  it("refreshHistory reconciles the latest page while retaining older cached messages", async () => {
+  it("refreshHistory reconciles the latest page while retaining the older cursor", async () => {
     const client: ApiClient = {
       getSessionMessagesPage: vi.fn().mockResolvedValue({
         entries: [
@@ -508,7 +508,49 @@ describe("streaming-store resilience", () => {
       "new",
       "fresh reply",
     ]);
-    expect(useStreamingStore.getState().sessions.sr.hasMore).toBe(true);
+    expect(useStreamingStore.getState().sessions.sr.hasMore).toBe(false);
+    expect(useStreamingStore.getState().sessions.sr.oldestLoadedId).toBe(5);
+  });
+
+  it("loadMore merges the older page and advances the cursor", async () => {
+    const client: ApiClient = {
+      getSessionMessagesPage: vi.fn().mockResolvedValue({
+        entries: [
+          { id: 3, message: { role: "user", content: "new" } },
+          { id: 4, message: { role: "assistant", content: "new reply" } },
+        ],
+        hasMore: true,
+        oldestId: 3,
+      }),
+    } as unknown as ApiClient;
+    useStreamingStore.getState().attach(client, "lm", BASE_URL, "p1", "a1");
+    const socket = mock.instances[mock.instances.length - 1];
+    socket.readyState = OPEN;
+    socket.onopen?.({} as Event);
+    await vi.advanceTimersByTimeAsync(0);
+
+    (client.getSessionMessagesPage as ReturnType<typeof vi.fn>).mockResolvedValue({
+      entries: [
+        { id: 1, message: { role: "user", content: "old" } },
+        { id: 2, message: { role: "assistant", content: "old reply" } },
+      ],
+      hasMore: false,
+      oldestId: 1,
+    });
+
+    useStreamingStore.getState().loadMore(client, "lm", "a1");
+    await vi.advanceTimersByTimeAsync(0);
+
+    const session = useStreamingStore.getState().sessions.lm;
+    expect(session.messages.map((m) => m.content)).toEqual([
+      "old",
+      "old reply",
+      "new",
+      "new reply",
+    ]);
+    expect(session.oldestLoadedId).toBe(1);
+    expect(session.hasMore).toBe(false);
+    expect(session.loadingMore).toBe(false);
   });
 
   it("refreshHistory is a no-op when the session is not cached", async () => {

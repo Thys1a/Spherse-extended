@@ -66,7 +66,7 @@ export function MessageList({ messages, agent, streaming, loading = false, conta
       message.role === "user" || isLast || messages[index + 1]?.role === "user";
     return (
       <MessageItem
-        key={index}
+        key={message._messageId ?? `t-${index}`}
         message={message}
         agent={agent}
         showTime={showTime}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mergeHistoryMessages, parseHistoryMessages } from "./chat-history";
+import { mergeHistoryMessages, parseHistoryMessages, resolvePageCursor } from "./chat-history";
 
 describe("parseHistoryMessages trigger metadata", () => {
   it("maps source/triggerName onto user view fields", () => {
@@ -50,5 +50,47 @@ describe("mergeHistoryMessages trigger metadata", () => {
     const triggerUser = merged.find((message) => message._messageId === 1);
     expect(triggerUser).toMatchObject({ _triggered: true, _triggerName: "t" });
     expect(merged).toHaveLength(3);
+  });
+});
+
+describe("resolvePageCursor", () => {
+  it("takes the new page when the session is empty", () => {
+    expect(
+      resolvePageCursor(
+        { oldestLoadedId: null, hasMore: false },
+        { oldestId: 20, hasMore: true },
+        true,
+      ),
+    ).toEqual({ oldestLoadedId: 20, hasMore: true });
+  });
+
+  it("advances the cursor when the new page extends history", () => {
+    expect(
+      resolvePageCursor(
+        { oldestLoadedId: 20, hasMore: true },
+        { oldestId: 0, hasMore: false },
+        false,
+      ),
+    ).toEqual({ oldestLoadedId: 0, hasMore: false });
+  });
+
+  it("keeps the older cursor when reconcile returns the latest page", () => {
+    expect(
+      resolvePageCursor(
+        { oldestLoadedId: 0, hasMore: false },
+        { oldestId: 20, hasMore: true },
+        false,
+      ),
+    ).toEqual({ oldestLoadedId: 0, hasMore: false });
+  });
+
+  it("treats a duplicate page as extending without moving the cursor", () => {
+    expect(
+      resolvePageCursor(
+        { oldestLoadedId: 20, hasMore: true },
+        { oldestId: 20, hasMore: true },
+        false,
+      ),
+    ).toEqual({ oldestLoadedId: 20, hasMore: true });
   });
 });

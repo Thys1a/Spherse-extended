@@ -5,6 +5,7 @@ import type { AgentEvent } from "../model/agent-event-parse";
 import {
   mergeHistoryMessages,
   parseHistoryMessages,
+  resolvePageCursor,
 } from "../model/chat-history";
 import { ChatRuntimeRegistry } from "./chat-runtime-registry";
 import { ChatSessionRuntime } from "./chat-session-runtime";
@@ -479,11 +480,12 @@ export const useStreamingStore = create<StreamingStoreState & StreamingStoreActi
           const historyMessages = parseHistoryMessages(result.entries);
           updateSession(sessionId, (s) => {
             const messages = mergeHistoryMessages(s.messages, historyMessages);
+            const cursor = resolvePageCursor(s, result, s.messages.length === 0);
             return {
               ...s,
               messages,
-              hasMore: result.hasMore,
-              oldestLoadedId: result.oldestId,
+              hasMore: cursor.hasMore,
+              oldestLoadedId: cursor.oldestLoadedId,
               loadingMore: false,
             };
           });
@@ -503,11 +505,12 @@ export const useStreamingStore = create<StreamingStoreState & StreamingStoreActi
           updateSession(sessionId, (s) => {
             if (s.streaming) return s;
             const messages = mergeHistoryMessages(s.messages, historyMessages);
+            const cursor = resolvePageCursor(s, result, s.messages.length === 0);
             return {
               ...s,
               messages,
-              hasMore: result.hasMore,
-              oldestLoadedId: result.oldestId,
+              hasMore: cursor.hasMore,
+              oldestLoadedId: cursor.oldestLoadedId,
               historyStatus: "ready",
               historyError: false,
             };

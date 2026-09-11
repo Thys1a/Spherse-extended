@@ -9,7 +9,7 @@ import { Header } from "./Header";
 import { MessageList } from "./MessageList";
 import { ConnectionBanner } from "./ConnectionBanner";
 import { ChatRuntimeProvider } from "./runtime-context";
-import { useAgentTheme } from "./hooks/useAgentTheme";
+import { useAgentTheme, scopeAgentThemeCss } from "./hooks/useAgentTheme";
 import { useChatScroll } from "./hooks/useChatScroll";
 import { useChatSession } from "./hooks/useChatSession";
 import { useStreamingStore } from "./runtime/streaming-store";
@@ -55,7 +55,11 @@ export function Chat({ sessionId, agent, onNavigateToPath, initialMessage, onClo
   const hasMore = useStreamingStore((s) => s.sessions[sessionId]?.hasMore ?? false);
   const loadingMore = useStreamingStore((s) => s.sessions[sessionId]?.loadingMore ?? false);
   const { containerRef, isAtBottom, scrollToBottom } = useChatScroll(messages, sessionId, loadingMore);
-  const themeHref = useAgentTheme(client, agent.id, agent.slug, projectId);
+  const themeCss = useAgentTheme(client, agent.id, agent.slug, projectId);
+  const scopedThemeCss = useMemo(
+    () => (themeCss ? scopeAgentThemeCss(themeCss, sessionId) : ""),
+    [themeCss, sessionId],
+  );
 
   const handleClose = () => {
     onClose?.();
@@ -76,8 +80,8 @@ export function Chat({ sessionId, agent, onNavigateToPath, initialMessage, onClo
 
   return (
     <ChatRuntimeProvider runtime={runtime}>
-      <div className="flex flex-col h-full" data-chat-root>
-        {themeHref && <link rel="stylesheet" href={themeHref} />}
+      <div className="flex flex-col h-full" data-chat-root data-chat-instance={sessionId}>
+        {scopedThemeCss && <style data-agent-theme={sessionId}>{scopedThemeCss}</style>}
         {!hideHeader && <Header agent={agent} onClose={onClose ? handleClose : undefined} />}
         <ConnectionBanner
           connectionStatus={connectionStatus}
