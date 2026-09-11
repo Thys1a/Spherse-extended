@@ -33,6 +33,8 @@ interface ContentViewProps {
   editedContent: string;
   onEditedContentChange: (content: string) => void;
   refreshKey: number;
+  containerRef?: RefObject<HTMLDivElement | null>;
+  onNavigate?: (filePath: string) => void;
   findOpen?: boolean;
   onFindOpenChange?: (open: boolean) => void;
   tocOpen?: boolean;
@@ -56,6 +58,8 @@ export function ContentView({
   editedContent,
   onEditedContentChange,
   refreshKey,
+  containerRef,
+  onNavigate,
   findOpen: findOpenProp,
   onFindOpenChange,
   tocOpen = false,
@@ -101,9 +105,13 @@ export function ContentView({
         toast.error(t("content-browser.linkNotFound", { path: resolved.path }));
         return;
       }
+      if (onNavigate) {
+        onNavigate(resolved.path);
+        return;
+      }
       navigate(`/project/${projectId}/content?path=${encodeURIComponent(resolved.path)}`);
     },
-    [filePath, client, projectId, navigate, t, openLink],
+    [filePath, client, projectId, navigate, onNavigate, t, openLink],
   );
 
   const findEnabled =
@@ -134,13 +142,15 @@ export function ContentView({
     if (!findEnabled) return;
     const handler = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "f") {
+        const active = document.activeElement;
+        if (containerRef && (!containerRef.current || !active || !containerRef.current.contains(active))) return;
         event.preventDefault();
         setFindOpen(true);
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [findEnabled, setFindOpen]);
+  }, [findEnabled, setFindOpen, containerRef]);
 
   useEffect(() => {
     if (!isEditing) setEditFindOpen(false);
@@ -150,13 +160,15 @@ export function ContentView({
     if (!isEditing) return;
     const handler = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "f") {
+        const active = document.activeElement;
+        if (containerRef && (!containerRef.current || !active || !containerRef.current.contains(active))) return;
         event.preventDefault();
         setEditFindOpen(true);
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [isEditing, setEditFindOpen]);
+  }, [isEditing, setEditFindOpen, containerRef]);
 
   if (isHtml && htmlView === "preview" && !isEditing && !loading && !error) {
     return (

@@ -18,6 +18,7 @@ export interface FileTreeProps {
   onDeleted?: (paths: string[]) => void;
   onRenamed?: (oldPath: string, newPath: string) => void;
   onOpenInNewTab?: (filePath: string) => void;
+  onSplitFile?: (filePath: string) => void;
   onFloatFile?: (filePath: string) => void;
   floatedFilePaths?: Set<string>;
   rootPath?: string;
@@ -25,7 +26,7 @@ export interface FileTreeProps {
   readOnly?: boolean;
 }
 
-export function FileTree({ selectedFilePath, onSelectFile, onDeleted, onRenamed, onOpenInNewTab, onFloatFile, floatedFilePaths, rootPath, emptyLabel, readOnly }: FileTreeProps) {
+export function FileTree({ selectedFilePath, onSelectFile, onDeleted, onRenamed, onOpenInNewTab, onSplitFile, onFloatFile, floatedFilePaths, rootPath, emptyLabel, readOnly }: FileTreeProps) {
   const { t } = useI18n();
   const { projectId } = useProjectCtx();
   const client = useApiClient(projectId);
@@ -64,6 +65,7 @@ export function FileTree({ selectedFilePath, onSelectFile, onDeleted, onRenamed,
     requestDelete: ctrl.requestDelete,
     requestDeleteMany: ctrl.requestDeleteMany,
     onOpenInNewTab,
+    onSplitFile,
     onFloatFile,
     floatedFilePaths,
     readOnly,

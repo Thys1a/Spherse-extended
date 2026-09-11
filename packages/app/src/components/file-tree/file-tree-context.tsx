@@ -28,6 +28,7 @@ export interface FileTreeContextValue {
   requestDelete: (item: TreeItem) => void;
   requestDeleteMany: (paths: string[]) => void;
   onOpenInNewTab?: (filePath: string) => void;
+  onSplitFile?: (filePath: string) => void;
   onFloatFile?: (filePath: string) => void;
   floatedFilePaths?: Set<string>;
   readOnly?: boolean;

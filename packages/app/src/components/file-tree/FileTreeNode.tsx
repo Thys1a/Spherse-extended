@@ -34,6 +34,7 @@ function FileRow({ item, depth }: { item: TreeItem; depth: number }) {
     submitRename,
     cancelRename,
     onOpenInNewTab,
+    onSplitFile,
     onFloatFile,
     floatedFilePaths,
     setDropTarget,
@@ -86,6 +87,7 @@ function FileRow({ item, depth }: { item: TreeItem; depth: number }) {
         onCreate={(action) => requestCreate(item, action)}
         onDelete={() => requestDelete(item)}
         onOpenInNewTab={onOpenInNewTab}
+        onSplitFile={onSplitFile}
         onFloatFile={onFloatFile}
         floatedFilePaths={floatedFilePaths}
         readOnly
@@ -101,6 +103,7 @@ function FileRow({ item, depth }: { item: TreeItem; depth: number }) {
       onCreate={(action) => requestCreate(item, action)}
       onDelete={() => requestDelete(item)}
       onOpenInNewTab={onOpenInNewTab}
+      onSplitFile={onSplitFile}
       onFloatFile={onFloatFile}
       floatedFilePaths={floatedFilePaths}
       onRename={() => requestRename(item)}

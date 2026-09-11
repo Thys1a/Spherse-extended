@@ -15,6 +15,7 @@ export function FileTreeContextMenu({
   onCreate,
   onDelete,
   onOpenInNewTab,
+  onSplitFile,
   onFloatFile,
   floatedFilePaths,
   onRename,
@@ -27,6 +28,7 @@ export function FileTreeContextMenu({
   onCreate: (action: CreateAction) => void;
   onDelete: () => void;
   onOpenInNewTab?: (filePath: string) => void;
+  onSplitFile?: (filePath: string) => void;
   onFloatFile?: (filePath: string) => void;
   floatedFilePaths?: Set<string>;
   onRename?: () => void;
@@ -38,7 +40,7 @@ export function FileTreeContextMenu({
   const isFloated = floatedFilePaths?.has(node.path) ?? false;
   const batchPaths = selectedPaths ?? [];
   const batch = !readOnly && batchPaths.length > 1 && batchPaths.includes(node.path);
-  const showOpenGroup = node.type === "file" && (onOpenInNewTab !== undefined || onFloatFile !== undefined);
+  const showOpenGroup = node.type === "file" && (onOpenInNewTab !== undefined || onSplitFile !== undefined || onFloatFile !== undefined);
   return (
     <ContextMenu>
       <ContextMenuTrigger>{children}</ContextMenuTrigger>
@@ -48,6 +50,11 @@ export function FileTreeContextMenu({
             {onOpenInNewTab && (
               <ContextMenuItem onClick={() => onOpenInNewTab(node.path)}>
                 {t("file-tree.openInNewTab")}
+              </ContextMenuItem>
+            )}
+            {onSplitFile && (
+              <ContextMenuItem onClick={() => onSplitFile(node.path)}>
+                {t("file-tree.splitRight")}
               </ContextMenuItem>
             )}
             {onFloatFile && (

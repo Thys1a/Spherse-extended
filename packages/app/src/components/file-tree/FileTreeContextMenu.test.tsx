@@ -161,6 +161,42 @@ describe("FileTreeContextMenu", () => {
     ).toBeNull();
   });
 
+  it("calls onSplitFile with the node path", () => {
+    const onSplitFile = vi.fn();
+    renderWithProviders(
+      <FileTreeContextMenu
+        node={{ name: "a.md", path: "a.md", type: "file" }}
+        onCreate={() => {}}
+        onDelete={() => {}}
+        onSplitFile={onSplitFile}
+      >
+        <div>row</div>
+      </FileTreeContextMenu>,
+    );
+
+    fireEvent.contextMenu(screen.getByText("row"));
+    fireEvent.click(screen.getByText(translate("zh-CN", "file-tree.splitRight")));
+
+    expect(onSplitFile).toHaveBeenCalledWith("a.md");
+  });
+
+  it("hides the split item for directories", () => {
+    renderWithProviders(
+      <FileTreeContextMenu
+        node={{ name: "docs", path: "docs", type: "directory" }}
+        onCreate={() => {}}
+        onDelete={() => {}}
+        onSplitFile={() => {}}
+      >
+        <div>row</div>
+      </FileTreeContextMenu>,
+    );
+
+    fireEvent.contextMenu(screen.getByText("row"));
+
+    expect(screen.queryByText(translate("zh-CN", "file-tree.splitRight"))).toBeNull();
+  });
+
   it("shows full menu for editable files", () => {
     renderWithProviders(
       <FileTreeContextMenu

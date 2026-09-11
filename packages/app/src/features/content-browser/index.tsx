@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useI18n } from "@spherse/i18n/react";
 import type { AgentSummary, ActiveSessionInfo } from "../../lib/types";
@@ -23,6 +23,8 @@ export interface ContentBrowserProps {
   agents: AgentSummary[];
   activeSessions?: ActiveSessionInfo[];
   onStartSession?: (agentId: string, selectedText: string, sourcePath: string, comment?: string) => void;
+  onNavigate?: (filePath: string) => void;
+  onSplit?: () => void;
 }
 
 export function ContentBrowser({
@@ -32,6 +34,8 @@ export function ContentBrowser({
   agents,
   activeSessions,
   onStartSession,
+  onNavigate,
+  onSplit,
 }: ContentBrowserProps) {
   const { t } = useI18n();
   const { projectId } = useProjectCtx();
@@ -45,12 +49,14 @@ export function ContentBrowser({
   const [editFindOpen, setEditFindOpen] = useState(false);
   const [taskToggling, setTaskToggling] = useState(false);
   const { content, setContent, binary, loading, error, dataUpdatedAt, reload: reloadContent } = useContentFile(projectId, client, filePath);
+  const rootRef = useRef<HTMLDivElement | null>(null);
   const editor = useContentEditor({
     client,
     projectId,
     filePath,
     content,
     setContent,
+    containerRef: rootRef,
   });
 
   const handleRefresh = useCallback(() => {
@@ -99,7 +105,7 @@ export function ContentBrowser({
   const findable = !loading && !error && !binary && !isImage && !(isHtml && htmlView === "preview");
 
   return (
-    <div data-content-browser className="flex flex-col h-full">
+    <div ref={rootRef} data-content-browser className="flex flex-col h-full">
       <Header
         filePath={filePath}
         isDirty={editor.isDirty}
@@ -122,6 +128,7 @@ export function ContentBrowser({
           if (editor.isEditing) setEditFindOpen((v) => !v);
           else setFindOpen((v) => !v);
         }}
+        onSplit={onSplit}
       />
       {editor.conflict && editor.isEditing && (
         <ConflictBanner
@@ -159,6 +166,8 @@ export function ContentBrowser({
               editedContent={editor.editedContent}
               onEditedContentChange={editor.setEditedContent}
               refreshKey={refreshKey}
+              containerRef={rootRef}
+              onNavigate={onNavigate}
               findOpen={findOpen}
               onFindOpenChange={setFindOpen}
               tocOpen={tocOpen}
@@ -183,6 +192,8 @@ export function ContentBrowser({
           editedContent={editor.editedContent}
           onEditedContentChange={editor.setEditedContent}
           refreshKey={refreshKey}
+          containerRef={rootRef}
+          onNavigate={onNavigate}
           findOpen={findOpen}
           onFindOpenChange={setFindOpen}
           tocOpen={tocOpen}

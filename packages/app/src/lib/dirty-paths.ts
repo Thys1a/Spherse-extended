@@ -1,8 +1,8 @@
 import { create } from "zustand";
 
 interface DirtyPathsStore {
-  byProject: Record<string, string[]>;
-  setDirty: (projectId: string, filePath: string, dirty: boolean) => void;
+  byProject: Record<string, Record<string, string[]>>;
+  setDirty: (projectId: string, filePath: string, instanceId: string, dirty: boolean) => void;
   isDirty: (projectId: string, filePath: string) => boolean;
   isDirtyUnder: (projectId: string, prefix: string) => boolean;
   remapPaths: (projectId: string, oldPath: string, newPath: string) => void;
@@ -10,55 +10,74 @@ interface DirtyPathsStore {
   clearProject: (projectId: string) => void;
 }
 
+function matchesPrefix(path: string, prefix: string): boolean {
+  return path === prefix || path.startsWith(`${prefix}/`);
+}
+
 export const useDirtyPathsStore = create<DirtyPathsStore>((set, get) => ({
   byProject: {},
 
-  setDirty(projectId, filePath, dirty) {
+  setDirty(projectId, filePath, instanceId, dirty) {
     set((s) => {
-      const current = s.byProject[projectId] ?? [];
-      const has = current.includes(filePath);
+      const project = s.byProject[projectId] ?? {};
+      const ids = project[filePath] ?? [];
+      const has = ids.includes(instanceId);
       if (dirty === has) return s;
-      const byProject = {
-        ...s.byProject,
-        [projectId]: dirty ? [...current, filePath] : current.filter((p) => p !== filePath),
-      };
-      return { byProject };
+      const nextIds = dirty ? [...ids, instanceId] : ids.filter((id) => id !== instanceId);
+      const nextProject = { ...project };
+      if (nextIds.length === 0) {
+        delete nextProject[filePath];
+      } else {
+        nextProject[filePath] = nextIds;
+      }
+      return { byProject: { ...s.byProject, [projectId]: nextProject } };
     });
   },
 
   isDirty(projectId, filePath) {
-    return (get().byProject[projectId] ?? []).includes(filePath);
+    return (get().byProject[projectId]?.[filePath]?.length ?? 0) > 0;
   },
 
   isDirtyUnder(projectId, prefix) {
-    const list = get().byProject[projectId] ?? [];
-    return list.some((p) => p === prefix || p.startsWith(`${prefix}/`));
+    const project = get().byProject[projectId] ?? {};
+    return Object.keys(project).some((p) => matchesPrefix(p, prefix));
   },
 
   remapPaths(projectId, oldPath, newPath) {
     set((s) => {
-      const current = s.byProject[projectId];
-      if (!current || current.length === 0) return s;
-      const prefix = `${oldPath}/`;
+      const project = s.byProject[projectId];
+      if (!project) return s;
       let changed = false;
-      const next = current.map((p) => {
-        if (p !== oldPath && !p.startsWith(prefix)) return p;
+      const nextProject: Record<string, string[]> = {};
+      for (const [p, ids] of Object.entries(project)) {
+        if (!matchesPrefix(p, oldPath)) {
+          nextProject[p] = ids;
+          continue;
+        }
         changed = true;
-        return p === oldPath ? newPath : newPath + p.slice(oldPath.length);
-      });
+        const remapped = p === oldPath ? newPath : newPath + p.slice(oldPath.length);
+        nextProject[remapped] = [...(nextProject[remapped] ?? []), ...ids];
+      }
       if (!changed) return s;
-      return { byProject: { ...s.byProject, [projectId]: next } };
+      return { byProject: { ...s.byProject, [projectId]: nextProject } };
     });
   },
 
   removePath(projectId, path) {
     set((s) => {
-      const current = s.byProject[projectId];
-      if (!current) return s;
-      const prefix = `${path}/`;
-      const next = current.filter((p) => p !== path && !p.startsWith(prefix));
-      if (next.length === current.length) return s;
-      return { byProject: { ...s.byProject, [projectId]: next } };
+      const project = s.byProject[projectId];
+      if (!project) return s;
+      let changed = false;
+      const nextProject: Record<string, string[]> = {};
+      for (const [p, ids] of Object.entries(project)) {
+        if (matchesPrefix(p, path)) {
+          changed = true;
+          continue;
+        }
+        nextProject[p] = ids;
+      }
+      if (!changed) return s;
+      return { byProject: { ...s.byProject, [projectId]: nextProject } };
     });
   },
 

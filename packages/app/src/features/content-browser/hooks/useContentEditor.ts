@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import type { ApiClient } from "../../../lib/api";
 import { useDirtyPathsStore } from "../../../lib/dirty-paths";
 import { useBusSubscription } from "../../../hooks/useBusSubscription";
@@ -9,6 +9,7 @@ interface UseContentEditorOptions {
   filePath: string;
   content: string | null;
   setContent: (content: string) => void;
+  containerRef?: RefObject<HTMLDivElement | null>;
 }
 
 export function useContentEditor({
@@ -17,6 +18,7 @@ export function useContentEditor({
   filePath,
   content,
   setContent,
+  containerRef,
 }: UseContentEditorOptions) {
   const [isEditing, setIsEditing] = useState(false);
   const [editedContent, setEditedContent] = useState("");
@@ -27,15 +29,17 @@ export function useContentEditor({
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const pendingLeaveRef = useRef<(() => void) | null>(null);
+  const instanceIdRef = useRef(crypto.randomUUID());
   const isDirty = isEditing && editedContent !== editBaseline;
 
   useEffect(() => {
-    useDirtyPathsStore.getState().setDirty(projectId, filePath, isDirty);
+    useDirtyPathsStore.getState().setDirty(projectId, filePath, instanceIdRef.current, isDirty);
   }, [projectId, filePath, isDirty]);
 
   useEffect(() => {
+    const instanceId = instanceIdRef.current;
     return () => {
-      useDirtyPathsStore.getState().setDirty(projectId, filePath, false);
+      useDirtyPathsStore.getState().setDirty(projectId, filePath, instanceId, false);
     };
   }, [projectId, filePath]);
 
@@ -121,13 +125,15 @@ export function useContentEditor({
     if (!isEditing) return;
     const handler = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key === "s") {
+        const active = document.activeElement;
+        if (containerRef && (!containerRef.current || !active || !containerRef.current.contains(active))) return;
         event.preventDefault();
         void save();
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [isEditing, save]);
+  }, [isEditing, save, containerRef]);
 
   const isEditingRef = useRef(isEditing);
   useEffect(() => {

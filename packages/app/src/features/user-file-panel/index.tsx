@@ -16,6 +16,7 @@ import { useFeature } from "../../lib/use-feature";
 import { dispatchAction } from "../../ui-sdk";
 import { useFloatedFilePaths } from "../floating-content-browser";
 import { useTabStore } from "../tabs/tab-store";
+import { useSplitStore } from "../tabs/split-store";
 
 export function UserFilePanel() {
   const { projectId } = useProjectCtx();
@@ -80,6 +81,14 @@ export function UserFilePanel() {
                         { kind: "content", label: path.split("/").pop() ?? path, filePath: path },
                         { force: true },
                       );
+                    }
+                  : undefined
+              }
+              onSplitFile={
+                tabsEnabled
+                  ? (path) => {
+                      if (!projectId) return;
+                      useSplitStore.getState().openSplit(projectId, path);
                     }
                   : undefined
               }

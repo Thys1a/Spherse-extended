@@ -92,7 +92,7 @@ describe("useFileTreeController submitMove", () => {
 
   it("blocks moves of dirty paths", async () => {
     const client = mockClient();
-    useDirtyPathsStore.getState().setDirty("p1", "a.md", true);
+    useDirtyPathsStore.getState().setDirty("p1", "a.md", "test-instance", true);
     const { api } = renderController(client);
 
     let moved = true;
@@ -114,7 +114,7 @@ describe("useFileTreeController submitMove", () => {
 
     let moved = false;
     const pending = api().submitMove("docs", "notes").then((result) => { moved = result; });
-    useDirtyPathsStore.getState().setDirty("p1", "docs/a.md", true);
+    useDirtyPathsStore.getState().setDirty("p1", "docs/a.md", "test-instance", true);
     resolveMove({ ok: true });
     await act(async () => { await pending; });
 
@@ -166,8 +166,8 @@ describe("useFileTreeController confirmDelete", () => {
 
   it("clears dirty paths of deleted targets", async () => {
     const client = mockClient();
-    useDirtyPathsStore.getState().setDirty("p1", "dir/b.md", true);
-    useDirtyPathsStore.getState().setDirty("p1", "other.md", true);
+    useDirtyPathsStore.getState().setDirty("p1", "dir/b.md", "test-instance", true);
+    useDirtyPathsStore.getState().setDirty("p1", "other.md", "test-instance", true);
     const onDeleted = vi.fn();
     const { api } = renderController(client, { onDeleted });
 

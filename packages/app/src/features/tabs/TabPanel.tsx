@@ -14,6 +14,7 @@ import { isLoopbackUrl } from "../browser/open-external-url";
 import { WelcomePage } from "../welcome-page";
 import { useFloatingSessionId } from "../floating-chat/use-floating-session-id";
 import { useTabStore, type Tab } from "./tab-store";
+import { useSplitStore } from "./split-store";
 
 function ChatTabPanel({ projectId, tab, onClose }: { projectId: string; tab: Tab; onClose: () => void }) {
   const sessionId = tab.sessionId ?? "";
@@ -117,6 +118,7 @@ function ContentTabPanel({ projectId, tab, onClose }: { projectId: string; tab: 
       agents={agents}
       activeSessions={activeSessions}
       onStartSession={handleStartSession}
+      onSplit={() => useSplitStore.getState().openSplit(projectId, filePath)}
     />
   );
 }

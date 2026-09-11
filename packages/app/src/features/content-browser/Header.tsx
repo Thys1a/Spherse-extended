@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useI18n } from "@spherse/i18n/react";
 import { Button } from "../../components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "../../components/ui/toggle-group";
-import { ArrowLeftIcon, CheckIcon, CopyIcon, ListIcon, RefreshCwIcon, SearchIcon, XIcon } from "lucide-react";
+import { ArrowLeftIcon, CheckIcon, CopyIcon, ListIcon, PanelRightOpenIcon, RefreshCwIcon, SearchIcon, XIcon } from "lucide-react";
 
 interface HeaderProps {
   filePath: string;
@@ -23,6 +23,7 @@ interface HeaderProps {
   onRefresh: () => void;
   onFindToggle: () => void;
   onTocToggle: () => void;
+  onSplit?: () => void;
 }
 
 export function Header({
@@ -44,6 +45,7 @@ export function Header({
   onRefresh,
   onFindToggle,
   onTocToggle,
+  onSplit,
 }: HeaderProps) {
   const { t } = useI18n();
   const [copied, setCopied] = useState(false);
@@ -101,6 +103,17 @@ export function Header({
             aria-label={t("content-browser.toc.title")}
           >
             <ListIcon />
+          </Button>
+        )}
+        {onSplit && !isEditing && (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={onSplit}
+            title={t("tabs.splitRight")}
+            aria-label={t("tabs.splitRight")}
+          >
+            <PanelRightOpenIcon />
           </Button>
         )}
         {isHtml && !isEditing && (
