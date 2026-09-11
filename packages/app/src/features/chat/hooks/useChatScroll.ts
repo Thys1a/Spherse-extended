@@ -12,18 +12,20 @@ export function useChatScroll(messages: ChatMessage[], sessionId: string, loadin
   const containerRef = useRef<HTMLDivElement>(null);
 
   const [isAtBottom, setIsAtBottom] = useState(true);
+  const isAtBottomRef = useRef(true);
 
   const restoredScrollRef = useRef(false);
   const prevCountRef = useRef(0);
   const scrollTopRef = useRef(0);
   const pendingLoadingMoreRef = useRef(false);
-  const preLoadMoreScrollTopRef = useRef<number | null>(null);
+  const preLoadMoreRef = useRef<{ scrollTop: number; scrollHeight: number } | null>(null);
 
   const syncBottomState = useCallback(() => {
     const container = containerRef.current;
     if (!container) return;
     scrollTopRef.current = container.scrollTop;
     const nearBottom = isNearBottom(container.scrollTop);
+    isAtBottomRef.current = nearBottom;
     setIsAtBottom((prev) => (prev === nearBottom ? prev : nearBottom));
   }, []);
 
@@ -32,6 +34,7 @@ export function useChatScroll(messages: ChatMessage[], sessionId: string, loadin
     if (!container) return;
     container.scrollTo({ top: 0, behavior });
     scrollTopRef.current = 0;
+    isAtBottomRef.current = true;
     setIsAtBottom(true);
   }, []);
 
@@ -45,22 +48,27 @@ export function useChatScroll(messages: ChatMessage[], sessionId: string, loadin
     return () => container.removeEventListener("scroll", syncBottomState);
   }, [syncBottomState, hasMessages]);
 
+  const prevSessionIdRef = useRef(sessionId);
+
   useEffect(() => {
+    if (prevSessionIdRef.current === sessionId) return;
+    prevSessionIdRef.current = sessionId;
     restoredScrollRef.current = false;
     prevCountRef.current = 0;
     pendingLoadingMoreRef.current = false;
-    preLoadMoreScrollTopRef.current = null;
+    preLoadMoreRef.current = null;
   }, [sessionId]);
 
   useEffect(() => {
     if (loadingMore) {
       pendingLoadingMoreRef.current = true;
       const container = containerRef.current;
-      if (container) preLoadMoreScrollTopRef.current = container.scrollTop;
+      preLoadMoreRef.current = container
+        ? { scrollTop: container.scrollTop, scrollHeight: container.scrollHeight }
+        : null;
     } else {
-      // clear stale capture if the fetch failed without a messages change
       pendingLoadingMoreRef.current = false;
-      preLoadMoreScrollTopRef.current = null;
+      preLoadMoreRef.current = null;
     }
   }, [loadingMore]);
 
@@ -71,7 +79,8 @@ export function useChatScroll(messages: ChatMessage[], sessionId: string, loadin
     if (!restoredScrollRef.current) {
       restoredScrollRef.current = true;
       const saved = useStreamingStore.getState().sessions[sessionId]?.scrollPosition;
-      if (saved && saved < 0) {
+      const maxUp = -(container.scrollHeight - container.clientHeight);
+      if (saved !== undefined && saved < -NEAR_BOTTOM_THRESHOLD && saved >= maxUp) {
         container.scrollTop = saved;
         syncBottomState();
       } else {
@@ -84,10 +93,12 @@ export function useChatScroll(messages: ChatMessage[], sessionId: string, loadin
     if (pendingLoadingMoreRef.current) {
       pendingLoadingMoreRef.current = false;
       prevCountRef.current = messages.length;
-      if (preLoadMoreScrollTopRef.current !== null) {
-        container.scrollTop = preLoadMoreScrollTopRef.current;
-        scrollTopRef.current = preLoadMoreScrollTopRef.current;
-        preLoadMoreScrollTopRef.current = null;
+      const captured = preLoadMoreRef.current;
+      preLoadMoreRef.current = null;
+      if (captured) {
+        const grown = container.scrollHeight - captured.scrollHeight;
+        container.scrollTop = captured.scrollTop - grown;
+        scrollTopRef.current = container.scrollTop;
         syncBottomState();
       }
       return;
@@ -107,7 +118,8 @@ export function useChatScroll(messages: ChatMessage[], sessionId: string, loadin
     const container = containerRef.current;
     if (!container) return;
     return () => {
-      useStreamingStore.getState().setScrollPosition(sessionId, scrollTopRef.current);
+      const position = isAtBottomRef.current ? 0 : scrollTopRef.current;
+      useStreamingStore.getState().setScrollPosition(sessionId, position);
     };
   }, [sessionId]);
 

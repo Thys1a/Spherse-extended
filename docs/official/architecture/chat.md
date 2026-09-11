@@ -98,14 +98,15 @@ Composer.send
   - `id` / `oldestId` 在 events 投影路径为事件 seq，legacy 路径为 messages 表行 id——两者都是单调 cursor，前端无需区分
   - entry 可携带可选 `source: "triggered"` + `triggerName`（trigger 发送标记，仅 events 投影路径；legacy 路径无此字段）
 - **页原子性**：events 投影与 legacy 两条路径都在页首遇孤儿 toolResult 时向后扩展页边界，保证单页内 toolCall/toolResult 配对自洽——前端按页解析、跨页不重新配对
-- 上翻加载 `loadMore` 以 `oldestLoadedId` 为 cursor，守卫 `hasMore && !loadingMore`
+- 上翻加载 `loadMore` 以 `oldestLoadedId` 为 cursor，守卫 `hasMore && !loadingMore`；游标写入经 `resolvePageCursor`：空会话取新页、新页接上已加载区间取新页、空页采纳服务端 `hasMore` 但保留旧游标、其余（对账最新页）保留旧游标与旧 `hasMore`——对账不再把游标倒退回最新页
 
 ## 滚动（column-reverse 方案）
 
 - 容器 `flex flex-col-reverse`、消息数组 reverse 渲染：DOM newest→oldest，`scrollTop = 0` 即底部——流式 token 到达时末条在底部增长，**原生逐帧贴底无需 JS 节流**
-- JS 介入点共三处：load-more 前捕获 `scrollTop`、渲染后恢复（阅读位置不被 prepend 扰动）；用户发送时 `scrollToBottom("smooth")`（目标 `top:0`）；首次挂载时恢复保存位置或 instant 贴底
+- JS 介入点共三处：load-more 前捕获 `scrollHeight`、渲染后按高度增量锚定（`scrollTop = 旧值 - 增量`，抵抗 iframe/图片异步定高）；用户发送时 `scrollToBottom("smooth")`（目标 `top:0`）；首次挂载时按阈值恢复保存位置或 instant 贴底
 - 「回到底部」FAB 显隐：`scrollTop >= -100px` 即视为贴底
-- session 切换按 store 中 `scrollPosition` 恢复：保存值 < 0（曾离开底部）才恢复，否则 instant 贴底；恢复在 `useLayoutEffect` 中执行规避 remount 读到脱离 DOM 的值
+- session 切换按 store 中 `scrollPosition` 恢复：仅当保存值 `< -100px` 且在当前可滚范围内才恢复，否则 instant 贴底；卸载回写时贴底则存 `0`；session 重置只在 sessionId 真正变化时执行（挂载不重置）；恢复在 `useLayoutEffect` 中执行规避 remount 读到脱离 DOM 的值
+- 消息行 key 为 `_messageId`（transient 行用 `t-${index}` 兜底，仍会在 prepend 时位移，为已知取舍）
 - 已知取舍：DOM 顺序 newest→oldest，屏幕阅读器从最新消息读起
 
 ## 类型归属

@@ -67,7 +67,7 @@ export function MessageList({ messages, agent, sessionId, streaming, loading = f
       message.role === "user" || isLast || messages[index + 1]?.role === "user";
     return (
       <MessageItem
-        key={index}
+        key={message._messageId ?? `t-${index}`}
         message={message}
         agent={agent}
         showTime={showTime}
