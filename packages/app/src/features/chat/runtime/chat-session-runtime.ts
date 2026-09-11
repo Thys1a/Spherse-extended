@@ -111,7 +111,7 @@ export class ChatSessionRuntime<T extends ChatSessionRuntimeState> {
             if (this.ws !== ws || !this.callbacks.getSession()) return;
             const historyMessages = parseHistoryMessages(result.entries);
             this.callbacks.updateSession((session) => {
-              const cursor = resolvePageCursor(session, result, session.messages.length === 0);
+              const cursor = resolvePageCursor(session, { ...result, entryCount: result.entries.length }, session.messages.length === 0);
               const reconciled = {
                 ...session,
                 messages: mergeHistoryMessages(session.messages, historyMessages),

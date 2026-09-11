@@ -48,7 +48,11 @@ export function useChatScroll(messages: ChatMessage[], sessionId: string, loadin
     return () => container.removeEventListener("scroll", syncBottomState);
   }, [syncBottomState, hasMessages]);
 
+  const prevSessionIdRef = useRef(sessionId);
+
   useEffect(() => {
+    if (prevSessionIdRef.current === sessionId) return;
+    prevSessionIdRef.current = sessionId;
     restoredScrollRef.current = false;
     prevCountRef.current = 0;
     pendingLoadingMoreRef.current = false;
@@ -63,7 +67,6 @@ export function useChatScroll(messages: ChatMessage[], sessionId: string, loadin
         ? { scrollTop: container.scrollTop, scrollHeight: container.scrollHeight }
         : null;
     } else {
-      // clear stale capture if the fetch failed without a messages change
       pendingLoadingMoreRef.current = false;
       preLoadMoreRef.current = null;
     }

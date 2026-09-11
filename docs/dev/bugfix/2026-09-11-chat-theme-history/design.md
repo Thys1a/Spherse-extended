@@ -42,15 +42,16 @@ _落盘位置说明：按 AGENTS.md「写」路由表，bugfix 分析/调研归 
 ### Bug 1：按 session 注入隔离后的 `<style>`，不再用全局 `<link>`
 
 1. `data-chat-root` 加 `data-chat-instance={sessionId}`。
-2. `useAgentTheme` 改走已有 `client.getAgentTheme(agentId)` 拉 CSS 文本：空/404（该 API 非 ok 即返回 `""`）→ 不注入；fs-watch 改精确匹配 `agents/${slug}/theme.css`。
-3. 注入前改写选择器：`:root`/`html`/`body` → `[data-chat-instance="{id}"]`，其余顶层选择器加该前缀；`@font-face`/`@keyframes`/`@import` 保持全局；`@media` 内递归处理。
-4. 渲染 `<style data-agent-theme={sessionId}>`，随 `Chat` 卸载一起摘掉。主视图/浮窗/dock 各用自己的 instance 前缀，互不串扰。
-5. 不做 Shadow DOM（会打到 portal / `data-*` 主题契约）。
+2. `useAgentTheme` 改走已有 `client.getAgentTheme(agentId)` 拉 CSS 文本：空/404（该 API 非 ok 即返回 `""`）→ 不注入；fs-watch 精确匹配 `agents/${slug}/theme.css`；三次写入统一经 `loadTheme` 代际守卫（`agentIdRef` 比对，快速切换不串扰）。
+3. 注入前改写选择器：`:root`/`html`/`body` → `[data-chat-instance="{id}"]`；**`[data-chat-root]` 开头 → compound 形式 `[data-chat-root][data-chat-instance="{id}"]`（存量模板写法保持命中）**；其余顶层选择器加 instance 后代前缀；**`[data-chat-float-root]` 开头保持全局（它是 instance 的祖先，前缀会反向失效）**；`@font-face`/`@keyframes`/`@import`/`@charset`/`@namespace`/`@scope` 透传；`@media` 等其余 at-rule 递归处理（大小写不敏感）；畸形括号容错（杂散 `}` 丢弃、未闭合块透传）；instance id 转义、`</style` 转义。
+4. 渲染 `<style data-agent-theme={sessionId}>`，随 `Chat` 卸载一起摘掉。主视图/浮窗（复用 `Chat` 自动覆盖）各用自己的 instance 前缀，互不串扰。
+5. 不做 Shadow DOM（会打到 portal / `data-*` 主题契约）。已知取舍：transient 消息 key 仍用 `t-${index}` 兜底（见 Bug 2-3）；`html.dark`/`body:hover` 类全局伪类写法不受支持（旧契约本就不支持）。
+6. 多实例范围更正：本分支无 `docked-chat` 目录，共存方仅主视图 + 浮窗（portal 到 `document.body`）。
 
 ### Bug 2：锚定恢复 + 回写贴底 + 游标取 min + 稳定 key
 
-1. `useChatScroll`：load-more 改锚定恢复——fetch 前记 `scrollHeight`，渲染后 `scrollTop = 旧值 - (新scrollHeight - 旧scrollHeight)`，不再写回旧 `scrollTop`；卸载回写时贴底（`isAtBottom`）则存 `0`；重开恢复仅当 `saved < -100` 且在当前可滚范围内才恢复，否则贴底。
-2. 游标：`loadMore`/对账/`refreshHistory` 写 `oldestLoadedId` 时与旧值取更老者（`resolvePageCursor`，空会话直接取新页）；`hasMore` 仅新页真正接上已加载区间时更新。
+1. `useChatScroll`：load-more 改锚定恢复——fetch 前记 `scrollHeight`，渲染后 `scrollTop = 旧值 - (新scrollHeight - 旧scrollHeight)`，不再写回旧 `scrollTop`；卸载回写时贴底（`isAtBottomRef`）则存 `0`；重开恢复仅当 `saved < -100` 且在当前可滚范围内才恢复，否则贴底；session 重置只在 sessionId 真正变化时执行（挂载不重置，避免带缓存挂载后首次更新误入恢复分支）。
+2. 游标：`loadMore`/对账/`refreshHistory` 经 `resolvePageCursor` 写 `oldestLoadedId`——空会话直接取新页；新页接上已加载区间（`oldestId <=` 旧游标，含重复页）取新页；空页（`entryCount === 0`）采纳服务端 `hasMore` 但保留旧游标；其余（对账最新页）保留旧游标与旧 `hasMore`。
 3. `MessageList`：`MessageItem` 改 `_messageId` 稳定 key（transient 用 `t-${index}` 兜底），顺手收 backlog 同名条目。
 
 ### 落地顺序与验证
@@ -102,6 +103,6 @@ _落盘位置说明：按 AGENTS.md「写」路由表，bugfix 分析/调研归 
 ## 影响面清单（两 bug 公共）
 
 - `packages/app/src/features/chat/`：`index.tsx`、`MessageList.tsx`、`hooks/useAgentTheme.ts`、`hooks/useChatScroll.ts`、`hooks/useChatSession.ts`、`runtime/streaming-store.ts`、`runtime/chat-session-runtime.ts`、`model/chat-history.ts`
-- `packages/app/src/features/floating-chat/`、`packages/app/src/features/docked-chat/`（多实例共存方）
+- `packages/app/src/features/floating-chat/`（多实例共存方；本分支无 `docked-chat` 目录）
 - `packages/server/src/routes/sessions.ts`、`packages/core/src/project-manager.ts`、`packages/core/src/store/session.ts`（Bug 2 服务端分页语义，现状无改动需求，备查）
 - 文档：`docs/official/architecture/theming.md`（若定多实例优先级语义）、`docs/official/architecture/chat.md`（若改游标/滚动契约）、`docs/dev/backlog.md`（两条修复立项）

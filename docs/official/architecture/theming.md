@@ -18,10 +18,10 @@
 |---|---|---|---|
 | ① App defaults | `styles.css` `:root` | 构建内联 | 全局 |
 | ② Project theme | `.spherse/theme.css` | `<link>` 挂 `document.head` | 全局 UI 变量 + chat 默认样式双角色 |
-| ③ Agent theme | `.spherse/agents/{slug}/theme.css` | `<link>` 渲染在 chat 容器内 | 当前 agent 的聊天窗口 |
+| ③ Agent theme | `.spherse/agents/{slug}/theme.css` | `<style>` 渲染在 chat 容器内（按 session 作用域改写后注入） | 当前会话的聊天窗口（多实例互不串扰） |
 
-- 优先级实现是纯 DOM 顺序：相同特异性下后载入者胜出——agent theme 的 `<link>` 在 body 内，自然覆盖 project theme 的 chat 规则
-- 两级用户主题（②③）均从 preview 路由以 `<link>` 载入：相对 `url()` 引用的图片/字体按 theme.css 自身 URL 解析（project → `.spherse/`，agent → agent 目录），项目内资源可直接引用
+- 优先级实现是纯 DOM 顺序：相同特异性下后载入者胜出——project theme 的 `<link>` 在 head，全局生效
+- project theme 从 preview 路由以 `<link>` 载入：相对 `url()` 引用的图片/字体按 theme.css 自身 URL 解析（`.spherse/`），项目内资源可直接引用；agent theme 经 `GET .../agents/:id/theme` 拉文本注入（相对 `url()` 在 `<style>` 内解析基准不同，agent 主题内引用项目资源建议用绝对 preview 路径）
 
 ## project theme 注入链
 
@@ -32,9 +32,9 @@
 
 ## agent theme 注入链
 
-- `useAgentTheme`：href 经 `getPreviewUrl('.spherse/agents/{slug}/theme.css')` + `?v=<ts>` 破缓存；`Chat` 统一渲染 `<link>`——inline 与 floating chat 共用
-- fs-watch 命中 agent theme 变更 → 250ms debounce → 换 href 触发重拉；重连补偿同路径
-  - 服务端 watch 类别是单层 glob `.spherse/agents/*/theme.css`；客户端过滤为 `includes("agents/") && endsWith("theme.css")`（事件源已被服务端过滤，实际无害）
+- `useAgentTheme`：经 `GET .../agents/:id/theme` 拉 CSS 文本（缺失/404 返回空串即不注入）；`Chat` 统一渲染 `<style data-agent-theme={sessionId}>`——inline 与 floating chat 共用，各实例独立
+- 注入前按 session 改写选择器（`scopeAgentThemeCss`）：`:root`/`html`/`body` → `[data-chat-instance="{sessionId}"]`；`[data-chat-root]` 开头 → compound 形式 `[data-chat-root][data-chat-instance="…"]`（存量模板写法保持命中）；其余顶层选择器加 instance 后代前缀；`[data-chat-float-root]` 开头保持全局（它是 instance 的祖先）；`@font-face`/`@keyframes`/`@import`/`@charset`/`@namespace`/`@scope` 透传，其余 at-rule（含 `@media`）递归处理
+- fs-watch 精确匹配 `.spherse/agents/${slug}/theme.css` → 250ms debounce → 重拉文本；重连补偿同路径；三次写入统一经代际守卫（快速切换 agent 不串扰）
 - **原生 CSS nesting 约定**：全部规则嵌套于顶层 `[data-chat-root] { ... }`（变量与 background 也写在块内），浏览器原生处理嵌套与 `@media`；暗色适配在块内嵌 `@media (prefers-color-scheme: dark)`
 - 单独定制浮动窗 chrome：文件顶层再加独立 `[data-chat-float-root] { ... }` 块（floating 的 chat-root 嵌套在 float-root 内，两个块都命中）
 

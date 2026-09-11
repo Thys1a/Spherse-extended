@@ -50,4 +50,30 @@ describe("scopeAgentThemeCss", () => {
     const out = scopeAgentThemeCss(`&.open { color: red; }`, "s1");
     expect(out).toContain(`${SCOPE}.open`);
   });
+
+  it("rewrites template-style [data-chat-root] nesting to a compound selector", () => {
+    const out = scopeAgentThemeCss(
+      `[data-chat-root] { --x: 1; [data-chat-messages] { color: red; } }`,
+      "s1",
+    );
+    expect(out).toContain(`[data-chat-root]${SCOPE}`);
+    expect(out).not.toContain(`${SCOPE} [data-chat-root]`);
+  });
+
+  it("keeps [data-chat-float-root] global because it is an ancestor of the instance", () => {
+    const out = scopeAgentThemeCss(`[data-chat-float-root] { border-radius: 8px; }`, "s1");
+    expect(out).toContain("[data-chat-float-root]");
+    expect(out).not.toContain(SCOPE);
+  });
+
+  it("tolerates unbalanced braces without dropping the whole sheet", () => {
+    const out = scopeAgentThemeCss(`.a { color: red; } } .b { color: blue; }`, "s1");
+    expect(out).toContain(`${SCOPE} .b`);
+  });
+
+  it("escapes the instance id and style-closing tags", () => {
+    const out = scopeAgentThemeCss(`.a { content: "</style>"; }`, 's1"x');
+    expect(out).toContain('[data-chat-instance="s1\\"x"]');
+    expect(out).not.toMatch(/<\/style/i);
+  });
 });

@@ -58,7 +58,7 @@ describe("resolvePageCursor", () => {
     expect(
       resolvePageCursor(
         { oldestLoadedId: null, hasMore: false },
-        { oldestId: 20, hasMore: true },
+        { oldestId: 20, hasMore: true, entryCount: 2 },
         true,
       ),
     ).toEqual({ oldestLoadedId: 20, hasMore: true });
@@ -68,7 +68,7 @@ describe("resolvePageCursor", () => {
     expect(
       resolvePageCursor(
         { oldestLoadedId: 20, hasMore: true },
-        { oldestId: 0, hasMore: false },
+        { oldestId: 0, hasMore: false, entryCount: 2 },
         false,
       ),
     ).toEqual({ oldestLoadedId: 0, hasMore: false });
@@ -78,7 +78,7 @@ describe("resolvePageCursor", () => {
     expect(
       resolvePageCursor(
         { oldestLoadedId: 0, hasMore: false },
-        { oldestId: 20, hasMore: true },
+        { oldestId: 20, hasMore: true, entryCount: 2 },
         false,
       ),
     ).toEqual({ oldestLoadedId: 0, hasMore: false });
@@ -88,9 +88,19 @@ describe("resolvePageCursor", () => {
     expect(
       resolvePageCursor(
         { oldestLoadedId: 20, hasMore: true },
-        { oldestId: 20, hasMore: true },
+        { oldestId: 20, hasMore: true, entryCount: 2 },
         false,
       ),
     ).toEqual({ oldestLoadedId: 20, hasMore: true });
+  });
+
+  it("adopts hasMore from an empty page while keeping the cursor", () => {
+    expect(
+      resolvePageCursor(
+        { oldestLoadedId: 5, hasMore: true },
+        { oldestId: null, hasMore: false, entryCount: 0 },
+        false,
+      ),
+    ).toEqual({ oldestLoadedId: 5, hasMore: false });
   });
 });

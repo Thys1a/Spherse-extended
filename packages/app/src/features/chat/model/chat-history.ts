@@ -68,11 +68,14 @@ export interface PageCursor {
 
 export function resolvePageCursor(
   prev: PageCursor,
-  result: { oldestId: number | null; hasMore: boolean },
+  result: { oldestId: number | null; hasMore: boolean; entryCount: number },
   isEmpty: boolean,
 ): PageCursor {
   if (isEmpty || prev.oldestLoadedId === null) {
     return { oldestLoadedId: result.oldestId, hasMore: result.hasMore };
+  }
+  if (result.entryCount === 0) {
+    return { oldestLoadedId: prev.oldestLoadedId, hasMore: result.hasMore };
   }
   if (result.oldestId !== null && result.oldestId <= prev.oldestLoadedId) {
     return { oldestLoadedId: result.oldestId, hasMore: result.hasMore };

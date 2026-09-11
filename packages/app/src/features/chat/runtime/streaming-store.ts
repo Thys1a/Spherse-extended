@@ -480,7 +480,7 @@ export const useStreamingStore = create<StreamingStoreState & StreamingStoreActi
           const historyMessages = parseHistoryMessages(result.entries);
           updateSession(sessionId, (s) => {
             const messages = mergeHistoryMessages(s.messages, historyMessages);
-            const cursor = resolvePageCursor(s, result, s.messages.length === 0);
+            const cursor = resolvePageCursor(s, { ...result, entryCount: result.entries.length }, s.messages.length === 0);
             return {
               ...s,
               messages,
@@ -505,7 +505,7 @@ export const useStreamingStore = create<StreamingStoreState & StreamingStoreActi
           updateSession(sessionId, (s) => {
             if (s.streaming) return s;
             const messages = mergeHistoryMessages(s.messages, historyMessages);
-            const cursor = resolvePageCursor(s, result, s.messages.length === 0);
+            const cursor = resolvePageCursor(s, { ...result, entryCount: result.entries.length }, s.messages.length === 0);
             return {
               ...s,
               messages,
