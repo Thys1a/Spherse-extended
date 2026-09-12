@@ -391,6 +391,8 @@ export const en: Record<TranslationKey, string> = {
   "chat.editCancel": "Cancel",
   "chat.unknownSlashCommand": "Unknown command: {name}",
   "chat.summonFailed": "Failed to summon: {message}",
+  "chat.summonUsage": "Usage: >> agent-name message",
+  "chat.summonNoAttachments": "Summon does not support attachments, please remove them first",
   "chat.summonCard": "Summoned {name}",
   "chat.approvalToastMessage": "An agent is waiting for your confirmation",
   "chat.approvalToastMessageWithName": "{name} is waiting for your confirmation",

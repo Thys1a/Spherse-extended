@@ -391,6 +391,8 @@ export const zhTW: Record<TranslationKey, string> = {
   "chat.editCancel": "取消",
   "chat.unknownSlashCommand": "未知的命令：{name}",
   "chat.summonFailed": "召喚失敗：{message}",
+  "chat.summonUsage": "用法：>> agent 名稱 訊息內容",
+  "chat.summonNoAttachments": "召喚不支援附件，請先移除附件",
   "chat.summonCard": "已召喚 {name}",
   "chat.approvalToastMessage": "一個 Agent 正在等待你的確認",
   "chat.approvalToastMessageWithName": "「{name}」正在等待你的確認",

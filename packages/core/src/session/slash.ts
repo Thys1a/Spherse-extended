@@ -5,7 +5,7 @@ import type { Capability } from "../kernel/capability.js";
 import type { ProjectStore } from "../store/project.js";
 import type { SlashMeta } from "./events.js";
 import { resolveProjectPath } from "../utils/path-safety.js";
-import { ValidationError } from "../errors.js";
+import { AccessDeniedError, ValidationError } from "../errors.js";
 import { DEFAULT_TEXT_ATTACHMENT_BUDGET } from "../attachments/text-processor.js";
 
 export type SlashKind = "skill" | "command";
@@ -29,7 +29,8 @@ export interface SlashDeps {
 
 const SLASH_RE = /^\/(skill|command):(\S+)(?:\s+(.*))?$/s;
 const ARG_REF_RE = /\$ARGUMENTS|\$[1-9]/g;
-const FILE_REF_RE = /@([^\s]+)/g;
+const FILE_REF_RE = /(^|[\s(["'“‘])@([^\s]+)/g;
+const TRAILING_PUNCT_RE = /[,.)\]!?;:'"…。！？；：、，]+$/u;
 
 export function parseSlashCommand(text: string): ParsedSlash | null {
   const match = SLASH_RE.exec(text.trim());
@@ -39,6 +40,10 @@ export function parseSlashCommand(text: string): ParsedSlash | null {
     name: match[2],
     rawArgs: (match[3] ?? "").trim(),
   };
+}
+
+function escapeXmlAttribute(value: string): string {
+  return value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 export async function expandSlashMessage(
@@ -67,7 +72,7 @@ async function expandSkill(
     throw new ValidationError(`Skill "${parsed.name}" not found`);
   }
   const projectRoot = deps.projectStore.getRootPath();
-  let expanded = `<skill-content name="${skill.name}">\n${skill.instructions}`;
+  let expanded = `<skill-content name="${escapeXmlAttribute(skill.name)}">\n${skill.instructions}`;
   if (skill.source === "project" && skill.files.length > 0) {
     const skillDirRel = path
       .relative(projectRoot, path.dirname(skill.filePath))
@@ -117,9 +122,12 @@ async function expandFileRefs(deps: SlashDeps, text: string): Promise<string> {
     deps.projectStore.config.getAiAccessSettings().deniedPaths,
     deps.capabilities.flatMap((c) => c.pathRules ?? []),
   );
-  let result = text;
+  const chunks: string[] = [];
+  let cursor = 0;
   for (const match of matches) {
-    const ref = match[1];
+    const rawRef = match[2].replace(TRAILING_PUNCT_RE, "");
+    if (!rawRef || rawRef.includes("@")) continue;
+    const ref = rawRef;
     let resolved: string;
     try {
       resolved = resolveProjectPath(projectRoot, ref);
@@ -127,7 +135,7 @@ async function expandFileRefs(deps: SlashDeps, text: string): Promise<string> {
       throw new ValidationError(`Referenced file is outside the project: ${ref}`);
     }
     if (!policy.canRead(ref)) {
-      throw new ValidationError(`Referenced file is not readable: ${ref}`);
+      throw new AccessDeniedError(`Referenced file is not readable: ${ref}`);
     }
     let content: string;
     try {
@@ -139,7 +147,11 @@ async function expandFileRefs(deps: SlashDeps, text: string): Promise<string> {
       content.length > DEFAULT_TEXT_ATTACHMENT_BUDGET
         ? `${content.slice(0, DEFAULT_TEXT_ATTACHMENT_BUDGET)}\n…[truncated]`
         : content;
-    result = result.replace(match[0], `\n<file path="${ref}">\n${shown}\n</file>`);
+    const at = (match.index ?? 0) + match[1].length;
+    chunks.push(text.slice(cursor, at));
+    chunks.push(`\n<file path="${escapeXmlAttribute(ref)}">\n${shown}\n</file>`);
+    cursor = at + 1 + rawRef.length;
   }
-  return result;
+  chunks.push(text.slice(cursor));
+  return chunks.join("");
 }

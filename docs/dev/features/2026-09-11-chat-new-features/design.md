@@ -67,10 +67,10 @@
 
 范围裁剪：**完全不做 `!cmd`**；`/command:` **不做 agent/subtask 字段**（不与功能 4 联动）；**管理 UI 要做**；命令只做项目级 `.spherse/commands/`（`SkillStore` 无全局层先例，全局目录不做）。
 
-- core：新建 `CommandStore`（镜像 `SkillStore` list/get）；frontmatter 仅 `{description?, model?}`；纯函数 `SlashResolver` 解析 `^/(skill|command):(\S+)(?:\s+(.*))?$`；展开器：`/skill:` 复用 `SkillStore.get` + `load-skill` 拼装格式，`/command:` 展开 `$ARGUMENTS`/`$1..`/`@path`（`@` 走 read + access policy + §9 截断预算），缺参数抛 ValidationError；展开点为 `AgentRunner.sendMessage` 前（`deps.projectStore` 可达 agentStore，不破坏 capability 分层）；`model` 字段走 §3 的单次 override。
-- 事件扩展（与 §4 summon 共用一次改动）：`user/message` data 加 `slashMeta?: {type, name, rawArgs}`，同步 `fold.ts`、contracts、`chat-wire-projector`、reducer pill 渲染。
+- core：新建 `CommandStore`（镜像 `SkillStore` list/get；并发写以文件路径为粒度互斥，无跨文件事务，属 last-write-wins）；frontmatter 仅 `{description?, model?}`；纯函数 `SlashResolver` 解析 `^/(skill|command):(\S+)(?:\s+(.*))?$`；展开器：`/skill:` 复用 `SkillStore.get` + `load-skill` 拼装格式（`@` 不展开，沿 skill 文件列表 + read_file 机制），`/command:` 展开 `$ARGUMENTS`/`$1..`/`@path`（`@` 要求行首/空白/左括号边界、剥尾随标点、跳过邮箱形、policy 拒绝抛 `AccessDeniedError` 与缺失区分、按 index 重建防污染；`@` 走 read + access policy + §9 截断预算），缺参数抛 ValidationError；展开点为 `AgentRunner.sendMessage` 前（`deps.projectStore` 可达 agentStore，不破坏 capability 分层）；`model` 字段走 §3 的单次 override（CRUD 路由建/改时经 catalog 预校验）。
+- 事件扩展（与 §4 summon 共用一次改动）：`user/message` data 加 `slashMeta?: {type, name, rawArgs}`，同步 `fold.ts`、contracts、`chat-wire-projector`、reducer pill 渲染；仅加可选字段，`EVENT_SCHEMA_VERSION` 不升级（沿 triggerName 先例）。
 - contracts：`CommandDefinition` schema + list/get API；server：CRUD 路由（resolve 路由暂缓：展开收敛在 `AgentRunner.sendMessage`，暂无第二消费方）。
-- app：Composer 输入 `/` 弹出补全（skill + command 列表，显示 description 与 model 徽标）；未知名称 toast 不发送；历史凭 `slashMeta` 显示原始 `/skill:x` pill。
+- app：Composer 输入 `/` 弹出补全（skill + command 列表，显示 description 与 model 徽标）；未知名称 toast 不发送（列表未加载时放行，靠服务端 ValidationError）；历史与当轮凭 `slashMeta` 显示原始 `/skill:x` pill（renderer 消费 `user_message` 回执：有未结算乐观消息则注记 `_messageId` + meta，否则追加持久行）。
 - 管理 UI：左侧栏 Commands 面板（与 Skills 同级）：列表（名+description）+ 新建/编辑（textarea，与现有内容编辑一致，不引入 monaco 依赖）/删除，复用 skill-panel 结构。
 - 安全：命令文件视为不可信输入；每次使用重读；路径走 `resolveProjectPath`/`assertInsideProject`。
 
@@ -79,10 +79,11 @@
 新语法（fire-and-forget，当前会话不等待、不回注）：`>> <agent-slug> <message>`。
 
 - 拦截层（审查修正）：**不经过 `AgentRunner.sendMessage`**（否则当前 agent 会对字面 `>>` 文本跑 turn）。落点为新增 HTTP 端点 `POST .../sessions/:id/summon`（而非 ws-chat message 分支）：WS 无回执，app 无法确定落库时序做 refresh；HTTP 200 即代表 note 已持久化，app 随后 `refreshHistory` 必能看到卡片，且路由测试可覆盖全链路（与 `POST .../messages` 的 detached 模式同构）。
-- 服务端：按 slug 查 agent（未知→404）→ 建目标会话 → 当前会话落 `user/message`（content 为原文，`source: "summon"` + `summon: {agentId, sessionId, agentName}`，经新增 `SessionManager.appendUserMessage`，不启动当前 run）→ `hub.startDetachedRun` 目标会话。
-- 目标会话：`SessionPort.createSession(slug, 'new')` + `sendMessage(message)` 后立即返回（文本-only，`SessionPort.sendMessage` 无 attachments 签名，`kernel/ports.ts:16`）。
+- 服务端：按 slug 查 agent（未知→404）→ 建目标会话 → 当前会话落 `user/message`（content 为原文，`source: "summon"` + `summon: {agentId, sessionId, agentName}`，经新增 `SessionManager.appendUserMessage`，per-session promise 链防 seq 竞态，不启动当前 run）→ `hub.startDetachedRun` 目标会话；注记/启动任一失败则归档刚建的目标会话后抛错（目标 run 内的异步失败沿 detached 既有语义，不可见）。
+- 目标会话收到的 message 原样再过一次 slash 展开（与 trigger/普通发送一致）。
+- app：Composer 输入 `>>` 显示 agent 补全下拉；发送时 `>>` 走 `summonToAgent` + `refreshHistory`（未知 slug 由服务端 404 → toast；格式不全 toast 用法；带附件拦截）；`MessageItem` 渲染可点击跳转的召唤卡片（`onOpenSession`，ChatPage/浮窗接路由；字段缺失降级）。
+- 目标会话：`sessionRuntime.createSession` 建新会话 + `hub.startDetachedRun` 跑消息后立即返回（文本-only；`SessionPort` 仅 Hub 内部使用）。
 - contracts：`summonRequest{targetSlug, message}` + `summonResponse{ok, targetSessionId}`。
-- app：Composer 输入 `>>` 显示 agent 补全下拉；发送时 `>>` 走 `summonToAgent` + `refreshHistory`（未知 slug 由服务端 404 → toast）；`MessageItem` 渲染可点击跳转的召唤卡片（`onOpenSession`，ChatPage/浮窗接路由）。
 - 与 trigger 的区别：trigger 是事件驱动自动化，`>>` 是用户主动即时召唤。
 
 ## 7. 桌宠模式（批次 H，仅步骤 1；OS 窗口 + 形象上传延 v2）

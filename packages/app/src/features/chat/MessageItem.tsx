@@ -195,14 +195,14 @@ export function MessageItem({ message, agent, showTime, sessionId, supersededToo
         {isUser && message._attachments && message._attachments.length > 0 && (
           <MessageAttachments attachments={message._attachments} />
         )}
-        {isUser && message._summon && onOpenSession && (
+        {isUser && message._summon?.sessionId && onOpenSession && (
           <button
             type="button"
             onClick={() => onOpenSession(message._summon!.sessionId)}
-            title={t("chat.summonCard", { name: message._summon.agentName })}
+            title={t("chat.summonCard", { name: message._summon.agentName ?? message._summon.agentId })}
             className="mt-2 flex items-center gap-1.5 self-start rounded-md border border-border px-2.5 py-1.5 text-xs hover:bg-muted"
           >
-            <span>{t("chat.summonCard", { name: message._summon.agentName })}</span>
+            <span>{t("chat.summonCard", { name: message._summon.agentName ?? message._summon.agentId })}</span>
             <ChevronRightIcon className="size-3.5 text-muted-foreground" />
           </button>
         )}

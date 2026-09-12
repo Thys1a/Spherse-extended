@@ -795,6 +795,10 @@ export const zhCN = {
   "chat.unknownSlashCommand": "未知的命令：{name}",
   // 召唤其他 agent 失败时的错误提示，{message} 为错误信息
   "chat.summonFailed": "召唤失败：{message}",
+  // 输入 >> 但格式不完整时的用法提示
+  "chat.summonUsage": "用法：>> agent名称 消息内容",
+  // 召唤时携带附件被拦截的提示（召唤仅支持纯文本）
+  "chat.summonNoAttachments": "召唤不支持附件，请先移除附件",
   // 历史消息中召唤记录卡片的文案，{name} 为目标 agent 名称，点击跳转到新会话
   "chat.summonCard": "已召唤 {name}",
   // 某会话的 agent 工具调用等待用户批准、且用户当前未停留在该会话时弹出的 toast 文案（无法解析到 agent 名时的泛化兜底）

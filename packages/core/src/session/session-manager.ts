@@ -16,6 +16,7 @@ export class SessionManager {
   private readonly sessions = new Map<string, AgentRunner>();
   private readonly deps: RuntimeDeps;
   private readonly runConfigHolder: RunConfigHolder;
+  private readonly appendChains = new Map<string, Promise<void>>();
 
   constructor(deps: RuntimeDeps, options?: { initialRunConfig?: RunConfigHolder }) {
     this.deps = deps;
@@ -98,7 +99,31 @@ export class SessionManager {
     return session.withdrawLastTurn();
   }
 
-  appendUserMessage(
+  async appendUserMessage(
+    agentId: string,
+    sessionId: string,
+    message: string,
+    meta?: SendMessageMeta,
+  ): Promise<number> {
+    const prev = this.appendChains.get(sessionId) ?? Promise.resolve();
+    let release!: () => void;
+    const turn = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const chained = prev.then(() => turn);
+    this.appendChains.set(sessionId, chained);
+    await prev;
+    try {
+      return this.appendUserMessageInner(agentId, sessionId, message, meta);
+    } finally {
+      release();
+      if (this.appendChains.get(sessionId) === chained) {
+        this.appendChains.delete(sessionId);
+      }
+    }
+  }
+
+  private appendUserMessageInner(
     agentId: string,
     sessionId: string,
     message: string,

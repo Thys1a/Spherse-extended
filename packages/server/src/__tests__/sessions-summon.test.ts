@@ -10,6 +10,7 @@ declare module "fastify" {
     projectCtx?: {
       projectManager: unknown;
       sessionRuntime: unknown;
+      runtime: unknown;
     };
   }
 }
@@ -18,6 +19,7 @@ describe("POST .../agents/:agentId/sessions/:id/summon route", () => {
   let app: Fastify.FastifyInstance;
   let projectManager: Record<string, ReturnType<typeof vi.fn>>;
   let sessionRuntime: Record<string, ReturnType<typeof vi.fn>>;
+  let runtime: Record<string, ReturnType<typeof vi.fn>>;
   let hub: { startDetachedRun: ReturnType<typeof vi.fn> };
 
   beforeEach(async () => {
@@ -32,10 +34,11 @@ describe("POST .../agents/:agentId/sessions/:id/summon route", () => {
       createSession: vi.fn().mockResolvedValue("target-s1"),
       appendUserMessage: vi.fn().mockReturnValue(3),
     };
+    runtime = { deleteSession: vi.fn() };
     hub = { startDetachedRun: vi.fn().mockResolvedValue(undefined) };
     app = Fastify();
     app.addHook("preHandler", async (req: FastifyRequest) => {
-      req.projectCtx = { projectManager, sessionRuntime };
+      req.projectCtx = { projectManager, sessionRuntime, runtime };
     });
     registerSessionRoutes(app, {} as ProjectRegistry, hub as unknown as ChatSessionHub);
     await app.ready();
@@ -82,5 +85,17 @@ describe("POST .../agents/:agentId/sessions/:id/summon route", () => {
 
     expect(res.statusCode).toBe(400);
     expect(sessionRuntime.createSession).not.toHaveBeenCalled();
+  });
+
+  it("archives the target session when the run fails to start", async () => {
+    hub.startDetachedRun.mockRejectedValueOnce(new Error("channel gone"));
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/projects/p1/agents/a1/sessions/s1/summon",
+      payload: { targetSlug: "build", message: "hi" },
+    });
+
+    expect(res.statusCode).toBe(500);
+    expect(runtime.deleteSession).toHaveBeenCalledWith("a2", "target-s1");
   });
 });

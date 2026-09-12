@@ -148,14 +148,23 @@ describe("parseAgentEvent", () => {
   it("drops protocol v2 events until the new runtime consumes them", () => {
     expect(parseAgentEvent({ type: "session_ready", lastSeq: 3, replay: true })).toBeUndefined();
     expect(parseAgentEvent({ type: "replay_done" })).toBeUndefined();
+    expect(parseAgentEvent({ type: "turn_retried", seq: 5, abandonedSeqs: [3] })).toBeUndefined();
+  });
+
+  it("passes user_message through with meta fields", () => {
     expect(
       parseAgentEvent({
         type: "user_message",
         seq: 4,
         message: { role: "user", content: "hi", timestamp: 1 },
+        slash: { type: "skill", name: "review", rawArgs: "x" },
       }),
-    ).toBeUndefined();
-    expect(parseAgentEvent({ type: "turn_retried", seq: 5, abandonedSeqs: [3] })).toBeUndefined();
+    ).toEqual({
+      type: "user_message",
+      seq: 4,
+      message: { role: "user", content: "hi", timestamp: 1 },
+      slash: { type: "skill", name: "review", rawArgs: "x" },
+    });
   });
   it("passes through tool_execution_* unchanged", () => {
     expect(

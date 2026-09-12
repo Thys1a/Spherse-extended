@@ -2,8 +2,10 @@ import type { ErrorEventCode } from "@spherse/contracts";
 import type { ChatMessage, ToolCallInfo } from "../types";
 import {
   isAssistantMessage,
+  isUserMessage,
   type AgentEvent,
 } from "./agent-event-parse";
+import { projectUserMeta } from "./chat-history";
 import {
   commandCardFromResult,
   extractCardFromPartial,
@@ -76,6 +78,30 @@ function applyEventToMessages(prev: ChatMessage[], event: AgentEvent, now: numbe
       if (prev[i].role === "user") return prev.slice(0, i);
     }
     return prev;
+  }
+
+  if (event.type === "user_message" && isUserMessage(event.message)) {
+    const meta = projectUserMeta(event);
+    const timestamp = event.message.timestamp ?? now;
+    for (let i = prev.length - 1; i >= 0; i--) {
+      const candidate = prev[i];
+      if (candidate.role === "user" && candidate._optimistic && candidate._messageId === undefined) {
+        return [
+          ...prev.slice(0, i),
+          { ...candidate, _messageId: event.seq, _optimistic: false, ...meta },
+        ];
+      }
+    }
+    return [
+      ...prev,
+      {
+        role: "user",
+        content: extractMessageText(event.message.content),
+        timestamp,
+        _messageId: event.seq,
+        ...meta,
+      },
+    ];
   }
 
   if (event.type === "message_start" && isAssistantMessage(event.message)) {

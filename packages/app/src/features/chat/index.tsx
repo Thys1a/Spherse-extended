@@ -87,8 +87,17 @@ export function Chat({ sessionId, agent, onNavigateToPath, onOpenSession, initia
   };
 
   const handleSend = (text: string, attachments?: AttachedFile[]) => {
-    const summon = parseSummonMessage(text);
-    if (summon && (!attachments || attachments.length === 0)) {
+    const trimmed = text.trim();
+    if (trimmed.startsWith(">>")) {
+      const summon = parseSummonMessage(trimmed);
+      if (!summon) {
+        toast.error(t("chat.summonUsage"));
+        return false;
+      }
+      if (attachments && attachments.length > 0) {
+        toast.error(t("chat.summonNoAttachments"));
+        return false;
+      }
       void (async () => {
         try {
           await client.summonToAgent(agent.id, sessionId, summon);

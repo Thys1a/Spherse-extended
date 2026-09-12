@@ -1,8 +1,22 @@
 import type { FastifyInstance } from "fastify";
 import { schemas, parseContract } from "@spherse/contracts";
 import type { CommandCreateRequest, CommandUpdateRequest } from "@spherse/contracts";
+import { ValidationError } from "@spherse/core";
 import type { ProjectRegistry } from "../registry.js";
 import { notFound } from "../errors.js";
+
+function assertResolvableModel(
+  runtime: { getRuntimeDeps: () => { modelCatalog: { resolveModelById: (id: string) => unknown } } },
+  model: string | undefined,
+): void {
+  const trimmed = model?.trim();
+  if (!trimmed) return;
+  try {
+    runtime.getRuntimeDeps().modelCatalog.resolveModelById(trimmed);
+  } catch {
+    throw new ValidationError(`Unknown model: ${trimmed}`);
+  }
+}
 
 export function registerCommandRoutes(fastify: FastifyInstance, _registry: ProjectRegistry): void {
   fastify.get<{ Params: { projectId: string } }>(
@@ -36,6 +50,7 @@ export function registerCommandRoutes(fastify: FastifyInstance, _registry: Proje
       },
       async handler(req) {
         const { name, description, model, template } = req.body;
+        assertResolvableModel(req.projectCtx!.sessionRuntime, model);
         const command = await req.projectCtx!.projectManager.createCommand({
           name,
           ...(description !== undefined ? { description } : {}),
@@ -56,6 +71,7 @@ export function registerCommandRoutes(fastify: FastifyInstance, _registry: Proje
       },
       async handler(req) {
         const { description, model, template } = req.body;
+        assertResolvableModel(req.projectCtx!.sessionRuntime, model);
         const command = await req.projectCtx!.projectManager.updateCommand(req.params.name, {
           ...(description !== undefined ? { description } : {}),
           ...(model !== undefined ? { model } : {}),

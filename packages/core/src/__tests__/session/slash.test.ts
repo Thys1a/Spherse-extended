@@ -119,10 +119,68 @@ describe("expandSlashMessage", () => {
     await expect(expandSlashMessage(d2, "a1", "/command:ref")).rejects.toThrow(/missing\.txt/);
   });
 
+  it("skips emails and strips trailing punctuation from file refs", async () => {
+    const fs = await import("node:fs/promises");
+    const os = await import("node:os");
+    const path = await import("node:path");
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "wb-slash-"));
+    try {
+      await fs.writeFile(path.join(tmp, "a.txt"), "AAA");
+      const d = deps({
+        commands: { ref: { template: "mail a@b.com, see (@a.txt)." } },
+      });
+      (d.projectStore as { getRootPath: () => string }).getRootPath = () => tmp;
+      const result = await expandSlashMessage(d, "a1", "/command:ref");
+      expect(result?.text).toContain("a@b.com");
+      expect(result?.text).toContain("AAA");
+      expect(result?.text).not.toContain("@a.txt).");
+    } finally {
+      await fs.rm(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects policy-denied files with an access error", async () => {
+    const fs = await import("node:fs/promises");
+    const os = await import("node:os");
+    const path = await import("node:path");
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "wb-slash-"));
+    try {
+      await fs.writeFile(path.join(tmp, "secret.txt"), "shh");
+      const d = deps({
+        commands: { ref: { template: "See @secret.txt" } },
+        deniedPaths: ["secret.txt"],
+      });
+      (d.projectStore as { getRootPath: () => string }).getRootPath = () => tmp;
+      const { AccessDeniedError } = await import("../../errors.js");
+      await expect(expandSlashMessage(d, "a1", "/command:ref")).rejects.toBeInstanceOf(
+        AccessDeniedError,
+      );
+    } finally {
+      await fs.rm(tmp, { recursive: true, force: true });
+    }
+  });
+
   it("passes the command model through as an override", async () => {
     const d = deps({ commands: { m: { template: "Do it", model: "openai/gpt-4o" } } });
     const result = await expandSlashMessage(d, "a1", "/command:m");
     expect(result?.modelOverride).toBe("openai/gpt-4o");
+  });
+
+  it("expands repeated file refs without polluting expanded content", async () => {
+    const fs = await import("node:fs/promises");
+    const os = await import("node:os");
+    const path = await import("node:path");
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "wb-slash-"));
+    try {
+      await fs.writeFile(path.join(tmp, "a.txt"), "AAA");
+      const d = deps({ commands: { twice: { template: "First @a.txt then @a.txt" } } });
+      (d.projectStore as { getRootPath: () => string }).getRootPath = () => tmp;
+      const result = await expandSlashMessage(d, "a1", "/command:twice");
+      expect(result?.text.match(/AAA/g)).toHaveLength(2);
+      expect(result?.text).not.toContain("@a.txt");
+    } finally {
+      await fs.rm(tmp, { recursive: true, force: true });
+    }
   });
 
   it("throws for an unknown command", async () => {

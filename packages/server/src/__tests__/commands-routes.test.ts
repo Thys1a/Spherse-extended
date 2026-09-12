@@ -1,12 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import Fastify from "fastify";
+import { ValidationError } from "@spherse/core";
 import { registerCommandRoutes } from "../routes/commands.js";
 import type { FastifyRequest } from "fastify";
 import type { ProjectRegistry } from "../registry.js";
 
 declare module "fastify" {
   interface FastifyRequest {
-    projectCtx?: { projectManager: unknown };
+    projectCtx?: { projectManager: unknown; sessionRuntime: unknown };
   }
 }
 
@@ -21,6 +22,7 @@ const FULL_COMMAND = {
 describe("command routes", () => {
   let app: Fastify.FastifyInstance;
   let projectManager: Record<string, ReturnType<typeof vi.fn>>;
+  let sessionRuntime: Record<string, ReturnType<typeof vi.fn>>;
 
   beforeEach(async () => {
     projectManager = {
@@ -30,9 +32,24 @@ describe("command routes", () => {
       updateCommand: vi.fn().mockResolvedValue(FULL_COMMAND),
       deleteCommand: vi.fn().mockResolvedValue(undefined),
     };
+    sessionRuntime = {
+      getRuntimeDeps: vi.fn().mockReturnValue({
+        modelCatalog: {
+          resolveModelById: vi.fn((id: string) => {
+            if (id === "openai/gpt-4o") return { id: "gpt-4o", provider: "openai" };
+            throw new Error(`Could not resolve model: ${id}`);
+          }),
+        },
+      }),
+    };
     app = Fastify();
+    app.setErrorHandler((err, _req, reply) => {
+      if (err instanceof ValidationError) return reply.code(400).send({ error: err.message });
+      const statusCode = (err as { statusCode?: number }).statusCode ?? 500;
+      return reply.code(statusCode).send({ error: (err as Error).message });
+    });
     app.addHook("preHandler", async (req: FastifyRequest) => {
-      req.projectCtx = { projectManager };
+      req.projectCtx = { projectManager, sessionRuntime };
     });
     registerCommandRoutes(app, {} as ProjectRegistry);
     await app.ready();
@@ -85,6 +102,17 @@ describe("command routes", () => {
     });
     expect(res.statusCode).toBe(200);
     expect(projectManager.updateCommand).toHaveBeenCalledWith("test", { template: "Run $1 now" });
+  });
+
+  it("rejects an unknown model with 400", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/projects/p1/commands",
+      payload: { name: "bad", model: "nope/nope", template: "x" },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(projectManager.createCommand).not.toHaveBeenCalled();
   });
 
   it("deletes a command", async () => {

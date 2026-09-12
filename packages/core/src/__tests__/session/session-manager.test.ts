@@ -1056,7 +1056,7 @@ describe("SessionManager.appendUserMessage", () => {
 
   it("appends a bare user note with summon meta without starting a run", async () => {
     const sessionId = await runtime.sessionRuntime.createSession(agentId);
-    const seq = runtime.sessionRuntime.appendUserMessage(agentId, sessionId, "run tests", {
+    const seq = await runtime.sessionRuntime.appendUserMessage(agentId, sessionId, "run tests", {
       source: "summon",
       summon: { agentId, sessionId: "target-s1", agentName: "Test Agent" },
     });
@@ -1076,6 +1076,18 @@ describe("SessionManager.appendUserMessage", () => {
   it("throws NotFoundError for unknown sessions", () => {
     expect(() =>
       runtime.sessionRuntime.appendUserMessage(agentId, "no-session", "hi"),
-    ).toThrow("not found");
+    ).rejects.toThrow("not found");
+  });
+
+  it("serializes concurrent appends without seq gaps", async () => {
+    const sessionId = await runtime.sessionRuntime.createSession(agentId);
+    runtime.sessionRuntime.destroySession(sessionId);
+    const [first, second] = await Promise.all([
+      runtime.sessionRuntime.appendUserMessage(agentId, sessionId, "one"),
+      runtime.sessionRuntime.appendUserMessage(agentId, sessionId, "two"),
+    ]);
+    expect(new Set([first, second]).size).toBe(2);
+    const history = runtime.projectManager.getRecentSessionHistory(agentId, sessionId, 20);
+    expect(history.entries).toHaveLength(2);
   });
 });
