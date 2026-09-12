@@ -10,6 +10,7 @@ import { AttachmentBar, type AttachStatus } from "./AttachmentBar";
 import { useProjectCtx } from "../../context/project-context";
 import { useApiClient } from "../../lib/use-connection";
 import { useIsCoarsePointer } from "../../hooks/use-coarse-pointer";
+import { useComposerInsertStore } from "./composer-insert-store";
 
 const LINE_HEIGHT = 20;
 const PADDING_Y = 16;
@@ -43,6 +44,36 @@ export function Composer({ streaming, loading = false, sessionId, onSend, onAbor
   useEffect(() => {
     inputRef.current = input;
   });
+
+  const insertNonce = useComposerInsertStore((s) => s.nonce);
+
+  useEffect(() => {
+    if (insertNonce === 0) return;
+    const { sessionId: targetSessionId, text } = useComposerInsertStore.getState();
+    if (targetSessionId !== sessionId || !text) return;
+    const textarea = textareaRef.current;
+    if (!textarea) {
+      setInput((prev) => prev + text);
+      return;
+    }
+    const value = textarea.value;
+    const start = textarea.selectionStart ?? value.length;
+    const end = textarea.selectionEnd ?? value.length;
+    const prefix = start > 0 && value[start - 1] !== "\n" ? "\n" : "";
+    const suffix = end < value.length && value[end] !== "\n" ? "\n" : "";
+    const inserted = `${prefix}${text}${suffix}`;
+    setInput(`${value.slice(0, start)}${inserted}${value.slice(end)}`);
+    const cursor = start + inserted.length;
+    const focus = () => {
+      textarea.focus();
+      textarea.setSelectionRange(cursor, cursor);
+    };
+    if (typeof requestAnimationFrame === "function") {
+      requestAnimationFrame(focus);
+    } else {
+      focus();
+    }
+  }, [insertNonce, sessionId]);
 
   const attachBusy = attachStatus === "compressing" || attachStatus === "uploading";
 

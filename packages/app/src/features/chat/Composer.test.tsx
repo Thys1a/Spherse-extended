@@ -1,9 +1,10 @@
-import { cleanup, screen } from "@testing-library/react";
+import { act, cleanup, screen } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import { renderWithProviders } from "../../test/render";
 import { Composer } from "./Composer";
+import { useComposerInsertStore } from "./composer-insert-store";
 import { compressImage } from "./utils/compress-image";
 import type { AttachedImage } from "./types";
 
@@ -237,5 +238,32 @@ describe("Composer attachment pipeline", () => {
     expect(screen.getByRole("button", { name: "发送" })).toBeEnabled();
     await user.click(screen.getByRole("button", { name: "发送" }));
     expect(onSend).toHaveBeenCalledWith("draft", undefined);
+  });
+});
+
+describe("Composer external insert", () => {
+  it("inserts quoted text at the cursor when another component requests it", async () => {
+    renderComposer({ streaming: false });
+    await user.type(screen.getByRole("textbox"), "hello");
+
+    act(() => {
+      useComposerInsertStore.getState().requestInsert("session-1", "```quoted\nworld\n```");
+    });
+    await vi.waitFor(() => {
+      expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toContain(
+        "hello\n```quoted\nworld\n```",
+      );
+    });
+    useComposerInsertStore.setState({ sessionId: null, text: "", nonce: 0 });
+  });
+
+  it("ignores insert requests for other sessions", async () => {
+    renderComposer({ streaming: false });
+    act(() => {
+      useComposerInsertStore.getState().requestInsert("other-session", "```quoted\nx\n```");
+    });
+
+    expect(screen.getByRole("textbox")).toHaveValue("");
+    useComposerInsertStore.setState({ sessionId: null, text: "", nonce: 0 });
   });
 });

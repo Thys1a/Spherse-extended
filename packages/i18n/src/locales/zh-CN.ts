@@ -714,6 +714,10 @@ export const zhCN = {
   "chat.htmlCard.collapse": "折叠",
   // 复制按钮悬停提示
   "chat.copyTooltip": "复制",
+  // 聊天气泡内选中文本后右键菜单：「复制选区」项
+  "chat.selectionMenu.copy": "复制选区",
+  // 聊天气泡内选中文本后右键菜单：「引用到当前会话」项，点击后摘取为 md 代码块插入输入框
+  "chat.selectionMenu.quote": "引用到当前会话",
   // 朗读按钮悬停提示（开始朗读该条消息）
   "chat.ttsSpeak": "朗读",
   // 朗读按钮悬停提示（停止朗读）

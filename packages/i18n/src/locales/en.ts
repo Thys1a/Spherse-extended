@@ -350,6 +350,8 @@ export const en: Record<TranslationKey, string> = {
   "chat.htmlCard.showCard": "Show this card",
   "chat.htmlCard.collapse": "Collapse",
   "chat.copyTooltip": "Copy",
+  "chat.selectionMenu.copy": "Copy selection",
+  "chat.selectionMenu.quote": "Quote in current session",
   "chat.ttsSpeak": "Read aloud",
   "chat.ttsStop": "Stop reading",
   "chat.withdrawTooltip": "Withdraw",

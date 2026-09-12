@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { AgentSummary } from "../../lib/types";
 import type { ChatMessage } from "./types";
 import { MarkdownContent } from "../../components/markdown-content/MarkdownContent";
@@ -16,6 +16,8 @@ import { MessageAttachments } from "./MessageAttachments";
 import { SendFailedBar } from "./SendFailedBar";
 import { WithdrawButton } from "./WithdrawButton";
 import { SpeakButton } from "./SpeakButton";
+import { SelectionMenu } from "./SelectionMenu";
+import { useComposerInsertStore } from "./composer-insert-store";
 import { useOpenExternalLink } from "../browser/open-external-url";
 import { formatMessageTime } from "./lib/format-time";
 
@@ -35,6 +37,33 @@ interface MessageItemProps {
 export function MessageItem({ message, agent, showTime, sessionId, supersededToolCallIds, onNavigateToPath, onRespondApproval, onRespondQuestion, onRetry, onWithdraw }: MessageItemProps) {
   const isUser = message.role === "user";
   const openLink = useOpenExternalLink();
+  const bubbleRef = useRef<HTMLDivElement>(null);
+  const [menu, setMenu] = useState<{ x: number; y: number; text: string } | null>(null);
+
+  const handleContextMenu = useCallback((event: React.MouseEvent) => {
+    const selection = window.getSelection();
+    const text = selection?.toString() ?? "";
+    if (!text.trim()) return;
+    if (!bubbleRef.current || !selection?.anchorNode || !bubbleRef.current.contains(selection.anchorNode)) {
+      return;
+    }
+    event.preventDefault();
+    setMenu({ x: event.clientX, y: event.clientY, text });
+  }, []);
+
+  const handleCopySelection = useCallback(() => {
+    if (menu) void navigator.clipboard.writeText(menu.text);
+    setMenu(null);
+  }, [menu]);
+
+  const handleQuoteSelection = useCallback(() => {
+    if (menu && sessionId) {
+      useComposerInsertStore
+        .getState()
+        .requestInsert(sessionId, `\`\`\`quoted\n${menu.text}\n\`\`\``);
+    }
+    setMenu(null);
+  }, [menu, sessionId]);
 
   const handleLinkClick = useCallback(
     async (href: string, event: React.MouseEvent<HTMLAnchorElement>) => {
@@ -61,7 +90,9 @@ export function MessageItem({ message, agent, showTime, sessionId, supersededToo
         className={`flex min-w-0 flex-col gap-1 ${isUser ? "items-end md:flex-row-reverse" : "items-start md:flex-row"} md:items-end md:gap-1.5`}
       >
       <div
+        ref={bubbleRef}
         data-chat-bubble
+        onContextMenu={handleContextMenu}
         className={`max-w-full min-w-0 overflow-hidden rounded-lg px-3.5 py-2.5 leading-7 break-words ${
           isUser
             ? "bg-primary text-primary-foreground"
@@ -139,6 +170,15 @@ export function MessageItem({ message, agent, showTime, sessionId, supersededToo
           </div>
         )}
       </div>
+      {menu && (
+        <SelectionMenu
+          x={menu.x}
+          y={menu.y}
+          onCopy={handleCopySelection}
+          onQuote={handleQuoteSelection}
+          onClose={() => setMenu(null)}
+        />
+      )}
     </div>
   );
 }

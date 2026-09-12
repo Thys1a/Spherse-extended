@@ -350,6 +350,8 @@ export const zhTW: Record<TranslationKey, string> = {
   "chat.htmlCard.showCard": "展開此卡片",
   "chat.htmlCard.collapse": "摺疊",
   "chat.copyTooltip": "複製",
+  "chat.selectionMenu.copy": "複製選取範圍",
+  "chat.selectionMenu.quote": "引用到目前交談",
   "chat.ttsSpeak": "朗讀",
   "chat.ttsStop": "停止朗讀",
   "chat.withdrawTooltip": "收回",

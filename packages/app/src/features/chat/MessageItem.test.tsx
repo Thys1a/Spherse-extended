@@ -1,10 +1,11 @@
-import { screen } from "@testing-library/react";
+import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AgentSummary } from "../../lib/types";
 import { createMockHostBridge } from "../../test/host-bridge";
 import { renderWithProviders } from "../../test/render";
 import { MessageItem } from "./MessageItem";
+import { useComposerInsertStore } from "./composer-insert-store";
 import type { ChatMessage } from "./types";
 
 vi.mock("../../lib/use-connection", () => ({
@@ -25,6 +26,13 @@ function renderMessage(
     { bridge: createMockHostBridge() },
   );
 }
+
+afterEach(() => {
+  cleanup();
+  window.getSelection()?.removeAllRanges();
+  useComposerInsertStore.setState({ sessionId: null, text: "", nonce: 0 });
+  vi.restoreAllMocks();
+});
 
 describe("MessageItem withdraw action", () => {
   it("renders a withdraw action for user messages when onWithdraw is provided", async () => {
@@ -95,5 +103,58 @@ describe("MessageItem bubble links", () => {
 
     await user.click(screen.getByRole("link", { name: "jump" }));
     expect(openExternal).not.toHaveBeenCalled();
+  });
+});
+
+describe("MessageItem selection menu", () => {
+  function renderWithSelection(content: string, sessionId = "session-1") {
+    renderWithProviders(
+      <MessageItem
+        message={{ role: "assistant", content } as ChatMessage}
+        agent={agent}
+        sessionId={sessionId}
+      />,
+      { bridge: createMockHostBridge() },
+    );
+    const bubble = document.querySelector("[data-chat-bubble]")!;
+    window.getSelection()?.selectAllChildren(bubble);
+    fireEvent.contextMenu(bubble, { clientX: 50, clientY: 60 });
+  }
+
+  it("shows copy and quote items when right-clicking a non-empty selection", () => {
+    renderWithSelection("selectable text");
+    expect(screen.getByRole("menuitem", { name: "复制选区" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "引用到当前会话" })).toBeInTheDocument();
+  });
+
+  it("does not show the menu without a selection", () => {
+    renderWithProviders(
+      <MessageItem message={{ role: "assistant", content: "plain" } as ChatMessage} agent={agent} />,
+      { bridge: createMockHostBridge() },
+    );
+    fireEvent.contextMenu(document.querySelector("[data-chat-bubble]")!);
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+
+  it("copies the selected text to the clipboard", () => {
+    const writeText = vi.fn();
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      configurable: true,
+    });
+    renderWithSelection("copy me");
+    fireEvent.click(screen.getByRole("menuitem", { name: "复制选区" }));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining("copy me"));
+  });
+
+  it("requests a composer insert with a quoted block", async () => {
+    const user = userEvent.setup();
+    renderWithSelection("quote me", "session-9");
+    await user.click(screen.getByRole("menuitem", { name: "引用到当前会话" }));
+    const state = useComposerInsertStore.getState();
+    expect(state.sessionId).toBe("session-9");
+    expect(state.text).toContain("```quoted");
+    expect(state.text).toContain("quote me");
+    useComposerInsertStore.setState({ sessionId: null, text: "", nonce: 0 });
   });
 });
