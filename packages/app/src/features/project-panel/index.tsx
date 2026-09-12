@@ -3,6 +3,7 @@ import {
 } from "../../components/ui/sidebar";
 import { AgentSessionList } from "../agent-session-list";
 import { SkillPanel } from "../skill-panel";
+import { CommandPanel } from "../command-panel";
 import { UserFilePanel } from "../user-file-panel";
 
 export function ProjectPanel() {
@@ -18,6 +19,7 @@ export function ProjectPanel() {
           </div>
           <UserFilePanel />
           <SkillPanel />
+          <CommandPanel />
         </div>
       </SidebarProvider>
     </aside>

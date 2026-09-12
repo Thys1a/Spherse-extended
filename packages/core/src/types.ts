@@ -46,6 +46,14 @@ export interface SkillDefinition {
   version?: string;
 }
 
+export interface CommandDefinition {
+  name: string;
+  description?: string;
+  model?: string;
+  template: string;
+  filePath: string;
+}
+
 export type TriggerType = "time" | "event";
 
 export interface TriggerEntry {

@@ -11,6 +11,8 @@ import type {
   TriggerLogEntry,
   SkillDefinition,
   SkillSummary,
+  CommandDefinition,
+  SummonResponse,
   AgentCreateResponse,
   AgentUpdateResponse,
   AiAccessSettingsResponse,
@@ -340,6 +342,71 @@ export function createApiClient(baseUrl: string, projectId: string, accessToken?
       const res = await authedFetch(`${apiBase}/skills`);
       await assertOk(res);
       return parseJsonResponse<SkillSummary[]>(res, schemas.skillListResponse);
+    },
+
+    async listCommands(): Promise<CommandDefinition[]> {
+      const res = await authedFetch(`${apiBase}/commands`);
+      await assertOk(res);
+      return parseJsonResponse<CommandDefinition[]>(res, schemas.commandListResponse);
+    },
+
+    async getCommand(name: string): Promise<CommandDefinition> {
+      const res = await authedFetch(`${apiBase}/commands/${encodeURIComponent(name)}`);
+      await assertOk(res);
+      return parseJsonResponse<CommandDefinition>(res, schemas.commandDefinition);
+    },
+
+    async createCommand(input: {
+      name: string;
+      description?: string;
+      model?: string;
+      template: string;
+    }): Promise<CommandDefinition> {
+      const res = await authedFetch(`${apiBase}/commands`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      });
+      await assertOk(res);
+      return parseJsonResponse<CommandDefinition>(res, schemas.commandDefinition);
+    },
+
+    async updateCommand(
+      name: string,
+      patch: { description?: string; model?: string; template?: string },
+    ): Promise<CommandDefinition> {
+      const res = await authedFetch(`${apiBase}/commands/${encodeURIComponent(name)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+      await assertOk(res);
+      return parseJsonResponse<CommandDefinition>(res, schemas.commandDefinition);
+    },
+
+    async deleteCommand(name: string): Promise<{ ok: boolean }> {
+      const res = await authedFetch(`${apiBase}/commands/${encodeURIComponent(name)}`, {
+        method: "DELETE",
+      });
+      await assertOk(res);
+      return parseJsonResponse<{ ok: boolean }>(res, schemas.okResponse);
+    },
+
+    async summonToAgent(
+      agentId: string,
+      id: string,
+      input: { targetSlug: string; message: string },
+    ): Promise<SummonResponse> {
+      const res = await authedFetch(
+        `${apiBase}/agents/${encodeURIComponent(agentId)}/sessions/${encodeURIComponent(id)}/summon`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(input),
+        },
+      );
+      await assertOk(res);
+      return parseJsonResponse<SummonResponse>(res, schemas.summonResponse);
     },
 
     async listMarketplaceSkills(): Promise<MarketplaceManifestResponse> {

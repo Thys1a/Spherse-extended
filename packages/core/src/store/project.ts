@@ -10,6 +10,7 @@ import type { AgentProfile } from "../types.js";
 import { PROJECT_META_DIR } from "../types.js";
 import { ProjectConfigStore } from "./project-config.js";
 import { SkillStore } from "./skill.js";
+import { CommandStore } from "./command.js";
 import { AgentStore } from "./agent-store.js";
 import { AgentProfileStore, assertSafeSlug } from "./agent-profile.js";
 import type { FileWriteMutex } from "../utils/file-write-mutex.js";
@@ -48,6 +49,7 @@ export class ProjectStore extends EventEmitter {
 
   private _configStore: ProjectConfigStore | null = null;
   private _skillStore: SkillStore | null = null;
+  private _commandStore: CommandStore | null = null;
   private _agents: Map<string, AgentStore> = new Map();
 
   constructor(rootPath: string, logger?: Logger, fileWriteMutex?: FileWriteMutex) {
@@ -70,6 +72,11 @@ export class ProjectStore extends EventEmitter {
       [path.join(this.rootPath, ".agents", "skills")],
     );
 
+    this._commandStore = new CommandStore(
+      path.join(this.spherseDir, "commands"),
+      this.fileWriteMutex,
+    );
+
     await this.loadAgents();
   }
 
@@ -90,6 +97,11 @@ export class ProjectStore extends EventEmitter {
       PRESET_SKILL_SOURCES,
       this.fileWriteMutex,
       [path.join(this.rootPath, ".agents", "skills")],
+    );
+
+    this._commandStore = new CommandStore(
+      path.join(this.spherseDir, "commands"),
+      this.fileWriteMutex,
     );
 
     const indexPath = path.join(this.rootPath, "AGENTS.md");
@@ -134,6 +146,11 @@ export class ProjectStore extends EventEmitter {
   get skill(): SkillStore {
     if (!this._skillStore) throw new Error("Project is not open");
     return this._skillStore;
+  }
+
+  get commands(): CommandStore {
+    if (!this._commandStore) throw new Error("Project is not open");
+    return this._commandStore;
   }
 
   get agents(): ReadonlyMap<string, AgentStore> {

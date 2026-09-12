@@ -507,6 +507,34 @@ describe("api contracts", () => {
     }
   });
 
+  it("accepts session history entries with slash and summon metadata", () => {
+    const page = {
+      entries: [
+        {
+          id: 1,
+          message: { role: "user", content: "hi" },
+          slash: { type: "skill", name: "review", rawArgs: "x" },
+        },
+        {
+          id: 2,
+          message: { role: "user", content: "run" },
+          source: "summon",
+          summon: { agentId: "a9", sessionId: "s9", agentName: "Builder" },
+        },
+      ],
+      hasMore: false,
+      oldestId: 1,
+    };
+    expect(parseApiResponse(schemas.sessionMessagesPageResponse, page)).toEqual(page);
+    expect(() =>
+      parseApiResponse(schemas.sessionMessagesPageResponse, {
+        entries: [{ id: 1, message: "x", slash: { type: "bogus", name: "n", rawArgs: "" } }],
+        hasMore: false,
+        oldestId: 1,
+      }),
+    ).toThrow(/Invalid payload/);
+  });
+
   it("accepts session info with or without a model", () => {
     const base = {
       id: "s1",
@@ -519,6 +547,31 @@ describe("api contracts", () => {
     expect(
       parseApiResponse(schemas.sessionInfo, { ...base, model: "openai/gpt-4o" }),
     ).toEqual({ ...base, model: "openai/gpt-4o" });
+  });
+
+  it("validates command definitions and payloads", () => {
+    const definition = {
+      name: "test",
+      description: "Run tests",
+      model: "openai/gpt-4o",
+      template: "Run $ARGUMENTS",
+      filePath: "/tmp/p/.spherse/commands/test.md",
+    };
+    expect(parseApiResponse(schemas.commandDefinition, definition)).toEqual(definition);
+    expect(parseApiResponse(schemas.commandListResponse, [definition])).toEqual([definition]);
+    expect(
+      parseApiResponse(schemas.commandCreateRequest, { name: "test", template: "Run $ARGUMENTS" }),
+    ).toEqual({ name: "test", template: "Run $ARGUMENTS" });
+    expect(() =>
+      parseApiResponse(schemas.commandCreateRequest, { name: "test" }),
+    ).toThrow(/Invalid payload/);
+    expect(() =>
+      parseApiResponse(schemas.commandCreateRequest, { name: "", template: "x" }),
+    ).toThrow(/Invalid payload/);
+    expect(parseApiResponse(schemas.commandUpdateRequest, { template: "Run $1" })).toEqual({
+      template: "Run $1",
+    });
+    expect(parseApiResponse(schemas.commandUpdateRequest, {})).toEqual({});
   });
 
   it("accepts agent summaries with a model but still rejects config fields", () => {

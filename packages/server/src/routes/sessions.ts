@@ -180,6 +180,43 @@ export function registerSessionRoutes(
     },
   );
 
+  fastify.post<{
+    Params: { projectId: string; agentId: string; id: string };
+    Body: { targetSlug: string; message: string };
+  }>(
+    "/api/projects/:projectId/agents/:agentId/sessions/:id/summon",
+    {
+      schema: {
+        body: schemas.summonRequest,
+        response: { 200: schemas.summonResponse },
+      },
+    },
+    async (req) => {
+      const { targetSlug, message } = req.body;
+      const agents = await req.projectCtx!.projectManager.listAgents();
+      const target = agents.find((agent) => agent.slug === targetSlug);
+      if (!target) throw notFound(`Agent "${targetSlug}" not found`);
+      const targetSessionId = await req.projectCtx!.sessionRuntime.createSession(target.id);
+      req.projectCtx!.sessionRuntime.appendUserMessage(
+        req.params.agentId,
+        req.params.id,
+        message,
+        {
+          source: "summon",
+          summon: { agentId: target.id, sessionId: targetSessionId, agentName: target.name },
+        },
+      );
+      await hub.startDetachedRun(
+        req.params.projectId,
+        req.projectCtx!.sessionRuntime,
+        target.id,
+        targetSessionId,
+        message,
+      );
+      return parseContract(schemas.summonResponse, { ok: true, targetSessionId });
+    },
+  );
+
   fastify.delete<{ Params: { projectId: string; agentId: string; id: string } }>(
     "/api/projects/:projectId/agents/:agentId/sessions/:id",
     { schema: { response: { 200: schemas.okResponse } } },

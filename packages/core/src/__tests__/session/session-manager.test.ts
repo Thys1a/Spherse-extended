@@ -998,4 +998,84 @@ describe("SessionManager.setSessionModel", () => {
     }).sessions.get(sessionId);
     expect(runner?.currentEvents).toHaveLength(0);
   });
+
+  it("expands /skill: messages and records slash meta on the event", async () => {
+    await runtime.projectManager.projectStore.skill.createSkill("review", "d", "Review carefully.");
+    const sessionId = await runtime.sessionRuntime.createSession(agentId);
+    runtime.sessionRuntime.setDefaultModel("openai/gpt-4o");
+    const agent = activeAgent(runtime as RuntimeInternals, sessionId);
+    agent.subscribe = vi.fn(() => () => {}) as FakeAgent["subscribe"];
+    agent.prompt = vi.fn().mockResolvedValue(undefined) as FakeAgent["prompt"];
+
+    await expect(
+      runtime.sessionRuntime.sendMessage(sessionId, "/skill:review focus on tests", [], () => {}),
+    ).resolves.toBeUndefined();
+    const runner = (runtime.sessionRuntime as unknown as {
+      sessions: Map<string, { currentEvents: Array<{ type: string; data: Record<string, unknown> }> }>;
+    }).sessions.get(sessionId);
+    const userEvent = runner?.currentEvents.find((e) => e.type === "user/message");
+    expect(userEvent?.data.message).toMatchObject({
+      content: [{ type: "text", text: expect.stringContaining("Review carefully.") }],
+    });
+    expect(userEvent?.data.slash).toEqual({ type: "skill", name: "review", rawArgs: "focus on tests" });
+  });
+
+  it("rejects unknown slash commands before persisting anything", async () => {
+    const sessionId = await runtime.sessionRuntime.createSession(agentId);
+    await expect(
+      runtime.sessionRuntime.sendMessage(sessionId, "/skill:nope x", [], () => {}),
+    ).rejects.toThrow(/Skill "nope" not found/);
+    const runner = (runtime.sessionRuntime as unknown as {
+      sessions: Map<string, { currentEvents: unknown[] }>;
+    }).sessions.get(sessionId);
+    expect(runner?.currentEvents).toHaveLength(0);
+  });
+});
+
+describe("SessionManager.appendUserMessage", () => {
+  let tmpDir: string;
+  let runtime: RuntimeInternals & Awaited<ReturnType<typeof createProject>>;
+  let agentId: string;
+
+  beforeEach(async () => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "wb-mgr-note-"));
+    runtime = (await createProject(tmpDir, {
+      projectName: "Test",
+      logger: createSilentLogger(),
+    })) as RuntimeInternals & Awaited<ReturnType<typeof createProject>>;
+    const projectStore = runtime.projectManager.projectStore;
+    const testAgent = await projectStore.createAgent("test-agent", TEST_AGENT_PROFILE);
+    agentId = testAgent.getProfile().id;
+    runtime.timerService.stop();
+  });
+
+  afterEach(() => {
+    runtime.projectManager.close();
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("appends a bare user note with summon meta without starting a run", async () => {
+    const sessionId = await runtime.sessionRuntime.createSession(agentId);
+    const seq = runtime.sessionRuntime.appendUserMessage(agentId, sessionId, "run tests", {
+      source: "summon",
+      summon: { agentId, sessionId: "target-s1", agentName: "Test Agent" },
+    });
+    expect(seq).toBe(0);
+    const history = runtime.projectManager.getRecentSessionHistory(agentId, sessionId, 20);
+    expect(history.entries).toHaveLength(1);
+    expect(history.entries[0]).toMatchObject({
+      source: "summon",
+      summon: { agentId, sessionId: "target-s1", agentName: "Test Agent" },
+    });
+    const runner = (runtime.sessionRuntime as unknown as {
+      sessions: Map<string, { currentEvents: unknown[] }>;
+    }).sessions.get(sessionId);
+    expect(runner?.currentEvents).toHaveLength(1);
+  });
+
+  it("throws NotFoundError for unknown sessions", () => {
+    expect(() =>
+      runtime.sessionRuntime.appendUserMessage(agentId, "no-session", "hi"),
+    ).toThrow("not found");
+  });
 });

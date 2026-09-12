@@ -69,7 +69,7 @@
 
 - core：新建 `CommandStore`（镜像 `SkillStore` list/get）；frontmatter 仅 `{description?, model?}`；纯函数 `SlashResolver` 解析 `^/(skill|command):(\S+)(?:\s+(.*))?$`；展开器：`/skill:` 复用 `SkillStore.get` + `load-skill` 拼装格式，`/command:` 展开 `$ARGUMENTS`/`$1..`/`@path`（`@` 走 read + access policy + §9 截断预算），缺参数抛 ValidationError；展开点为 `AgentRunner.sendMessage` 前（`deps.projectStore` 可达 agentStore，不破坏 capability 分层）；`model` 字段走 §3 的单次 override。
 - 事件扩展（与 §4 summon 共用一次改动）：`user/message` data 加 `slashMeta?: {type, name, rawArgs}`，同步 `fold.ts`、contracts、`chat-wire-projector`、reducer pill 渲染。
-- contracts：`CommandDefinition` schema + list/get API；server：CRUD + resolve 路由。
+- contracts：`CommandDefinition` schema + list/get API；server：CRUD 路由（resolve 路由暂缓：展开收敛在 `AgentRunner.sendMessage`，暂无第二消费方）。
 - app：Composer 输入 `/` 弹出补全（skill + command 列表，显示 description 与 model 徽标）；未知名称 toast 不发送；历史凭 `slashMeta` 显示原始 `/skill:x` pill。
 - 管理 UI：左侧栏 Commands 面板（与 Skills 同级）：列表（名+description）+ 新建/编辑（textarea，与现有内容编辑一致，不引入 monaco 依赖）/删除，复用 skill-panel 结构。
 - 安全：命令文件视为不可信输入；每次使用重读；路径走 `resolveProjectPath`/`assertInsideProject`。
@@ -78,11 +78,11 @@
 
 新语法（fire-and-forget，当前会话不等待、不回注）：`>> <agent-slug> <message>`。
 
-- 拦截层（审查修正）：**不经过 `AgentRunner.sendMessage`**（否则当前 agent 会对字面 `>>` 文本跑 turn）。拦截点在 server `ws-chat` message 分支（首选，多端一致）或 app `streaming-store.sendMessage`：命中 `^>>\s*(\S+)\s+(.+)$` 即走召唤路径，不启动当前 run。
+- 拦截层（审查修正）：**不经过 `AgentRunner.sendMessage`**（否则当前 agent 会对字面 `>>` 文本跑 turn）。落点为新增 HTTP 端点 `POST .../sessions/:id/summon`（而非 ws-chat message 分支）：WS 无回执，app 无法确定落库时序做 refresh；HTTP 200 即代表 note 已持久化，app 随后 `refreshHistory` 必能看到卡片，且路由测试可覆盖全链路（与 `POST .../messages` 的 detached 模式同构）。
+- 服务端：按 slug 查 agent（未知→404）→ 建目标会话 → 当前会话落 `user/message`（content 为原文，`source: "summon"` + `summon: {agentId, sessionId, agentName}`，经新增 `SessionManager.appendUserMessage`，不启动当前 run）→ `hub.startDetachedRun` 目标会话。
 - 目标会话：`SessionPort.createSession(slug, 'new')` + `sendMessage(message)` 后立即返回（文本-only，`SessionPort.sendMessage` 无 attachments 签名，`kernel/ports.ts:16`）。
-- 持久化记录（已决策）：当前会话落一条 `user/message`，data 扩展 `source: "summon"` + 目标 `sessionId/agentId`（复用批次 F 的事件扩展），reducer 渲染为可点击跳转的召唤卡片（`openSession(newSessionId)`）。
-- contracts/server：事件 schema 扩展（F 已含）；无新路由（复用建会话+发消息）。
-- app：Composer 输入 `>>` 显示 agent 补全下拉；未知 slug toast。
+- contracts：`summonRequest{targetSlug, message}` + `summonResponse{ok, targetSessionId}`。
+- app：Composer 输入 `>>` 显示 agent 补全下拉；发送时 `>>` 走 `summonToAgent` + `refreshHistory`（未知 slug 由服务端 404 → toast）；`MessageItem` 渲染可点击跳转的召唤卡片（`onOpenSession`，ChatPage/浮窗接路由）。
 - 与 trigger 的区别：trigger 是事件驱动自动化，`>>` 是用户主动即时召唤。
 
 ## 7. 桌宠模式（批次 H，仅步骤 1；OS 窗口 + 形象上传延 v2）

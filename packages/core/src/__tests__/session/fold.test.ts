@@ -30,6 +30,38 @@ const toolResult = (toolCallId: string, seq: number) =>
     seq,
   );
 
+describe("deriveHistoryEntries message metadata", () => {
+  it("projects slash and summon metadata onto history entries", () => {
+    const events = [
+      ev(
+        "user/message",
+        {
+          message: { role: "user", content: "expanded", timestamp: 1 } as AgentMessage,
+          slash: { type: "skill", name: "review", rawArgs: "x" },
+        },
+        0,
+      ),
+      ev(
+        "user/message",
+        {
+          message: { role: "user", content: "run", timestamp: 2 } as AgentMessage,
+          source: "summon",
+          summon: { agentId: "a9", sessionId: "s9", agentName: "Builder" },
+        },
+        1,
+      ),
+    ];
+    const entries = deriveHistoryEntries(events);
+    expect(entries[0]).toMatchObject({
+      slash: { type: "skill", name: "review", rawArgs: "x" },
+    });
+    expect(entries[1]).toMatchObject({
+      source: "summon",
+      summon: { agentId: "a9", sessionId: "s9", agentName: "Builder" },
+    });
+  });
+});
+
 describe("deriveMessages", () => {
   it("projects message events in order and skips non-message events", () => {
     const events = [

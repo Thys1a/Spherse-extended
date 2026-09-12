@@ -11,6 +11,7 @@ export const projectQueryKeys = {
     ["projects", projectId, "directories", dirPath] as const,
   fileTree: (projectId: string) => ["projects", projectId, "file-tree"] as const,
   skills: (projectId: string) => ["projects", projectId, "skills"] as const,
+  commands: (projectId: string) => ["projects", projectId, "commands"] as const,
   marketplaceSkills: (projectId: string) =>
     ["projects", projectId, "marketplace", "skills"] as const,
   welcomePage: (projectId: string) => ["projects", projectId, "welcome-page"] as const,

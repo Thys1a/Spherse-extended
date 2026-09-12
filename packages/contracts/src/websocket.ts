@@ -206,8 +206,18 @@ const chatServerEvent = Type.Union([
     seq: Type.Integer(),
     message: agentMessage,
     clientId: Type.Optional(Type.String()),
-    source: Type.Optional(Type.Literal("triggered")),
+    source: Type.Optional(Type.Union([Type.Literal("triggered"), Type.Literal("summon")])),
     triggerName: Type.Optional(Type.String()),
+    slash: Type.Optional(Type.Object({
+      type: Type.Union([Type.Literal("skill"), Type.Literal("command")]),
+      name: Type.String(),
+      rawArgs: Type.String(),
+    })),
+    summon: Type.Optional(Type.Object({
+      agentId: Type.String(),
+      sessionId: Type.String(),
+      agentName: Type.String(),
+    })),
   }),
   Type.Object({
     type: Type.Literal("turn_retried"),

@@ -111,6 +111,8 @@ export interface ChatMessage {
   _attachments?: ChatAttachment[];
   _triggered?: true;
   _triggerName?: string;
+  _slash?: { type: "skill" | "command"; name: string; rawArgs: string };
+  _summon?: { agentId: string; sessionId: string; agentName: string };
   timestamp?: number;
 }
 

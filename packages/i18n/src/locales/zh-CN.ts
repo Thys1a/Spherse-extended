@@ -791,6 +791,12 @@ export const zhCN = {
   "chat.editConfirm": "重新发送",
   // 消息编辑态的取消按钮文案
   "chat.editCancel": "取消",
+  // 输入 /skill: 或 /command: 后名称不在列表中时的错误提示，{name} 为输入的名称
+  "chat.unknownSlashCommand": "未知的命令：{name}",
+  // 召唤其他 agent 失败时的错误提示，{message} 为错误信息
+  "chat.summonFailed": "召唤失败：{message}",
+  // 历史消息中召唤记录卡片的文案，{name} 为目标 agent 名称，点击跳转到新会话
+  "chat.summonCard": "已召唤 {name}",
   // 某会话的 agent 工具调用等待用户批准、且用户当前未停留在该会话时弹出的 toast 文案（无法解析到 agent 名时的泛化兜底）
   "chat.approvalToastMessage": "一个 Agent 正在等待你的确认",
   // 上述 toast 在能解析到 agent 名时的标题文案，{name} 为 agent 名称
@@ -963,6 +969,52 @@ export const zhCN = {
   "project-panel.files": "文件",
   // 技能面板的分组标签（project panel 中「文件」下方的「技能」section 标题）
   "project-panel.skills": "技能",
+  // 项目侧栏命令分组标题
+  "project-panel.commands": "命令",
+
+  // --- Command Panel ---
+  // 命令面板右上角三点菜单按钮的无障碍名称
+  "command-panel.menu": "命令菜单",
+  // 命令面板右上角三点菜单的「新建命令」项
+  "command-panel.create": "新建命令",
+  // 命令列表为空时的占位文案
+  "command-panel.empty": "暂无命令",
+  // 命令行末尾的编辑按钮悬停提示
+  "command-panel.edit": "编辑",
+  // 命令行末尾的删除按钮悬停提示
+  "command-panel.delete": "删除",
+  // 新建命令弹窗标题
+  "command-panel.createDialog.title": "新建命令",
+  // 编辑命令弹窗标题
+  "command-panel.editDialog.title": "编辑命令",
+  // 命令弹窗的「名称」输入框标签（仅新建时可填）
+  "command-panel.createDialog.nameLabel": "名称",
+  // 命令弹窗的「描述」输入框标签
+  "command-panel.createDialog.descriptionLabel": "描述",
+  // 命令弹窗的「模型」输入框标签（可选，留空则跟随会话）
+  "command-panel.createDialog.modelLabel": "模型",
+  // 命令弹窗的「模板」输入框标签，支持 $ARGUMENTS/$1 与 @文件引用
+  "command-panel.createDialog.templateLabel": "模板",
+  // 命令弹窗模板输入框占位文案
+  "command-panel.createDialog.templatePlaceholder": "Run $ARGUMENTS with @src/main.ts",
+  // 命令弹窗取消按钮
+  "command-panel.createDialog.cancel": "取消",
+  // 新建命令弹窗提交按钮
+  "command-panel.createDialog.submit": "创建",
+  // 编辑命令弹窗提交按钮
+  "command-panel.editDialog.submit": "保存",
+  // 新建命令成功提示，{name} 为命令名
+  "command-panel.create.success": "命令「{name}」已创建",
+  // 新建命令重名提示，{name} 为命令名
+  "command-panel.create.exists": "命令「{name}」已存在",
+  // 命令保存成功提示，{name} 为命令名
+  "command-panel.update.success": "命令「{name}」已保存",
+  // 命令保存失败提示，{message} 为错误信息
+  "command-panel.save.failed": "保存命令失败：{message}",
+  // 删除命令成功提示，{name} 为命令名
+  "command-panel.delete.success": "命令「{name}」已删除",
+  // 删除命令失败提示，{message} 为错误信息
+  "command-panel.delete.failed": "删除命令失败：{message}",
 
   // --- Skill Panel ---
   // 技能面板右上角三点菜单的「创建技能」项

@@ -18,17 +18,20 @@ import { useAgentTheme, scopeAgentThemeCss } from "./hooks/useAgentTheme";
 import { useChatScroll } from "./hooks/useChatScroll";
 import { useChatSession } from "./hooks/useChatSession";
 import { useStreamingStore } from "./runtime/streaming-store";
+import type { AttachedFile } from "./types";
+import { parseSummonMessage } from "./lib/slash-menu";
 
 export interface ChatProps {
   sessionId: string;
   agent: AgentSummary;
   onNavigateToPath?: (path: string) => void;
+  onOpenSession?: (sessionId: string) => void;
   initialMessage?: string;
   onClose?: () => void;
   hideHeader?: boolean;
 }
 
-export function Chat({ sessionId, agent, onNavigateToPath, initialMessage, onClose, hideHeader }: ChatProps) {
+export function Chat({ sessionId, agent, onNavigateToPath, onOpenSession, initialMessage, onClose, hideHeader }: ChatProps) {
   const { projectId } = useProjectCtx();
   const client = useApiClient(projectId);
   const { baseUrl, accessToken } = useConnection();
@@ -83,6 +86,22 @@ export function Chat({ sessionId, agent, onNavigateToPath, initialMessage, onClo
     return delivered;
   };
 
+  const handleSend = (text: string, attachments?: AttachedFile[]) => {
+    const summon = parseSummonMessage(text);
+    if (summon && (!attachments || attachments.length === 0)) {
+      void (async () => {
+        try {
+          await client.summonToAgent(agent.id, sessionId, summon);
+          useStreamingStore.getState().refreshHistory(client, agent.id, sessionId);
+        } catch (err) {
+          toast.error(t("chat.summonFailed", { message: (err as Error).message }));
+        }
+      })();
+      return true;
+    }
+    return sendMessage(text, attachments);
+  };
+
   const runtime = useMemo(() => ({ sessionId, agentId: agent.id }), [sessionId, agent.id]);
 
   useEffect(() => {
@@ -130,6 +149,7 @@ export function Chat({ sessionId, agent, onNavigateToPath, initialMessage, onClo
           onRespondQuestion={handleRespondQuestion}
           onRetry={retry}
           onWithdraw={withdrawLastTurn}
+          onOpenSession={onOpenSession}
           hasMore={hasMore}
           loadingMore={loadingMore}
           onLoadMore={() => useStreamingStore.getState().loadMore(client, sessionId, agent.id)}
@@ -138,7 +158,7 @@ export function Chat({ sessionId, agent, onNavigateToPath, initialMessage, onClo
           streaming={streaming}
           loading={loading}
           sessionId={sessionId}
-          onSend={sendMessage}
+          onSend={handleSend}
           onAbort={abort}
         />
       </div>

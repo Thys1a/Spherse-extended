@@ -1,4 +1,5 @@
-import type { AgentProfile, SessionInfo, SkillDefinition } from "./types.js";
+import type { AgentProfile, SessionInfo, SkillDefinition, CommandDefinition } from "./types.js";
+import type { CommandInput, CommandPatch } from "./store/command.js";
 import type { AgentMcpConfig } from "./mcp/index.js";
 import { ProjectStore } from "./store/project.js";
 import type { ChangelogEntry, AgentChangePayload } from "./store/project.js";
@@ -8,6 +9,7 @@ import { serverAccessPolicy } from "./access/access-policy.js";
 import { type Logger, createSilentLogger } from "./logger.js";
 import { ConflictError, NotFoundError, ValidationError } from "./errors.js";
 import { deriveHistoryEntries } from "./session/fold.js";
+import type { SlashMeta, SummonMeta } from "./session/events.js";
 import fs from "node:fs/promises";
 import path from "node:path";
 
@@ -184,7 +186,14 @@ export class ProjectManager {
     limit: number,
     beforeId?: number,
   ): {
-    entries: Array<{ id: number; message: unknown; source?: "triggered"; triggerName?: string }>;
+    entries: Array<{
+      id: number;
+      message: unknown;
+      source?: "triggered" | "summon";
+      triggerName?: string;
+      slash?: SlashMeta;
+      summon?: SummonMeta;
+    }>;
     hasMore: boolean;
     oldestId: number | null;
   } {
@@ -214,6 +223,8 @@ export class ProjectManager {
         message: entry.message,
         ...(entry.source !== undefined ? { source: entry.source } : {}),
         ...(entry.triggerName !== undefined ? { triggerName: entry.triggerName } : {}),
+        ...(entry.slash !== undefined ? { slash: entry.slash } : {}),
+        ...(entry.summon !== undefined ? { summon: entry.summon } : {}),
       })),
       hasMore: selected.length < eligible.length,
       oldestId: selected[0]?.seq ?? null,
@@ -240,6 +251,26 @@ export class ProjectManager {
 
   async installSkill(zipPath: string, options?: { overwrite?: boolean }): Promise<SkillDefinition> {
     return this.projectStore.skill.installSkill(zipPath, options);
+  }
+
+  async listCommands(): Promise<CommandDefinition[]> {
+    return this.projectStore.commands.list();
+  }
+
+  async getCommand(name: string): Promise<CommandDefinition | null> {
+    return this.projectStore.commands.get(name);
+  }
+
+  async createCommand(input: CommandInput): Promise<CommandDefinition> {
+    return this.projectStore.commands.create(input);
+  }
+
+  async updateCommand(name: string, patch: CommandPatch): Promise<CommandDefinition> {
+    return this.projectStore.commands.update(name, patch);
+  }
+
+  async deleteCommand(name: string): Promise<void> {
+    return this.projectStore.commands.delete(name);
   }
 
   getAiAccessSettings(): { deniedPaths: string[] } {

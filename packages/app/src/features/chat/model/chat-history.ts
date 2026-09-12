@@ -84,7 +84,14 @@ export function resolvePageCursor(
 }
 
 export function parseHistoryMessages(
-  history: Array<{ id: number; message: unknown; source?: "triggered"; triggerName?: string } | unknown>,
+  history: Array<{
+    id: number;
+    message: unknown;
+    source?: "triggered" | "summon";
+    triggerName?: string;
+    slash?: { type: "skill" | "command"; name: string; rawArgs: string };
+    summon?: { agentId: string; sessionId: string; agentName: string };
+  } | unknown>,
 ): ChatMessage[] {
   const entries = history.map((entry) => {
     if (isObject(entry) && typeof entry.id === "number" && "message" in entry) {
@@ -93,6 +100,8 @@ export function parseHistoryMessages(
         message: entry.message,
         ...(entry.source !== undefined ? { source: entry.source } : {}),
         ...(entry.triggerName !== undefined ? { triggerName: entry.triggerName } : {}),
+        ...(entry.slash !== undefined ? { slash: entry.slash } : {}),
+        ...(entry.summon !== undefined ? { summon: entry.summon } : {}),
       };
     }
     return { id: undefined, message: entry };
@@ -113,8 +122,10 @@ export function parseHistoryMessages(
               typeof (attachment as { mimeType?: unknown }).mimeType === "string",
           )
         : [];
-      const source = (entry as { source?: "triggered" }).source;
+      const source = (entry as { source?: "triggered" | "summon" }).source;
       const triggerName = (entry as { triggerName?: string }).triggerName;
+      const slash = (entry as { slash?: ChatMessage["_slash"] }).slash;
+      const summon = (entry as { summon?: ChatMessage["_summon"] }).summon;
       loaded.push({
         ...(entry.id !== undefined ? { _messageId: entry.id } : {}),
         role: "user",
@@ -122,6 +133,8 @@ export function parseHistoryMessages(
         ...(saneAttachments.length > 0 ? { _attachments: saneAttachments } : {}),
         ...(source === "triggered" ? { _triggered: true as const } : {}),
         ...(source === "triggered" && triggerName !== undefined ? { _triggerName: triggerName } : {}),
+        ...(slash !== undefined ? { _slash: slash } : {}),
+        ...(summon !== undefined ? { _summon: summon } : {}),
         timestamp: entry.message.timestamp,
       });
       continue;

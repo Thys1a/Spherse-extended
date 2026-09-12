@@ -12,6 +12,15 @@ import { useApiClient } from "../../lib/use-connection";
 import { useIsCoarsePointer } from "../../hooks/use-coarse-pointer";
 import { useComposerInsertStore } from "./composer-insert-store";
 import { SessionModelPill } from "./SessionModelPill";
+import { useProjectAgents } from "../../queries/project";
+import { useProjectCommands } from "../../queries/commands";
+import { useProjectSkills } from "../../queries/skills";
+import {
+  applySlashPick,
+  filterSlashItems,
+  matchSlashToken,
+  type SlashMenuItem,
+} from "./lib/slash-menu";
 
 const LINE_HEIGHT = 20;
 const PADDING_Y = 16;
@@ -118,15 +127,84 @@ export function Composer({ streaming, loading = false, sessionId, onSend, onAbor
     };
   }, [sessionId]);
 
+  const { data: skills = [] } = useProjectSkills(projectId, client);
+  const { data: commands = [] } = useProjectCommands(projectId, client);
+  const { agents } = useProjectAgents(projectId, client);
+  const [menuSelected, setMenuSelected] = useState(0);
+  const [menuDismissed, setMenuDismissed] = useState(false);
+  const [cursorPos, setCursorPos] = useState<number | null>(null);
+
+  const syncCursor = (target: HTMLTextAreaElement | null) => {
+    if (!target) return;
+    setCursorPos(target.selectionStart ?? target.value.length);
+  };
+
+  const cursor = cursorPos ?? input.length;
+  const slashMatch = matchSlashToken(input.slice(0, cursor));
+  const menuItems = slashMatch
+    ? filterSlashItems(
+        slashMatch,
+        skills.map((s) => ({ name: s.name, description: s.description })),
+        commands.map((c) => ({ name: c.name, description: c.description })),
+        agents.map((a) => ({ name: a.slug, description: a.name })),
+      )
+    : [];
+  const menu =
+    slashMatch && !menuDismissed && menuItems.length > 0
+      ? { match: slashMatch, items: menuItems, selected: Math.min(menuSelected, menuItems.length - 1) }
+      : null;
+
+  const closeMenu = () => {
+    setMenuDismissed(true);
+    setMenuSelected(0);
+  };
+
+  useEffect(() => {
+    setMenuDismissed(false);
+    setMenuSelected(0);
+  }, [input]);
+
+  const pickMenuItem = (item: SlashMenuItem | undefined): boolean => {
+    if (!item || !slashMatch) return false;
+    const { text, cursor: nextCursor } = applySlashPick(input, slashMatch, item);
+    setInput(text);
+    setCursorPos(nextCursor);
+    setMenuDismissed(true);
+    setMenuSelected(0);
+    requestAnimationFrame(() => {
+      textareaRef.current?.focus();
+      textareaRef.current?.setSelectionRange(nextCursor, nextCursor);
+    });
+    return true;
+  };
+
+  const checkSlashName = (message: string): boolean => {
+    const slash = /^\/(skill|command):(\S+)/.exec(message);
+    if (!slash) return true;
+    const [, kind, name] = slash;
+    const known =
+      kind === "skill"
+        ? skills.some((s) => s.name === name)
+        : commands.some((c) => c.name === name);
+    if (!known && (skills.length > 0 || commands.length > 0)) {
+      toast.error(t("chat.unknownSlashCommand", { name }));
+      return false;
+    }
+    return true;
+  };
+
   const send = () => {
     const message = input.trim();
     if (!message || streaming || loading || attachBusy) return;
+    if (menu && !pickMenuItem(menu.items[menu.selected])) return;
+    if (!checkSlashName(message)) return;
     const sent = onSend(message, files.length > 0 ? files : undefined);
     if (!sent) return;
     setInput("");
     setFiles([]);
     localStorage.removeItem(draftKey);
     setManualExpanded(false);
+    closeMenu();
   };
 
   const handleAttachClick = () => {
@@ -141,7 +219,7 @@ export function Composer({ streaming, loading = false, sessionId, onSend, onAbor
     setUploadingCount((count) => count + selected.length);
     try {
       const settled = await Promise.allSettled(
-        selected.map(async (file) => {
+        selected.map(async (file): Promise<AttachedFile> => {
           if (file.type.startsWith("image/")) {
             const { blob, width, height } = await compressImage(file);
             const res = await client.uploadAttachment(blob, {
@@ -152,13 +230,13 @@ export function Composer({ streaming, loading = false, sessionId, onSend, onAbor
             return {
               kind: "image",
               path: res.path,
-              mimeType: res.mimeType ?? "image/jpeg",
+              mimeType: "image/jpeg",
               name: file.name,
               size: res.bytes,
               width,
               height,
               previewUrl: client.getPreviewUrl(res.path),
-            } satisfies AttachedFile;
+            };
           }
           const res = await client.uploadAttachment(file, { filename: file.name });
           return {
@@ -168,7 +246,7 @@ export function Composer({ streaming, loading = false, sessionId, onSend, onAbor
             name: file.name,
             size: res.bytes,
             previewUrl: client.getPreviewUrl(res.path),
-          } satisfies AttachedFile;
+          };
         }),
       );
       const uploaded = settled
@@ -208,12 +286,44 @@ export function Composer({ streaming, loading = false, sessionId, onSend, onAbor
         <AttachmentBar files={files} uploading={attachBusy} onRemove={handleRemoveFile} />
       )}
       <div className="relative rounded-lg border border-input bg-background transition-colors focus-within:border-ring" data-chat-composer-input>
+        {menu && (
+          <div
+            role="listbox"
+            className="absolute inset-x-2 bottom-full z-50 mb-1 max-h-56 overflow-y-auto rounded-lg bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10"
+          >
+            {menu.items.map((item, index) => (
+              <button
+                key={`${item.kind}:${item.name}`}
+                type="button"
+                role="option"
+                aria-selected={index === menu.selected}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => pickMenuItem(item)}
+                className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-start text-xs outline-hidden select-none ${index === menu.selected ? "bg-accent text-accent-foreground" : ""}`}
+              >
+                <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                  {item.kind === "agent" ? ">>" : `/${item.kind}:`}
+                </span>
+                <span className="truncate font-medium">{item.name}</span>
+                {item.description && (
+                  <span className="truncate text-muted-foreground">{item.description}</span>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
         <Textarea
           ref={textareaRef}
           className="min-h-0 w-full resize-none border-none bg-transparent py-2 ps-3 pe-8 text-sm md:text-sm leading-5 shadow-none focus-visible:ring-0"
           style={{ height: `${MIN_HEIGHT}px`, overflowY: "hidden" }}
           value={input}
-          onChange={(event) => setInput(event.target.value)}
+          onChange={(event) => {
+            setInput(event.target.value);
+            syncCursor(event.target);
+          }}
+          onSelect={(event) => syncCursor(event.currentTarget)}
+          onClick={(event) => syncCursor(event.currentTarget)}
+          onKeyUp={(event) => syncCursor(event.currentTarget)}
           onCompositionStart={() => {
             composingRef.current = true;
           }}
@@ -223,6 +333,27 @@ export function Composer({ streaming, loading = false, sessionId, onSend, onAbor
           placeholder={t("chat.composerPlaceholder")}
           enterKeyHint={isTouchKeyboard ? "enter" : "send"}
           onKeyDown={(event) => {
+            if (menu) {
+              if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                event.preventDefault();
+                setMenuSelected((prev) =>
+                  event.key === "ArrowDown"
+                    ? (prev + 1) % menu.items.length
+                    : (prev - 1 + menu.items.length) % menu.items.length,
+                );
+                return;
+              }
+              if (event.key === "Enter" || event.key === "Tab") {
+                event.preventDefault();
+                pickMenuItem(menu.items[menu.selected]);
+                return;
+              }
+              if (event.key === "Escape") {
+                event.preventDefault();
+                closeMenu();
+                return;
+              }
+            }
             if (
               !isTouchKeyboard &&
               event.key === "Enter" &&

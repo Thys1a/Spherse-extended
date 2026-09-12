@@ -13,6 +13,8 @@ export type {
   TriggerServerEvent,
   SkillDefinitionContract as SkillDefinition,
   SkillSummaryContract as SkillSummary,
+  CommandDefinitionContract as CommandDefinition,
+  SummonResponse,
   AgentUpdateResponse,
   AgentCreateResponse,
   AiAccessSettingsResponse,

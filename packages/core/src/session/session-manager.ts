@@ -1,4 +1,5 @@
 import type { AgentChangePayload } from "../store/project.js";
+import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { Logger } from "../logger.js";
 import { NotFoundError, ValidationError } from "../errors.js";
 import { AgentRunner, type RunnerEventHandler } from "./agent-runner.js";
@@ -95,6 +96,33 @@ export class SessionManager {
     const session = this.sessions.get(sessionId);
     if (!session) throw new NotFoundError(`No active session "${sessionId}"`);
     return session.withdrawLastTurn();
+  }
+
+  appendUserMessage(
+    agentId: string,
+    sessionId: string,
+    message: string,
+    meta?: SendMessageMeta,
+  ): number {
+    const record: AgentMessage = {
+      role: "user",
+      content: message,
+      timestamp: Date.now(),
+    };
+    const active = this.sessions.get(sessionId);
+    if (active) return active.appendUserNote(record, meta).seq;
+    const agentStore = this.deps.projectStore.getAgent(agentId);
+    if (!agentStore) throw new NotFoundError(`Agent "${agentId}" not found`);
+    if (!agentStore.sessions.getSession(sessionId)) {
+      throw new NotFoundError(`Session "${sessionId}" not found`);
+    }
+    return SessionEventLog.open(agentStore.sessions, sessionId).append("user/message", {
+      message: record,
+      ...(meta?.source !== undefined ? { source: meta.source } : {}),
+      ...(meta?.triggerName !== undefined ? { triggerName: meta.triggerName } : {}),
+      ...(meta?.slash !== undefined ? { slash: meta.slash } : {}),
+      ...(meta?.summon !== undefined ? { summon: meta.summon } : {}),
+    }).seq;
   }
 
   resolveControlRequest(sessionId: string, requestId: string, decision: unknown): void {

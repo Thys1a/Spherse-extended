@@ -194,6 +194,57 @@ describe("MessageItem selection menu", () => {
   });
 });
 
+describe("MessageItem slash pill and summon card", () => {
+  it("renders the original slash invocation as a pill", () => {
+    renderWithProviders(
+      <MessageItem
+        message={{
+          role: "user",
+          content: "expanded",
+          _slash: { type: "skill", name: "review", rawArgs: "x" },
+        } as ChatMessage}
+        agent={agent}
+      />,
+      { bridge: createMockHostBridge() },
+    );
+    expect(screen.getByText("/skill:review")).toBeInTheDocument();
+  });
+
+  it("renders a clickable summon card that opens the target session", async () => {
+    const user = userEvent.setup();
+    const onOpenSession = vi.fn();
+    renderWithProviders(
+      <MessageItem
+        message={{
+          role: "user",
+          content: "run tests",
+          _summon: { agentId: "a9", sessionId: "s9", agentName: "Builder" },
+        } as ChatMessage}
+        agent={agent}
+        onOpenSession={onOpenSession}
+      />,
+      { bridge: createMockHostBridge() },
+    );
+    await user.click(screen.getByRole("button", { name: /已召唤 Builder/ }));
+    expect(onOpenSession).toHaveBeenCalledWith("s9");
+  });
+
+  it("omits the summon card without an open-session handler", () => {
+    renderWithProviders(
+      <MessageItem
+        message={{
+          role: "user",
+          content: "run tests",
+          _summon: { agentId: "a9", sessionId: "s9", agentName: "Builder" },
+        } as ChatMessage}
+        agent={agent}
+      />,
+      { bridge: createMockHostBridge() },
+    );
+    expect(screen.queryByRole("button", { name: /已召唤/ })).not.toBeInTheDocument();
+  });
+});
+
 describe("MessageItem edit and resend", () => {
   function renderEditable(content = "original") {
     renderWithProviders(

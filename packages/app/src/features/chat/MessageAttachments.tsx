@@ -7,7 +7,7 @@ import { useProjectCtx } from "../../context/project-context";
 import { useApiClient } from "../../lib/use-connection";
 import { formatFileSize } from "./lib/format-file-size";
 
-const TEXT_INLINE_BUDGET_CHARS = 16 * 1024;
+const TEXT_INLINE_BUDGET_BYTES = 16 * 1024;
 
 interface MessageAttachmentsProps {
   attachments: ChatAttachment[];
@@ -45,7 +45,7 @@ export function MessageAttachments({ attachments }: MessageAttachmentsProps) {
         </div>
       )}
       {files.map((att) => {
-        const truncated = (att.bytes ?? 0) > TEXT_INLINE_BUDGET_CHARS;
+        const truncated = (att.bytes ?? 0) > TEXT_INLINE_BUDGET_BYTES;
         return (
           <div key={att.path} className="mt-2 flex items-center gap-2 rounded-md border border-border px-2.5 py-2">
             <FileIcon className="size-4 shrink-0 text-muted-foreground" />
@@ -56,7 +56,7 @@ export function MessageAttachments({ attachments }: MessageAttachmentsProps) {
               )}
               {truncated && (
                 <div className="text-[11px] text-muted-foreground">
-                  {t("chat.attachmentTruncated", { shown: formatFileSize(TEXT_INLINE_BUDGET_CHARS) })}
+                  {t("chat.attachmentTruncated", { shown: formatFileSize(TEXT_INLINE_BUDGET_BYTES) })}
                 </div>
               )}
             </div>

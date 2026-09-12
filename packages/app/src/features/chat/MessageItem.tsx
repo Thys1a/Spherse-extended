@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useI18n } from "@spherse/i18n/react";
-import { PencilIcon } from "lucide-react";
+import { ChevronRightIcon, PencilIcon } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import type { AgentSummary } from "../../lib/types";
 import type { ChatMessage } from "./types";
@@ -38,10 +38,11 @@ interface MessageItemProps {
   onRespondQuestion?: (requestId: string, answer: string) => boolean | void;
   onRetry?: () => void;
   onWithdraw?: () => void;
+  onOpenSession?: (sessionId: string) => void;
   editable?: boolean;
 }
 
-export function MessageItem({ message, agent, showTime, sessionId, supersededToolCallIds, onNavigateToPath, onRespondApproval, onRespondQuestion, onRetry, onWithdraw, editable }: MessageItemProps) {
+export function MessageItem({ message, agent, showTime, sessionId, supersededToolCallIds, onNavigateToPath, onRespondApproval, onRespondQuestion, onRetry, onWithdraw, onOpenSession, editable }: MessageItemProps) {
   const isUser = message.role === "user";
   const openLink = useOpenExternalLink();
   const { t } = useI18n();
@@ -149,6 +150,11 @@ export function MessageItem({ message, agent, showTime, sessionId, supersededToo
           {message.role === "assistant" && (agent.alias || agent.name)}
         </div>
         <div className="text-sm">
+          {message._slash && (
+            <span className="mb-1 inline-flex rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
+              /{message._slash.type}:{message._slash.name}
+            </span>
+          )}
           {message._streaming && message.content === "" ? (
             <ThinkingIndicator />
           ) : editing ? (
@@ -188,6 +194,17 @@ export function MessageItem({ message, agent, showTime, sessionId, supersededToo
         </div>
         {isUser && message._attachments && message._attachments.length > 0 && (
           <MessageAttachments attachments={message._attachments} />
+        )}
+        {isUser && message._summon && onOpenSession && (
+          <button
+            type="button"
+            onClick={() => onOpenSession(message._summon!.sessionId)}
+            title={t("chat.summonCard", { name: message._summon.agentName })}
+            className="mt-2 flex items-center gap-1.5 self-start rounded-md border border-border px-2.5 py-1.5 text-xs hover:bg-muted"
+          >
+            <span>{t("chat.summonCard", { name: message._summon.agentName })}</span>
+            <ChevronRightIcon className="size-3.5 text-muted-foreground" />
+          </button>
         )}
         {message._toolCalls && message._toolCalls.length > 0 && (
           <ToolCallSection toolCalls={message._toolCalls} onNavigateToPath={onNavigateToPath} />

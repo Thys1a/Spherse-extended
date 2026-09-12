@@ -7,6 +7,7 @@ import * as fileTree from "./file-tree.js";
 import * as settings from "./settings.js";
 import * as schedules from "./trigger.js";
 import * as skills from "./skills.js";
+import * as commands from "./commands.js";
 import * as marketplace from "./marketplace.js";
 import * as debug from "./debug.js";
 import * as bus from "./bus.js";
@@ -23,6 +24,7 @@ export const schemas = {
   ...settings.schemas,
   ...schedules.schemas,
   ...skills.schemas,
+  ...commands.schemas,
   ...marketplace.schemas,
   ...debug.schemas,
   ...bus.schemas,
@@ -55,9 +57,13 @@ export type {
   SessionCreateResponse,
   SessionRenameRequest,
   SessionModelUpdateRequest,
+  SummonRequest,
+  SummonResponse,
   SessionMessagesResponse,
   SessionMessagesPageResponse,
   SessionStatusResponse,
+  SlashMetaContract,
+  SummonMetaContract,
 } from "./sessions.js";
 
 export type {
@@ -98,6 +104,7 @@ export type {
 } from "./trigger.js";
 
 export type { SkillDefinitionContract, SkillSummaryContract, SkillListResponse, SkillCreateRequest, SkillInstallRequest } from "./skills.js";
+export type { CommandDefinitionContract, CommandListResponse, CommandCreateRequest, CommandUpdateRequest } from "./commands.js";
 export type {
   MarketplaceSkillEntry,
   MarketplaceManifestResponse,
