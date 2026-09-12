@@ -141,9 +141,9 @@ describe("createApiClient", () => {
       }));
       vi.stubGlobal("fetch", fetchMock);
 
-      const result = await createApiClient("http://localhost:1234", "p1").uploadAttachedImage(
+      const result = await createApiClient("http://localhost:1234", "p1").uploadAttachment(
         new Blob([new Uint8Array(8)]),
-        { width: 100, height: 50 },
+        { filename: "a.png", width: 100, height: 50 },
       );
 
       expect(result).toEqual({
@@ -173,7 +173,7 @@ describe("createApiClient", () => {
       }));
       vi.stubGlobal("fetch", fetchMock);
 
-      const result = await createApiClient("http://localhost:1234", "p1").uploadAttachedImage(
+      const result = await createApiClient("http://localhost:1234", "p1").uploadAttachment(
         new Blob([new Uint8Array(4)]),
       );
 
@@ -193,7 +193,7 @@ describe("createApiClient", () => {
       }));
       vi.stubGlobal("fetch", fetchMock);
 
-      await createApiClient("http://localhost:1234", "p1", "tok-abc").uploadAttachedImage(
+      await createApiClient("http://localhost:1234", "p1", "tok-abc").uploadAttachment(
         new Blob([new Uint8Array(4)]),
       );
 

@@ -66,24 +66,31 @@ export interface ToolCallInfo {
 }
 
 export interface ChatAttachment {
-  type: "image";
+  type: string;
   path: string;
   mimeType: string;
+  name?: string;
+  bytes?: number;
   width?: number;
   height?: number;
 }
 
-export interface AttachedImage {
+export interface AttachedFile {
+  kind: "image" | "file";
   path: string;
   mimeType: string;
+  name: string;
+  size: number;
   width?: number;
   height?: number;
   previewUrl: string;
 }
 
-export interface SendableImage {
+export interface SendableFile {
   path: string;
   mimeType: string;
+  name?: string;
+  size?: number;
   width?: number;
   height?: number;
 }

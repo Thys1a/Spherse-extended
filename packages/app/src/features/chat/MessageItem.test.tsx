@@ -193,3 +193,56 @@ describe("MessageItem selection menu", () => {
     expect(quoteFenceFor("code ```x``` end")).toBe("````");
   });
 });
+
+describe("MessageItem edit and resend", () => {
+  function renderEditable(content = "original") {
+    renderWithProviders(
+      <MessageItem
+        message={{ role: "user", content } as ChatMessage}
+        agent={agent}
+        sessionId="session-1"
+        editable
+      />,
+      { bridge: createMockHostBridge() },
+    );
+  }
+
+  it("shows an edit button for editable user messages", () => {
+    renderEditable();
+    expect(screen.getByRole("button", { name: "编辑" })).toBeInTheDocument();
+  });
+
+  it("hides the edit button without sessionId", () => {
+    renderWithProviders(
+      <MessageItem message={{ role: "user", content: "x" } as ChatMessage} agent={agent} editable />,
+      { bridge: createMockHostBridge() },
+    );
+    expect(screen.queryByRole("button", { name: "编辑" })).not.toBeInTheDocument();
+  });
+
+  it("opens an editor prefilled with the message and resends on confirm", async () => {
+    const user = userEvent.setup();
+    const editAndResend = vi.fn();
+    renderEditable();
+    await user.click(screen.getByRole("button", { name: "编辑" }));
+
+    const editor = screen.getByRole("textbox");
+    expect(editor).toHaveValue("original");
+
+    const store = await import("./runtime/streaming-store");
+    const spy = vi.spyOn(store.useStreamingStore.getState(), "editAndResend").mockImplementation(editAndResend);
+    await user.clear(editor);
+    await user.type(editor, "edited");
+    await user.click(screen.getByRole("button", { name: "重新发送" }));
+    expect(editAndResend).toHaveBeenCalledWith("session-1", "edited");
+    spy.mockRestore();
+  });
+
+  it("closes the editor on cancel without resending", async () => {
+    const user = userEvent.setup();
+    renderEditable();
+    await user.click(screen.getByRole("button", { name: "编辑" }));
+    await user.click(screen.getByRole("button", { name: "取消" }));
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  });
+});

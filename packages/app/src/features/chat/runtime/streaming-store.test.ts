@@ -151,6 +151,74 @@ describe("streaming-store resilience", () => {
     expect(messages).toEqual([]);
   });
 
+  it("editAndResend withdraws then sends the edited content", async () => {
+    const socket = await attachAndConnect("e1");
+    useStreamingStore.getState().sendMessage("e1", "original");
+    socket.onmessage?.({
+      data: JSON.stringify({
+        type: "message_end",
+        message: { role: "assistant", content: [{ type: "text", text: "reply" }] },
+      }),
+    } as MessageEvent);
+    socket.onmessage?.({
+      data: JSON.stringify({ type: "agent_end", messages: [] }),
+    } as MessageEvent);
+    await vi.advanceTimersByTimeAsync(0);
+
+    useStreamingStore.getState().editAndResend("e1", "  edited  ");
+    expect(socket.sent.map((s) => JSON.parse(s))).toContainEqual({ type: "withdraw" });
+
+    socket.onmessage?.({
+      data: JSON.stringify({ type: "turn_withdrawn", seq: 1 }),
+    } as MessageEvent);
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(socket.sent.map((s) => JSON.parse(s))).toContainEqual({
+      type: "message",
+      content: "edited",
+    });
+    const messages = useStreamingStore.getState().sessions.e1.messages;
+    expect(messages[messages.length - 1]).toMatchObject({
+      role: "user",
+      content: "edited",
+      _optimistic: true,
+    });
+  });
+
+  it("editAndResend drops the intent when withdraw fails", async () => {
+    const socket = await attachAndConnect("e2");
+    useStreamingStore.getState().sendMessage("e2", "original");
+    socket.onmessage?.({
+      data: JSON.stringify({
+        type: "message_end",
+        message: { role: "assistant", content: [{ type: "text", text: "reply" }] },
+      }),
+    } as MessageEvent);
+    socket.onmessage?.({
+      data: JSON.stringify({ type: "agent_end", messages: [] }),
+    } as MessageEvent);
+    await vi.advanceTimersByTimeAsync(0);
+
+    useStreamingStore.getState().editAndResend("e2", "edited");
+    socket.onmessage?.({
+      data: JSON.stringify({ type: "error", message: "gone", code: "PERMANENT" }),
+    } as MessageEvent);
+    await vi.advanceTimersByTimeAsync(0);
+
+    const sent = socket.sent.map((s) => JSON.parse(s));
+    expect(sent.filter((p) => p.type === "message" && p.content === "edited")).toHaveLength(0);
+    expect(useStreamingStore.getState().sessions.e2.pendingEditResend).toBeNull();
+  });
+
+  it("editAndResend is a no-op for empty content", async () => {
+    const socket = await attachAndConnect("e3");
+    useStreamingStore.getState().sendMessage("e3", "original");
+    await vi.advanceTimersByTimeAsync(0);
+
+    useStreamingStore.getState().editAndResend("e3", "   ");
+    expect(socket.sent.map((s) => JSON.parse(s))).not.toContainEqual({ type: "withdraw" });
+  });
+
   it("withdrawLastTurn is a no-op while streaming", async () => {
     const socket = await attachAndConnect("w2");
     useStreamingStore.getState().sendMessage("w2", "hi");
@@ -592,13 +660,12 @@ describe("streaming-store resilience", () => {
     socket.readyState = OPEN;
     socket.onopen?.({} as Event);
 
-    const image = {
+    const image = [{
       path: ".spherse/attachments/x.png",
       mimeType: "image/png",
       width: 10,
       height: 20,
-      previewUrl: `${BASE_URL}/preview/x.png`,
-    };
+    }];
 
     useStreamingStore.getState().sendMessage("img1", "look", image);
     await vi.advanceTimersByTimeAsync(0);

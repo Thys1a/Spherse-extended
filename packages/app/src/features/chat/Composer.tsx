@@ -3,10 +3,10 @@ import { useI18n } from "@spherse/i18n/react";
 import { toast } from "sonner";
 import { Button } from "../../components/ui/button";
 import { Textarea } from "../../components/ui/textarea";
-import { ChevronsDownIcon, ChevronsUpIcon, ImageIcon, Loader2Icon, SendIcon, SquareIcon } from "lucide-react";
-import type { AttachedImage } from "./types";
+import { ChevronsDownIcon, ChevronsUpIcon, Loader2Icon, PaperclipIcon, SendIcon, SquareIcon } from "lucide-react";
+import type { AttachedFile } from "./types";
 import { compressImage } from "./utils/compress-image";
-import { AttachmentBar, type AttachStatus } from "./AttachmentBar";
+import { AttachmentBar } from "./AttachmentBar";
 import { useProjectCtx } from "../../context/project-context";
 import { useApiClient } from "../../lib/use-connection";
 import { useIsCoarsePointer } from "../../hooks/use-coarse-pointer";
@@ -23,7 +23,7 @@ interface ComposerProps {
   streaming: boolean;
   loading?: boolean;
   sessionId: string;
-  onSend: (message: string, image?: AttachedImage) => boolean;
+  onSend: (message: string, attachments?: AttachedFile[]) => boolean;
   onAbort: () => void;
 }
 
@@ -36,8 +36,8 @@ export function Composer({ streaming, loading = false, sessionId, onSend, onAbor
   const [input, setInput] = useState(() => localStorage.getItem(draftKey) ?? "");
   const [manualExpanded, setManualExpanded] = useState(false);
   const [contentExceeds3Lines, setContentExceeds3Lines] = useState(false);
-  const [image, setImage] = useState<AttachedImage | null>(null);
-  const [attachStatus, setAttachStatus] = useState<AttachStatus>("idle");
+  const [files, setFiles] = useState<AttachedFile[]>([]);
+  const [uploadingCount, setUploadingCount] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const composingRef = useRef(false);
@@ -77,7 +77,7 @@ export function Composer({ streaming, loading = false, sessionId, onSend, onAbor
     useComposerInsertStore.getState().consume(insertNonce);
   }, [insertNonce, sessionId]);
 
-  const attachBusy = attachStatus === "compressing" || attachStatus === "uploading";
+  const attachBusy = uploadingCount > 0;
 
   useLayoutEffect(() => {
     const textarea = textareaRef.current;
@@ -121,11 +121,10 @@ export function Composer({ streaming, loading = false, sessionId, onSend, onAbor
   const send = () => {
     const message = input.trim();
     if (!message || streaming || loading || attachBusy) return;
-    const sent = onSend(message, image ?? undefined);
+    const sent = onSend(message, files.length > 0 ? files : undefined);
     if (!sent) return;
     setInput("");
-    setImage(null);
-    setAttachStatus("idle");
+    setFiles([]);
     localStorage.removeItem(draftKey);
     setManualExpanded(false);
   };
@@ -136,33 +135,53 @@ export function Composer({ streaming, loading = false, sessionId, onSend, onAbor
   };
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+    const selected = event.target.files ? Array.from(event.target.files) : [];
     event.target.value = "";
-    if (!file || !client) return;
-    setAttachStatus("compressing");
+    if (selected.length === 0 || !client) return;
+    setUploadingCount((count) => count + selected.length);
     try {
-      const { blob, width, height } = await compressImage(file);
-      setAttachStatus("uploading");
-      const res = await client.uploadAttachedImage(blob, { width, height });
-      setImage({
-        path: res.path,
-        mimeType: "image/jpeg",
-        width,
-        height,
-        previewUrl: client.getPreviewUrl(res.path),
-      });
-      setAttachStatus("idle");
+      const uploaded = await Promise.all(
+        selected.map(async (file) => {
+          if (file.type.startsWith("image/")) {
+            const { blob, width, height } = await compressImage(file);
+            const res = await client.uploadAttachment(blob, {
+              filename: file.name,
+              width,
+              height,
+            });
+            return {
+              kind: "image",
+              path: res.path,
+              mimeType: "image/jpeg",
+              name: file.name,
+              size: res.bytes,
+              width,
+              height,
+              previewUrl: client.getPreviewUrl(res.path),
+            } satisfies AttachedFile;
+          }
+          const res = await client.uploadAttachment(file, { filename: file.name });
+          return {
+            kind: "file",
+            path: res.path,
+            mimeType: res.mimeType ?? file.type,
+            name: file.name,
+            size: res.bytes,
+            previewUrl: client.getPreviewUrl(res.path),
+          } satisfies AttachedFile;
+        }),
+      );
+      setFiles((prev) => [...prev, ...uploaded]);
     } catch (err) {
-      setAttachStatus("error");
-      toast.error(t("chat.imageAttachFailed", { message: (err as Error).message }));
+      toast.error(t("chat.fileAttachFailed", { message: (err as Error).message }));
+    } finally {
+      setUploadingCount((count) => Math.max(0, count - selected.length));
     }
   };
 
-  const handleRemoveImage = () => {
-    const path = image?.path;
-    setImage(null);
-    setAttachStatus("idle");
-    if (path && client) {
+  const handleRemoveFile = (path: string) => {
+    setFiles((prev) => prev.filter((file) => file.path !== path));
+    if (client) {
       void client.deleteAttachment(path).catch(() => {});
     }
   };
@@ -176,8 +195,8 @@ export function Composer({ streaming, loading = false, sessionId, onSend, onAbor
       <div className="flex items-center gap-2 px-1 pb-2">
         <SessionModelPill sessionId={sessionId} />
       </div>
-      {(image || attachBusy) && (
-        <AttachmentBar image={image} status={attachStatus} onRemove={handleRemoveImage} />
+      {(files.length > 0 || attachBusy) && (
+        <AttachmentBar files={files} uploading={attachBusy} onRemove={handleRemoveFile} />
       )}
       <div className="relative rounded-lg border border-input bg-background transition-colors focus-within:border-ring" data-chat-composer-input>
         <Textarea
@@ -211,7 +230,8 @@ export function Composer({ streaming, loading = false, sessionId, onSend, onAbor
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/*"
+          multiple
+          accept="image/*,.txt,.md,.markdown,.json,text/plain,text/markdown,application/json"
           className="hidden"
           onChange={handleFileChange}
         />
@@ -232,9 +252,9 @@ export function Composer({ streaming, loading = false, sessionId, onSend, onAbor
             size="icon"
             disabled={attachBusy}
             onClick={handleAttachClick}
-            title={t("chat.attachImage")}
+            title={t("chat.attachFile")}
           >
-            {attachBusy ? <Loader2Icon className="animate-spin" /> : <ImageIcon />}
+            {attachBusy ? <Loader2Icon className="animate-spin" /> : <PaperclipIcon />}
           </Button>
           {streaming ? (
             <Button

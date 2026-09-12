@@ -1,6 +1,8 @@
 import { useCallback, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useI18n } from "@spherse/i18n/react";
+import { PencilIcon } from "lucide-react";
+import { Button } from "../../components/ui/button";
 import type { AgentSummary } from "../../lib/types";
 import type { ChatMessage } from "./types";
 import { MarkdownContent } from "../../components/markdown-content/MarkdownContent";
@@ -20,6 +22,7 @@ import { WithdrawButton } from "./WithdrawButton";
 import { SpeakButton } from "./SpeakButton";
 import { SelectionMenu } from "./SelectionMenu";
 import { useComposerInsertStore } from "./composer-insert-store";
+import { useStreamingStore } from "./runtime/streaming-store";
 import { useOpenExternalLink } from "../browser/open-external-url";
 import { formatMessageTime } from "./lib/format-time";
 import { quoteFenceFor } from "./lib/quote-fence";
@@ -35,14 +38,18 @@ interface MessageItemProps {
   onRespondQuestion?: (requestId: string, answer: string) => boolean | void;
   onRetry?: () => void;
   onWithdraw?: () => void;
+  editable?: boolean;
 }
 
-export function MessageItem({ message, agent, showTime, sessionId, supersededToolCallIds, onNavigateToPath, onRespondApproval, onRespondQuestion, onRetry, onWithdraw }: MessageItemProps) {
+export function MessageItem({ message, agent, showTime, sessionId, supersededToolCallIds, onNavigateToPath, onRespondApproval, onRespondQuestion, onRetry, onWithdraw, editable }: MessageItemProps) {
   const isUser = message.role === "user";
   const openLink = useOpenExternalLink();
   const { t } = useI18n();
   const bubbleRef = useRef<HTMLDivElement>(null);
   const [menu, setMenu] = useState<{ x: number; y: number; text: string } | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [editDraft, setEditDraft] = useState("");
+  const canEdit = editable && sessionId != null && !message._streaming;
 
   const handleContextMenu = useCallback((event: React.MouseEvent) => {
     const selection = window.getSelection();
@@ -87,6 +94,22 @@ export function MessageItem({ message, agent, showTime, sessionId, supersededToo
     setMenu(null);
   }, [menu, sessionId]);
 
+  const handleStartEdit = useCallback(() => {
+    setEditDraft(message.content);
+    setEditing(true);
+  }, [message.content]);
+
+  const handleConfirmEdit = useCallback(() => {
+    if (sessionId) {
+      useStreamingStore.getState().editAndResend(sessionId, editDraft);
+    }
+    setEditing(false);
+  }, [sessionId, editDraft]);
+
+  const handleCancelEdit = useCallback(() => {
+    setEditing(false);
+  }, []);
+
   const handleCloseMenu = useCallback(() => setMenu(null), []);
 
   const handleLinkClick = useCallback(
@@ -129,6 +152,34 @@ export function MessageItem({ message, agent, showTime, sessionId, supersededToo
         <div className="text-sm">
           {message._streaming && message.content === "" ? (
             <ThinkingIndicator />
+          ) : editing ? (
+            <div className="flex min-w-52 flex-col gap-2">
+              <textarea
+                value={editDraft}
+                onChange={(event) => setEditDraft(event.target.value)}
+                rows={3}
+                autoFocus
+                className="w-full resize-y rounded-md border border-input bg-background px-2 py-1 text-sm text-foreground"
+              />
+              <div className="flex justify-end gap-1.5">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleCancelEdit}
+                >
+                  {t("chat.editCancel")}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleConfirmEdit}
+                  disabled={!editDraft.trim()}
+                >
+                  {t("chat.editConfirm")}
+                </Button>
+              </div>
+            </div>
           ) : (
             <>
               <MarkdownContent variant="chat" plain={isUser} linkClassName="text-inherit" onLinkClick={handleLinkClick}>{message.content}</MarkdownContent>
@@ -182,6 +233,17 @@ export function MessageItem({ message, agent, showTime, sessionId, supersededToo
         {!message._streaming && (
           <div className={`flex items-center gap-1 pb-1 opacity-100 md:opacity-0 md:transition-opacity md:group-hover:opacity-100 ${isUser ? "md:flex-row-reverse" : ""}`}>
             {isUser && onWithdraw && <WithdrawButton onWithdraw={onWithdraw} />}
+            {isUser && canEdit && !editing && (
+              <button
+                type="button"
+                onClick={handleStartEdit}
+                title={t("chat.editTooltip")}
+                aria-label={t("chat.editTooltip")}
+                className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <PencilIcon className="size-3.5" />
+              </button>
+            )}
             {!isUser && message._messageId != null && (
               <SpeakButton messageId={String(message._messageId)} text={message.content} sessionId={sessionId} />
             )}

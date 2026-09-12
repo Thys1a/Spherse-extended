@@ -39,19 +39,18 @@ function seedApprovalSession() {
         historyError: false,
         reconnectFailed: false,
         pendingWithdraw: false,
+        pendingEditResend: null,
       },
     },
   });
 }
 
 describe("ApprovalNoticeBridge OS notification", () => {
-  let notify: ReturnType<typeof vi.fn>;
-  let hasFocus: ReturnType<typeof vi.fn>;
+  let notify: (title: string, body: string, opts?: { route?: string }) => void;
 
   beforeEach(() => {
     notify = vi.fn();
-    hasFocus = vi.fn(() => false);
-    vi.spyOn(document, "hasFocus").mockImplementation(hasFocus);
+    vi.spyOn(document, "hasFocus").mockReturnValue(false);
     useStreamingStore.setState({ sessions: {} });
     useSettingsStore.setState({ notifications: {} });
   });
@@ -83,7 +82,7 @@ describe("ApprovalNoticeBridge OS notification", () => {
   });
 
   it("skips the OS notification when the window is focused", () => {
-    hasFocus.mockReturnValue(true);
+    vi.spyOn(document, "hasFocus").mockReturnValue(true);
     seedApprovalSession();
     renderBridge();
     expect(notify).not.toHaveBeenCalled();

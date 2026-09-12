@@ -765,14 +765,30 @@ export const zhCN = {
   "chat.approvalNotDelivered": "操作未送达，连接可能已断开",
   // Composer 底部「附加图片」按钮的悬停提示
   "chat.attachImage": "附加图片",
+  // Composer 底部附件按钮（回形针图标）的悬停提示，可附加图片与文本文件
+  "chat.attachFile": "附加文件",
   // Composer 底部「发送」按钮（纸飞机图标）的悬停提示
   "chat.send": "发送",
   // Composer 流式生成中「停止」按钮（方块图标）的悬停提示
   "chat.stop": "停止",
   // 附加图片在压缩或上传过程中失败时的错误提示，{message} 为错误信息
   "chat.imageAttachFailed": "添加图片失败：{message}",
+  // 附加文件在上传过程中失败时的错误提示，{message} 为错误信息
+  "chat.fileAttachFailed": "添加文件失败：{message}",
+  // 文件上传中时附件栏的等待提示
+  "chat.uploadingAttachment": "正在上传…",
   // Composer 待发送图片缩略图上的「移除」按钮悬停提示
   "chat.removeAttachment": "移除图片",
+  // 历史消息中非图片附件行的「下载」按钮悬停提示
+  "chat.attachmentDownload": "下载",
+  // 历史消息中被截断的文本附件行的折叠提示，{shown} 为进入上下文的前 N 大小
+  "chat.attachmentTruncated": "内容较长，仅前 {shown} 进入上下文",
+  // 可编辑的用户消息气泡旁「编辑」按钮的悬停提示，点击后原地编辑重发
+  "chat.editTooltip": "编辑",
+  // 消息编辑态的确认按钮文案，点击撤回原轮并用新内容重发
+  "chat.editConfirm": "重新发送",
+  // 消息编辑态的取消按钮文案
+  "chat.editCancel": "取消",
   // 某会话的 agent 工具调用等待用户批准、且用户当前未停留在该会话时弹出的 toast 文案（无法解析到 agent 名时的泛化兜底）
   "chat.approvalToastMessage": "一个 Agent 正在等待你的确认",
   // 上述 toast 在能解析到 agent 名时的标题文案，{name} 为 agent 名称

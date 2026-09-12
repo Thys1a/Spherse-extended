@@ -16,7 +16,7 @@ import {
 } from "../model/chat-session-reducer";
 import { planRetry } from "../model/retry-plan";
 import { lastWithdrawableUserIndex } from "../model/withdrawable";
-import type { SendableImage, ChatMessage } from "../types";
+import type { SendableFile, ChatMessage } from "../types";
 import { emitAssistantTurnComplete, turnSpeechText } from "../tts/bridge";
 
 const DEFAULT_TTL_MS = 5 * 60 * 1000;
@@ -34,6 +34,7 @@ interface StreamingSession extends StreamingSessionData {
   historyError: boolean;
   reconnectFailed: boolean;
   pendingWithdraw: boolean;
+  pendingEditResend: { content: string; attachments?: SendableFile[] } | null;
 }
 
 interface StreamingStoreState {
@@ -46,9 +47,10 @@ interface StreamingStoreActions {
   disconnect: (sessionId: string) => void;
   disconnectProject: (projectId: string) => void;
   touch: (sessionId: string) => void;
-  sendMessage: (sessionId: string, text: string, image?: SendableImage) => boolean;
+  sendMessage: (sessionId: string, text: string, attachments?: SendableFile[]) => boolean;
   retry: (sessionId: string) => void;
   withdrawLastTurn: (sessionId: string) => void;
+  editAndResend: (sessionId: string, content: string) => void;
   abort: (sessionId: string) => void;
   reconnect: (sessionId: string) => void;
   resumeProbeAll: () => void;
@@ -110,6 +112,7 @@ export const useStreamingStore = create<StreamingStoreState & StreamingStoreActi
         messages: markRetrying(current.messages),
         streaming: true,
         lastActivityAt: Date.now(),
+        pendingEditResend: null,
       }));
       useProjectDataStore.getState().setStreaming(session.projectId, sessionId, true);
       runtime.retry();
@@ -120,7 +123,7 @@ export const useStreamingStore = create<StreamingStoreState & StreamingStoreActi
       ...current,
       messages: current.messages.slice(0, current.messages.length - plan.dropCount),
     }));
-    get().sendMessage(sessionId, plan.content, plan.attachment);
+    get().sendMessage(sessionId, plan.content, plan.attachments);
   }
 
   function settlePendingWithdraw(
@@ -131,7 +134,12 @@ export const useStreamingStore = create<StreamingStoreState & StreamingStoreActi
     const failed = events.some((event) => event.type === "error");
     if (!failed && !events.some((event) => event.type === "turn_withdrawn")) return session;
     const messages = failed ? flagWithdrawError(session.messages) : session.messages;
-    return { ...session, messages, pendingWithdraw: false };
+    return {
+      ...session,
+      messages,
+      pendingWithdraw: false,
+      pendingEditResend: failed ? null : session.pendingEditResend,
+    };
   }
 
   function flagWithdrawError(messages: ChatMessage[]): ChatMessage[] {
@@ -181,6 +189,14 @@ export const useStreamingStore = create<StreamingStoreState & StreamingStoreActi
 
       return changed ? { sessions: next } : state;
     });
+
+    for (const sessionId of queued.keys()) {
+      const session = get().sessions[sessionId];
+      if (!session?.pendingEditResend || session.pendingWithdraw || session.streaming) continue;
+      const intent = session.pendingEditResend;
+      updateSession(sessionId, (current) => ({ ...current, pendingEditResend: null }));
+      get().sendMessage(sessionId, intent.content, intent.attachments);
+    }
   }
 
   function enqueueEvent(sessionId: string, event: AgentEvent) {
@@ -238,6 +254,7 @@ export const useStreamingStore = create<StreamingStoreState & StreamingStoreActi
         historyError: false,
         reconnectFailed: false,
         pendingWithdraw: false,
+        pendingEditResend: null,
       };
       return {
         sessions: {
@@ -364,22 +381,24 @@ export const useStreamingStore = create<StreamingStoreState & StreamingStoreActi
       updateSession(sessionId, (session) => ({ ...session, lastActivityAt: Date.now() }));
     },
 
-    sendMessage(sessionId, text, image) {
+    sendMessage(sessionId, text, attachments) {
       const session = get().sessions[sessionId];
       if (!session) return false;
       const content = text.trim();
       if (!content || session.streaming) return false;
 
       const runtime = runtimes.get(sessionId);
-      const attachments = image
-        ? [{
-            type: "image" as const,
-            path: image.path,
-            mimeType: image.mimeType,
-            width: image.width,
-            height: image.height,
-          }]
-        : undefined;
+      const historyAttachments = attachments
+        ?.filter((attachment) => attachment.path)
+        .map((attachment) => ({
+          type: attachment.mimeType.startsWith("image/") ? "image" : "file",
+          path: attachment.path,
+          mimeType: attachment.mimeType,
+          ...(attachment.name !== undefined ? { name: attachment.name } : {}),
+          ...(attachment.size !== undefined ? { bytes: attachment.size } : {}),
+          ...(attachment.width !== undefined ? { width: attachment.width } : {}),
+          ...(attachment.height !== undefined ? { height: attachment.height } : {}),
+        }));
 
       const canSend = runtime?.isOpen() ?? false;
       updateSession(sessionId, (current) => ({
@@ -391,7 +410,9 @@ export const useStreamingStore = create<StreamingStoreState & StreamingStoreActi
             content,
             timestamp: Date.now(),
             _optimistic: true,
-            ...(attachments ? { _attachments: attachments } : {}),
+            ...(historyAttachments && historyAttachments.length > 0
+              ? { _attachments: historyAttachments }
+              : {}),
             ...(!canSend ? { _sendFailed: true } : {}),
           },
         ],
@@ -399,11 +420,12 @@ export const useStreamingStore = create<StreamingStoreState & StreamingStoreActi
           ? { streaming: true }
           : {}),
         lastActivityAt: Date.now(),
+        pendingEditResend: null,
       }));
 
       if (!canSend) return true;
       useProjectDataStore.getState().setStreaming(session.projectId, sessionId, true);
-      runtime!.sendMessage(content, image);
+      runtime!.sendMessage(content, attachments);
       return true;
     },
 
@@ -417,7 +439,37 @@ export const useStreamingStore = create<StreamingStoreState & StreamingStoreActi
       if (lastWithdrawableUserIndex(session.messages) < 0) return;
       const runtime = runtimes.get(sessionId);
       if (!runtime?.isOpen()) return;
-      updateSession(sessionId, (current) => ({ ...current, pendingWithdraw: true }));
+      updateSession(sessionId, (current) => ({
+        ...current,
+        pendingWithdraw: true,
+        pendingEditResend: null,
+      }));
+      runtime.withdraw();
+    },
+
+    editAndResend(sessionId, content) {
+      const session = get().sessions[sessionId];
+      if (!session || session.streaming) return;
+      const trimmed = content.trim();
+      if (!trimmed) return;
+      const userIndex = lastWithdrawableUserIndex(session.messages);
+      if (userIndex < 0) return;
+      const runtime = runtimes.get(sessionId);
+      if (!runtime?.isOpen()) return;
+      const userMessage = session.messages[userIndex];
+      const attachments = userMessage._attachments?.map((attachment) => ({
+        path: attachment.path,
+        mimeType: attachment.mimeType,
+        ...(attachment.name !== undefined ? { name: attachment.name } : {}),
+        ...(attachment.bytes !== undefined ? { size: attachment.bytes } : {}),
+        ...(attachment.width !== undefined ? { width: attachment.width } : {}),
+        ...(attachment.height !== undefined ? { height: attachment.height } : {}),
+      }));
+      updateSession(sessionId, (current) => ({
+        ...current,
+        pendingWithdraw: true,
+        pendingEditResend: { content: trimmed, attachments },
+      }));
       runtime.withdraw();
     },
 

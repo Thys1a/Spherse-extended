@@ -7,18 +7,18 @@ import { createTestQueryClient, renderWithProviders } from "../../test/render";
 import { Composer } from "./Composer";
 import { useComposerInsertStore } from "./composer-insert-store";
 import { compressImage } from "./utils/compress-image";
-import type { AttachedImage } from "./types";
+import type { AttachedFile } from "./types";
 
 vi.mock("sonner", () => ({
   toast: { error: vi.fn(), success: vi.fn() },
 }));
 
-const uploadAttachedImage = vi.fn();
+const uploadAttachment = vi.fn();
 const deleteAttachment = vi.fn();
 
 vi.mock("../../lib/use-connection", () => ({
   useApiClient: () => ({
-    uploadAttachedImage,
+    uploadAttachment,
     deleteAttachment,
     getPreviewUrl: (path: string) => `http://localhost:5173/api/projects/p1/preview/${path}`,
     getSupportedProviders: vi.fn(async () => ({})),
@@ -69,7 +69,7 @@ function renderComposer(props: ComposerProps) {
 function rerenderComposer(
   view: ReturnType<typeof renderComposer>["view"],
   props: ComposerProps,
-  onSend: (message: string, image?: AttachedImage) => boolean,
+  onSend: (message: string, attachments?: AttachedFile[]) => boolean,
   onAbort: () => void,
 ) {
   view.rerender(
@@ -183,7 +183,7 @@ describe("Composer attachment pipeline", () => {
 
   beforeEach(() => {
     vi.mocked(compressImage).mockReset();
-    uploadAttachedImage.mockReset();
+    uploadAttachment.mockReset();
     deleteAttachment.mockReset().mockResolvedValue(undefined);
     vi.mocked(toast.error).mockClear();
   });
@@ -193,7 +193,7 @@ describe("Composer attachment pipeline", () => {
     vi.mocked(compressImage).mockImplementation(
       () => new Promise((resolve) => (releaseCompress = resolve)),
     );
-    uploadAttachedImage.mockResolvedValue({ path: "attachments/img-1.jpg" });
+    uploadAttachment.mockResolvedValue({ path: "attachments/img-1.jpg", bytes: 10 });
 
     const { onSend } = renderComposer({ streaming: false });
     await user.type(screen.getByRole("textbox"), "with picture");
@@ -209,16 +209,38 @@ describe("Composer attachment pipeline", () => {
     await screen.findByRole("button", { name: "移除图片" });
 
     await user.click(screen.getByRole("button", { name: "发送" }));
-    expect(uploadAttachedImage).toHaveBeenCalledWith(expect.any(Blob), { width: 800, height: 600 });
+    expect(uploadAttachment).toHaveBeenCalledWith(expect.any(Blob), {
+      filename: "pic.png",
+      width: 800,
+      height: 600,
+    });
     expect(onSend).toHaveBeenCalledWith(
       "with picture",
-      expect.objectContaining({ path: "attachments/img-1.jpg", mimeType: "image/jpeg" }),
+      [expect.objectContaining({ path: "attachments/img-1.jpg", mimeType: "image/jpeg" })],
+    );
+  });
+
+  it("uploads text files without compression", async () => {
+    uploadAttachment.mockResolvedValue({ path: "attachments/note.txt", bytes: 5 });
+
+    const { onSend } = renderComposer({ streaming: false });
+    await user.type(screen.getByRole("textbox"), "read this");
+
+    await user.upload(hiddenFileInput(), new File(["hello"], "note.txt", { type: "text/plain" }));
+    await screen.findByText("note.txt");
+
+    expect(compressImage).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "发送" }));
+    expect(uploadAttachment).toHaveBeenCalledWith(expect.any(File), { filename: "note.txt" });
+    expect(onSend).toHaveBeenCalledWith(
+      "read this",
+      [expect.objectContaining({ path: "attachments/note.txt", mimeType: "text/plain", name: "note.txt" })],
     );
   });
 
   it("deletes the uploaded attachment on remove", async () => {
     vi.mocked(compressImage).mockResolvedValue({ blob: new Blob(["c"]), width: 10, height: 10, mimeType: "image/jpeg" });
-    uploadAttachedImage.mockResolvedValue({ path: "attachments/img-2.jpg" });
+    uploadAttachment.mockResolvedValue({ path: "attachments/img-2.jpg", bytes: 3 });
 
     renderComposer({ streaming: false });
     await user.upload(hiddenFileInput(), new File(["x"], "p.png", { type: "image/png" }));
@@ -238,8 +260,8 @@ describe("Composer attachment pipeline", () => {
     await user.upload(hiddenFileInput(), new File(["x"], "p.png", { type: "image/png" }));
 
     await vi.waitFor(() => expect(toast.error).toHaveBeenCalled());
-    expect(vi.mocked(toast.error).mock.calls.at(-1)![0]).toContain("添加图片失败");
-    expect(uploadAttachedImage).not.toHaveBeenCalled();
+    expect(vi.mocked(toast.error).mock.calls.at(-1)![0]).toContain("添加文件失败");
+    expect(uploadAttachment).not.toHaveBeenCalled();
 
     expect(screen.getByRole("button", { name: "发送" })).toBeEnabled();
     await user.click(screen.getByRole("button", { name: "发送" }));

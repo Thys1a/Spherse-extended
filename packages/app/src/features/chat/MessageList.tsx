@@ -78,6 +78,7 @@ export function MessageList({ messages, agent, sessionId, streaming, loading = f
         onRespondQuestion={onRespondQuestion}
         onRetry={isLast ? onRetry : undefined}
         onWithdraw={index === withdrawableIndex ? onWithdraw : undefined}
+        editable={index === withdrawableIndex}
       />
     );
   };

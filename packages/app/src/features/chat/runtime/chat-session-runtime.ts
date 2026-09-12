@@ -2,7 +2,7 @@ import { CHAT_CLOSE_CODES, parseChatServerEvent } from "@spherse/contracts";
 import type { ApiClient } from "../../../lib/api";
 import { buildWsUrl } from "../../../lib/api";
 import { parseAgentEvent, type AgentEvent } from "../model/agent-event-parse";
-import type { SendableImage } from "../types";
+import type { SendableFile } from "../types";
 import {
   mergeHistoryMessages,
   parseHistoryMessages,
@@ -310,11 +310,15 @@ export class ChatSessionRuntime<T extends ChatSessionRuntimeState> {
     }, RESUME_PROBE_TIMEOUT_MS);
   }
 
-  sendMessage(content: string, image?: SendableImage): boolean {
+  sendMessage(content: string, attachments?: SendableFile[]): boolean {
     if (!this.isOpen()) return false;
     const payload: Record<string, unknown> = { type: "message", content };
-    if (image) {
-      payload.attachments = [{ type: "image", path: image.path, mimeType: image.mimeType }];
+    if (attachments && attachments.length > 0) {
+      payload.attachments = attachments.map((attachment) => ({
+        type: attachment.mimeType.startsWith("image/") ? "image" : "text",
+        path: attachment.path,
+        mimeType: attachment.mimeType,
+      }));
     }
     this.ws?.send(JSON.stringify(payload));
     return true;

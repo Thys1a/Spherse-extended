@@ -34,16 +34,20 @@ import { parseApiResponse, schemas } from "@spherse/contracts";
 import { Type } from "@sinclair/typebox";
 
 const attachmentUploadResponse = Type.Object({
-  type: Type.Literal("image"),
+  type: Type.String(),
   path: Type.String(),
+  mimeType: Type.Optional(Type.String()),
+  name: Type.Optional(Type.String()),
   width: Type.Optional(Type.Number()),
   height: Type.Optional(Type.Number()),
   bytes: Type.Integer(),
 });
 
 export interface AttachmentUploadResponse {
-  type: "image";
+  type: string;
   path: string;
+  mimeType?: string;
+  name?: string;
   width?: number;
   height?: number;
   bytes: number;
@@ -458,6 +462,12 @@ export function createApiClient(baseUrl: string, projectId: string, accessToken?
       return version !== undefined ? `${base}?v=${version}` : base;
     },
 
+    getAttachmentDownloadUrl(filePath: string): string {
+      const encodedPath = filePath.split("/").map(encodeURIComponent).join("/");
+      const base = `${apiBase}/attachments/download/${encodedPath}`;
+      return accessToken ? `${base}?token=${encodeURIComponent(accessToken)}` : base;
+    },
+
     async getSupportedProviders(): Promise<ProviderCatalogContract> {
       const res = await authedFetch(`${baseUrl}/api/settings/providers`);
       await assertOk(res);
@@ -480,14 +490,14 @@ export function createApiClient(baseUrl: string, projectId: string, accessToken?
       return parseJsonResponse<{ ok: boolean }>(res, schemas.okResponse);
     },
 
-    async uploadAttachedImage(
+    async uploadAttachment(
       blob: Blob,
-      meta?: { width?: number; height?: number },
+      opts?: { filename?: string; width?: number; height?: number },
     ): Promise<AttachmentUploadResponse> {
       const form = new FormData();
-      form.append("file", blob);
-      if (meta?.width !== undefined) form.append("width", String(meta.width));
-      if (meta?.height !== undefined) form.append("height", String(meta.height));
+      form.append("file", blob, opts?.filename);
+      if (opts?.width !== undefined) form.append("width", String(opts.width));
+      if (opts?.height !== undefined) form.append("height", String(opts.height));
       const res = await authedFetch(`${apiBase}/attachments`, {
         method: "POST",
         body: form,
