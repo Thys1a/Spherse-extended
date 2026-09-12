@@ -931,7 +931,7 @@ describe("SessionManager.setSessionModel", () => {
     });
   });
 
-  it("clears the live runner model when the override is removed", async () => {
+  it("clears the persisted override and fails closed on send", async () => {
     const sessionId = await runtime.sessionRuntime.createSession(agentId);
     runtime.sessionRuntime.setSessionModel(agentId, sessionId, "openai/gpt-4o");
     expect(activeAgent(runtime as RuntimeInternals, sessionId).state.model).toEqual({
@@ -940,7 +940,10 @@ describe("SessionManager.setSessionModel", () => {
     });
 
     runtime.sessionRuntime.setSessionModel(agentId, sessionId, "");
-    expect(activeAgent(runtime as RuntimeInternals, sessionId).state.model).toBeUndefined();
+    expect(findSession(sessionId)?.model).toBeUndefined();
+    await expect(
+      runtime.sessionRuntime.sendMessage(sessionId, "hi", [], () => {}),
+    ).rejects.toBeInstanceOf(ModelNotConfiguredError);
   });
 
   it("prefers the session model over the global default on sendMessage", async () => {

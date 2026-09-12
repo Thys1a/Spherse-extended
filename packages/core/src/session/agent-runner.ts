@@ -354,8 +354,9 @@ export class AgentRunner {
       globalDefaultModel,
       this.readSessionModel(),
     );
+    if (!resolved) return;
     const current = this.agent.state.model;
-    if (current?.id !== resolved?.id || current?.provider !== resolved?.provider) {
+    if (current?.id !== resolved.id || current?.provider !== resolved.provider) {
       this.agent.state.model = resolved;
     }
   }
@@ -368,8 +369,9 @@ export class AgentRunner {
       this.deps.runConfig.current().defaultModel,
       this.readSessionModel(),
     );
+    if (!resolved) return;
     const current = this.agent.state.model;
-    if (current?.id !== resolved?.id || current?.provider !== resolved?.provider) {
+    if (current?.id !== resolved.id || current?.provider !== resolved.provider) {
       this.agent.state.model = resolved;
     }
   }
