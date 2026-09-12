@@ -104,7 +104,7 @@ describe("attachments routes", () => {
 
   it("rejects a non-image mimeType", async () => {
     const { body, contentType } = buildMultipart([
-      { name: "file", value: Buffer.from("plain"), filename: "t.txt", contentType: "text/plain" },
+      { name: "file", value: Buffer.from("%PDF"), filename: "t.pdf", contentType: "application/pdf" },
     ]);
     const res = await app.inject({
       method: "POST",
@@ -113,6 +113,86 @@ describe("attachments routes", () => {
       payload: body,
     });
     expect(res.statusCode).toBe(400);
+  });
+
+  it("uploads a text file and returns its mimeType and name", async () => {
+    const { body, contentType } = buildMultipart([
+      { name: "file", value: Buffer.from("hello"), filename: "note.txt", contentType: "text/plain" },
+    ]);
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/projects/p1/attachments",
+      headers: { "content-type": contentType, "content-length": String(body.length) },
+      payload: body,
+    });
+    expect(res.statusCode).toBe(200);
+    const json = res.json();
+    expect(json.type).toBe("text");
+    expect(json.mimeType).toBe("text/plain");
+    expect(json.name).toBe("note.txt");
+    expect(json.path).toMatch(/^\.spherse\/attachments\/\d+-[0-9a-f]{8}\.txt$/);
+    const written = fs.readFileSync(path.join(tmpDir, json.path));
+    expect(written.toString("utf8")).toBe("hello");
+  });
+
+  it("rejects a text upload exceeding the 2MB text limit", async () => {
+    const tooLarge = Buffer.alloc(2 * 1024 * 1024 + 1, 97);
+    const { body, contentType } = buildMultipart([
+      { name: "file", value: tooLarge, filename: "big.txt", contentType: "text/plain" },
+    ]);
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/projects/p1/attachments",
+      headers: { "content-type": contentType, "content-length": String(body.length) },
+      payload: body,
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("downloads an uploaded file with attachment disposition", async () => {
+    const { body, contentType } = buildMultipart([
+      { name: "file", value: Buffer.from("download me"), filename: "doc.txt", contentType: "text/plain" },
+    ]);
+    const up = await app.inject({
+      method: "POST",
+      url: "/api/projects/p1/attachments",
+      headers: { "content-type": contentType, "content-length": String(body.length) },
+      payload: body,
+    });
+    expect(up.statusCode).toBe(200);
+    const { path: rel } = up.json();
+
+    const down = await app.inject({
+      method: "GET",
+      url: `/api/projects/p1/attachments/download/${rel}`,
+    });
+    expect(down.statusCode).toBe(200);
+    expect(down.headers["content-disposition"]).toContain("attachment");
+    expect(down.body).toBe("download me");
+  });
+
+  it("rejects downloading a path outside the attachments directory", async () => {
+    const down = await app.inject({
+      method: "GET",
+      url: "/api/projects/p1/attachments/download/.spherse/project.yaml",
+    });
+    expect(down.statusCode).toBe(403);
+  });
+
+  it("returns 404 for a missing attachment download", async () => {
+    const down = await app.inject({
+      method: "GET",
+      url: "/api/projects/p1/attachments/download/.spherse/attachments/nope.txt",
+    });
+    expect(down.statusCode).toBe(404);
+  });
+
+  it("rejects traversal above the attachments directory", async () => {
+    const down = await app.inject({
+      method: "GET",
+      url: "/api/projects/p1/attachments/download/.spherse/attachments/../project.yaml",
+    });
+    expect(down.statusCode).toBe(403);
   });
 
   it("rejects an upload exceeding the size limit", async () => {

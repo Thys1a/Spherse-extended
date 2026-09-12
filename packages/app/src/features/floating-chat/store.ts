@@ -4,6 +4,7 @@ export interface FloatingChatState {
   sessionId: string;
   position: { x: number; y: number };
   size: { width: number; height: number };
+  mode: "full" | "pet";
 }
 
 interface FloatingChatStore {

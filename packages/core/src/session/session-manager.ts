@@ -1,6 +1,7 @@
 import type { AgentChangePayload } from "../store/project.js";
+import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { Logger } from "../logger.js";
-import { NotFoundError } from "../errors.js";
+import { NotFoundError, ValidationError } from "../errors.js";
 import { AgentRunner, type RunnerEventHandler } from "./agent-runner.js";
 import { SessionEventLog } from "./event-log.js";
 import type { SendMessageMeta, SessionEvent } from "./events.js";
@@ -15,6 +16,7 @@ export class SessionManager {
   private readonly sessions = new Map<string, AgentRunner>();
   private readonly deps: RuntimeDeps;
   private readonly runConfigHolder: RunConfigHolder;
+  private readonly appendChains = new Map<string, Promise<void>>();
 
   constructor(deps: RuntimeDeps, options?: { initialRunConfig?: RunConfigHolder }) {
     this.deps = deps;
@@ -71,10 +73,11 @@ export class SessionManager {
     attachments: Attachment[],
     onEvent: RunnerEventHandler,
     meta?: SendMessageMeta,
+    opts?: { modelOverride?: string },
   ): Promise<void> {
     const session = this.sessions.get(sessionId);
     if (!session) throw new NotFoundError(`No active session "${sessionId}"`);
-    return session.sendMessage(message, attachments, onEvent, meta);
+    return session.sendMessage(message, attachments, onEvent, meta, opts);
   }
 
   abortSession(sessionId: string): void {
@@ -94,6 +97,57 @@ export class SessionManager {
     const session = this.sessions.get(sessionId);
     if (!session) throw new NotFoundError(`No active session "${sessionId}"`);
     return session.withdrawLastTurn();
+  }
+
+  async appendUserMessage(
+    agentId: string,
+    sessionId: string,
+    message: string,
+    meta?: SendMessageMeta,
+  ): Promise<number> {
+    const prev = this.appendChains.get(sessionId) ?? Promise.resolve();
+    let release!: () => void;
+    const turn = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const chained = prev.then(() => turn);
+    this.appendChains.set(sessionId, chained);
+    await prev;
+    try {
+      return this.appendUserMessageInner(agentId, sessionId, message, meta);
+    } finally {
+      release();
+      if (this.appendChains.get(sessionId) === chained) {
+        this.appendChains.delete(sessionId);
+      }
+    }
+  }
+
+  private appendUserMessageInner(
+    agentId: string,
+    sessionId: string,
+    message: string,
+    meta?: SendMessageMeta,
+  ): number {
+    const record: AgentMessage = {
+      role: "user",
+      content: message,
+      timestamp: Date.now(),
+    };
+    const active = this.sessions.get(sessionId);
+    if (active) return active.appendUserNote(record, meta).seq;
+    const agentStore = this.deps.projectStore.getAgent(agentId);
+    if (!agentStore) throw new NotFoundError(`Agent "${agentId}" not found`);
+    if (!agentStore.sessions.getSession(sessionId)) {
+      throw new NotFoundError(`Session "${sessionId}" not found`);
+    }
+    return SessionEventLog.open(agentStore.sessions, sessionId).append("user/message", {
+      message: record,
+      ...(meta?.source !== undefined ? { source: meta.source } : {}),
+      ...(meta?.triggerName !== undefined ? { triggerName: meta.triggerName } : {}),
+      ...(meta?.slash !== undefined ? { slash: meta.slash } : {}),
+      ...(meta?.summon !== undefined ? { summon: meta.summon } : {}),
+    }).seq;
   }
 
   resolveControlRequest(sessionId: string, requestId: string, decision: unknown): void {
@@ -156,6 +210,7 @@ export class SessionManager {
       agentStore.getProfile(),
       this.deps.modelCatalog.resolveModelById.bind(this.deps.modelCatalog),
       this.runConfigHolder.current().defaultModel,
+      agentStore.sessions.getSession(sessionId)?.model,
     );
   }
 
@@ -190,6 +245,25 @@ export class SessionManager {
     for (const session of this.sessions.values()) {
       session.applyDefaultModel(model);
     }
+  }
+
+  setSessionModel(agentId: string, sessionId: string, modelId: string): string | null {
+    const agentStore = this.deps.projectStore.getAgent(agentId);
+    if (!agentStore) throw new NotFoundError(`Agent "${agentId}" not found`);
+    const session = agentStore.sessions.getSession(sessionId);
+    if (!session) throw new NotFoundError(`Session "${sessionId}" not found`);
+    const trimmed = modelId.trim();
+    if (trimmed) {
+      try {
+        this.deps.modelCatalog.resolveModelById(trimmed);
+      } catch {
+        throw new ValidationError(`Unknown model: ${trimmed}`);
+      }
+    }
+    const next = trimmed || null;
+    agentStore.sessions.setSessionModel(sessionId, next);
+    this.sessions.get(sessionId)?.applySessionModel();
+    return next;
   }
 
   setSampling(sampling: Parameters<RunConfigHolder["update"]>[0]["sampling"]): void {

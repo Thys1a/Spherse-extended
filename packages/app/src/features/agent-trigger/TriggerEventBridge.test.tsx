@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { TriggerEventBridge } from "./TriggerEventBridge";
 import { useTriggerStore } from "./store";
 import { bumpBusResumedAt, connectMockBus, emitBusEvent, stubMockBusSocket, teardownMockBus } from "../../test/bus";
+import { createMockHostBridge } from "../../test/host-bridge";
 import { renderWithProviders } from "../../test/render";
 import { queryClient as globalQueryClient } from "../../queries/client";
 import { projectQueryKeys } from "../../queries/keys";
@@ -18,7 +19,7 @@ afterEach(() => {
 });
 
 function renderBridge() {
-  renderWithProviders(<TriggerEventBridge />);
+  renderWithProviders(<TriggerEventBridge />, { bridge: createMockHostBridge() });
 }
 
 function emitTrigger(type: string, payload: object) {
@@ -99,5 +100,35 @@ describe("TriggerEventBridge", () => {
 
     expect(invalidate).toHaveBeenCalledWith({ queryKey: projectQueryKeys.triggers("p1") });
     expect(useTriggerStore.getState().byProject["p1"]?.runningTriggerIdsByAgent).toEqual({});
+  });
+
+  it("sends an OS notification with the session route on trigger_completed", async () => {
+    const notify = vi.fn();
+    vi.spyOn(document, "hasFocus").mockReturnValue(false);
+    renderWithProviders(<TriggerEventBridge />, {
+      bridge: createMockHostBridge({ notify }),
+    });
+    await connectMockBus();
+    globalQueryClient.setQueryData(projectQueryKeys.triggers("p1"), {
+      triggers: [
+        {
+          agentId: "a1",
+          id: "t1",
+          enabled: true,
+          notify: true,
+          type: "time",
+          mode: "new_session",
+          message: "m",
+          createdAt: 1,
+          updatedAt: 1,
+          nextTriggerAt: null,
+        },
+      ],
+    });
+    emitTrigger("trigger_completed", { agentId: "a1", triggerId: "t1", sessionId: "s1", status: "success" });
+
+    expect(notify).toHaveBeenCalledWith(expect.any(String), expect.any(String), {
+      route: "/project/p1/chat/s1",
+    });
   });
 });

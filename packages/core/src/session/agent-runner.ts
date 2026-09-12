@@ -16,6 +16,7 @@ import {
 } from "../attachments/sanitizer.js";
 import { composeTurnHooks, type TurnHooks } from "../kernel/turn-hooks.js";
 import { collectAbandonedSeqs, deriveMessages, repairLog } from "./fold.js";
+import { expandSlashMessage } from "./slash.js";
 import { SessionEventLog } from "./event-log.js";
 import type { SessionEvent, SendMessageMeta } from "./events.js";
 import { readCurrentTokens } from "../context/token-estimate.js";
@@ -114,6 +115,17 @@ export class AgentRunner {
     return this.eventLog ? this.eventLog.subscribe(listener) : null;
   }
 
+  appendUserNote(message: AgentMessage, meta?: SendMessageMeta): SessionEvent {
+    if (!this.eventLog) throw new NotFoundError(`Session "${this.sessionId}" is not open`);
+    return this.eventLog.append("user/message", {
+      message,
+      ...(meta?.source !== undefined ? { source: meta.source } : {}),
+      ...(meta?.triggerName !== undefined ? { triggerName: meta.triggerName } : {}),
+      ...(meta?.slash !== undefined ? { slash: meta.slash } : {}),
+      ...(meta?.summon !== undefined ? { summon: meta.summon } : {}),
+    });
+  }
+
   markReloadPending(): void {
     this.pendingReload = true;
   }
@@ -123,6 +135,7 @@ export class AgentRunner {
     attachments: ReadonlyArray<Attachment>,
     onEvent: RunnerEventHandler,
     meta?: SendMessageMeta,
+    opts?: { modelOverride?: string },
   ): Promise<void> {
     this.ensureNotBusy();
     this.inFlight = true;
@@ -134,14 +147,23 @@ export class AgentRunner {
         this.pendingReload = false;
         await this.applyReload();
       }
-      this.ensureModel();
+      const slash = await expandSlashMessage(
+        {
+          projectStore: this.deps.projectStore,
+          capabilities: this.deps.capabilities,
+        },
+        this.agentId,
+        message,
+      );
+      const text = slash?.text ?? message;
+      this.ensureModel(slash?.modelOverride ?? opts?.modelOverride);
       this.ensureWritable();
       await this.turnHooks.beforeTurn?.(this.agent);
       const sessionLogger = this.deps.logger.child({ sessionId: this.sessionId });
 
       sanitizer = createAttachmentSanitizer(attachments);
       const userMessage = await prepareAttachmentUserMessage(
-        message,
+        text,
         attachments,
         this.deps.projectRoot,
         this.deps.attachmentProcessors,
@@ -157,6 +179,7 @@ export class AgentRunner {
             message: sanitizedUserMessage as never,
             ...(meta?.source !== undefined ? { source: meta.source } : {}),
             ...(meta?.triggerName !== undefined ? { triggerName: meta.triggerName } : {}),
+            ...(slash !== null ? { slash: slash.slash } : {}),
           },
         },
         { type: "turn/start", data: {} },
@@ -348,7 +371,26 @@ export class AgentRunner {
   applyDefaultModel(globalDefaultModel: string | undefined): void {
     const profile = this.deps.projectStore.getAgent(this.agentId)?.getProfile();
     if (!profile) return;
-    const resolved = this.deps.modelResolver.resolveFor(profile, globalDefaultModel);
+    const resolved = this.deps.modelResolver.resolveFor(
+      profile,
+      globalDefaultModel,
+      this.readSessionModel(),
+    );
+    if (!resolved) return;
+    const current = this.agent.state.model;
+    if (current?.id !== resolved.id || current?.provider !== resolved.provider) {
+      this.agent.state.model = resolved;
+    }
+  }
+
+  applySessionModel(): void {
+    const profile = this.deps.projectStore.getAgent(this.agentId)?.getProfile();
+    if (!profile) return;
+    const resolved = this.deps.modelResolver.resolveFor(
+      profile,
+      this.deps.runConfig.current().defaultModel,
+      this.readSessionModel(),
+    );
     if (!resolved) return;
     const current = this.agent.state.model;
     if (current?.id !== resolved.id || current?.provider !== resolved.provider) {
@@ -463,12 +505,27 @@ export class AgentRunner {
     }
   }
 
-  private ensureModel(): void {
+  private ensureModel(modelOverride?: string): void {
     const profile = this.deps.projectStore.getAgent(this.agentId)?.getProfile();
     if (!profile) throw new NotFoundError(`Agent "${this.agentId}" not found`);
+    if (modelOverride) {
+      try {
+        this.deps.modelCatalog.resolveModelById(modelOverride);
+      } catch {
+        throw new ValidationError(`Unknown model: ${modelOverride}`);
+      }
+    }
     this.agent.state.model = this.deps.modelResolver.resolveOrThrow(
       profile,
       this.deps.runConfig.current().defaultModel,
+      modelOverride ?? this.readSessionModel(),
+    );
+  }
+
+  private readSessionModel(): string | undefined {
+    return (
+      this.deps.projectStore.getAgent(this.agentId)?.sessions.getSession(this.sessionId)?.model ??
+      undefined
     );
   }
 }

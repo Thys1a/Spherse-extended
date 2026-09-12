@@ -462,4 +462,127 @@ describe("api contracts", () => {
 
     await app.close();
   });
+
+  it("round-trips the session model update body through Fastify coercion", async () => {
+    const app = Fastify();
+    app.patch<{ Body: { modelId: string } }>(
+      "/sessions/:id/model",
+      { schema: { body: schemas.sessionModelUpdateRequest } },
+      async (req) => ({ ok: true, modelId: req.body.modelId }),
+    );
+
+    try {
+      const set = await app.inject({
+        method: "PATCH",
+        url: "/sessions/s1/model",
+        payload: { modelId: "openai/gpt-4o" },
+      });
+      expect(set.statusCode).toBe(200);
+      expect(set.json()).toEqual({ ok: true, modelId: "openai/gpt-4o" });
+
+      const cleared = await app.inject({
+        method: "PATCH",
+        url: "/sessions/s1/model",
+        payload: { modelId: "" },
+      });
+      expect(cleared.statusCode).toBe(200);
+      expect(cleared.json()).toEqual({ ok: true, modelId: "" });
+
+      const missing = await app.inject({
+        method: "PATCH",
+        url: "/sessions/s1/model",
+        payload: {},
+      });
+      expect(missing.statusCode).toBe(400);
+
+      const nonString = await app.inject({
+        method: "PATCH",
+        url: "/sessions/s1/model",
+        payload: { modelId: 42 },
+      });
+      expect(nonString.statusCode).toBe(200);
+      expect(nonString.json()).toEqual({ ok: true, modelId: "42" });
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("accepts session history entries with slash and summon metadata", () => {
+    const page = {
+      entries: [
+        {
+          id: 1,
+          message: { role: "user", content: "hi" },
+          slash: { type: "skill", name: "review", rawArgs: "x" },
+        },
+        {
+          id: 2,
+          message: { role: "user", content: "run" },
+          source: "summon",
+          summon: { agentId: "a9", sessionId: "s9", agentName: "Builder" },
+        },
+      ],
+      hasMore: false,
+      oldestId: 1,
+    };
+    expect(parseApiResponse(schemas.sessionMessagesPageResponse, page)).toEqual(page);
+    expect(() =>
+      parseApiResponse(schemas.sessionMessagesPageResponse, {
+        entries: [{ id: 1, message: "x", slash: { type: "bogus", name: "n", rawArgs: "" } }],
+        hasMore: false,
+        oldestId: 1,
+      }),
+    ).toThrow(/Invalid payload/);
+  });
+
+  it("accepts session info with or without a model", () => {
+    const base = {
+      id: "s1",
+      agentId: "a1",
+      createdAt: 1,
+      updatedAt: 2,
+      status: "active",
+    };
+    expect(parseApiResponse(schemas.sessionInfo, base)).toEqual(base);
+    expect(
+      parseApiResponse(schemas.sessionInfo, { ...base, model: "openai/gpt-4o" }),
+    ).toEqual({ ...base, model: "openai/gpt-4o" });
+  });
+
+  it("validates command definitions and payloads", () => {
+    const definition = {
+      name: "test",
+      description: "Run tests",
+      model: "openai/gpt-4o",
+      template: "Run $ARGUMENTS",
+      filePath: "/tmp/p/.spherse/commands/test.md",
+    };
+    expect(parseApiResponse(schemas.commandDefinition, definition)).toEqual(definition);
+    expect(parseApiResponse(schemas.commandListResponse, [definition])).toEqual([definition]);
+    expect(
+      parseApiResponse(schemas.commandCreateRequest, { name: "test", template: "Run $ARGUMENTS" }),
+    ).toEqual({ name: "test", template: "Run $ARGUMENTS" });
+    expect(() =>
+      parseApiResponse(schemas.commandCreateRequest, { name: "test" }),
+    ).toThrow(/Invalid payload/);
+    expect(() =>
+      parseApiResponse(schemas.commandCreateRequest, { name: "", template: "x" }),
+    ).toThrow(/Invalid payload/);
+    expect(parseApiResponse(schemas.commandUpdateRequest, { template: "Run $1" })).toEqual({
+      template: "Run $1",
+    });
+    expect(parseApiResponse(schemas.commandUpdateRequest, {})).toEqual({});
+  });
+
+  it("accepts agent summaries with a model but still rejects config fields", () => {
+    const base = { id: "a1", name: "Agent", slug: "agent" };
+    expect(parseApiResponse(schemas.agentSummary, base)).toEqual(base);
+    expect(parseApiResponse(schemas.agentSummary, { ...base, model: "openai/gpt-4o" })).toEqual({
+      ...base,
+      model: "openai/gpt-4o",
+    });
+    expect(() =>
+      parseApiResponse(schemas.agentSummary, { ...base, systemPrompt: "secret" }),
+    ).toThrow(/Invalid payload/);
+  });
 });

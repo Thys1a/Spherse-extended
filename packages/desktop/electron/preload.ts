@@ -11,6 +11,7 @@ const UPDATE_EVENT_CHANNELS = [
 ] as const;
 
 const MOBILE_EVENT_CHANNEL = "mobile-access:event";
+const NOTIFICATION_CLICK_CHANNEL = "notification-clicked";
 
 contextBridge.exposeInMainWorld("electronAPI", {
   selectDirectory: () => ipcRenderer.invoke("select-directory"),
@@ -34,6 +35,13 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.invoke("open-project-folder", projectRoot),
   openFile: (filePath: string) => ipcRenderer.invoke("open-file", filePath),
   openExternal: (url: string) => ipcRenderer.invoke("open-external", url),
+  showNotification: (opts: { title: string; body: string; route?: string }) =>
+    ipcRenderer.invoke("show-notification", opts),
+  onNotificationClicked: (callback: (route: string) => void) => {
+    const handler = (_e: unknown, payload: { route: string }) => callback(payload.route);
+    ipcRenderer.on(NOTIFICATION_CLICK_CHANNEL, handler);
+    return () => ipcRenderer.removeListener(NOTIFICATION_CLICK_CHANNEL, handler);
+  },
   setLastActiveProject: (projectId: string) =>
     ipcRenderer.invoke("set-last-active-project", projectId),
   getLastActiveProject: () =>

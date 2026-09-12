@@ -215,7 +215,8 @@ export async function buildAgent(
     askGate,
   );
 
-  const model = deps.modelResolver.resolveFor(profile, deps.runConfig.current().defaultModel);
+  const sessionModel = deps.projectStore.getAgent(profile.id)?.sessions.getSession(sessionId)?.model;
+  const model = deps.modelResolver.resolveFor(profile, deps.runConfig.current().defaultModel, sessionModel);
   if (!model) {
     deps.logger.warn({ agentId: profile.id }, "model not resolvable, agent will wait for model config");
   }

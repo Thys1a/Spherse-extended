@@ -53,6 +53,37 @@ describe("mergeHistoryMessages trigger metadata", () => {
   });
 });
 
+describe("parseHistoryMessages slash and summon metadata", () => {
+  it("maps slash meta onto the _slash view field", () => {
+    const result = parseHistoryMessages([
+      {
+        id: 1,
+        message: { role: "user", content: "expanded", timestamp: 1 },
+        slash: { type: "skill", name: "review", rawArgs: "x" },
+      },
+    ]);
+    expect(result[0]).toMatchObject({
+      _slash: { type: "skill", name: "review", rawArgs: "x" },
+    });
+    expect(result[0]._summon).toBeUndefined();
+  });
+
+  it("maps summon meta onto the _summon view field", () => {
+    const result = parseHistoryMessages([
+      {
+        id: 2,
+        message: { role: "user", content: "run tests", timestamp: 2 },
+        source: "summon",
+        summon: { agentId: "a9", sessionId: "s9", agentName: "Builder" },
+      },
+    ]);
+    expect(result[0]).toMatchObject({
+      _summon: { agentId: "a9", sessionId: "s9", agentName: "Builder" },
+    });
+    expect(result[0]._triggered).toBeUndefined();
+  });
+});
+
 describe("resolvePageCursor", () => {
   it("takes the new page when the session is empty", () => {
     expect(

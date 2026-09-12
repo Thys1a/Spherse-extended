@@ -12,7 +12,7 @@ import {
 } from "./chat-tool-projection";
 import { classifyErrorMessageString } from "./classify-error";
 import { aggregateFileChanges, attachRunChanges } from "../lib/aggregate-file-changes";
-import type { ChatMessage, ToolCallInfo } from "../types";
+import type { ChatAttachment, ChatMessage, ToolCallInfo } from "../types";
 
 interface ToolResultDetailsBag {
   result: string;
@@ -83,8 +83,54 @@ export function resolvePageCursor(
   return prev;
 }
 
+export interface UserMessageMeta {
+  source?: "triggered" | "summon";
+  triggerName?: string;
+  slash?: { type: "skill" | "command"; name: string; rawArgs: string };
+  summon?: { agentId: string; sessionId: string; agentName: string };
+}
+
+function isSlashMeta(value: unknown): value is NonNullable<UserMessageMeta["slash"]> {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    ((value as { type?: unknown }).type === "skill" ||
+      (value as { type?: unknown }).type === "command") &&
+    typeof (value as { name?: unknown }).name === "string" &&
+    typeof (value as { rawArgs?: unknown }).rawArgs === "string"
+  );
+}
+
+function isSummonMeta(value: unknown): value is NonNullable<UserMessageMeta["summon"]> {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as { agentId?: unknown }).agentId === "string" &&
+    typeof (value as { sessionId?: unknown }).sessionId === "string" &&
+    typeof (value as { agentName?: unknown }).agentName === "string"
+  );
+}
+
+export function projectUserMeta(meta: UserMessageMeta): Partial<ChatMessage> {
+  const out: Partial<ChatMessage> = {};
+  if (meta.source === "triggered") out._triggered = true as const;
+  if (meta.source === "triggered" && meta.triggerName !== undefined) {
+    out._triggerName = meta.triggerName;
+  }
+  if (meta.slash !== undefined && isSlashMeta(meta.slash)) out._slash = meta.slash;
+  if (meta.summon !== undefined && isSummonMeta(meta.summon)) out._summon = meta.summon;
+  return out;
+}
+
 export function parseHistoryMessages(
-  history: Array<{ id: number; message: unknown; source?: "triggered"; triggerName?: string } | unknown>,
+  history: Array<{
+    id: number;
+    message: unknown;
+    source?: "triggered" | "summon";
+    triggerName?: string;
+    slash?: { type: "skill" | "command"; name: string; rawArgs: string };
+    summon?: { agentId: string; sessionId: string; agentName: string };
+  } | unknown>,
 ): ChatMessage[] {
   const entries = history.map((entry) => {
     if (isObject(entry) && typeof entry.id === "number" && "message" in entry) {
@@ -93,6 +139,8 @@ export function parseHistoryMessages(
         message: entry.message,
         ...(entry.source !== undefined ? { source: entry.source } : {}),
         ...(entry.triggerName !== undefined ? { triggerName: entry.triggerName } : {}),
+        ...(entry.slash !== undefined ? { slash: entry.slash } : {}),
+        ...(entry.summon !== undefined ? { summon: entry.summon } : {}),
       };
     }
     return { id: undefined, message: entry };
@@ -104,17 +152,27 @@ export function parseHistoryMessages(
   for (const entry of entries) {
     if (isUserMessage(entry.message)) {
       const rawAttachments = (entry.message as { _attachments?: unknown })._attachments;
-      const source = (entry as { source?: "triggered" }).source;
-      const triggerName = (entry as { triggerName?: string }).triggerName;
+      const saneAttachments = Array.isArray(rawAttachments)
+        ? rawAttachments.filter(
+            (attachment): attachment is ChatAttachment =>
+              typeof attachment === "object" &&
+              attachment !== null &&
+              typeof (attachment as { path?: unknown }).path === "string" &&
+              typeof (attachment as { mimeType?: unknown }).mimeType === "string",
+          )
+        : [];
+      const meta = projectUserMeta({
+        source: (entry as { source?: "triggered" | "summon" }).source,
+        triggerName: (entry as { triggerName?: string }).triggerName,
+        slash: (entry as { slash?: ChatMessage["_slash"] }).slash,
+        summon: (entry as { summon?: ChatMessage["_summon"] }).summon,
+      });
       loaded.push({
         ...(entry.id !== undefined ? { _messageId: entry.id } : {}),
         role: "user",
         content: extractMessageText(entry.message.content),
-        ...(Array.isArray(rawAttachments) && rawAttachments.length > 0
-          ? { _attachments: rawAttachments as ChatMessage["_attachments"] }
-          : {}),
-        ...(source === "triggered" ? { _triggered: true as const } : {}),
-        ...(source === "triggered" && triggerName !== undefined ? { _triggerName: triggerName } : {}),
+        ...(saneAttachments.length > 0 ? { _attachments: saneAttachments } : {}),
+        ...meta,
         timestamp: entry.message.timestamp,
       });
       continue;

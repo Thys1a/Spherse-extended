@@ -1,4 +1,8 @@
-import { useCallback } from "react";
+import { useCallback, useRef, useState } from "react";
+import { toast } from "sonner";
+import { useI18n } from "@spherse/i18n/react";
+import { ChevronRightIcon, PencilIcon } from "lucide-react";
+import { Button } from "../../components/ui/button";
 import type { AgentSummary } from "../../lib/types";
 import type { ChatMessage } from "./types";
 import { MarkdownContent } from "../../components/markdown-content/MarkdownContent";
@@ -16,8 +20,12 @@ import { MessageAttachments } from "./MessageAttachments";
 import { SendFailedBar } from "./SendFailedBar";
 import { WithdrawButton } from "./WithdrawButton";
 import { SpeakButton } from "./SpeakButton";
+import { SelectionMenu } from "./SelectionMenu";
+import { useComposerInsertStore } from "./composer-insert-store";
+import { useStreamingStore } from "./runtime/streaming-store";
 import { useOpenExternalLink } from "../browser/open-external-url";
 import { formatMessageTime } from "./lib/format-time";
+import { quoteFenceFor } from "./lib/quote-fence";
 
 interface MessageItemProps {
   message: ChatMessage;
@@ -30,11 +38,79 @@ interface MessageItemProps {
   onRespondQuestion?: (requestId: string, answer: string) => boolean | void;
   onRetry?: () => void;
   onWithdraw?: () => void;
+  onOpenSession?: (sessionId: string) => void;
+  editable?: boolean;
 }
 
-export function MessageItem({ message, agent, showTime, sessionId, supersededToolCallIds, onNavigateToPath, onRespondApproval, onRespondQuestion, onRetry, onWithdraw }: MessageItemProps) {
+export function MessageItem({ message, agent, showTime, sessionId, supersededToolCallIds, onNavigateToPath, onRespondApproval, onRespondQuestion, onRetry, onWithdraw, onOpenSession, editable }: MessageItemProps) {
   const isUser = message.role === "user";
   const openLink = useOpenExternalLink();
+  const { t } = useI18n();
+  const bubbleRef = useRef<HTMLDivElement>(null);
+  const [menu, setMenu] = useState<{ x: number; y: number; text: string } | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [editDraft, setEditDraft] = useState("");
+  const canEdit = editable && sessionId != null && !message._streaming;
+
+  const handleContextMenu = useCallback((event: React.MouseEvent) => {
+    const selection = window.getSelection();
+    const text = selection?.toString() ?? "";
+    if (
+      !text.trim() ||
+      !bubbleRef.current ||
+      !selection?.anchorNode ||
+      !selection.focusNode ||
+      !bubbleRef.current.contains(selection.anchorNode) ||
+      !bubbleRef.current.contains(selection.focusNode)
+    ) {
+      setMenu(null);
+      return;
+    }
+    event.preventDefault();
+    setMenu({ x: event.clientX, y: event.clientY, text });
+  }, []);
+
+  const handleCopySelection = useCallback(() => {
+    const text = menu?.text;
+    setMenu(null);
+    if (!text) return;
+    if (!navigator.clipboard) {
+      toast.error(t("chat.selectionMenu.copyFailed"));
+      return;
+    }
+    void Promise.resolve()
+      .then(() => navigator.clipboard.writeText(text))
+      .catch(() => {
+        toast.error(t("chat.selectionMenu.copyFailed"));
+      });
+  }, [menu, t]);
+
+  const handleQuoteSelection = useCallback(() => {
+    if (menu && sessionId) {
+      const fence = quoteFenceFor(menu.text);
+      useComposerInsertStore
+        .getState()
+        .requestInsert(sessionId, `${fence}quoted\n${menu.text}\n${fence}`);
+    }
+    setMenu(null);
+  }, [menu, sessionId]);
+
+  const handleStartEdit = useCallback(() => {
+    setEditDraft(message.content);
+    setEditing(true);
+  }, [message.content]);
+
+  const handleConfirmEdit = useCallback(() => {
+    if (sessionId && useStreamingStore.getState().editAndResend(sessionId, editDraft)) {
+      setEditing(false);
+    }
+  }, [sessionId, editDraft]);
+
+  const handleCancelEdit = useCallback(() => {
+    setEditing(false);
+  }, []);
+
+  const handleCloseMenu = useCallback(() => setMenu(null), []);
 
   const handleLinkClick = useCallback(
     async (href: string, event: React.MouseEvent<HTMLAnchorElement>) => {
@@ -61,7 +137,9 @@ export function MessageItem({ message, agent, showTime, sessionId, supersededToo
         className={`flex min-w-0 flex-col gap-1 ${isUser ? "items-end md:flex-row-reverse" : "items-start md:flex-row"} md:items-end md:gap-1.5`}
       >
       <div
+        ref={bubbleRef}
         data-chat-bubble
+        onContextMenu={handleContextMenu}
         className={`max-w-full min-w-0 overflow-hidden rounded-lg px-3.5 py-2.5 leading-7 break-words ${
           isUser
             ? "bg-primary text-primary-foreground"
@@ -72,8 +150,41 @@ export function MessageItem({ message, agent, showTime, sessionId, supersededToo
           {message.role === "assistant" && (agent.alias || agent.name)}
         </div>
         <div className="text-sm">
+          {message._slash && (
+            <span className="mb-1 inline-flex rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
+              /{message._slash.type}:{message._slash.name}
+            </span>
+          )}
           {message._streaming && message.content === "" ? (
             <ThinkingIndicator />
+          ) : editing ? (
+            <div className="flex min-w-52 flex-col gap-2">
+              <textarea
+                value={editDraft}
+                onChange={(event) => setEditDraft(event.target.value)}
+                rows={3}
+                autoFocus
+                className="w-full resize-y rounded-md border border-input bg-background px-2 py-1 text-sm text-foreground"
+              />
+              <div className="flex justify-end gap-1.5">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleCancelEdit}
+                >
+                  {t("chat.editCancel")}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleConfirmEdit}
+                  disabled={!editDraft.trim()}
+                >
+                  {t("chat.editConfirm")}
+                </Button>
+              </div>
+            </div>
           ) : (
             <>
               <MarkdownContent variant="chat" plain={isUser} linkClassName="text-inherit" onLinkClick={handleLinkClick}>{message.content}</MarkdownContent>
@@ -83,6 +194,17 @@ export function MessageItem({ message, agent, showTime, sessionId, supersededToo
         </div>
         {isUser && message._attachments && message._attachments.length > 0 && (
           <MessageAttachments attachments={message._attachments} />
+        )}
+        {isUser && message._summon?.sessionId && onOpenSession && (
+          <button
+            type="button"
+            onClick={() => onOpenSession(message._summon!.sessionId)}
+            title={t("chat.summonCard", { name: message._summon.agentName ?? message._summon.agentId })}
+            className="mt-2 flex items-center gap-1.5 self-start rounded-md border border-border px-2.5 py-1.5 text-xs hover:bg-muted"
+          >
+            <span>{t("chat.summonCard", { name: message._summon.agentName ?? message._summon.agentId })}</span>
+            <ChevronRightIcon className="size-3.5 text-muted-foreground" />
+          </button>
         )}
         {message._toolCalls && message._toolCalls.length > 0 && (
           <ToolCallSection toolCalls={message._toolCalls} onNavigateToPath={onNavigateToPath} />
@@ -127,6 +249,17 @@ export function MessageItem({ message, agent, showTime, sessionId, supersededToo
         {!message._streaming && (
           <div className={`flex items-center gap-1 pb-1 opacity-100 md:opacity-0 md:transition-opacity md:group-hover:opacity-100 ${isUser ? "md:flex-row-reverse" : ""}`}>
             {isUser && onWithdraw && <WithdrawButton onWithdraw={onWithdraw} />}
+            {isUser && canEdit && !editing && (
+              <button
+                type="button"
+                onClick={handleStartEdit}
+                title={t("chat.editTooltip")}
+                aria-label={t("chat.editTooltip")}
+                className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <PencilIcon className="size-3.5" />
+              </button>
+            )}
             {!isUser && message._messageId != null && (
               <SpeakButton messageId={String(message._messageId)} text={message.content} sessionId={sessionId} />
             )}
@@ -139,6 +272,16 @@ export function MessageItem({ message, agent, showTime, sessionId, supersededToo
           </div>
         )}
       </div>
+      {menu && (
+        <SelectionMenu
+          x={menu.x}
+          y={menu.y}
+          canQuote={sessionId != null}
+          onCopy={handleCopySelection}
+          onQuote={handleQuoteSelection}
+          onClose={handleCloseMenu}
+        />
+      )}
     </div>
   );
 }

@@ -46,6 +46,14 @@ export interface SkillDefinition {
   version?: string;
 }
 
+export interface CommandDefinition {
+  name: string;
+  description?: string;
+  model?: string;
+  template: string;
+  filePath: string;
+}
+
 export type TriggerType = "time" | "event";
 
 export interface TriggerEntry {
@@ -85,6 +93,7 @@ export interface SessionInfo {
   updatedAt: number;
   status: "active" | "archived";
   source?: "manual" | "triggered";
+  model?: string;
 }
 
 export interface ProviderCredentials {
@@ -139,6 +148,10 @@ export interface AppSettings {
   mobileAccess?: MobileAccessSettings;
   tts?: TtsSettings;
   proxy?: ProxySettings;
+  notifications?: {
+    approval?: boolean;
+    trigger?: boolean;
+  };
 }
 
 export interface ProviderCatalogItem {

@@ -55,6 +55,11 @@ export type UpdateEvent =
 
 export type HostKind = "electron" | "web";
 
+export interface NotificationSettings {
+  approval?: boolean;
+  trigger?: boolean;
+}
+
 export interface HostSettings {
   locale?: string;
   models?: {
@@ -66,6 +71,7 @@ export interface HostSettings {
   theme?: ThemeMode;
   tts?: TtsSettings;
   proxy?: ProxySettings;
+  notifications?: NotificationSettings;
 }
 
 export type TunnelStatus = "stopped" | "starting" | "running" | "error";
@@ -109,6 +115,7 @@ export interface HostCapabilities {
   mobileAccess: boolean;
   openFileExternal: boolean;
   proxy: boolean;
+  notification: boolean;
   content: { editable: boolean };
 }
 
@@ -146,6 +153,10 @@ export interface DevToolsHostApi {
   resetAppData(): Promise<void>;
 }
 
+export interface NotificationOptions {
+  route?: string;
+}
+
 export interface HostBridge {
   readonly kind: HostKind;
   getServerBaseUrl(): Promise<string>;
@@ -154,6 +165,8 @@ export interface HostBridge {
   getSettings(): Promise<HostSettings | null>;
   saveSettings(settings: HostSettings): Promise<{ success: boolean }>;
   openExternal(url: string): Promise<void>;
+  notify(title: string, body: string, opts?: NotificationOptions): void;
+  onNotificationClicked?(callback: (route: string) => void): () => void;
   saveBlob?(filename: string, blob: Blob): Promise<void>;
   showSaveDialog?(options: SaveDialogOptions): Promise<string | null>;
   getSupportedProviders?(): Promise<Record<string, ProviderCatalogItem>>;

@@ -158,6 +158,70 @@ export function registerSessionRoutes(
     },
   );
 
+  fastify.patch<{ Params: { projectId: string; agentId: string; id: string }; Body: { modelId: string } }>(
+    "/api/projects/:projectId/agents/:agentId/sessions/:id/model",
+    {
+      schema: {
+        body: schemas.sessionModelUpdateRequest,
+        response: {
+          200: schemas.sessionInfo,
+        },
+      },
+    },
+    async (req) => {
+      req.projectCtx!.sessionRuntime.setSessionModel(
+        req.params.agentId,
+        req.params.id,
+        req.body.modelId,
+      );
+      const session = req.projectCtx!.projectManager.getSession(req.params.agentId, req.params.id);
+      if (!session) throw notFound("Session not found");
+      return session;
+    },
+  );
+
+  fastify.post<{
+    Params: { projectId: string; agentId: string; id: string };
+    Body: { targetSlug: string; message: string };
+  }>(
+    "/api/projects/:projectId/agents/:agentId/sessions/:id/summon",
+    {
+      schema: {
+        body: schemas.summonRequest,
+        response: { 200: schemas.summonResponse },
+      },
+    },
+    async (req) => {
+      const { targetSlug, message } = req.body;
+      const agents = await req.projectCtx!.projectManager.listAgents();
+      const target = agents.find((agent) => agent.slug === targetSlug);
+      if (!target) throw notFound(`Agent "${targetSlug}" not found`);
+      const targetSessionId = await req.projectCtx!.sessionRuntime.createSession(target.id);
+      try {
+        await req.projectCtx!.sessionRuntime.appendUserMessage(
+          req.params.agentId,
+          req.params.id,
+          message,
+          {
+            source: "summon",
+            summon: { agentId: target.id, sessionId: targetSessionId, agentName: target.name },
+          },
+        );
+        await hub.startDetachedRun(
+          req.params.projectId,
+          req.projectCtx!.sessionRuntime,
+          target.id,
+          targetSessionId,
+          message,
+        );
+      } catch (err) {
+        req.projectCtx!.runtime.deleteSession(target.id, targetSessionId);
+        throw err;
+      }
+      return parseContract(schemas.summonResponse, { ok: true, targetSessionId });
+    },
+  );
+
   fastify.delete<{ Params: { projectId: string; agentId: string; id: string } }>(
     "/api/projects/:projectId/agents/:agentId/sessions/:id",
     { schema: { response: { 200: schemas.okResponse } } },

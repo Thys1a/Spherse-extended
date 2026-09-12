@@ -537,3 +537,24 @@ describe("serverToken", () => {
     expect(generateAccessToken()).not.toBe(generateAccessToken());
   });
 });
+
+describe("notification settings persistence", () => {
+  const fullSettings = {
+    locale: "zh-CN",
+    models: {
+      text: { defaultModel: "", providers: {} },
+      image: { defaultModel: "", providers: {} },
+    },
+  };
+
+  it("round-trips notification prefs through save and masked read", () => {
+    saveSettings({ ...fullSettings, notifications: { approval: false } });
+    expect(getMaskedSettings()?.notifications).toEqual({ approval: false });
+  });
+
+  it("preserves notification prefs across partial saves", () => {
+    saveSettings({ ...fullSettings, notifications: { trigger: false } });
+    saveSettings({ ...fullSettings });
+    expect(getMaskedSettings()?.notifications).toEqual({ trigger: false });
+  });
+});

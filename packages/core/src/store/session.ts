@@ -18,6 +18,7 @@ interface SessionRow {
   updated_at: number;
   status: string;
   source: string | null;
+  model: string | null;
 }
 
 interface MessageRow {
@@ -141,6 +142,9 @@ export class SessionStore {
     if (!cols.some((c) => c.name === "migrated_at")) {
       this.db.exec("ALTER TABLE sessions ADD COLUMN migrated_at INTEGER");
     }
+    if (!cols.some((c) => c.name === "model")) {
+      this.db.exec("ALTER TABLE sessions ADD COLUMN model TEXT");
+    }
     const msgCols = this.db.prepare<[], PragmaColumnInfo>("PRAGMA table_info(messages)").all();
     if (!msgCols.some((c) => c.name === "prev_message_id")) {
       this.db.exec("ALTER TABLE messages ADD COLUMN prev_message_id INTEGER");
@@ -201,6 +205,7 @@ export class SessionStore {
       updatedAt: row.updated_at,
       status: row.status as SessionInfo["status"],
       source: (row.source ?? "manual") as SessionInfo["source"],
+      ...(row.model ? { model: row.model } : {}),
     };
   }
 
@@ -467,6 +472,12 @@ export class SessionStore {
     this.db
       .prepare<[string, string]>("UPDATE sessions SET title = ? WHERE id = ?")
       .run(title, sessionId);
+  }
+
+  setSessionModel(sessionId: string, model: string | null): void {
+    this.db
+      .prepare<[string | null, string]>("UPDATE sessions SET model = ? WHERE id = ?")
+      .run(model, sessionId);
   }
 
   close(): void {

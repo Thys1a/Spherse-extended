@@ -215,8 +215,11 @@ function SettingsTabs() {
   const setTts = useSettingsStore((s) => s.setTts);
   const proxy = useSettingsStore((s) => s.proxy);
   const setProxy = useSettingsStore((s) => s.setProxy);
+  const notifications = useSettingsStore((s) => s.notifications);
+  const setNotifications = useSettingsStore((s) => s.setNotifications);
   const proxyEnabled = bridge.capabilities.proxy;
   const mobileAccessEnabled = bridge.capabilities.mobileAccess;
+  const notificationEnabled = bridge.capabilities.notification;
   const settingsApi = useMemo<SettingsApi>(() => ({
     getSettings: bridge.getSettings,
     saveSettings: bridge.saveSettings,
@@ -273,6 +276,34 @@ function SettingsTabs() {
               <Switch
                 checked={debugToolsEnabled}
                 onCheckedChange={(checked) => { void setDebugToolsEnabled(settingsApi, checked); }}
+              />
+            </div>
+          </FieldGroup>
+          <FieldGroup className="mt-5">
+            <div className="flex flex-col gap-1">
+              <span className="text-sm font-medium leading-none">{t("settings.notifications.title")}</span>
+              <span className="text-xs text-muted-foreground">{t("settings.notifications.desc")}</span>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex flex-col gap-1">
+                <span className="text-sm font-medium leading-none">{t("settings.notifications.approval")}</span>
+                <span className="text-xs text-muted-foreground">{t("settings.notifications.approvalDesc")}</span>
+              </div>
+              <Switch
+                checked={notifications.approval ?? true}
+                disabled={!notificationEnabled}
+                onCheckedChange={(checked) => { void setNotifications(settingsApi, { approval: checked }); }}
+              />
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex flex-col gap-1">
+                <span className="text-sm font-medium leading-none">{t("settings.notifications.trigger")}</span>
+                <span className="text-xs text-muted-foreground">{t("settings.notifications.triggerDesc")}</span>
+              </div>
+              <Switch
+                checked={notifications.trigger ?? true}
+                disabled={!notificationEnabled}
+                onCheckedChange={(checked) => { void setNotifications(settingsApi, { trigger: checked }); }}
               />
             </div>
           </FieldGroup>

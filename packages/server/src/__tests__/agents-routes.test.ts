@@ -59,6 +59,7 @@ describe("GET /api/projects/:projectId/agents route", () => {
         alias: "D",
         slug: "demo",
         createdAt: 1234567890,
+        model: "gpt-x",
       },
     ]);
   });

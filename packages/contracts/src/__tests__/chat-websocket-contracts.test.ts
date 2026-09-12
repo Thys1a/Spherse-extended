@@ -203,6 +203,20 @@ describe("chat websocket control contract", () => {
     expect(parseChatServerEvent(event)).toEqual(event);
   });
 
+  it("accepts user_message with slash and summon metadata", () => {
+    const event = {
+      type: "user_message",
+      seq: 4,
+      message: { role: "user", content: "hi", timestamp: 1 },
+      slash: { type: "skill", name: "review", rawArgs: "x" },
+      summon: { agentId: "a9", sessionId: "s9", agentName: "Builder" },
+    };
+    expect(parseChatServerEvent({ ...event, source: "summon" })).toEqual({
+      ...event,
+      source: "summon",
+    });
+  });
+
   it("rejects turn_withdrawn without seq", () => {
     expect(() => parseChatServerEvent({ type: "turn_withdrawn" })).toThrow(
       /Invalid payload/,

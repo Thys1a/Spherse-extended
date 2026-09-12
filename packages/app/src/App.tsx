@@ -7,6 +7,7 @@ import { TooltipProvider } from "./components/ui/tooltip";
 import { Toaster } from "./components/ui/sonner";
 import { ApprovalNoticeBridge } from "./features/chat/ApprovalNoticeBridge";
 import { UpdateNoticeBridge } from "./features/settings/UpdateNoticeBridge";
+import { NotificationClickBridge } from "./bridges/NotificationClickBridge";
 import { useAppStore } from "./stores/app-store";
 import { useAppUiStore } from "./stores/app-ui-store";
 import { useHostBridge } from "./context/host-bridge-context";
@@ -98,6 +99,7 @@ export function App() {
           <Toaster />
           <ApprovalNoticeBridge />
           <UpdateNoticeBridge />
+          <NotificationClickBridge />
         </div>
       </TooltipProvider>
     </I18nProvider>

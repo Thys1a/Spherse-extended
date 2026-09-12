@@ -4,14 +4,34 @@ import type { AssistantMessage, ToolResultMessage } from "@earendil-works/pi-ai"
 export type TurnEndReason = "completed" | "aborted" | "error";
 
 export interface SendMessageMeta {
-  source?: "triggered";
+  source?: "triggered" | "summon";
   triggerName?: string;
+  slash?: SlashMeta;
+  summon?: SummonMeta;
+}
+
+export interface SlashMeta {
+  type: "skill" | "command";
+  name: string;
+  rawArgs: string;
+}
+
+export interface SummonMeta {
+  agentId: string;
+  sessionId: string;
+  agentName: string;
 }
 
 export interface SessionEventMap {
   "turn/start": Record<string, never>;
   "turn/end": { reason: TurnEndReason };
-  "user/message": { message: AgentMessage; source?: "triggered"; triggerName?: string };
+  "user/message": {
+    message: AgentMessage;
+    source?: "triggered" | "summon";
+    triggerName?: string;
+    slash?: SlashMeta;
+    summon?: SummonMeta;
+  };
   "assistant/message": { message: AssistantMessage };
   "tool/result": { message: ToolResultMessage };
   "compaction/applied": {

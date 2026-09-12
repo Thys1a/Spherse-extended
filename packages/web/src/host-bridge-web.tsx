@@ -13,6 +13,7 @@ const WEB_CAPABILITIES: HostCapabilities = {
   mobileAccess: false,
   openFileExternal: false,
   proxy: false,
+  notification: true,
   content: { editable: false },
 };
 
@@ -175,6 +176,32 @@ export function createWebHostBridge(): HostBridge {
     openExternal: async (url: string) => {
       window.open(url, "_blank", "noopener,noreferrer");
     },
+    notify: (title: string, body: string) => {
+      void (async () => {
+        try {
+          if (!("Notification" in window)) return;
+          if (Notification.permission === "denied") {
+            console.debug("[host-bridge] notification permission denied, skipping OS notification");
+            return;
+          }
+          const show = () => {
+            const notification = new Notification(title, { body });
+            notification.onclick = () => window.focus();
+          };
+          if (Notification.permission === "granted") {
+            show();
+            return;
+          }
+          if (Notification.permission === "default") {
+            const permission = await Notification.requestPermission();
+            if (permission === "granted") show();
+          }
+        } catch {
+          void 0;
+        }
+      })();
+    },
+    onNotificationClicked: () => () => {},
     saveBlob: async (filename: string, blob: Blob) => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");

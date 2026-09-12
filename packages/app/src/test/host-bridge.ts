@@ -14,6 +14,7 @@ export function createMockHostBridge(overrides: HostBridgeOverrides = {}): HostB
       mobileAccess: false,
       openFileExternal: true,
       proxy: false,
+      notification: true,
       content: { editable: true },
       ...capabilities,
     },
@@ -21,6 +22,7 @@ export function createMockHostBridge(overrides: HostBridgeOverrides = {}): HostB
     getSettings: vi.fn(async () => null),
     saveSettings: vi.fn(async () => ({ success: true })),
     openExternal: vi.fn(async () => {}),
+    notify: vi.fn(),
   };
   return { ...base, ...rest };
 }

@@ -56,7 +56,7 @@ describe("planRetry", () => {
     expect(planRetry(messages)).toEqual({ kind: "retry-last" });
   });
 
-  it("maps attachment into a sendable image", () => {
+  it("maps attachments into sendable files", () => {
     const messages: ChatMessage[] = [
       {
         role: "user",
@@ -67,6 +67,6 @@ describe("planRetry", () => {
       { role: "assistant", content: "", _error: "boom" },
     ];
     const plan = planRetry(messages);
-    expect(plan).toMatchObject({ kind: "resend", attachment: { path: "/p.png", mimeType: "image/png", width: 10, height: 20 } });
+    expect(plan).toMatchObject({ kind: "resend", attachments: [{ path: "/p.png", mimeType: "image/png", width: 10, height: 20 }] });
   });
 });

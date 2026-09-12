@@ -1,9 +1,9 @@
-import type { ChatMessage, SendableImage } from "../types";
+import type { ChatMessage, SendableFile } from "../types";
 
 export type RetryPlan =
   | { kind: "none" }
   | { kind: "retry-last" }
-  | { kind: "resend"; content: string; attachment?: SendableImage; dropCount: number };
+  | { kind: "resend"; content: string; attachments?: SendableFile[]; dropCount: number };
 
 export function planRetry(messages: ChatMessage[]): RetryPlan {
   const last = messages[messages.length - 1];
@@ -20,7 +20,7 @@ export function planRetry(messages: ChatMessage[]): RetryPlan {
       return {
         kind: "resend",
         content: userMsg.content,
-        attachment: toSendable(userMsg),
+        attachments: toSendable(userMsg),
         dropCount: messages.length - messages.lastIndexOf(userMsg),
       };
     }
@@ -31,7 +31,7 @@ export function planRetry(messages: ChatMessage[]): RetryPlan {
     return {
       kind: "resend",
       content: last.content,
-      attachment: toSendable(last),
+      attachments: toSendable(last),
       dropCount: 1,
     };
   }
@@ -46,13 +46,14 @@ function findLastUser(messages: ChatMessage[]): ChatMessage | undefined {
   return undefined;
 }
 
-function toSendable(msg: ChatMessage): SendableImage | undefined {
-  const a = msg._attachments?.[0];
-  if (!a) return undefined;
-  return {
+function toSendable(msg: ChatMessage): SendableFile[] | undefined {
+  if (!msg._attachments || msg._attachments.length === 0) return undefined;
+  return msg._attachments.map((a) => ({
     path: a.path,
     mimeType: a.mimeType,
-    ...(a.width != null && { width: a.width }),
-    ...(a.height != null && { height: a.height }),
-  };
+    ...(a.name !== undefined ? { name: a.name } : {}),
+    ...(a.bytes !== undefined ? { size: a.bytes } : {}),
+    ...(a.width !== undefined ? { width: a.width } : {}),
+    ...(a.height !== undefined ? { height: a.height } : {}),
+  }));
 }

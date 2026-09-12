@@ -1,10 +1,12 @@
-import { screen } from "@testing-library/react";
+import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AgentSummary } from "../../lib/types";
 import { createMockHostBridge } from "../../test/host-bridge";
 import { renderWithProviders } from "../../test/render";
 import { MessageItem } from "./MessageItem";
+import { quoteFenceFor } from "./lib/quote-fence";
+import { useComposerInsertStore } from "./composer-insert-store";
 import type { ChatMessage } from "./types";
 
 vi.mock("../../lib/use-connection", () => ({
@@ -25,6 +27,20 @@ function renderMessage(
     { bridge: createMockHostBridge() },
   );
 }
+
+const originalClipboard = Object.getOwnPropertyDescriptor(navigator, "clipboard");
+
+afterEach(() => {
+  cleanup();
+  window.getSelection()?.removeAllRanges();
+  useComposerInsertStore.setState({ sessionId: null, text: "", nonce: 0 });
+  vi.restoreAllMocks();
+  if (originalClipboard === undefined) {
+    Reflect.deleteProperty(navigator, "clipboard");
+  } else {
+    Object.defineProperty(navigator, "clipboard", originalClipboard);
+  }
+});
 
 describe("MessageItem withdraw action", () => {
   it("renders a withdraw action for user messages when onWithdraw is provided", async () => {
@@ -95,5 +111,189 @@ describe("MessageItem bubble links", () => {
 
     await user.click(screen.getByRole("link", { name: "jump" }));
     expect(openExternal).not.toHaveBeenCalled();
+  });
+});
+
+describe("MessageItem selection menu", () => {
+  function renderWithSelection(content: string, sessionId = "session-1") {
+    renderWithProviders(
+      <MessageItem
+        message={{ role: "assistant", content } as ChatMessage}
+        agent={agent}
+        sessionId={sessionId}
+      />,
+      { bridge: createMockHostBridge() },
+    );
+    const bubble = document.querySelector("[data-chat-bubble]")!;
+    window.getSelection()?.selectAllChildren(bubble);
+    fireEvent.contextMenu(bubble, { clientX: 50, clientY: 60 });
+  }
+
+  it("shows copy and quote items when right-clicking a non-empty selection", () => {
+    renderWithSelection("selectable text");
+    expect(screen.getByRole("menuitem", { name: "复制选区" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "引用到当前会话" })).toBeInTheDocument();
+  });
+
+  it("does not show the menu without a selection", () => {
+    renderWithProviders(
+      <MessageItem message={{ role: "assistant", content: "plain" } as ChatMessage} agent={agent} />,
+      { bridge: createMockHostBridge() },
+    );
+    fireEvent.contextMenu(document.querySelector("[data-chat-bubble]")!);
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+
+  it("copies the selected text to the clipboard", async () => {
+    const writeText = vi.fn();
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      configurable: true,
+    });
+    renderWithSelection("copy me");
+    fireEvent.click(screen.getByRole("menuitem", { name: "复制选区" }));
+    await vi.waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith(expect.stringContaining("copy me"));
+    });
+  });
+
+  it("requests a composer insert with a quoted block", async () => {
+    const user = userEvent.setup();
+    renderWithSelection("quote me", "session-9");
+    await user.click(screen.getByRole("menuitem", { name: "引用到当前会话" }));
+    const state = useComposerInsertStore.getState();
+    expect(state.sessionId).toBe("session-9");
+    expect(state.text).toContain("```quoted");
+    expect(state.text).toContain("quote me");
+    useComposerInsertStore.setState({ sessionId: null, text: "", nonce: 0 });
+  });
+
+  it("hides the quote item when sessionId is missing", () => {
+    renderWithProviders(
+      <MessageItem message={{ role: "assistant", content: "no session" } as ChatMessage} agent={agent} />,
+      { bridge: createMockHostBridge() },
+    );
+    const bubble = document.querySelector("[data-chat-bubble]")!;
+    window.getSelection()?.selectAllChildren(bubble);
+    fireEvent.contextMenu(bubble);
+    expect(screen.getByRole("menuitem", { name: "复制选区" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "引用到当前会话" })).not.toBeInTheDocument();
+  });
+
+  it("extends the fence when the selection contains triple backticks", async () => {
+    const user = userEvent.setup();
+    renderWithSelection("quote me", "session-9");
+    await user.click(screen.getByRole("menuitem", { name: "引用到当前会话" }));
+    expect(useComposerInsertStore.getState().text).toContain("```quoted");
+    useComposerInsertStore.setState({ sessionId: null, text: "", nonce: 0 });
+  });
+
+  it("quoteFenceFor lengthens the fence past backticks in the text", () => {
+    expect(quoteFenceFor("plain")).toBe("```");
+    expect(quoteFenceFor("code ```x``` end")).toBe("````");
+  });
+});
+
+describe("MessageItem slash pill and summon card", () => {
+  it("renders the original slash invocation as a pill", () => {
+    renderWithProviders(
+      <MessageItem
+        message={{
+          role: "user",
+          content: "expanded",
+          _slash: { type: "skill", name: "review", rawArgs: "x" },
+        } as ChatMessage}
+        agent={agent}
+      />,
+      { bridge: createMockHostBridge() },
+    );
+    expect(screen.getByText("/skill:review")).toBeInTheDocument();
+  });
+
+  it("renders a clickable summon card that opens the target session", async () => {
+    const user = userEvent.setup();
+    const onOpenSession = vi.fn();
+    renderWithProviders(
+      <MessageItem
+        message={{
+          role: "user",
+          content: "run tests",
+          _summon: { agentId: "a9", sessionId: "s9", agentName: "Builder" },
+        } as ChatMessage}
+        agent={agent}
+        onOpenSession={onOpenSession}
+      />,
+      { bridge: createMockHostBridge() },
+    );
+    await user.click(screen.getByRole("button", { name: /已召唤 Builder/ }));
+    expect(onOpenSession).toHaveBeenCalledWith("s9");
+  });
+
+  it("omits the summon card without an open-session handler", () => {
+    renderWithProviders(
+      <MessageItem
+        message={{
+          role: "user",
+          content: "run tests",
+          _summon: { agentId: "a9", sessionId: "s9", agentName: "Builder" },
+        } as ChatMessage}
+        agent={agent}
+      />,
+      { bridge: createMockHostBridge() },
+    );
+    expect(screen.queryByRole("button", { name: /已召唤/ })).not.toBeInTheDocument();
+  });
+});
+
+describe("MessageItem edit and resend", () => {
+  function renderEditable(content = "original") {
+    renderWithProviders(
+      <MessageItem
+        message={{ role: "user", content } as ChatMessage}
+        agent={agent}
+        sessionId="session-1"
+        editable
+      />,
+      { bridge: createMockHostBridge() },
+    );
+  }
+
+  it("shows an edit button for editable user messages", () => {
+    renderEditable();
+    expect(screen.getByRole("button", { name: "编辑" })).toBeInTheDocument();
+  });
+
+  it("hides the edit button without sessionId", () => {
+    renderWithProviders(
+      <MessageItem message={{ role: "user", content: "x" } as ChatMessage} agent={agent} editable />,
+      { bridge: createMockHostBridge() },
+    );
+    expect(screen.queryByRole("button", { name: "编辑" })).not.toBeInTheDocument();
+  });
+
+  it("opens an editor prefilled with the message and resends on confirm", async () => {
+    const user = userEvent.setup();
+    const editAndResend = vi.fn();
+    renderEditable();
+    await user.click(screen.getByRole("button", { name: "编辑" }));
+
+    const editor = screen.getByRole("textbox");
+    expect(editor).toHaveValue("original");
+
+    const store = await import("./runtime/streaming-store");
+    const spy = vi.spyOn(store.useStreamingStore.getState(), "editAndResend").mockImplementation(editAndResend);
+    await user.clear(editor);
+    await user.type(editor, "edited");
+    await user.click(screen.getByRole("button", { name: "重新发送" }));
+    expect(editAndResend).toHaveBeenCalledWith("session-1", "edited");
+    spy.mockRestore();
+  });
+
+  it("closes the editor on cancel without resending", async () => {
+    const user = userEvent.setup();
+    renderEditable();
+    await user.click(screen.getByRole("button", { name: "编辑" }));
+    await user.click(screen.getByRole("button", { name: "取消" }));
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   });
 });

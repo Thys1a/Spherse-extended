@@ -49,6 +49,7 @@ function seedStreamingSession(sessionId: string, projectId: string): void {
         historyError: false,
         reconnectFailed: false,
         pendingWithdraw: false,
+        pendingEditResend: null,
       },
     },
   }));

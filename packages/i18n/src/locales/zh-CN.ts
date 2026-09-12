@@ -714,6 +714,18 @@ export const zhCN = {
   "chat.htmlCard.collapse": "折叠",
   // 复制按钮悬停提示
   "chat.copyTooltip": "复制",
+  // 聊天气泡内选中文本后右键菜单：「复制选区」项
+  "chat.selectionMenu.copy": "复制选区",
+  // 聊天气泡内选中文本后右键菜单：「引用到当前会话」项，点击后摘取为 md 代码块插入输入框
+  "chat.selectionMenu.quote": "引用到当前会话",
+  // 选区复制失败时（clipboard 不可用或权限被拒绝）的错误提示
+  "chat.selectionMenu.copyFailed": "复制失败，请手动复制",
+  // 聊天输入框顶栏当前模型标记的悬停提示，点击展开模型切换下拉
+  "chat.modelPill.switchModel": "切换会话模型",
+  // 会话模型下拉中的「跟随默认」项（清除会话级覆盖，回退到 Agent/全局默认）
+  "chat.modelPill.followDefault": "跟随默认",
+  // 会话模型切换失败时的错误提示，{message} 为错误信息
+  "chat.modelPill.switchFailed": "切换模型失败：{message}",
   // 朗读按钮悬停提示（开始朗读该条消息）
   "chat.ttsSpeak": "朗读",
   // 朗读按钮悬停提示（停止朗读）
@@ -753,14 +765,42 @@ export const zhCN = {
   "chat.approvalNotDelivered": "操作未送达，连接可能已断开",
   // Composer 底部「附加图片」按钮的悬停提示
   "chat.attachImage": "附加图片",
+  // Composer 底部附件按钮（回形针图标）的悬停提示，可附加图片与文本文件
+  "chat.attachFile": "附加文件",
   // Composer 底部「发送」按钮（纸飞机图标）的悬停提示
   "chat.send": "发送",
   // Composer 流式生成中「停止」按钮（方块图标）的悬停提示
   "chat.stop": "停止",
   // 附加图片在压缩或上传过程中失败时的错误提示，{message} 为错误信息
   "chat.imageAttachFailed": "添加图片失败：{message}",
+  // 附加文件在上传过程中失败时的错误提示，{message} 为错误信息
+  "chat.fileAttachFailed": "添加文件失败：{message}",
+  // 多文件上传部分失败时的错误提示，{names} 为失败的文件名（顿号分隔），成功项已保留
+  "chat.someFilesAttachFailed": "部分文件添加失败：{names}",
+  // 文件上传中时附件栏的等待提示
+  "chat.uploadingAttachment": "正在上传…",
   // Composer 待发送图片缩略图上的「移除」按钮悬停提示
   "chat.removeAttachment": "移除图片",
+  // 历史消息中非图片附件行的「下载」按钮悬停提示
+  "chat.attachmentDownload": "下载",
+  // 历史消息中被截断的文本附件行的折叠提示，{shown} 为进入上下文的前 N 大小
+  "chat.attachmentTruncated": "内容较长，仅前 {shown} 进入上下文",
+  // 可编辑的用户消息气泡旁「编辑」按钮的悬停提示，点击后原地编辑重发
+  "chat.editTooltip": "编辑",
+  // 消息编辑态的确认按钮文案，点击撤回原轮并用新内容重发
+  "chat.editConfirm": "重新发送",
+  // 消息编辑态的取消按钮文案
+  "chat.editCancel": "取消",
+  // 输入 /skill: 或 /command: 后名称不在列表中时的错误提示，{name} 为输入的名称
+  "chat.unknownSlashCommand": "未知的命令：{name}",
+  // 召唤其他 agent 失败时的错误提示，{message} 为错误信息
+  "chat.summonFailed": "召唤失败：{message}",
+  // 输入 >> 但格式不完整时的用法提示
+  "chat.summonUsage": "用法：>> agent名称 消息内容",
+  // 召唤时携带附件被拦截的提示（召唤仅支持纯文本）
+  "chat.summonNoAttachments": "召唤不支持附件，请先移除附件",
+  // 历史消息中召唤记录卡片的文案，{name} 为目标 agent 名称，点击跳转到新会话
+  "chat.summonCard": "已召唤 {name}",
   // 某会话的 agent 工具调用等待用户批准、且用户当前未停留在该会话时弹出的 toast 文案（无法解析到 agent 名时的泛化兜底）
   "chat.approvalToastMessage": "一个 Agent 正在等待你的确认",
   // 上述 toast 在能解析到 agent 名时的标题文案，{name} 为 agent 名称
@@ -933,6 +973,56 @@ export const zhCN = {
   "project-panel.files": "文件",
   // 技能面板的分组标签（project panel 中「文件」下方的「技能」section 标题）
   "project-panel.skills": "技能",
+  // 项目侧栏命令分组标题
+  "project-panel.commands": "命令",
+  // 浮窗标题栏切换为桌宠模式按钮的悬停提示
+  "floating-chat.enterPetMode": "桌宠模式",
+  // 桌宠模式悬浮条返回完整模式按钮的悬停提示
+  "floating-chat.exitPetMode": "完整模式",
+
+  // --- Command Panel ---
+  // 命令面板右上角三点菜单按钮的无障碍名称
+  "command-panel.menu": "命令菜单",
+  // 命令面板右上角三点菜单的「新建命令」项
+  "command-panel.create": "新建命令",
+  // 命令列表为空时的占位文案
+  "command-panel.empty": "暂无命令",
+  // 命令行末尾的编辑按钮悬停提示
+  "command-panel.edit": "编辑",
+  // 命令行末尾的删除按钮悬停提示
+  "command-panel.delete": "删除",
+  // 新建命令弹窗标题
+  "command-panel.createDialog.title": "新建命令",
+  // 编辑命令弹窗标题
+  "command-panel.editDialog.title": "编辑命令",
+  // 命令弹窗的「名称」输入框标签（仅新建时可填）
+  "command-panel.createDialog.nameLabel": "名称",
+  // 命令弹窗的「描述」输入框标签
+  "command-panel.createDialog.descriptionLabel": "描述",
+  // 命令弹窗的「模型」输入框标签（可选，留空则跟随会话）
+  "command-panel.createDialog.modelLabel": "模型",
+  // 命令弹窗的「模板」输入框标签，支持 $ARGUMENTS/$1 与 @文件引用
+  "command-panel.createDialog.templateLabel": "模板",
+  // 命令弹窗模板输入框占位文案
+  "command-panel.createDialog.templatePlaceholder": "Run $ARGUMENTS with @src/main.ts",
+  // 命令弹窗取消按钮
+  "command-panel.createDialog.cancel": "取消",
+  // 新建命令弹窗提交按钮
+  "command-panel.createDialog.submit": "创建",
+  // 编辑命令弹窗提交按钮
+  "command-panel.editDialog.submit": "保存",
+  // 新建命令成功提示，{name} 为命令名
+  "command-panel.create.success": "命令「{name}」已创建",
+  // 新建命令重名提示，{name} 为命令名
+  "command-panel.create.exists": "命令「{name}」已存在",
+  // 命令保存成功提示，{name} 为命令名
+  "command-panel.update.success": "命令「{name}」已保存",
+  // 命令保存失败提示，{message} 为错误信息
+  "command-panel.save.failed": "保存命令失败：{message}",
+  // 删除命令成功提示，{name} 为命令名
+  "command-panel.delete.success": "命令「{name}」已删除",
+  // 删除命令失败提示，{message} 为错误信息
+  "command-panel.delete.failed": "删除命令失败：{message}",
 
   // --- Skill Panel ---
   // 技能面板右上角三点菜单的「创建技能」项
@@ -1061,6 +1151,18 @@ export const zhCN = {
   "settings.debugTools": "调试工具",
   // 设置 > 通用：调试工具开关下方的说明文案
   "settings.debugToolsDesc": "在侧边栏显示调试菜单入口",
+  // 设置 > 通用：系统通知小节标题（窗口未聚焦时弹出 OS 级通知）
+  "settings.notifications.title": "系统通知",
+  // 设置 > 通用：系统通知小节说明
+  "settings.notifications.desc": "窗口未聚焦时，为审批与触发器完成弹出系统通知",
+  // 设置 > 通用：审批通知开关
+  "settings.notifications.approval": "审批通知",
+  // 设置 > 通用：审批通知开关说明
+  "settings.notifications.approvalDesc": "有待审批或待回答时通知",
+  // 设置 > 通用：触发器通知开关
+  "settings.notifications.trigger": "触发器通知",
+  // 设置 > 通用：触发器通知开关说明
+  "settings.notifications.triggerDesc": "触发器运行完成时通知",
   // 设置 > 通用：朗读设置小节标题
   "settings.tts.title": "朗读",
   // 设置 > 通用：自动朗读开关

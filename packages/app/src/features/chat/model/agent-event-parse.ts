@@ -170,6 +170,17 @@ export function parseAgentEvent(event: ChatServerEvent): AgentEvent | undefined 
       return { type: "message_update", message: parseAgentMessage(event.message) };
     case "message_end":
       return { type: "message_end", message: parseAgentMessage(event.message) };
+    case "user_message":
+      return {
+        type: "user_message",
+        seq: event.seq,
+        message: parseAgentMessage(event.message),
+        ...(event.clientId !== undefined ? { clientId: event.clientId } : {}),
+        ...(event.source !== undefined ? { source: event.source } : {}),
+        ...(event.triggerName !== undefined ? { triggerName: event.triggerName } : {}),
+        ...(event.slash !== undefined ? { slash: event.slash } : {}),
+        ...(event.summon !== undefined ? { summon: event.summon } : {}),
+      };
     default:
       return undefined;
   }

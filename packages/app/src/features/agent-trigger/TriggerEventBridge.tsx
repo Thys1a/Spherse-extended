@@ -3,6 +3,9 @@ import { toast } from "sonner";
 import { useNavigate } from "react-router";
 import { useI18n } from "@spherse/i18n/react";
 import { useProjectCtx } from "../../context/project-context";
+import { useHostBridge } from "../../context/host-bridge-context";
+import { useSettingsStore } from "../../stores/settings-store";
+import { notifyUser } from "../../lib/notify-user";
 import { useApiClient } from "../../lib/use-connection";
 import { useStreamingStore } from "../chat/runtime/streaming-store";
 import { useTriggerStore, getCachedTriggersForAgent } from "./store";
@@ -16,6 +19,7 @@ const INVALIDATING_EVENTS = new Set(["trigger_updated", "trigger_completed", "tr
 export function TriggerEventBridge() {
   const { projectId } = useProjectCtx();
   const client = useApiClient(projectId);
+  const bridge = useHostBridge();
   const navigate = useNavigate();
   const { t } = useI18n();
   const handleTriggerEvent = useTriggerStore((s) => s.handleTriggerEvent);
@@ -29,12 +33,18 @@ export function TriggerEventBridge() {
     const cachedTriggers = getCachedTriggersForAgent(projectId, agentId);
     const trigger = cachedTriggers.find((item) => item.id === triggerId);
     if (!trigger?.notify) return;
-    toast.success(trigger.notificationMessage?.trim() || tRef.current("agent-trigger.notificationDefault"), {
+    const body = trigger.notificationMessage?.trim() || tRef.current("agent-trigger.notificationDefault");
+    toast.success(body, {
       action: {
         label: tRef.current("agent-trigger.openSession"),
         onClick: () => navigate(`/project/${projectId}/chat/${sessionId}`),
       },
     });
+    if (useSettingsStore.getState().notifications.trigger ?? true) {
+      notifyUser(bridge, trigger.name?.trim() || body, body, {
+        route: `/project/${projectId}/chat/${sessionId}`,
+      });
+    }
   };
 
   useBusSubscription(projectId ?? "", "trigger", (type, payload) => {

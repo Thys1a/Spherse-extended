@@ -78,7 +78,8 @@ function seedSession(sessionId: string, scrollPosition: number) {
         connectionStatus: "open",
         historyError: false,
         reconnectFailed: false,
-        pendingWithdraw: false,
+          pendingWithdraw: false,
+          pendingEditResend: null,
       },
     },
   });

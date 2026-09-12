@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { FEATURE_HOST_MATRIX, isFeatureEnabled } from "./feature-registry";
 
-const WEB_ENABLED_FEATURES = ["agent-dialog", "agent-mcp", "agent-trigger", "embedded-chat", "tabs"] as const;
+const WEB_ENABLED_FEATURES = ["agent-dialog", "agent-mcp", "agent-trigger", "embedded-chat", "tabs", "system-notification"] as const;
 
 describe("feature-registry", () => {
   it("declares the full gated feature set in the current matrix", () => {
@@ -17,6 +17,7 @@ describe("feature-registry", () => {
         "floating-content-browser",
         "open-project",
         "settings",
+        "system-notification",
         "tabs",
         "text-selection-session",
         "tts",

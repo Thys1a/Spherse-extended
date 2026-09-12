@@ -24,6 +24,64 @@ function session(overrides: Partial<StreamingSessionData> = {}): StreamingSessio
 }
 
 describe("chat session reducer", () => {
+  it("settles the optimistic user message on user_message echo", () => {
+    const current = session({
+      messages: [{ role: "user", content: "hi", _optimistic: true }],
+    });
+
+    const next = reduceSessionEvents(
+      current,
+      [
+        {
+          type: "user_message",
+          seq: 7,
+          message: { role: "user", content: "hi", timestamp: 1 },
+          slash: { type: "skill", name: "review", rawArgs: "x" },
+        } as AgentEvent,
+      ],
+      200,
+    );
+
+    expect(next.messages).toEqual([
+      {
+        role: "user",
+        content: "hi",
+        _optimistic: false,
+        _messageId: 7,
+        _slash: { type: "skill", name: "review", rawArgs: "x" },
+      },
+    ]);
+  });
+
+  it("appends a persisted user message when no optimistic message is pending", () => {
+    const current = session({ messages: [{ role: "assistant", content: "a1" }] });
+
+    const next = reduceSessionEvents(
+      current,
+      [
+        {
+          type: "user_message",
+          seq: 9,
+          message: { role: "user", content: "run tests", timestamp: 2 },
+          source: "summon",
+          summon: { agentId: "a9", sessionId: "s9", agentName: "Builder" },
+        } as AgentEvent,
+      ],
+      200,
+    );
+
+    expect(next.messages).toEqual([
+      { role: "assistant", content: "a1" },
+      {
+        role: "user",
+        content: "run tests",
+        timestamp: 2,
+        _messageId: 9,
+        _summon: { agentId: "a9", sessionId: "s9", agentName: "Builder" },
+      },
+    ]);
+  });
+
   it("keeps the same session object for ignored events", () => {
     const current = session({
       messages: [{ role: "assistant", content: "hello" }],

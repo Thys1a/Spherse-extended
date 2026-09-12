@@ -65,6 +65,7 @@ export function getMaskedSettings(): AppSettings | null {
     theme: settings.theme ?? "system",
     tts: settings.tts,
     proxy: settings.proxy,
+    notifications: settings.notifications,
   };
 }
 
@@ -105,6 +106,7 @@ export function saveSettings(incoming: AppSettings): void {
     mobileAccess: prev?.mobileAccess,
     tts: incoming.tts ?? prev?.tts,
     proxy: incoming.proxy ?? prev?.proxy,
+    notifications: incoming.notifications ?? prev?.notifications,
   };
   settingsStore.set("settings", merged);
   applySettingsToEnv(merged);

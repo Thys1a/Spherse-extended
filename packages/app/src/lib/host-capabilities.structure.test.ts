@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 const appSrc = join(dirname(fileURLToPath(import.meta.url)), "..");
 
-const EXPECTED_CAPABILITY_FIELDS = ["content", "filePicker", "mobileAccess", "openFileExternal", "proxy"];
+const EXPECTED_CAPABILITY_FIELDS = ["content", "filePicker", "mobileAccess", "notification", "openFileExternal", "proxy"];
 
 function collectSourceFiles(dir: string): string[] {
   const files: string[] = [];

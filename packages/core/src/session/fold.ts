@@ -1,13 +1,15 @@
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { ToolResultMessage } from "@earendil-works/pi-ai";
 import { wrapDigestContent } from "../context/compaction.js";
-import { MESSAGE_EVENT_TYPES, type SessionEvent } from "./events.js";
+import { MESSAGE_EVENT_TYPES, type SessionEvent, type SlashMeta, type SummonMeta } from "./events.js";
 
 export interface DerivedMessageEntry {
   seq: number;
   message: AgentMessage;
-  source?: "triggered";
+  source?: "triggered" | "summon";
   triggerName?: string;
+  slash?: SlashMeta;
+  summon?: SummonMeta;
 }
 
 interface RestartState {
@@ -66,14 +68,18 @@ export function deriveMessageEntries(
 function projectMessageEvent(event: SessionEvent): DerivedMessageEntry {
   const data = event.data as {
     message: AgentMessage;
-    source?: "triggered";
+    source?: "triggered" | "summon";
     triggerName?: string;
+    slash?: SlashMeta;
+    summon?: SummonMeta;
   };
   return {
     seq: event.seq,
     message: data.message,
     ...(data.source !== undefined ? { source: data.source } : {}),
     ...(data.triggerName !== undefined ? { triggerName: data.triggerName } : {}),
+    ...(data.slash !== undefined ? { slash: data.slash } : {}),
+    ...(data.summon !== undefined ? { summon: data.summon } : {}),
   };
 }
 

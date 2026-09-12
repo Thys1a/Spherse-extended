@@ -31,6 +31,26 @@ describe("createApiClient", () => {
     );
   });
 
+  it("sends the session model to the model endpoint and parses the session", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({
+      id: "session-1",
+      agentId: "agent-1",
+      createdAt: 1,
+      updatedAt: 2,
+      status: "active",
+      model: "openai/gpt-4o",
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      createApiClient("http://localhost:1234", "project-1").setSessionModel("agent-1", "session-1", "openai/gpt-4o"),
+    ).resolves.toMatchObject({ id: "session-1", model: "openai/gpt-4o" });
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/agents/agent-1/sessions/session-1/model"),
+      expect.objectContaining({ method: "PATCH" }),
+    );
+  });
+
   describe("access token", () => {
     it("injects Authorization Bearer header on requests when token provided", async () => {
       const fetchMock = vi.fn().mockResolvedValue(jsonResponse([]));
@@ -121,9 +141,9 @@ describe("createApiClient", () => {
       }));
       vi.stubGlobal("fetch", fetchMock);
 
-      const result = await createApiClient("http://localhost:1234", "p1").uploadAttachedImage(
+      const result = await createApiClient("http://localhost:1234", "p1").uploadAttachment(
         new Blob([new Uint8Array(8)]),
-        { width: 100, height: 50 },
+        { filename: "a.png", width: 100, height: 50 },
       );
 
       expect(result).toEqual({
@@ -153,7 +173,7 @@ describe("createApiClient", () => {
       }));
       vi.stubGlobal("fetch", fetchMock);
 
-      const result = await createApiClient("http://localhost:1234", "p1").uploadAttachedImage(
+      const result = await createApiClient("http://localhost:1234", "p1").uploadAttachment(
         new Blob([new Uint8Array(4)]),
       );
 
@@ -173,7 +193,7 @@ describe("createApiClient", () => {
       }));
       vi.stubGlobal("fetch", fetchMock);
 
-      await createApiClient("http://localhost:1234", "p1", "tok-abc").uploadAttachedImage(
+      await createApiClient("http://localhost:1234", "p1", "tok-abc").uploadAttachment(
         new Blob([new Uint8Array(4)]),
       );
 

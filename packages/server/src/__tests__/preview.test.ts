@@ -110,9 +110,21 @@ describe("preview route", () => {
   });
 
   it("rejects disallowed extensions", async () => {
-    fs.writeFileSync(path.join(tmpDir, "notes.txt"), "hi");
-    const res = await app.inject({ method: "GET", url: "/api/projects/p1/preview/notes.txt" });
+    fs.writeFileSync(path.join(tmpDir, "setup.exe"), "hi");
+    const res = await app.inject({ method: "GET", url: "/api/projects/p1/preview/setup.exe" });
     expect(res.statusCode).toBe(403);
+  });
+
+  it("serves text attachments with a text content type", async () => {
+    fs.mkdirSync(path.join(tmpDir, ".spherse", "attachments"), { recursive: true });
+    fs.writeFileSync(path.join(tmpDir, ".spherse", "attachments", "note.txt"), "hi");
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/projects/p1/preview/.spherse/attachments/note.txt",
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.headers["content-type"]).toContain("text/plain");
+    expect(res.body).toBe("hi");
   });
 
   it("returns 404 for a missing allowed file", async () => {

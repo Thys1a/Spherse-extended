@@ -12,6 +12,7 @@ const ELECTRON_CAPABILITIES: HostCapabilities = {
   mobileAccess: true,
   openFileExternal: true,
   proxy: true,
+  notification: true,
   content: { editable: true },
 };
 
@@ -77,6 +78,12 @@ export function createElectronHostBridge(): HostBridge {
     getSettings: api.getSettings,
     saveSettings: api.saveSettings,
     openExternal: api.openExternal,
+    notify: (title: string, body: string, opts?: { route?: string }) => {
+      void api.showNotification({ title, body, route: opts?.route }).catch((err: unknown) => {
+        console.warn("[host-bridge] showNotification failed:", err);
+      });
+    },
+    onNotificationClicked: (callback: (route: string) => void) => api.onNotificationClicked(callback),
     showSaveDialog: api.showSaveDialog,
     getSupportedProviders: api.getSupportedProviders,
     getImageProviders: api.getImageProviders,

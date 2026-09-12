@@ -11,6 +11,8 @@ import type {
   TriggerLogEntry,
   SkillDefinition,
   SkillSummary,
+  CommandDefinition,
+  SummonResponse,
   AgentCreateResponse,
   AgentUpdateResponse,
   AiAccessSettingsResponse,
@@ -34,16 +36,20 @@ import { parseApiResponse, schemas } from "@spherse/contracts";
 import { Type } from "@sinclair/typebox";
 
 const attachmentUploadResponse = Type.Object({
-  type: Type.Literal("image"),
+  type: Type.String(),
   path: Type.String(),
+  mimeType: Type.Optional(Type.String()),
+  name: Type.Optional(Type.String()),
   width: Type.Optional(Type.Number()),
   height: Type.Optional(Type.Number()),
   bytes: Type.Integer(),
 });
 
 export interface AttachmentUploadResponse {
-  type: "image";
+  type: string;
   path: string;
+  mimeType?: string;
+  name?: string;
   width?: number;
   height?: number;
   bytes: number;
@@ -338,6 +344,71 @@ export function createApiClient(baseUrl: string, projectId: string, accessToken?
       return parseJsonResponse<SkillSummary[]>(res, schemas.skillListResponse);
     },
 
+    async listCommands(): Promise<CommandDefinition[]> {
+      const res = await authedFetch(`${apiBase}/commands`);
+      await assertOk(res);
+      return parseJsonResponse<CommandDefinition[]>(res, schemas.commandListResponse);
+    },
+
+    async getCommand(name: string): Promise<CommandDefinition> {
+      const res = await authedFetch(`${apiBase}/commands/${encodeURIComponent(name)}`);
+      await assertOk(res);
+      return parseJsonResponse<CommandDefinition>(res, schemas.commandDefinition);
+    },
+
+    async createCommand(input: {
+      name: string;
+      description?: string;
+      model?: string;
+      template: string;
+    }): Promise<CommandDefinition> {
+      const res = await authedFetch(`${apiBase}/commands`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      });
+      await assertOk(res);
+      return parseJsonResponse<CommandDefinition>(res, schemas.commandDefinition);
+    },
+
+    async updateCommand(
+      name: string,
+      patch: { description?: string; model?: string; template?: string },
+    ): Promise<CommandDefinition> {
+      const res = await authedFetch(`${apiBase}/commands/${encodeURIComponent(name)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+      await assertOk(res);
+      return parseJsonResponse<CommandDefinition>(res, schemas.commandDefinition);
+    },
+
+    async deleteCommand(name: string): Promise<{ ok: boolean }> {
+      const res = await authedFetch(`${apiBase}/commands/${encodeURIComponent(name)}`, {
+        method: "DELETE",
+      });
+      await assertOk(res);
+      return parseJsonResponse<{ ok: boolean }>(res, schemas.okResponse);
+    },
+
+    async summonToAgent(
+      agentId: string,
+      id: string,
+      input: { targetSlug: string; message: string },
+    ): Promise<SummonResponse> {
+      const res = await authedFetch(
+        `${apiBase}/agents/${encodeURIComponent(agentId)}/sessions/${encodeURIComponent(id)}/summon`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(input),
+        },
+      );
+      await assertOk(res);
+      return parseJsonResponse<SummonResponse>(res, schemas.summonResponse);
+    },
+
     async listMarketplaceSkills(): Promise<MarketplaceManifestResponse> {
       const res = await authedFetch(`${apiBase}/marketplace/skills`);
       await assertOk(res);
@@ -411,6 +482,16 @@ export function createApiClient(baseUrl: string, projectId: string, accessToken?
       return parseJsonResponse<SessionInfo>(res, schemas.sessionInfo);
     },
 
+    async setSessionModel(agentId: string, id: string, modelId: string): Promise<SessionInfo> {
+      const res = await authedFetch(`${apiBase}/agents/${encodeURIComponent(agentId)}/sessions/${encodeURIComponent(id)}/model`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ modelId }),
+      });
+      await assertOk(res);
+      return parseJsonResponse<SessionInfo>(res, schemas.sessionInfo);
+    },
+
     async deleteSession(agentId: string, id: string): Promise<{ ok: boolean }> {
       const res = await authedFetch(`${apiBase}/agents/${encodeURIComponent(agentId)}/sessions/${encodeURIComponent(id)}`, {
         method: "DELETE",
@@ -448,6 +529,12 @@ export function createApiClient(baseUrl: string, projectId: string, accessToken?
       return version !== undefined ? `${base}?v=${version}` : base;
     },
 
+    getAttachmentDownloadUrl(filePath: string): string {
+      const encodedPath = filePath.split("/").map(encodeURIComponent).join("/");
+      const base = `${apiBase}/attachments/download/${encodedPath}`;
+      return accessToken ? `${base}?token=${encodeURIComponent(accessToken)}` : base;
+    },
+
     async getSupportedProviders(): Promise<ProviderCatalogContract> {
       const res = await authedFetch(`${baseUrl}/api/settings/providers`);
       await assertOk(res);
@@ -470,14 +557,14 @@ export function createApiClient(baseUrl: string, projectId: string, accessToken?
       return parseJsonResponse<{ ok: boolean }>(res, schemas.okResponse);
     },
 
-    async uploadAttachedImage(
+    async uploadAttachment(
       blob: Blob,
-      meta?: { width?: number; height?: number },
+      opts?: { filename?: string; width?: number; height?: number },
     ): Promise<AttachmentUploadResponse> {
       const form = new FormData();
-      form.append("file", blob);
-      if (meta?.width !== undefined) form.append("width", String(meta.width));
-      if (meta?.height !== undefined) form.append("height", String(meta.height));
+      form.append("file", blob, opts?.filename ?? "file");
+      if (opts?.width !== undefined) form.append("width", String(opts.width));
+      if (opts?.height !== undefined) form.append("height", String(opts.height));
       const res = await authedFetch(`${apiBase}/attachments`, {
         method: "POST",
         body: form,

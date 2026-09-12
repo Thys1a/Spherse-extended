@@ -8,6 +8,19 @@ const sessionInfo = Type.Object({
   updatedAt: Type.Number(),
   status: Type.Union([Type.Literal("active"), Type.Literal("archived")]),
   source: Type.Optional(Type.Union([Type.Literal("manual"), Type.Literal("triggered")])),
+  model: Type.Optional(Type.String()),
+});
+
+const slashMeta = Type.Object({
+  type: Type.Union([Type.Literal("skill"), Type.Literal("command")]),
+  name: Type.String(),
+  rawArgs: Type.String(),
+});
+
+const summonMeta = Type.Object({
+  agentId: Type.String(),
+  sessionId: Type.String(),
+  agentName: Type.String(),
 });
 
 export const schemas = {
@@ -28,6 +41,12 @@ export const schemas = {
   sessionCreateResponse: Type.Object({ sessionId: Type.String() }),
   sessionCreateRequest: Type.Object({ title: Type.Optional(Type.String({ minLength: 1 })) }),
   sessionRenameRequest: Type.Object({ title: Type.String() }),
+  sessionModelUpdateRequest: Type.Object({ modelId: Type.String() }),
+  summonRequest: Type.Object({
+    targetSlug: Type.String({ minLength: 1 }),
+    message: Type.String({ minLength: 1 }),
+  }),
+  summonResponse: Type.Object({ ok: Type.Boolean(), targetSessionId: Type.String() }),
   sendMessageRequest: Type.Object({ content: Type.String({ minLength: 1 }) }),
   sendMessageOkResponse: Type.Object({ ok: Type.Boolean() }),
   /**
@@ -42,8 +61,10 @@ export const schemas = {
     entries: Type.Array(Type.Object({
       id: Type.Number(),
       message: Type.Unknown(),
-      source: Type.Optional(Type.Literal("triggered")),
+      source: Type.Optional(Type.Union([Type.Literal("triggered"), Type.Literal("summon")])),
       triggerName: Type.Optional(Type.String()),
+      slash: Type.Optional(slashMeta),
+      summon: Type.Optional(summonMeta),
     })),
     hasMore: Type.Boolean(),
     oldestId: Type.Union([Type.Number(), Type.Null()]),
@@ -61,8 +82,13 @@ export type ProjectSessionListResponse = Static<typeof schemas.projectSessionLis
 export type SessionCreateResponse = Static<typeof schemas.sessionCreateResponse>;
 export type SessionCreateRequest = Static<typeof schemas.sessionCreateRequest>;
 export type SessionRenameRequest = Static<typeof schemas.sessionRenameRequest>;
+export type SessionModelUpdateRequest = Static<typeof schemas.sessionModelUpdateRequest>;
+export type SummonRequest = Static<typeof schemas.summonRequest>;
+export type SummonResponse = Static<typeof schemas.summonResponse>;
 export type SendMessageRequest = Static<typeof schemas.sendMessageRequest>;
 export type SendMessageOkResponse = Static<typeof schemas.sendMessageOkResponse>;
 export type SessionMessagesResponse = Static<typeof schemas.sessionMessagesResponse>;
 export type SessionMessagesPageResponse = Static<typeof schemas.sessionMessagesPageResponse>;
 export type SessionStatusResponse = Static<typeof schemas.sessionStatus>;
+export type SlashMetaContract = Static<typeof slashMeta>;
+export type SummonMetaContract = Static<typeof summonMeta>;

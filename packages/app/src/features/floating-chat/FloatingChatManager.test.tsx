@@ -88,6 +88,7 @@ describe("FloatingChatManager tabs bounce", () => {
       sessionId: "s1",
       position: { x: 0, y: 0 },
       size: { width: 100, height: 100 },
+      mode: "full",
     });
   });
 

@@ -857,3 +857,237 @@ describe("SessionManager createSession title", () => {
     expect(session?.source).toBe("triggered");
   });
 });
+
+describe("SessionManager.setSessionModel", () => {
+  let tmpDir: string;
+  let runtime: RuntimeInternals & Awaited<ReturnType<typeof createProject>>;
+  let agentId: string;
+
+  beforeEach(async () => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "wb-mgr-model-"));
+    getChatStreamFnMock.mockClear();
+    resolveModelByIdMock.mockClear();
+    runtime = (await createProject(tmpDir, {
+      projectName: "Test",
+      logger: createSilentLogger(),
+    })) as RuntimeInternals & Awaited<ReturnType<typeof createProject>>;
+    const projectStore = runtime.projectManager.projectStore;
+    const testAgent = await projectStore.createAgent("test-agent", TEST_AGENT_PROFILE);
+    agentId = testAgent.getProfile().id;
+    runtime.timerService.stop();
+  });
+
+  afterEach(() => {
+    runtime.projectManager.close();
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  function findSession(id: string) {
+    return runtime.projectManager.listSessions(agentId).find((s) => s.id === id);
+  }
+
+  it("persists the session model and returns it trimmed", async () => {
+    const sessionId = await runtime.sessionRuntime.createSession(agentId);
+    const result = runtime.sessionRuntime.setSessionModel(agentId, sessionId, "  openai/gpt-4o  ");
+    expect(result).toBe("openai/gpt-4o");
+    expect(findSession(sessionId)?.model).toBe("openai/gpt-4o");
+  });
+
+  it("clears the session model on an empty modelId", async () => {
+    const sessionId = await runtime.sessionRuntime.createSession(agentId);
+    runtime.sessionRuntime.setSessionModel(agentId, sessionId, "openai/gpt-4o");
+    expect(runtime.sessionRuntime.setSessionModel(agentId, sessionId, "   ")).toBeNull();
+    expect(findSession(sessionId)?.model).toBeUndefined();
+  });
+
+  it("throws NotFoundError for unknown agent or session", async () => {
+    const sessionId = await runtime.sessionRuntime.createSession(agentId);
+    void sessionId;
+    expect(() => runtime.sessionRuntime.setSessionModel("no-agent", "s", "openai/gpt-4o")).toThrow(
+      "not found",
+    );
+    expect(() =>
+      runtime.sessionRuntime.setSessionModel(agentId, "no-session", "openai/gpt-4o"),
+    ).toThrow("not found");
+  });
+
+  it("throws ValidationError when the model does not resolve", async () => {
+    const sessionId = await runtime.sessionRuntime.createSession(agentId);
+    resolveModelByIdMock.mockImplementationOnce(() => {
+      throw new Error("Could not resolve model: nope/nope");
+    });
+    expect(() => runtime.sessionRuntime.setSessionModel(agentId, sessionId, "nope/nope")).toThrow(
+      /Unknown model/,
+    );
+    expect(findSession(sessionId)?.model).toBeUndefined();
+  });
+
+  it("applies the session model to the live runner", async () => {
+    const sessionId = await runtime.sessionRuntime.createSession(agentId);
+    runtime.sessionRuntime.setSessionModel(agentId, sessionId, "openai/gpt-4o");
+    expect(activeAgent(runtime as RuntimeInternals, sessionId).state.model).toEqual({
+      id: "gpt-4o",
+      provider: "openai",
+    });
+  });
+
+  it("clears the persisted override and fails closed on send", async () => {
+    const sessionId = await runtime.sessionRuntime.createSession(agentId);
+    runtime.sessionRuntime.setSessionModel(agentId, sessionId, "openai/gpt-4o");
+    expect(activeAgent(runtime as RuntimeInternals, sessionId).state.model).toEqual({
+      id: "gpt-4o",
+      provider: "openai",
+    });
+
+    runtime.sessionRuntime.setSessionModel(agentId, sessionId, "");
+    expect(findSession(sessionId)?.model).toBeUndefined();
+    await expect(
+      runtime.sessionRuntime.sendMessage(sessionId, "hi", [], () => {}),
+    ).rejects.toBeInstanceOf(ModelNotConfiguredError);
+  });
+
+  it("prefers the session model over the global default on sendMessage", async () => {
+    const sessionId = await runtime.sessionRuntime.createSession(agentId);
+    runtime.sessionRuntime.setDefaultModel("other/model-x");
+    runtime.sessionRuntime.setSessionModel(agentId, sessionId, "openai/gpt-4o");
+
+    const agent = activeAgent(runtime as RuntimeInternals, sessionId);
+    agent.subscribe = vi.fn(() => () => {}) as FakeAgent["subscribe"];
+    agent.prompt = vi.fn().mockResolvedValue(undefined) as FakeAgent["prompt"];
+
+    await expect(
+      runtime.sessionRuntime.sendMessage(sessionId, "hi", [], () => {}),
+    ).resolves.toBeUndefined();
+    expect(agent.state.model).toEqual({ id: "gpt-4o", provider: "openai" });
+    expect(agent.prompt).toHaveBeenCalledTimes(1);
+  });
+
+  it("applies a one-shot model override without persisting it", async () => {
+    const sessionId = await runtime.sessionRuntime.createSession(agentId);
+    runtime.sessionRuntime.setSessionModel(agentId, sessionId, "openai/gpt-4o");
+
+    const agent = activeAgent(runtime as RuntimeInternals, sessionId);
+    agent.subscribe = vi.fn(() => () => {}) as FakeAgent["subscribe"];
+    agent.prompt = vi.fn().mockResolvedValue(undefined) as FakeAgent["prompt"];
+
+    await expect(
+      runtime.sessionRuntime.sendMessage(sessionId, "hi", [], () => {}, undefined, {
+        modelOverride: "openai/o1",
+      }),
+    ).resolves.toBeUndefined();
+    expect(agent.state.model).toEqual({ id: "o1", provider: "openai" });
+    expect(findSession(sessionId)?.model).toBe("openai/gpt-4o");
+  });
+
+  it("rejects an unknown one-shot override without persisting events", async () => {
+    const sessionId = await runtime.sessionRuntime.createSession(agentId);
+    runtime.sessionRuntime.setDefaultModel("openai/gpt-4o");
+    resolveModelByIdMock.mockImplementationOnce(() => {
+      throw new Error("Could not resolve model: nope/nope");
+    });
+
+    const agent = activeAgent(runtime as RuntimeInternals, sessionId);
+    await expect(
+      runtime.sessionRuntime.sendMessage(sessionId, "hi", [], () => {}, undefined, {
+        modelOverride: "nope/nope",
+      }),
+    ).rejects.toThrow(/Unknown model/);
+    expect(agent.state.model).toEqual({ id: "gpt-4o", provider: "openai" });
+    const runner = (runtime.sessionRuntime as unknown as {
+      sessions: Map<string, { currentEvents: unknown[] }>;
+    }).sessions.get(sessionId);
+    expect(runner?.currentEvents).toHaveLength(0);
+  });
+
+  it("expands /skill: messages and records slash meta on the event", async () => {
+    await runtime.projectManager.projectStore.skill.createSkill("review", "d", "Review carefully.");
+    const sessionId = await runtime.sessionRuntime.createSession(agentId);
+    runtime.sessionRuntime.setDefaultModel("openai/gpt-4o");
+    const agent = activeAgent(runtime as RuntimeInternals, sessionId);
+    agent.subscribe = vi.fn(() => () => {}) as FakeAgent["subscribe"];
+    agent.prompt = vi.fn().mockResolvedValue(undefined) as FakeAgent["prompt"];
+
+    await expect(
+      runtime.sessionRuntime.sendMessage(sessionId, "/skill:review focus on tests", [], () => {}),
+    ).resolves.toBeUndefined();
+    const runner = (runtime.sessionRuntime as unknown as {
+      sessions: Map<string, { currentEvents: Array<{ type: string; data: Record<string, unknown> }> }>;
+    }).sessions.get(sessionId);
+    const userEvent = runner?.currentEvents.find((e) => e.type === "user/message");
+    expect(userEvent?.data.message).toMatchObject({
+      content: [{ type: "text", text: expect.stringContaining("Review carefully.") }],
+    });
+    expect(userEvent?.data.slash).toEqual({ type: "skill", name: "review", rawArgs: "focus on tests" });
+  });
+
+  it("rejects unknown slash commands before persisting anything", async () => {
+    const sessionId = await runtime.sessionRuntime.createSession(agentId);
+    await expect(
+      runtime.sessionRuntime.sendMessage(sessionId, "/skill:nope x", [], () => {}),
+    ).rejects.toThrow(/Skill "nope" not found/);
+    const runner = (runtime.sessionRuntime as unknown as {
+      sessions: Map<string, { currentEvents: unknown[] }>;
+    }).sessions.get(sessionId);
+    expect(runner?.currentEvents).toHaveLength(0);
+  });
+});
+
+describe("SessionManager.appendUserMessage", () => {
+  let tmpDir: string;
+  let runtime: RuntimeInternals & Awaited<ReturnType<typeof createProject>>;
+  let agentId: string;
+
+  beforeEach(async () => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "wb-mgr-note-"));
+    runtime = (await createProject(tmpDir, {
+      projectName: "Test",
+      logger: createSilentLogger(),
+    })) as RuntimeInternals & Awaited<ReturnType<typeof createProject>>;
+    const projectStore = runtime.projectManager.projectStore;
+    const testAgent = await projectStore.createAgent("test-agent", TEST_AGENT_PROFILE);
+    agentId = testAgent.getProfile().id;
+    runtime.timerService.stop();
+  });
+
+  afterEach(() => {
+    runtime.projectManager.close();
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("appends a bare user note with summon meta without starting a run", async () => {
+    const sessionId = await runtime.sessionRuntime.createSession(agentId);
+    const seq = await runtime.sessionRuntime.appendUserMessage(agentId, sessionId, "run tests", {
+      source: "summon",
+      summon: { agentId, sessionId: "target-s1", agentName: "Test Agent" },
+    });
+    expect(seq).toBe(0);
+    const history = runtime.projectManager.getRecentSessionHistory(agentId, sessionId, 20);
+    expect(history.entries).toHaveLength(1);
+    expect(history.entries[0]).toMatchObject({
+      source: "summon",
+      summon: { agentId, sessionId: "target-s1", agentName: "Test Agent" },
+    });
+    const runner = (runtime.sessionRuntime as unknown as {
+      sessions: Map<string, { currentEvents: unknown[] }>;
+    }).sessions.get(sessionId);
+    expect(runner?.currentEvents).toHaveLength(1);
+  });
+
+  it("throws NotFoundError for unknown sessions", () => {
+    expect(() =>
+      runtime.sessionRuntime.appendUserMessage(agentId, "no-session", "hi"),
+    ).rejects.toThrow("not found");
+  });
+
+  it("serializes concurrent appends without seq gaps", async () => {
+    const sessionId = await runtime.sessionRuntime.createSession(agentId);
+    runtime.sessionRuntime.destroySession(sessionId);
+    const [first, second] = await Promise.all([
+      runtime.sessionRuntime.appendUserMessage(agentId, sessionId, "one"),
+      runtime.sessionRuntime.appendUserMessage(agentId, sessionId, "two"),
+    ]);
+    expect(new Set([first, second]).size).toBe(2);
+    const history = runtime.projectManager.getRecentSessionHistory(agentId, sessionId, 20);
+    expect(history.entries).toHaveLength(2);
+  });
+});
