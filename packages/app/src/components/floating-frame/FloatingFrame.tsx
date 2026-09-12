@@ -18,20 +18,24 @@ const edges: Array<{ edge: ResizeEdge; className: string }> = [
   { edge: "se", className: "bottom-0 right-0 w-1.5 h-1.5 cursor-se-resize" },
 ];
 
-interface FloatingFrameProps {
+interface FloatingFrameBaseProps {
   hookPrefix: string;
   title: string;
   position: { x: number; y: number };
   size: { width: number; height: number };
   onPositionCommit: (pos: { x: number; y: number }) => void;
-  onSizeCommit: (size: { width: number; height: number }, pos: { x: number; y: number }) => void;
+  onSizeCommit?: (size: { width: number; height: number }, pos: { x: number; y: number }) => void;
   onClose: () => void;
   onExpand?: () => void;
-  onTogglePet?: () => void;
-  petToggleTitle?: string;
   variant?: "full" | "pet";
   children: ReactNode;
 }
+
+type PetToggleProps =
+  | { onTogglePet: () => void; petToggleTitle: string }
+  | { onTogglePet?: undefined; petToggleTitle?: undefined };
+
+type FloatingFrameProps = FloatingFrameBaseProps & PetToggleProps;
 
 export function FloatingFrame({
   hookPrefix,
@@ -39,7 +43,7 @@ export function FloatingFrame({
   position: initialPosition,
   size: initialSize,
   onPositionCommit,
-  onSizeCommit,
+  onSizeCommit = () => {},
   onClose,
   onExpand,
   onTogglePet,

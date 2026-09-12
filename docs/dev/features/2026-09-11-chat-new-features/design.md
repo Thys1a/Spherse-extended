@@ -88,7 +88,7 @@
 
 ## 7. 桌宠模式（批次 H，仅步骤 1；OS 窗口 + 形象上传延 v2）
 
-步骤 1（纯 renderer 外观态）：`floating-chat/store.ts` 加 `mode: 'full'|'pet'`（localStorage）；`FloatingFrame` pet 变体（隐藏标题栏/resize，只留形象区 + 迷你单行 Composer）；主题链不变；未上传形象用 agent 头像（首字母圆形）。
+步骤 1（纯 renderer 外观态）：`floating-chat/store.ts` 加 `mode: 'full'|'pet'`（随现有 localStorage 写路径持久化，无读恢复路径）；`FloatingFrame` 加 `variant` + `onTogglePet`（pet 无标题栏/resize，整框拖拽，交互元素免拖）；桌宠分支为形象圆按钮（agent 首字大写，点击返回完整模式，键盘/触屏可达）+ 迷你单行 Composer（经 `useChatSession` 独立挂载，与 Chat 共享 store，streaming/loading 对齐禁用，`>>` 走同一召唤入口）+ hover/focus 悬浮条（仅关闭）；进入 pet 停止 TTS；主题链不变；未上传形象用 agent 头像。
 
 v2（本次不做）：OS 级第二窗口（独立 JS context 会产生第二份 store/WS 状态，需专项设计）+ agent 右键"上传形象"（需 `AgentProfile.avatarPath` 字段，动 profile frontmatter 解析/emit + contracts + preview 放行；超出固定范围等比缩小存 `.spherse/agents/<slug>/avatar.png`）。
 

@@ -19,7 +19,7 @@ import { useChatScroll } from "./hooks/useChatScroll";
 import { useChatSession } from "./hooks/useChatSession";
 import { useStreamingStore } from "./runtime/streaming-store";
 import type { AttachedFile } from "./types";
-import { parseSummonMessage } from "./lib/slash-menu";
+import { useSummonSend } from "./lib/use-summon-send";
 
 export interface ChatProps {
   sessionId: string;
@@ -65,6 +65,7 @@ export function Chat({ sessionId, agent, onNavigateToPath, onOpenSession, initia
   const hasMore = useStreamingStore((s) => s.sessions[sessionId]?.hasMore ?? false);
   const loadingMore = useStreamingStore((s) => s.sessions[sessionId]?.loadingMore ?? false);
   const { containerRef, isAtBottom, scrollToBottom } = useChatScroll(messages, sessionId, loadingMore);
+  const sendSummon = useSummonSend(sessionId, agent.id);
   const themeCss = useAgentTheme(client, agent.id, agent.slug, projectId);
   const scopedThemeCss = useMemo(
     () => (themeCss ? scopeAgentThemeCss(themeCss, sessionId) : ""),
@@ -87,25 +88,12 @@ export function Chat({ sessionId, agent, onNavigateToPath, onOpenSession, initia
   };
 
   const handleSend = (text: string, attachments?: AttachedFile[]) => {
-    const trimmed = text.trim();
-    if (trimmed.startsWith(">>")) {
-      const summon = parseSummonMessage(trimmed);
-      if (!summon) {
-        toast.error(t("chat.summonUsage"));
-        return false;
-      }
+    if (text.trim().startsWith(">>")) {
       if (attachments && attachments.length > 0) {
         toast.error(t("chat.summonNoAttachments"));
         return false;
       }
-      void (async () => {
-        try {
-          await client.summonToAgent(agent.id, sessionId, summon);
-          useStreamingStore.getState().refreshHistory(client, agent.id, sessionId);
-        } catch (err) {
-          toast.error(t("chat.summonFailed", { message: (err as Error).message }));
-        }
-      })();
+      void sendSummon(text);
       return true;
     }
     return sendMessage(text, attachments);

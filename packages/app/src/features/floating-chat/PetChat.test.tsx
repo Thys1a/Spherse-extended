@@ -58,7 +58,7 @@ describe("FloatingChatContainer pet mode", () => {
     expect(document.querySelector("[data-chat-messages]")).not.toBeInTheDocument();
   });
 
-  it("switches back to full mode from the hover overlay", async () => {
+  it("switches back to full mode from the avatar button", async () => {
     renderWithProviders(
       <FloatingChatContainer projectId="p1" floatingChat={petState()} agent={agent} />,
       { bridge: createMockHostBridge() },
