@@ -5,10 +5,14 @@ import { useI18n } from "@spherse/i18n/react";
 import { collectPendingApprovals } from "./model/approval-notice";
 import { useStreamingStore } from "./runtime/streaming-store";
 import { getCachedAgents, getCachedSession } from "../../queries/project";
+import { useHostBridge } from "../../context/host-bridge-context";
+import { useSettingsStore } from "../../stores/settings-store";
+import { notifyUser } from "../../lib/notify-user";
 
 export function ApprovalNoticeBridge() {
   const navigate = useNavigate();
   const { t } = useI18n();
+  const bridge = useHostBridge();
   const match = useMatch("/project/:projectId/chat/:sessionId");
   const activeSessionId = match?.params.sessionId ?? null;
 
@@ -45,12 +49,15 @@ export function ApprovalNoticeBridge() {
             onClick: () => navigate(`/project/${item.projectId}/chat/${item.sessionId}`),
           },
         });
+        if (useSettingsStore.getState().notifications.approval ?? true) {
+          notifyUser(bridge, agent?.name ?? title, title);
+        }
       }
     };
     check();
     const unsubscribe = useStreamingStore.subscribe(check);
     return unsubscribe;
-  }, [navigate, activeSessionId]);
+  }, [navigate, activeSessionId, bridge]);
 
   return null;
 }

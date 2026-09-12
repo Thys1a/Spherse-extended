@@ -13,6 +13,7 @@ const WEB_CAPABILITIES: HostCapabilities = {
   mobileAccess: false,
   openFileExternal: false,
   proxy: false,
+  notification: true,
   content: { editable: false },
 };
 
@@ -174,6 +175,23 @@ export function createWebHostBridge(): HostBridge {
     saveSettings: persistSettings,
     openExternal: async (url: string) => {
       window.open(url, "_blank", "noopener,noreferrer");
+    },
+    notify: (title: string, body: string) => {
+      void (async () => {
+        try {
+          if (!("Notification" in window)) return;
+          if (Notification.permission === "granted") {
+            new Notification(title, { body });
+            return;
+          }
+          if (Notification.permission === "default") {
+            const permission = await Notification.requestPermission();
+            if (permission === "granted") new Notification(title, { body });
+          }
+        } catch {
+          void 0;
+        }
+      })();
     },
     saveBlob: async (filename: string, blob: Blob) => {
       const url = URL.createObjectURL(blob);

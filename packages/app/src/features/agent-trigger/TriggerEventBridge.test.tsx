@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { TriggerEventBridge } from "./TriggerEventBridge";
 import { useTriggerStore } from "./store";
 import { bumpBusResumedAt, connectMockBus, emitBusEvent, stubMockBusSocket, teardownMockBus } from "../../test/bus";
+import { createMockHostBridge } from "../../test/host-bridge";
 import { renderWithProviders } from "../../test/render";
 import { queryClient as globalQueryClient } from "../../queries/client";
 import { projectQueryKeys } from "../../queries/keys";
@@ -18,7 +19,7 @@ afterEach(() => {
 });
 
 function renderBridge() {
-  renderWithProviders(<TriggerEventBridge />);
+  renderWithProviders(<TriggerEventBridge />, { bridge: createMockHostBridge() });
 }
 
 function emitTrigger(type: string, payload: object) {

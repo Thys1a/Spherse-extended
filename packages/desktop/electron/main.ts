@@ -11,6 +11,9 @@ import { getTunnelManager } from "./tunnel/manager.js";
 import { settleWithin } from "@spherse/core";
 
 app.whenReady().then(async () => {
+  if (process.platform === "win32") {
+    app.setAppUserModelId("com.spherse.app");
+  }
   await fixPath();
   restoreEnvFromSettings();
   setGlobalDispatcher(new EnvHttpProxyAgent());

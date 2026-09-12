@@ -35,6 +35,7 @@ export interface ElectronAPI {
   openProjectFolder: (projectRoot: string) => Promise<void>;
   openFile: (filePath: string) => Promise<void>;
   openExternal: (url: string) => Promise<void>;
+  showNotification: (opts: { title: string; body: string }) => Promise<void>;
   setLastActiveProject: (projectId: string) => Promise<void>;
   getLastActiveProject: () => Promise<string | null>;
   getSettings: () => Promise<HostSettings | null>;

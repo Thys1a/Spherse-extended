@@ -1073,6 +1073,18 @@ export const zhCN = {
   "settings.debugTools": "调试工具",
   // 设置 > 通用：调试工具开关下方的说明文案
   "settings.debugToolsDesc": "在侧边栏显示调试菜单入口",
+  // 设置 > 通用：系统通知小节标题（窗口未聚焦时弹出 OS 级通知）
+  "settings.notifications.title": "系统通知",
+  // 设置 > 通用：系统通知小节说明
+  "settings.notifications.desc": "窗口未聚焦时，为审批与触发器完成弹出系统通知",
+  // 设置 > 通用：审批通知开关
+  "settings.notifications.approval": "审批通知",
+  // 设置 > 通用：审批通知开关说明
+  "settings.notifications.approvalDesc": "有待审批或待回答时通知",
+  // 设置 > 通用：触发器通知开关
+  "settings.notifications.trigger": "触发器通知",
+  // 设置 > 通用：触发器通知开关说明
+  "settings.notifications.triggerDesc": "触发器运行完成时通知",
   // 设置 > 通用：朗读设置小节标题
   "settings.tts.title": "朗读",
   // 设置 > 通用：自动朗读开关

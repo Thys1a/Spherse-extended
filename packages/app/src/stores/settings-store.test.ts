@@ -14,7 +14,7 @@ function createApi(overrides: Partial<SettingsApi> = {}): SettingsApi {
 
 describe("useSettingsStore", () => {
   beforeEach(() => {
-    useSettingsStore.setState({ locale: "zh-CN", debugToolsEnabled: false, theme: "system", tts: {}, proxy: {} });
+    useSettingsStore.setState({ locale: "zh-CN", debugToolsEnabled: false, theme: "system", tts: {}, proxy: {}, notifications: {} });
   });
 
   it("loads locale from settings", async () => {
@@ -55,6 +55,7 @@ describe("useSettingsStore", () => {
       theme: "system",
       tts: {},
       proxy: {},
+      notifications: {},
     });
   });
 
@@ -92,6 +93,7 @@ describe("useSettingsStore", () => {
       theme: "system",
       tts: {},
       proxy: {},
+      notifications: {},
     });
   });
 
@@ -129,6 +131,7 @@ describe("useSettingsStore", () => {
       theme: "dark",
       tts: {},
       proxy: {},
+      notifications: {},
     });
   });
 
@@ -147,6 +150,7 @@ describe("useSettingsStore", () => {
       theme: "light",
       tts: {},
       proxy: {},
+      notifications: {},
     });
   });
 
@@ -176,6 +180,7 @@ describe("useSettingsStore", () => {
       theme: "system",
       tts: { autoRead: true },
       proxy: {},
+      notifications: {},
     });
   });
 
@@ -205,6 +210,7 @@ describe("useSettingsStore", () => {
       theme: "system",
       tts: {},
       proxy: { url: "http://127.0.0.1:7890" },
+      notifications: {},
     });
   });
 
@@ -223,6 +229,7 @@ describe("useSettingsStore", () => {
       theme: "dark",
       tts: {},
       proxy: { url: "http://127.0.0.1:7890" },
+      notifications: {},
     });
   });
 
@@ -236,5 +243,44 @@ describe("useSettingsStore", () => {
 
     expect(useSettingsStore.getState().proxy).toEqual({ noProxy: "localhost" });
     expect("url" in useSettingsStore.getState().proxy).toBe(false);
+  });
+
+  it("loads notification prefs from settings", async () => {
+    const api = createApi({
+      getSettings: vi.fn().mockResolvedValue({ notifications: { approval: false } }),
+    });
+
+    await useSettingsStore.getState().loadLocale(api);
+
+    expect(useSettingsStore.getState().notifications).toEqual({ approval: false });
+  });
+
+  it("defaults notification prefs to empty when absent", async () => {
+    const api = createApi();
+
+    await useSettingsStore.getState().loadLocale(api);
+
+    expect(useSettingsStore.getState().notifications).toEqual({});
+  });
+
+  it("setNotifications merges patch and persists without dropping other fields", async () => {
+    useSettingsStore.setState({ theme: "dark", tts: { autoRead: true } });
+    const api = createApi({
+      getSettings: vi.fn().mockResolvedValue({ locale: "en", models: undefined }),
+    });
+
+    const ok = await useSettingsStore.getState().setNotifications(api, { trigger: false });
+
+    expect(ok).toBe(true);
+    expect(useSettingsStore.getState().notifications).toEqual({ trigger: false });
+    expect(api.saveSettings).toHaveBeenCalledWith({
+      locale: "en",
+      models: undefined,
+      debugToolsEnabled: false,
+      theme: "dark",
+      tts: { autoRead: true },
+      proxy: {},
+      notifications: { trigger: false },
+    });
   });
 });
