@@ -41,7 +41,9 @@ export function TriggerEventBridge() {
       },
     });
     if (useSettingsStore.getState().notifications.trigger ?? true) {
-      notifyUser(bridge, trigger.name?.trim() || body, body);
+      notifyUser(bridge, trigger.name?.trim() || body, body, {
+        route: `/project/${projectId}/chat/${sessionId}`,
+      });
     }
   };
 

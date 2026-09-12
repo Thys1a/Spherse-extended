@@ -153,6 +153,10 @@ export interface DevToolsHostApi {
   resetAppData(): Promise<void>;
 }
 
+export interface NotificationOptions {
+  route?: string;
+}
+
 export interface HostBridge {
   readonly kind: HostKind;
   getServerBaseUrl(): Promise<string>;
@@ -161,7 +165,8 @@ export interface HostBridge {
   getSettings(): Promise<HostSettings | null>;
   saveSettings(settings: HostSettings): Promise<{ success: boolean }>;
   openExternal(url: string): Promise<void>;
-  notify(title: string, body: string): void;
+  notify(title: string, body: string, opts?: NotificationOptions): void;
+  onNotificationClicked?(callback: (route: string) => void): () => void;
   saveBlob?(filename: string, blob: Blob): Promise<void>;
   showSaveDialog?(options: SaveDialogOptions): Promise<string | null>;
   getSupportedProviders?(): Promise<Record<string, ProviderCatalogItem>>;

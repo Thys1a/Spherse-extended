@@ -140,6 +140,10 @@ export interface AppSettings {
   mobileAccess?: MobileAccessSettings;
   tts?: TtsSettings;
   proxy?: ProxySettings;
+  notifications?: {
+    approval?: boolean;
+    trigger?: boolean;
+  };
 }
 
 export interface ProviderCatalogItem {

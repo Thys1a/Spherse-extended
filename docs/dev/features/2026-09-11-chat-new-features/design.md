@@ -38,7 +38,7 @@
 
 持久覆盖与单次 override 是两套机制，分开实现：
 
-- 会话模型（持久）：core `sessions` 表新增 `model` 列（沿 `store/session.ts:133` 的 ALTER TABLE 迁移先例）；`SessionManager.setSessionModel` 经 `ModelCatalog` 校验后落库（未知模型抛 `ValidationError`→HTTP 400，空串清除），活会话经 `applySessionModel` 即时生效、无模型时显式清空内存模型；解析统一 `session > profile.model > global`（`status`/`model-resolver`/`agent-assembly`/`ensureModel`/`applyDefaultModel`/`getSessionStatus`）。读取为 DB 直读（落库即真相，无内存 map）。
+- 会话模型（持久）：core `sessions` 表新增 `model` 列（沿 `store/session.ts:133` 的 ALTER TABLE 迁移先例）；`SessionManager.setSessionModel` 经 `ModelCatalog` 校验后落库（未知模型抛 `ValidationError`→HTTP 400，空串清除），活会话经 `applySessionModel` 即时生效；解析统一 `session > profile.model > global`（`status`/`model-resolver`/`agent-assembly`/`ensureModel`/`applyDefaultModel`/`getSessionStatus`）。读取为 DB 直读（落库即真相，无内存 map）。已知残留：pi `AgentState.model` 类型非空，清除到“无处可回退”时活 runner 内存模型无法置空（保留旧值），但下一次发送必经 `ensureModel` fail-closed，且 `getStatus` 本就按“读内存活模型”语义（有测试钉住），不改。
 - 单次 override（供 §2 命令 `model` 字段）：`ensureModel`/`sendMessage` 新增可选 `modelOverride` 入参，仅本 turn 生效，不入库；无效值抛 `ValidationError`（与持久路径同语义），抛错点在事件落盘前。`retryLastTurn` 暂不加参（等批次 F 真需要时再加）。
 - contracts：`PATCH /projects/:pid/sessions/:sid/model`，body `{modelId}`（空串表示清除；Fastify 会把数字 coerce 成字符串，接受该行为，无效 id 由 catalog 校验以 400 拦下），经 `ModelCatalog.resolveModelById` 校验；`SessionInfo`/`agentSummary` 加可选 `model`。
 - server：`routes/sessions.ts` 加路由，通知 `SessionManager.setSessionModel()`。
@@ -49,10 +49,10 @@
 
 触发点：
 
-1. 审批时：`ApprovalNoticeBridge.check()` 的 toast 处并行调 `hostBridge.notify(title, body)`；判定叠加窗口失焦（session 活跃但人不在屏幕前同样要通知）。
-2. AI 提醒：`TriggerEventBridge` 的 `trigger_completed` 分支（已有 `notify` 判定，命名复用 trigger action 的 `notify`/`notificationMessage`）。
+1. 审批时：`ApprovalNoticeBridge` 的 toast 保持同会话抑制（正在看该会话只看卡片），OS 通知走窗口失焦门（切走应用也通知）。
+2. AI 提醒：`TriggerEventBridge` 的 `trigger_completed` 分支（已有 `notify` 判定，命名复用 trigger action 的 `notify`/`notificationMessage`）；`trigger_failed` 不通知。
 
-实现：host-bridge 加 `notify(title, body)` + `HostCapabilities.notification` 能力位 + `system-notification` 特性门；desktop 主进程 `new Notification().show()`，点击聚焦主窗并跳转相关会话，已聚焦时只 toast（Windows 需 `setAppUserModelId`）；web 用 `Notification.requestPermission()`，前台 toast、后台 OS 通知。`HostSettings.notifications: {approval, trigger}` + Settings 两个开关。不立独立插件层。
+实现：host-bridge 加 `notify(title, body, opts?: {route})` + `onNotificationClicked` + `HostCapabilities.notification` 能力位 + `system-notification` 特性门（ALL_HOSTS）；失焦时 toast 与 OS 并存是刻意为之。desktop 主进程 `new Notification().show()`（输入归一化 + 长度帽 + try-catch），点击聚焦主窗（最小化先还原）并经 `notification-clicked` 事件回 renderer 跳转会话（Windows `setAppUserModelId` 放模块顶层）；web 用 `Notification.requestPermission()`（拒绝则跳过并 debug），点击仅聚焦；electron-store 全量字段透传 `notifications`（`getMaskedSettings`/`saveSettings` 缺一即假持久）。`HostSettings.notifications: {approval, trigger}` + Settings 两个开关（按 capability 禁用）。不立独立插件层。
 
 ## 1. 会话附加文件（批次 D；§6 的前置）
 

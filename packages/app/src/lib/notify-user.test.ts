@@ -34,7 +34,7 @@ describe("notifyUser", () => {
   it("calls bridge.notify when the feature and capability are on and the window is blurred", () => {
     const bridge = createBridge();
     notifyUser(bridge, "title", "body");
-    expect(bridge.notify).toHaveBeenCalledWith("title", "body");
+    expect(bridge.notify).toHaveBeenCalledWith("title", "body", undefined);
   });
 
   it("skips the OS notification when the window is focused", () => {
@@ -60,6 +60,6 @@ describe("notifyUser", () => {
   it("notifies on web hosts too (matrix is ALL_HOSTS)", () => {
     const bridge = createBridge({ kind: "web" });
     notifyUser(bridge, "title", "body");
-    expect(bridge.notify).toHaveBeenCalledWith("title", "body");
+    expect(bridge.notify).toHaveBeenCalledWith("title", "body", undefined);
   });
 });

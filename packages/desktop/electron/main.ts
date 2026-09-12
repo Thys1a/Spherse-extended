@@ -10,10 +10,11 @@ import { setupContextMenu } from "./ipc/context-menu.js";
 import { getTunnelManager } from "./tunnel/manager.js";
 import { settleWithin } from "@spherse/core";
 
+if (process.platform === "win32") {
+  app.setAppUserModelId("com.spherse.app");
+}
+
 app.whenReady().then(async () => {
-  if (process.platform === "win32") {
-    app.setAppUserModelId("com.spherse.app");
-  }
   await fixPath();
   restoreEnvFromSettings();
   setGlobalDispatcher(new EnvHttpProxyAgent());

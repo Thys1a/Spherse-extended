@@ -180,19 +180,28 @@ export function createWebHostBridge(): HostBridge {
       void (async () => {
         try {
           if (!("Notification" in window)) return;
+          if (Notification.permission === "denied") {
+            console.debug("[host-bridge] notification permission denied, skipping OS notification");
+            return;
+          }
+          const show = () => {
+            const notification = new Notification(title, { body });
+            notification.onclick = () => window.focus();
+          };
           if (Notification.permission === "granted") {
-            new Notification(title, { body });
+            show();
             return;
           }
           if (Notification.permission === "default") {
             const permission = await Notification.requestPermission();
-            if (permission === "granted") new Notification(title, { body });
+            if (permission === "granted") show();
           }
         } catch {
           void 0;
         }
       })();
     },
+    onNotificationClicked: () => () => {},
     saveBlob: async (filename: string, blob: Blob) => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");

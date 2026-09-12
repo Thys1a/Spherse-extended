@@ -219,6 +219,7 @@ function SettingsTabs() {
   const setNotifications = useSettingsStore((s) => s.setNotifications);
   const proxyEnabled = bridge.capabilities.proxy;
   const mobileAccessEnabled = bridge.capabilities.mobileAccess;
+  const notificationEnabled = bridge.capabilities.notification;
   const settingsApi = useMemo<SettingsApi>(() => ({
     getSettings: bridge.getSettings,
     saveSettings: bridge.saveSettings,
@@ -290,6 +291,7 @@ function SettingsTabs() {
               </div>
               <Switch
                 checked={notifications.approval ?? true}
+                disabled={!notificationEnabled}
                 onCheckedChange={(checked) => { void setNotifications(settingsApi, { approval: checked }); }}
               />
             </div>
@@ -300,6 +302,7 @@ function SettingsTabs() {
               </div>
               <Switch
                 checked={notifications.trigger ?? true}
+                disabled={!notificationEnabled}
                 onCheckedChange={(checked) => { void setNotifications(settingsApi, { trigger: checked }); }}
               />
             </div>

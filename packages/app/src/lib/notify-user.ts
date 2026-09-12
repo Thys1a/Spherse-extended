@@ -1,9 +1,18 @@
 import { isFeatureEnabled } from "./feature-registry";
-import type { HostBridge } from "./host-bridge";
+import type { HostBridge, NotificationOptions } from "./host-bridge";
 
-export function notifyUser(bridge: HostBridge, title: string, body: string): void {
+export function notifyUser(
+  bridge: HostBridge,
+  title: string,
+  body: string,
+  opts?: NotificationOptions,
+): void {
   if (!isFeatureEnabled("system-notification", bridge.kind)) return;
   if (!bridge.capabilities.notification) return;
   if (typeof document !== "undefined" && document.hasFocus()) return;
-  bridge.notify(title, body);
+  try {
+    bridge.notify(title, body, opts);
+  } catch {
+    void 0;
+  }
 }
