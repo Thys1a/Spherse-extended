@@ -857,3 +857,93 @@ describe("SessionManager createSession title", () => {
     expect(session?.source).toBe("triggered");
   });
 });
+
+describe("SessionManager.setSessionModel", () => {
+  let tmpDir: string;
+  let runtime: RuntimeInternals & Awaited<ReturnType<typeof createProject>>;
+  let agentId: string;
+
+  beforeEach(async () => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "wb-mgr-model-"));
+    getChatStreamFnMock.mockClear();
+    resolveModelByIdMock.mockClear();
+    runtime = (await createProject(tmpDir, {
+      projectName: "Test",
+      logger: createSilentLogger(),
+    })) as RuntimeInternals & Awaited<ReturnType<typeof createProject>>;
+    const projectStore = runtime.projectManager.projectStore;
+    const testAgent = await projectStore.createAgent("test-agent", TEST_AGENT_PROFILE);
+    agentId = testAgent.getProfile().id;
+    runtime.timerService.stop();
+  });
+
+  afterEach(() => {
+    runtime.projectManager.close();
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  function findSession(id: string) {
+    return runtime.projectManager.listSessions(agentId).find((s) => s.id === id);
+  }
+
+  it("persists the session model and returns it trimmed", async () => {
+    const sessionId = await runtime.sessionRuntime.createSession(agentId);
+    const result = runtime.sessionRuntime.setSessionModel(agentId, sessionId, "  openai/gpt-4o  ");
+    expect(result).toBe("openai/gpt-4o");
+    expect(findSession(sessionId)?.model).toBe("openai/gpt-4o");
+  });
+
+  it("clears the session model on an empty modelId", async () => {
+    const sessionId = await runtime.sessionRuntime.createSession(agentId);
+    runtime.sessionRuntime.setSessionModel(agentId, sessionId, "openai/gpt-4o");
+    expect(runtime.sessionRuntime.setSessionModel(agentId, sessionId, "   ")).toBeNull();
+    expect(findSession(sessionId)?.model).toBeUndefined();
+  });
+
+  it("throws NotFoundError for unknown agent or session", async () => {
+    const sessionId = await runtime.sessionRuntime.createSession(agentId);
+    void sessionId;
+    expect(() => runtime.sessionRuntime.setSessionModel("no-agent", "s", "openai/gpt-4o")).toThrow(
+      "not found",
+    );
+    expect(() =>
+      runtime.sessionRuntime.setSessionModel(agentId, "no-session", "openai/gpt-4o"),
+    ).toThrow("not found");
+  });
+
+  it("throws ValidationError when the model does not resolve", async () => {
+    const sessionId = await runtime.sessionRuntime.createSession(agentId);
+    resolveModelByIdMock.mockImplementationOnce(() => {
+      throw new Error("Could not resolve model: nope/nope");
+    });
+    expect(() => runtime.sessionRuntime.setSessionModel(agentId, sessionId, "nope/nope")).toThrow(
+      /Unknown model/,
+    );
+    expect(findSession(sessionId)?.model).toBeUndefined();
+  });
+
+  it("applies the session model to the live runner", async () => {
+    const sessionId = await runtime.sessionRuntime.createSession(agentId);
+    runtime.sessionRuntime.setSessionModel(agentId, sessionId, "openai/gpt-4o");
+    expect(activeAgent(runtime as RuntimeInternals, sessionId).state.model).toEqual({
+      id: "gpt-4o",
+      provider: "openai",
+    });
+  });
+
+  it("prefers the session model over the global default on sendMessage", async () => {
+    const sessionId = await runtime.sessionRuntime.createSession(agentId);
+    runtime.sessionRuntime.setDefaultModel("other/model-x");
+    runtime.sessionRuntime.setSessionModel(agentId, sessionId, "openai/gpt-4o");
+
+    const agent = activeAgent(runtime as RuntimeInternals, sessionId);
+    agent.subscribe = vi.fn(() => () => {}) as FakeAgent["subscribe"];
+    agent.prompt = vi.fn().mockResolvedValue(undefined) as FakeAgent["prompt"];
+
+    await expect(
+      runtime.sessionRuntime.sendMessage(sessionId, "hi", [], () => {}),
+    ).resolves.toBeUndefined();
+    expect(agent.state.model).toEqual({ id: "gpt-4o", provider: "openai" });
+    expect(agent.prompt).toHaveBeenCalledTimes(1);
+  });
+});

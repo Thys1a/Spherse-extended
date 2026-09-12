@@ -1,6 +1,6 @@
 import type { AgentChangePayload } from "../store/project.js";
 import type { Logger } from "../logger.js";
-import { NotFoundError } from "../errors.js";
+import { NotFoundError, ValidationError } from "../errors.js";
 import { AgentRunner, type RunnerEventHandler } from "./agent-runner.js";
 import { SessionEventLog } from "./event-log.js";
 import type { SendMessageMeta, SessionEvent } from "./events.js";
@@ -71,10 +71,11 @@ export class SessionManager {
     attachments: Attachment[],
     onEvent: RunnerEventHandler,
     meta?: SendMessageMeta,
+    opts?: { modelOverride?: string },
   ): Promise<void> {
     const session = this.sessions.get(sessionId);
     if (!session) throw new NotFoundError(`No active session "${sessionId}"`);
-    return session.sendMessage(message, attachments, onEvent, meta);
+    return session.sendMessage(message, attachments, onEvent, meta, opts);
   }
 
   abortSession(sessionId: string): void {
@@ -156,6 +157,7 @@ export class SessionManager {
       agentStore.getProfile(),
       this.deps.modelCatalog.resolveModelById.bind(this.deps.modelCatalog),
       this.runConfigHolder.current().defaultModel,
+      agentStore.sessions.getSession(sessionId)?.model,
     );
   }
 
@@ -190,6 +192,25 @@ export class SessionManager {
     for (const session of this.sessions.values()) {
       session.applyDefaultModel(model);
     }
+  }
+
+  setSessionModel(agentId: string, sessionId: string, modelId: string): string | null {
+    const agentStore = this.deps.projectStore.getAgent(agentId);
+    if (!agentStore) throw new NotFoundError(`Agent "${agentId}" not found`);
+    const session = agentStore.sessions.getSession(sessionId);
+    if (!session) throw new NotFoundError(`Session "${sessionId}" not found`);
+    const trimmed = modelId.trim();
+    if (trimmed) {
+      try {
+        this.deps.modelCatalog.resolveModelById(trimmed);
+      } catch {
+        throw new ValidationError(`Unknown model: ${trimmed}`);
+      }
+    }
+    const next = trimmed || null;
+    agentStore.sessions.setSessionModel(sessionId, next);
+    this.sessions.get(sessionId)?.applySessionModel();
+    return next;
   }
 
   setSampling(sampling: Parameters<RunConfigHolder["update"]>[0]["sampling"]): void {

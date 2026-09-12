@@ -158,6 +158,28 @@ export function registerSessionRoutes(
     },
   );
 
+  fastify.patch<{ Params: { projectId: string; agentId: string; id: string }; Body: { modelId: string } }>(
+    "/api/projects/:projectId/agents/:agentId/sessions/:id/model",
+    {
+      schema: {
+        body: schemas.sessionModelUpdateRequest,
+        response: {
+          200: schemas.sessionInfo,
+        },
+      },
+    },
+    async (req) => {
+      req.projectCtx!.sessionRuntime.setSessionModel(
+        req.params.agentId,
+        req.params.id,
+        req.body.modelId,
+      );
+      const session = req.projectCtx!.projectManager.getSession(req.params.agentId, req.params.id);
+      if (!session) throw notFound("Session not found");
+      return parseContract(schemas.sessionInfo, session);
+    },
+  );
+
   fastify.delete<{ Params: { projectId: string; agentId: string; id: string } }>(
     "/api/projects/:projectId/agents/:agentId/sessions/:id",
     { schema: { response: { 200: schemas.okResponse } } },

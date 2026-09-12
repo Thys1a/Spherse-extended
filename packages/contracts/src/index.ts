@@ -54,6 +54,7 @@ export type {
   ProjectSessionListResponse,
   SessionCreateResponse,
   SessionRenameRequest,
+  SessionModelUpdateRequest,
   SessionMessagesResponse,
   SessionMessagesPageResponse,
   SessionStatusResponse,

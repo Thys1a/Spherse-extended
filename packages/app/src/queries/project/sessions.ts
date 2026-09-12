@@ -250,6 +250,21 @@ export async function renameProjectSession(
   return updated;
 }
 
+export async function updateProjectSessionModel(
+  projectId: string,
+  client: ApiClient,
+  session: SessionInfo,
+  modelId: string,
+): Promise<SessionInfo> {
+  const generation = getProjectGeneration(projectId);
+  const updated = await client.setSessionModel(session.agentId, session.id, modelId);
+  if (!isCurrentProjectGeneration(projectId, generation)) return updated;
+  queryClient.setQueryData<SessionCatalog>(projectQueryKeys.sessions(projectId), (catalog) =>
+    catalog ? replaceSession(catalog, session.id, updated) : catalog);
+  queryClient.setQueryData(projectQueryKeys.session(projectId, session.id), updated);
+  return updated;
+}
+
 export async function deleteProjectSession(
   projectId: string,
   client: ApiClient,

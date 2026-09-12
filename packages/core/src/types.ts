@@ -85,6 +85,7 @@ export interface SessionInfo {
   updatedAt: number;
   status: "active" | "archived";
   source?: "manual" | "triggered";
+  model?: string;
 }
 
 export interface ProviderCredentials {

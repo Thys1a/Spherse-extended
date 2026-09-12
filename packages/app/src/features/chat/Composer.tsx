@@ -11,6 +11,7 @@ import { useProjectCtx } from "../../context/project-context";
 import { useApiClient } from "../../lib/use-connection";
 import { useIsCoarsePointer } from "../../hooks/use-coarse-pointer";
 import { useComposerInsertStore } from "./composer-insert-store";
+import { SessionModelPill } from "./SessionModelPill";
 
 const LINE_HEIGHT = 20;
 const PADDING_Y = 16;
@@ -172,6 +173,9 @@ export function Composer({ streaming, loading = false, sessionId, onSend, onAbor
 
   return (
     <div className="border-t border-border bg-background p-3" data-chat-composer>
+      <div className="flex items-center gap-2 px-1 pb-2">
+        <SessionModelPill sessionId={sessionId} />
+      </div>
       {(image || attachBusy) && (
         <AttachmentBar image={image} status={attachStatus} onRemove={handleRemoveImage} />
       )}

@@ -8,6 +8,7 @@ const sessionInfo = Type.Object({
   updatedAt: Type.Number(),
   status: Type.Union([Type.Literal("active"), Type.Literal("archived")]),
   source: Type.Optional(Type.Union([Type.Literal("manual"), Type.Literal("triggered")])),
+  model: Type.Optional(Type.String()),
 });
 
 export const schemas = {
@@ -28,6 +29,7 @@ export const schemas = {
   sessionCreateResponse: Type.Object({ sessionId: Type.String() }),
   sessionCreateRequest: Type.Object({ title: Type.Optional(Type.String({ minLength: 1 })) }),
   sessionRenameRequest: Type.Object({ title: Type.String() }),
+  sessionModelUpdateRequest: Type.Object({ modelId: Type.String() }),
   sendMessageRequest: Type.Object({ content: Type.String({ minLength: 1 }) }),
   sendMessageOkResponse: Type.Object({ ok: Type.Boolean() }),
   /**
@@ -61,6 +63,7 @@ export type ProjectSessionListResponse = Static<typeof schemas.projectSessionLis
 export type SessionCreateResponse = Static<typeof schemas.sessionCreateResponse>;
 export type SessionCreateRequest = Static<typeof schemas.sessionCreateRequest>;
 export type SessionRenameRequest = Static<typeof schemas.sessionRenameRequest>;
+export type SessionModelUpdateRequest = Static<typeof schemas.sessionModelUpdateRequest>;
 export type SendMessageRequest = Static<typeof schemas.sendMessageRequest>;
 export type SendMessageOkResponse = Static<typeof schemas.sendMessageOkResponse>;
 export type SessionMessagesResponse = Static<typeof schemas.sessionMessagesResponse>;

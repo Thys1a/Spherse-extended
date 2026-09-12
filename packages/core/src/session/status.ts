@@ -12,16 +12,18 @@ export interface SessionStatus {
 export function resolveEffectiveModelId(
   profile: AgentProfile,
   defaultModel?: string,
+  sessionModel?: string,
 ): string | undefined {
-  return profile.model || defaultModel || undefined;
+  return sessionModel || profile.model || defaultModel || undefined;
 }
 
 export function resolveContextWindow(
   profile: AgentProfile,
   resolveModelById: (modelId: string) => unknown,
   defaultModel?: string,
+  sessionModel?: string,
 ): number | null {
-  const modelId = resolveEffectiveModelId(profile, defaultModel);
+  const modelId = resolveEffectiveModelId(profile, defaultModel, sessionModel);
   if (!modelId) return null;
   try {
     return (resolveModelById(modelId) as { contextWindow?: number })?.contextWindow ?? null;
@@ -35,11 +37,12 @@ export function computeSessionStatus(
   profile: AgentProfile,
   resolveModelById: (modelId: string) => unknown,
   defaultModel?: string,
+  sessionModel?: string,
 ): SessionStatus {
   const lastUsage = extractLastUsageTotalTokens(messages);
   const currentTokens = lastUsage ?? estimateTokens(messages as Message[]);
   return {
     currentTokens,
-    contextWindowLimit: resolveContextWindow(profile, resolveModelById, defaultModel),
+    contextWindowLimit: resolveContextWindow(profile, resolveModelById, defaultModel, sessionModel),
   };
 }

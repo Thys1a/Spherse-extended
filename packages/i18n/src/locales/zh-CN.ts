@@ -720,6 +720,12 @@ export const zhCN = {
   "chat.selectionMenu.quote": "引用到当前会话",
   // 选区复制失败时（clipboard 不可用或权限被拒绝）的错误提示
   "chat.selectionMenu.copyFailed": "复制失败，请手动复制",
+  // 聊天输入框顶栏当前模型标记的悬停提示，点击展开模型切换下拉
+  "chat.modelPill.switchModel": "切换会话模型",
+  // 会话模型下拉中的「跟随默认」项（清除会话级覆盖，回退到 Agent/全局默认）
+  "chat.modelPill.followDefault": "跟随默认",
+  // 会话模型切换失败时的错误提示，{message} 为错误信息
+  "chat.modelPill.switchFailed": "切换模型失败：{message}",
   // 朗读按钮悬停提示（开始朗读该条消息）
   "chat.ttsSpeak": "朗读",
   // 朗读按钮悬停提示（停止朗读）

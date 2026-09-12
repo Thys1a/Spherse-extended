@@ -123,6 +123,7 @@ export class AgentRunner {
     attachments: ReadonlyArray<Attachment>,
     onEvent: RunnerEventHandler,
     meta?: SendMessageMeta,
+    opts?: { modelOverride?: string },
   ): Promise<void> {
     this.ensureNotBusy();
     this.inFlight = true;
@@ -134,7 +135,7 @@ export class AgentRunner {
         this.pendingReload = false;
         await this.applyReload();
       }
-      this.ensureModel();
+      this.ensureModel(opts?.modelOverride);
       this.ensureWritable();
       await this.turnHooks.beforeTurn?.(this.agent);
       const sessionLogger = this.deps.logger.child({ sessionId: this.sessionId });
@@ -189,7 +190,7 @@ export class AgentRunner {
     }
   }
 
-  async retryLastTurn(onEvent: RunnerEventHandler): Promise<void> {
+  async retryLastTurn(onEvent: RunnerEventHandler, opts?: { modelOverride?: string }): Promise<void> {
     this.ensureNotBusy();
     this.inFlight = true;
     let unsubscribe: (() => void) | undefined;
@@ -215,7 +216,7 @@ export class AgentRunner {
         );
       }
 
-      this.ensureModel();
+      this.ensureModel(opts?.modelOverride);
       this.eventLog!.appendBatch([
         { type: "turn/retried", data: { abandonedSeqs: [lastEvent.seq] } },
         { type: "turn/start", data: {} },
@@ -348,7 +349,26 @@ export class AgentRunner {
   applyDefaultModel(globalDefaultModel: string | undefined): void {
     const profile = this.deps.projectStore.getAgent(this.agentId)?.getProfile();
     if (!profile) return;
-    const resolved = this.deps.modelResolver.resolveFor(profile, globalDefaultModel);
+    const resolved = this.deps.modelResolver.resolveFor(
+      profile,
+      globalDefaultModel,
+      this.readSessionModel(),
+    );
+    if (!resolved) return;
+    const current = this.agent.state.model;
+    if (current?.id !== resolved.id || current?.provider !== resolved.provider) {
+      this.agent.state.model = resolved;
+    }
+  }
+
+  applySessionModel(): void {
+    const profile = this.deps.projectStore.getAgent(this.agentId)?.getProfile();
+    if (!profile) return;
+    const resolved = this.deps.modelResolver.resolveFor(
+      profile,
+      this.deps.runConfig.current().defaultModel,
+      this.readSessionModel(),
+    );
     if (!resolved) return;
     const current = this.agent.state.model;
     if (current?.id !== resolved.id || current?.provider !== resolved.provider) {
@@ -463,12 +483,20 @@ export class AgentRunner {
     }
   }
 
-  private ensureModel(): void {
+  private ensureModel(modelOverride?: string): void {
     const profile = this.deps.projectStore.getAgent(this.agentId)?.getProfile();
     if (!profile) throw new NotFoundError(`Agent "${this.agentId}" not found`);
     this.agent.state.model = this.deps.modelResolver.resolveOrThrow(
       profile,
       this.deps.runConfig.current().defaultModel,
+      modelOverride ?? this.readSessionModel(),
+    );
+  }
+
+  private readSessionModel(): string | undefined {
+    return (
+      this.deps.projectStore.getAgent(this.agentId)?.sessions.getSession(this.sessionId)?.model ??
+      undefined
     );
   }
 }

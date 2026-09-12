@@ -411,6 +411,16 @@ export function createApiClient(baseUrl: string, projectId: string, accessToken?
       return parseJsonResponse<SessionInfo>(res, schemas.sessionInfo);
     },
 
+    async setSessionModel(agentId: string, id: string, modelId: string): Promise<SessionInfo> {
+      const res = await authedFetch(`${apiBase}/agents/${encodeURIComponent(agentId)}/sessions/${encodeURIComponent(id)}/model`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ modelId }),
+      });
+      await assertOk(res);
+      return parseJsonResponse<SessionInfo>(res, schemas.sessionInfo);
+    },
+
     async deleteSession(agentId: string, id: string): Promise<{ ok: boolean }> {
       const res = await authedFetch(`${apiBase}/agents/${encodeURIComponent(agentId)}/sessions/${encodeURIComponent(id)}`, {
         method: "DELETE",

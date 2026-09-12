@@ -21,6 +21,7 @@ export {
   loadMoreProjectSessions,
   refreshProjectSessions,
   renameProjectSession,
+  updateProjectSessionModel,
   useProjectSession,
 } from "./sessions";
 

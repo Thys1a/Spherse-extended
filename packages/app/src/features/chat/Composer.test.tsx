@@ -2,7 +2,8 @@ import { act, cleanup, screen } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
-import { renderWithProviders } from "../../test/render";
+import { createMockHostBridge } from "../../test/host-bridge";
+import { createTestQueryClient, renderWithProviders } from "../../test/render";
 import { Composer } from "./Composer";
 import { useComposerInsertStore } from "./composer-insert-store";
 import { compressImage } from "./utils/compress-image";
@@ -20,6 +21,10 @@ vi.mock("../../lib/use-connection", () => ({
     uploadAttachedImage,
     deleteAttachment,
     getPreviewUrl: (path: string) => `http://localhost:5173/api/projects/p1/preview/${path}`,
+    getSupportedProviders: vi.fn(async () => ({})),
+    setSessionModel: vi.fn(),
+    listProjectSessions: vi.fn(async () => ({ sessions: [], byAgent: {} })),
+    listAgents: vi.fn(async () => []),
   }),
   useConnection: () => ({ baseUrl: "http://localhost:5173", accessToken: null }),
 }));
@@ -56,6 +61,7 @@ function renderComposer(props: ComposerProps) {
       onSend={onSend}
       onAbort={onAbort}
     />,
+    { queryClient: createTestQueryClient(), bridge: createMockHostBridge() },
   );
   return { onSend, onAbort, view };
 }
