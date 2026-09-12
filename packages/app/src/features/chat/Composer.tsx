@@ -140,7 +140,7 @@ export function Composer({ streaming, loading = false, sessionId, onSend, onAbor
     if (selected.length === 0 || !client) return;
     setUploadingCount((count) => count + selected.length);
     try {
-      const uploaded = await Promise.all(
+      const settled = await Promise.allSettled(
         selected.map(async (file) => {
           if (file.type.startsWith("image/")) {
             const { blob, width, height } = await compressImage(file);
@@ -152,7 +152,7 @@ export function Composer({ streaming, loading = false, sessionId, onSend, onAbor
             return {
               kind: "image",
               path: res.path,
-              mimeType: "image/jpeg",
+              mimeType: res.mimeType ?? "image/jpeg",
               name: file.name,
               size: res.bytes,
               width,
@@ -171,7 +171,16 @@ export function Composer({ streaming, loading = false, sessionId, onSend, onAbor
           } satisfies AttachedFile;
         }),
       );
-      setFiles((prev) => [...prev, ...uploaded]);
+      const uploaded = settled
+        .filter((result): result is PromiseFulfilledResult<AttachedFile> => result.status === "fulfilled")
+        .map((result) => result.value);
+      const failed = selected.filter((_, index) => settled[index].status === "rejected");
+      if (uploaded.length > 0) setFiles((prev) => [...prev, ...uploaded]);
+      if (failed.length > 0) {
+        toast.error(
+          t("chat.someFilesAttachFailed", { names: failed.map((file) => file.name).join("、") }),
+        );
+      }
     } catch (err) {
       toast.error(t("chat.fileAttachFailed", { message: (err as Error).message }));
     } finally {

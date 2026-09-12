@@ -495,7 +495,7 @@ export function createApiClient(baseUrl: string, projectId: string, accessToken?
       opts?: { filename?: string; width?: number; height?: number },
     ): Promise<AttachmentUploadResponse> {
       const form = new FormData();
-      form.append("file", blob, opts?.filename);
+      form.append("file", blob, opts?.filename ?? "file");
       if (opts?.width !== undefined) form.append("width", String(opts.width));
       if (opts?.height !== undefined) form.append("height", String(opts.height));
       const res = await authedFetch(`${apiBase}/attachments`, {

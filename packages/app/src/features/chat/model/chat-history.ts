@@ -12,7 +12,7 @@ import {
 } from "./chat-tool-projection";
 import { classifyErrorMessageString } from "./classify-error";
 import { aggregateFileChanges, attachRunChanges } from "../lib/aggregate-file-changes";
-import type { ChatMessage, ToolCallInfo } from "../types";
+import type { ChatAttachment, ChatMessage, ToolCallInfo } from "../types";
 
 interface ToolResultDetailsBag {
   result: string;
@@ -104,15 +104,22 @@ export function parseHistoryMessages(
   for (const entry of entries) {
     if (isUserMessage(entry.message)) {
       const rawAttachments = (entry.message as { _attachments?: unknown })._attachments;
+      const saneAttachments = Array.isArray(rawAttachments)
+        ? rawAttachments.filter(
+            (attachment): attachment is ChatAttachment =>
+              typeof attachment === "object" &&
+              attachment !== null &&
+              typeof (attachment as { path?: unknown }).path === "string" &&
+              typeof (attachment as { mimeType?: unknown }).mimeType === "string",
+          )
+        : [];
       const source = (entry as { source?: "triggered" }).source;
       const triggerName = (entry as { triggerName?: string }).triggerName;
       loaded.push({
         ...(entry.id !== undefined ? { _messageId: entry.id } : {}),
         role: "user",
         content: extractMessageText(entry.message.content),
-        ...(Array.isArray(rawAttachments) && rawAttachments.length > 0
-          ? { _attachments: rawAttachments as ChatMessage["_attachments"] }
-          : {}),
+        ...(saneAttachments.length > 0 ? { _attachments: saneAttachments } : {}),
         ...(source === "triggered" ? { _triggered: true as const } : {}),
         ...(source === "triggered" && triggerName !== undefined ? { _triggerName: triggerName } : {}),
         timestamp: entry.message.timestamp,

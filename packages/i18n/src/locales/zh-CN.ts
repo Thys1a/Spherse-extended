@@ -775,6 +775,8 @@ export const zhCN = {
   "chat.imageAttachFailed": "添加图片失败：{message}",
   // 附加文件在上传过程中失败时的错误提示，{message} 为错误信息
   "chat.fileAttachFailed": "添加文件失败：{message}",
+  // 多文件上传部分失败时的错误提示，{names} 为失败的文件名（顿号分隔），成功项已保留
+  "chat.someFilesAttachFailed": "部分文件添加失败：{names}",
   // 文件上传中时附件栏的等待提示
   "chat.uploadingAttachment": "正在上传…",
   // Composer 待发送图片缩略图上的「移除」按钮悬停提示

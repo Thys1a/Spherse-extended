@@ -219,6 +219,96 @@ describe("streaming-store resilience", () => {
     expect(socket.sent.map((s) => JSON.parse(s))).not.toContainEqual({ type: "withdraw" });
   });
 
+  it("editAndResend ignores a second call while a withdraw is pending", async () => {
+    const socket = await attachAndConnect("e4");
+    useStreamingStore.getState().sendMessage("e4", "original");
+    socket.onmessage?.({
+      data: JSON.stringify({
+        type: "message_end",
+        message: { role: "assistant", content: [{ type: "text", text: "reply" }] },
+      }),
+    } as MessageEvent);
+    socket.onmessage?.({
+      data: JSON.stringify({ type: "agent_end", messages: [] }),
+    } as MessageEvent);
+    await vi.advanceTimersByTimeAsync(0);
+
+    useStreamingStore.getState().editAndResend("e4", "first edit");
+    useStreamingStore.getState().editAndResend("e4", "second edit");
+    expect(
+      socket.sent.map((s) => JSON.parse(s)).filter((p) => p.type === "withdraw"),
+    ).toHaveLength(1);
+
+    socket.onmessage?.({
+      data: JSON.stringify({ type: "turn_withdrawn", seq: 1 }),
+    } as MessageEvent);
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(socket.sent.map((s) => JSON.parse(s))).toContainEqual({
+      type: "message",
+      content: "first edit",
+    });
+  });
+
+  it("prefers success when turn_withdrawn and error arrive together", async () => {
+    const socket = await attachAndConnect("e5");
+    useStreamingStore.getState().sendMessage("e5", "original");
+    socket.onmessage?.({
+      data: JSON.stringify({
+        type: "message_end",
+        message: { role: "assistant", content: [{ type: "text", text: "reply" }] },
+      }),
+    } as MessageEvent);
+    socket.onmessage?.({
+      data: JSON.stringify({ type: "agent_end", messages: [] }),
+    } as MessageEvent);
+    await vi.advanceTimersByTimeAsync(0);
+
+    useStreamingStore.getState().editAndResend("e5", "edited");
+    socket.onmessage?.({
+      data: JSON.stringify({ type: "turn_withdrawn", seq: 1 }),
+    } as MessageEvent);
+    socket.onmessage?.({
+      data: JSON.stringify({ type: "error", message: "stale", code: "PERMANENT" }),
+    } as MessageEvent);
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(socket.sent.map((s) => JSON.parse(s))).toContainEqual({
+      type: "message",
+      content: "edited",
+    });
+  });
+
+  it("queues the edited message as send-failed when offline at resend time", async () => {
+    const socket = await attachAndConnect("e6");
+    useStreamingStore.getState().sendMessage("e6", "original");
+    socket.onmessage?.({
+      data: JSON.stringify({
+        type: "message_end",
+        message: { role: "assistant", content: [{ type: "text", text: "reply" }] },
+      }),
+    } as MessageEvent);
+    socket.onmessage?.({
+      data: JSON.stringify({ type: "agent_end", messages: [] }),
+    } as MessageEvent);
+    await vi.advanceTimersByTimeAsync(0);
+
+    useStreamingStore.getState().editAndResend("e6", "edited");
+    socket.readyState = CLOSED;
+    socket.onmessage?.({
+      data: JSON.stringify({ type: "turn_withdrawn", seq: 1 }),
+    } as MessageEvent);
+    await vi.advanceTimersByTimeAsync(0);
+
+    const messages = useStreamingStore.getState().sessions.e6.messages;
+    expect(messages[messages.length - 1]).toMatchObject({
+      role: "user",
+      content: "edited",
+      _sendFailed: true,
+    });
+    socket.readyState = OPEN;
+  });
+
   it("withdrawLastTurn is a no-op while streaming", async () => {
     const socket = await attachAndConnect("w2");
     useStreamingStore.getState().sendMessage("w2", "hi");

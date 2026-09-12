@@ -381,6 +381,7 @@ export const zhTW: Record<TranslationKey, string> = {
   "chat.stop": "停止",
   "chat.imageAttachFailed": "新增圖片失敗：{message}",
   "chat.fileAttachFailed": "新增檔案失敗：{message}",
+  "chat.someFilesAttachFailed": "部分檔案新增失敗：{names}",
   "chat.uploadingAttachment": "上傳中…",
   "chat.removeAttachment": "移除圖片",
   "chat.attachmentDownload": "下載",

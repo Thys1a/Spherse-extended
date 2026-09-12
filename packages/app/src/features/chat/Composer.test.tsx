@@ -238,6 +238,24 @@ describe("Composer attachment pipeline", () => {
     );
   });
 
+  it("keeps successful uploads when one file fails", async () => {
+    uploadAttachment.mockImplementation(async (blob: Blob, opts?: { filename?: string }) => {
+      if (opts?.filename === "bad.txt") throw new Error("rejected");
+      return { path: `attachments/${opts?.filename}`, bytes: 3 };
+    });
+
+    renderComposer({ streaming: false });
+    await user.upload(
+      hiddenFileInput(),
+      [new File(["ok"], "good.txt", { type: "text/plain" }), new File(["no"], "bad.txt", { type: "text/plain" })],
+    );
+    await screen.findByText("good.txt");
+
+    expect(screen.queryByText("bad.txt")).not.toBeInTheDocument();
+    await vi.waitFor(() => expect(toast.error).toHaveBeenCalled());
+    expect(vi.mocked(toast.error).mock.calls.at(-1)![0]).toContain("bad.txt");
+  });
+
   it("deletes the uploaded attachment on remove", async () => {
     vi.mocked(compressImage).mockResolvedValue({ blob: new Blob(["c"]), width: 10, height: 10, mimeType: "image/jpeg" });
     uploadAttachment.mockResolvedValue({ path: "attachments/img-2.jpg", bytes: 3 });
@@ -260,7 +278,7 @@ describe("Composer attachment pipeline", () => {
     await user.upload(hiddenFileInput(), new File(["x"], "p.png", { type: "image/png" }));
 
     await vi.waitFor(() => expect(toast.error).toHaveBeenCalled());
-    expect(vi.mocked(toast.error).mock.calls.at(-1)![0]).toContain("添加文件失败");
+    expect(vi.mocked(toast.error).mock.calls.at(-1)![0]).toContain("p.png");
     expect(uploadAttachment).not.toHaveBeenCalled();
 
     expect(screen.getByRole("button", { name: "发送" })).toBeEnabled();

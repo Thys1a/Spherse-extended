@@ -127,7 +127,7 @@ describe("attachments routes", () => {
     });
     expect(res.statusCode).toBe(200);
     const json = res.json();
-    expect(json.type).toBe("file");
+    expect(json.type).toBe("text");
     expect(json.mimeType).toBe("text/plain");
     expect(json.name).toBe("note.txt");
     expect(json.path).toMatch(/^\.spherse\/attachments\/\d+-[0-9a-f]{8}\.txt$/);
@@ -175,6 +175,22 @@ describe("attachments routes", () => {
     const down = await app.inject({
       method: "GET",
       url: "/api/projects/p1/attachments/download/.spherse/project.yaml",
+    });
+    expect(down.statusCode).toBe(403);
+  });
+
+  it("returns 404 for a missing attachment download", async () => {
+    const down = await app.inject({
+      method: "GET",
+      url: "/api/projects/p1/attachments/download/.spherse/attachments/nope.txt",
+    });
+    expect(down.statusCode).toBe(404);
+  });
+
+  it("rejects traversal above the attachments directory", async () => {
+    const down = await app.inject({
+      method: "GET",
+      url: "/api/projects/p1/attachments/download/.spherse/attachments/../project.yaml",
     });
     expect(down.statusCode).toBe(403);
   });

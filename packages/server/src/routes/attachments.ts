@@ -105,7 +105,7 @@ export function registerAttachmentsRoutes(
     await pm.writeBinaryFile(destRel, fileBuffer!);
 
     return {
-      type: mimeType.startsWith("image/") ? "image" : "file",
+      type: mimeType.startsWith("image/") ? "image" : "text",
       path: destRel,
       mimeType,
       name: filename || storedName,
@@ -189,7 +189,7 @@ export function registerAttachmentsRoutes(
         .header("Cache-Control", "no-cache")
         .header(
           "Content-Disposition",
-          `attachment; filename="${encodeURIComponent(path.basename(absolutePath))}"`,
+          `attachment; filename*=UTF-8''${encodeURIComponent(path.basename(absolutePath))}`,
         )
         .send(createReadStream(absolutePath));
     },

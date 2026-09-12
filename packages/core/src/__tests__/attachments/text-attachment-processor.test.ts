@@ -51,6 +51,23 @@ describe("text attachment processor", () => {
     expect(text).toContain(String(DEFAULT_TEXT_ATTACHMENT_BUDGET + 10));
   });
 
+  it("counts CJK characters by UTF-8 bytes, not chars", async () => {
+    const rel = writeAttachment("cjk.txt", "汉".repeat(7000));
+    const blocks = await preprocess(rel);
+    const text = (blocks[0] as { text: string }).text;
+    expect(text).toContain("truncated");
+    expect(Buffer.byteLength(text.split("\n…[truncated")[0], "utf8")).toBeLessThanOrEqual(
+      DEFAULT_TEXT_ATTACHMENT_BUDGET,
+    );
+  });
+
+  it("decodes UTF-16LE files with BOM instead of rejecting them", async () => {
+    const content = Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from("hello", "utf16le")]);
+    const rel = writeAttachment("utf16.txt", content);
+    const blocks = await preprocess(rel);
+    expect(blocks).toEqual([{ type: "text", text: "hello" }]);
+  });
+
   it("honours a custom budget", async () => {
     const rel = writeAttachment("custom.txt", "abcdefghij");
     const blocks = await preprocess(rel, 4);

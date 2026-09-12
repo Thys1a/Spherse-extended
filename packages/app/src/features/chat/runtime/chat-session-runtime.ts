@@ -3,6 +3,7 @@ import type { ApiClient } from "../../../lib/api";
 import { buildWsUrl } from "../../../lib/api";
 import { parseAgentEvent, type AgentEvent } from "../model/agent-event-parse";
 import type { SendableFile } from "../types";
+import { toWireAttachmentType } from "../lib/attachment-type";
 import {
   mergeHistoryMessages,
   parseHistoryMessages,
@@ -315,7 +316,7 @@ export class ChatSessionRuntime<T extends ChatSessionRuntimeState> {
     const payload: Record<string, unknown> = { type: "message", content };
     if (attachments && attachments.length > 0) {
       payload.attachments = attachments.map((attachment) => ({
-        type: attachment.mimeType.startsWith("image/") ? "image" : "text",
+        type: toWireAttachmentType(attachment.mimeType),
         path: attachment.path,
         mimeType: attachment.mimeType,
       }));

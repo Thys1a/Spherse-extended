@@ -23,7 +23,7 @@ function renderAttachments(attachments: ChatAttachment[]) {
 describe("MessageAttachments file rows", () => {
   it("renders a download link for non-image attachments", () => {
     renderAttachments([
-      { type: "file", path: ".spherse/attachments/note.txt", mimeType: "text/plain", name: "note.txt", bytes: 100 },
+      { type: "text", path: ".spherse/attachments/note.txt", mimeType: "text/plain", name: "note.txt", bytes: 100 },
     ]);
     const link = screen.getByRole("link", { name: "下载" });
     expect(link.getAttribute("href")).toBe(
@@ -34,14 +34,14 @@ describe("MessageAttachments file rows", () => {
 
   it("shows the truncation hint when the file exceeds the inline budget", () => {
     renderAttachments([
-      { type: "file", path: ".spherse/attachments/big.txt", mimeType: "text/plain", name: "big.txt", bytes: 48 * 1024 },
+      { type: "text", path: ".spherse/attachments/big.txt", mimeType: "text/plain", name: "big.txt", bytes: 48 * 1024 },
     ]);
     expect(screen.getByText(/仅前 16 KB 进入上下文/)).toBeInTheDocument();
   });
 
   it("shows no truncation hint for small files", () => {
     renderAttachments([
-      { type: "file", path: ".spherse/attachments/small.txt", mimeType: "text/plain", name: "small.txt", bytes: 100 },
+      { type: "text", path: ".spherse/attachments/small.txt", mimeType: "text/plain", name: "small.txt", bytes: 100 },
     ]);
     expect(screen.queryByText(/进入上下文/)).not.toBeInTheDocument();
   });

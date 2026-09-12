@@ -24,7 +24,7 @@
 - user 气泡 hover 显示编辑图标（与 withdrawable 同条件：倒数第一个 user、非 streaming、非 `_sendFailed`、未被 compaction 覆盖）。
 - 点击 → 原地变 textarea（预填原文）+ 确认/取消 → 确认后 `withdraw()` → 新增 per-session `pendingEditResend: {content, attachments} | null`，收到 `turn_withdrawn` 后 `sendMessage(edited, 原附件)`，复用 resend 分支形态；withdraw 失败（error/`_withdrawError`）时丢弃 intent。
 - 附件携带依赖批次 D 的多附件数组（`sendMessage(sessionId, text, attachments[])`）；D 未落地前不单独做单图兼容。
-- 失败回退走现有 `_sendFailed` 条。无 contracts/server/core 改动。
+- 失败回退走现有 `_sendFailed` 条；streaming 中、非最后一个 user 禁用。已压缩 turn 的入口过滤需 anchorSeq 透传，暂缓（当前可点，withdraw 走失败分支丢弃 intent 并标 `_withdrawError`）。`editAndResend` 返回 boolean，失败时编辑器保持打开可复制草稿。无 contracts/server/core 改动（除复用 D 的附件数组）。
 
 ## 5. 选择后右键菜单：复制/引用（批次 A）
 
@@ -60,8 +60,8 @@
 
 - core：新增 `TextAttachmentProcessor`（读→大小检查→截断→ `{type:'text', content, truncated, originalSize}`），注册到 `attachmentCapability`（`PreparedContentBlock` 已有 `text` 分支，projector 透传）。截断预算与折叠策略见 §9。
 - server：`routes/attachments.ts` 白名单扩到文本三类；分级上限（图片 5MB，文本 2MB）；PDF 上传 400；`preview.ts` 按扩展名放行文本类（`text/plain; charset=utf-8`）；新增 `/attachments/:id/download`。
-- app（多附件重构，§6 依赖本节）：`types.ts` 放开 `type: string`；`sendMessage` 全链改 `attachments[]`（types、`api.uploadAttachment`、`chat-session-runtime`、`streaming-store` 乐观 `_attachments`）；Composer `accept="*"` + `AttachedFile[]`（图片走 `compressImage`，其他直传）；AttachmentBar 加文件行（图标+名+大小+删除）；MessageAttachments 非图片渲染下载链接。
-- 接受行为：附件正文与图片同生命周期——会话内存中有效，`stripUserAttachments` 剥离持久化，重启/restore 后上下文不再含附件正文。
+- app（多附件重构，§6 依赖本节）：`types.ts` 放开 `type: string`；`sendMessage` 全链改 `attachments[]`（types、`api.uploadAttachment`、`chat-session-runtime`、`streaming-store` 乐观 `_attachments`）；Composer `multiple` + accept 白名单（`image/*,.txt,.md,.markdown,.json` + 对应 MIME，与 server 白名单对齐）+ `AttachedFile[]`（图片走 `compressImage`，其他直传；`Promise.allSettled` 部分成功保留、失败列名 toast）；AttachmentBar 加文件行（图标+名+大小+删除）；MessageAttachments 非图片渲染下载链接（`?token=` 鉴权）+ 截断提示；wire `type` 全链统一 image/text（`toWireAttachmentType`）。
+- 接受行为：附件正文与图片同生命周期——会话内存中有效，`stripUserAttachments` 剥离持久化，重启/restore 后上下文不再含附件正文；截断预算按 UTF-8 bytes（16KB 默认），BOM 自动解码（UTF-8/16LE/16BE），单轮总额帽暂缓（后续见下）。
 
 ## 2. 斜杠命令（批次 F，与 summon 共用 meta 扩展）
 

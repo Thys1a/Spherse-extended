@@ -381,6 +381,7 @@ export const en: Record<TranslationKey, string> = {
   "chat.stop": "Stop",
   "chat.imageAttachFailed": "Failed to attach image: {message}",
   "chat.fileAttachFailed": "Failed to attach file: {message}",
+  "chat.someFilesAttachFailed": "Some files failed to attach: {names}",
   "chat.uploadingAttachment": "Uploading…",
   "chat.removeAttachment": "Remove image",
   "chat.attachmentDownload": "Download",

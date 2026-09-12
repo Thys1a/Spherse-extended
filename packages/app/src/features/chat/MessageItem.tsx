@@ -100,10 +100,9 @@ export function MessageItem({ message, agent, showTime, sessionId, supersededToo
   }, [message.content]);
 
   const handleConfirmEdit = useCallback(() => {
-    if (sessionId) {
-      useStreamingStore.getState().editAndResend(sessionId, editDraft);
+    if (sessionId && useStreamingStore.getState().editAndResend(sessionId, editDraft)) {
+      setEditing(false);
     }
-    setEditing(false);
   }, [sessionId, editDraft]);
 
   const handleCancelEdit = useCallback(() => {
