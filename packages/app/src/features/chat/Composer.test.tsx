@@ -266,4 +266,20 @@ describe("Composer external insert", () => {
     expect(screen.getByRole("textbox")).toHaveValue("");
     useComposerInsertStore.setState({ sessionId: null, text: "", nonce: 0 });
   });
+
+  it("does not replay a consumed insert on remount", async () => {
+    const first = renderComposer({ streaming: false });
+    act(() => {
+      useComposerInsertStore.getState().requestInsert("session-1", "```quoted\nonce\n```");
+    });
+    await vi.waitFor(() => {
+      expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toContain("once");
+    });
+    first.view.unmount();
+    localStorage.clear();
+
+    renderComposer({ streaming: false });
+    expect(screen.getByRole("textbox")).toHaveValue("");
+    useComposerInsertStore.setState({ sessionId: null, text: "", nonce: 0 });
+  });
 });

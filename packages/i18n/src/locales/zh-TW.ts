@@ -352,6 +352,7 @@ export const zhTW: Record<TranslationKey, string> = {
   "chat.copyTooltip": "複製",
   "chat.selectionMenu.copy": "複製選取範圍",
   "chat.selectionMenu.quote": "引用到目前交談",
+  "chat.selectionMenu.copyFailed": "複製失敗，請手動複製",
   "chat.ttsSpeak": "朗讀",
   "chat.ttsStop": "停止朗讀",
   "chat.withdrawTooltip": "收回",

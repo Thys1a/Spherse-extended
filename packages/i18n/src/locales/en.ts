@@ -352,6 +352,7 @@ export const en: Record<TranslationKey, string> = {
   "chat.copyTooltip": "Copy",
   "chat.selectionMenu.copy": "Copy selection",
   "chat.selectionMenu.quote": "Quote in current session",
+  "chat.selectionMenu.copyFailed": "Copy failed, please copy manually",
   "chat.ttsSpeak": "Read aloud",
   "chat.ttsStop": "Stop reading",
   "chat.withdrawTooltip": "Withdraw",

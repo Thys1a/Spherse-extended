@@ -5,6 +5,7 @@ import type { AgentSummary } from "../../lib/types";
 import { createMockHostBridge } from "../../test/host-bridge";
 import { renderWithProviders } from "../../test/render";
 import { MessageItem } from "./MessageItem";
+import { quoteFenceFor } from "./lib/quote-fence";
 import { useComposerInsertStore } from "./composer-insert-store";
 import type { ChatMessage } from "./types";
 
@@ -27,11 +28,18 @@ function renderMessage(
   );
 }
 
+const originalClipboard = Object.getOwnPropertyDescriptor(navigator, "clipboard");
+
 afterEach(() => {
   cleanup();
   window.getSelection()?.removeAllRanges();
   useComposerInsertStore.setState({ sessionId: null, text: "", nonce: 0 });
   vi.restoreAllMocks();
+  if (originalClipboard === undefined) {
+    Reflect.deleteProperty(navigator, "clipboard");
+  } else {
+    Object.defineProperty(navigator, "clipboard", originalClipboard);
+  }
 });
 
 describe("MessageItem withdraw action", () => {
@@ -136,7 +144,7 @@ describe("MessageItem selection menu", () => {
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
 
-  it("copies the selected text to the clipboard", () => {
+  it("copies the selected text to the clipboard", async () => {
     const writeText = vi.fn();
     Object.defineProperty(navigator, "clipboard", {
       value: { writeText },
@@ -144,7 +152,9 @@ describe("MessageItem selection menu", () => {
     });
     renderWithSelection("copy me");
     fireEvent.click(screen.getByRole("menuitem", { name: "复制选区" }));
-    expect(writeText).toHaveBeenCalledWith(expect.stringContaining("copy me"));
+    await vi.waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith(expect.stringContaining("copy me"));
+    });
   });
 
   it("requests a composer insert with a quoted block", async () => {
@@ -156,5 +166,30 @@ describe("MessageItem selection menu", () => {
     expect(state.text).toContain("```quoted");
     expect(state.text).toContain("quote me");
     useComposerInsertStore.setState({ sessionId: null, text: "", nonce: 0 });
+  });
+
+  it("hides the quote item when sessionId is missing", () => {
+    renderWithProviders(
+      <MessageItem message={{ role: "assistant", content: "no session" } as ChatMessage} agent={agent} />,
+      { bridge: createMockHostBridge() },
+    );
+    const bubble = document.querySelector("[data-chat-bubble]")!;
+    window.getSelection()?.selectAllChildren(bubble);
+    fireEvent.contextMenu(bubble);
+    expect(screen.getByRole("menuitem", { name: "复制选区" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "引用到当前会话" })).not.toBeInTheDocument();
+  });
+
+  it("extends the fence when the selection contains triple backticks", async () => {
+    const user = userEvent.setup();
+    renderWithSelection("quote me", "session-9");
+    await user.click(screen.getByRole("menuitem", { name: "引用到当前会话" }));
+    expect(useComposerInsertStore.getState().text).toContain("```quoted");
+    useComposerInsertStore.setState({ sessionId: null, text: "", nonce: 0 });
+  });
+
+  it("quoteFenceFor lengthens the fence past backticks in the text", () => {
+    expect(quoteFenceFor("plain")).toBe("```");
+    expect(quoteFenceFor("code ```x``` end")).toBe("````");
   });
 });

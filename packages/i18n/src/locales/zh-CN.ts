@@ -718,6 +718,8 @@ export const zhCN = {
   "chat.selectionMenu.copy": "复制选区",
   // 聊天气泡内选中文本后右键菜单：「引用到当前会话」项，点击后摘取为 md 代码块插入输入框
   "chat.selectionMenu.quote": "引用到当前会话",
+  // 选区复制失败时（clipboard 不可用或权限被拒绝）的错误提示
+  "chat.selectionMenu.copyFailed": "复制失败，请手动复制",
   // 朗读按钮悬停提示（开始朗读该条消息）
   "chat.ttsSpeak": "朗读",
   // 朗读按钮悬停提示（停止朗读）

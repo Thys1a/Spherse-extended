@@ -52,27 +52,28 @@ export function Composer({ streaming, loading = false, sessionId, onSend, onAbor
     const { sessionId: targetSessionId, text } = useComposerInsertStore.getState();
     if (targetSessionId !== sessionId || !text) return;
     const textarea = textareaRef.current;
+    const value = inputRef.current;
     if (!textarea) {
-      setInput((prev) => prev + text);
-      return;
-    }
-    const value = textarea.value;
-    const start = textarea.selectionStart ?? value.length;
-    const end = textarea.selectionEnd ?? value.length;
-    const prefix = start > 0 && value[start - 1] !== "\n" ? "\n" : "";
-    const suffix = end < value.length && value[end] !== "\n" ? "\n" : "";
-    const inserted = `${prefix}${text}${suffix}`;
-    setInput(`${value.slice(0, start)}${inserted}${value.slice(end)}`);
-    const cursor = start + inserted.length;
-    const focus = () => {
-      textarea.focus();
-      textarea.setSelectionRange(cursor, cursor);
-    };
-    if (typeof requestAnimationFrame === "function") {
-      requestAnimationFrame(focus);
+      setInput(`${value}${text}`);
     } else {
-      focus();
+      const start = textarea.selectionStart ?? value.length;
+      const end = textarea.selectionEnd ?? value.length;
+      const prefix = start > 0 && value[start - 1] !== "\n" ? "\n" : "";
+      const suffix = end < value.length && value[end] !== "\n" ? "\n" : "";
+      const inserted = `${prefix}${text}${suffix}`;
+      setInput(`${value.slice(0, start)}${inserted}${value.slice(end)}`);
+      const cursor = start + inserted.length;
+      const focus = () => {
+        textarea.focus();
+        textarea.setSelectionRange(cursor, cursor);
+      };
+      if (typeof requestAnimationFrame === "function") {
+        requestAnimationFrame(focus);
+      } else {
+        focus();
+      }
     }
+    useComposerInsertStore.getState().consume(insertNonce);
   }, [insertNonce, sessionId]);
 
   const attachBusy = attachStatus === "compressing" || attachStatus === "uploading";

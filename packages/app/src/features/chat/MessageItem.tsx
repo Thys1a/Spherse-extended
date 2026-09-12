@@ -1,4 +1,6 @@
 import { useCallback, useRef, useState } from "react";
+import { toast } from "sonner";
+import { useI18n } from "@spherse/i18n/react";
 import type { AgentSummary } from "../../lib/types";
 import type { ChatMessage } from "./types";
 import { MarkdownContent } from "../../components/markdown-content/MarkdownContent";
@@ -20,6 +22,7 @@ import { SelectionMenu } from "./SelectionMenu";
 import { useComposerInsertStore } from "./composer-insert-store";
 import { useOpenExternalLink } from "../browser/open-external-url";
 import { formatMessageTime } from "./lib/format-time";
+import { quoteFenceFor } from "./lib/quote-fence";
 
 interface MessageItemProps {
   message: ChatMessage;
@@ -37,14 +40,22 @@ interface MessageItemProps {
 export function MessageItem({ message, agent, showTime, sessionId, supersededToolCallIds, onNavigateToPath, onRespondApproval, onRespondQuestion, onRetry, onWithdraw }: MessageItemProps) {
   const isUser = message.role === "user";
   const openLink = useOpenExternalLink();
+  const { t } = useI18n();
   const bubbleRef = useRef<HTMLDivElement>(null);
   const [menu, setMenu] = useState<{ x: number; y: number; text: string } | null>(null);
 
   const handleContextMenu = useCallback((event: React.MouseEvent) => {
     const selection = window.getSelection();
     const text = selection?.toString() ?? "";
-    if (!text.trim()) return;
-    if (!bubbleRef.current || !selection?.anchorNode || !bubbleRef.current.contains(selection.anchorNode)) {
+    if (
+      !text.trim() ||
+      !bubbleRef.current ||
+      !selection?.anchorNode ||
+      !selection.focusNode ||
+      !bubbleRef.current.contains(selection.anchorNode) ||
+      !bubbleRef.current.contains(selection.focusNode)
+    ) {
+      setMenu(null);
       return;
     }
     event.preventDefault();
@@ -52,18 +63,31 @@ export function MessageItem({ message, agent, showTime, sessionId, supersededToo
   }, []);
 
   const handleCopySelection = useCallback(() => {
-    if (menu) void navigator.clipboard.writeText(menu.text);
+    const text = menu?.text;
     setMenu(null);
-  }, [menu]);
+    if (!text) return;
+    if (!navigator.clipboard) {
+      toast.error(t("chat.selectionMenu.copyFailed"));
+      return;
+    }
+    void Promise.resolve()
+      .then(() => navigator.clipboard.writeText(text))
+      .catch(() => {
+        toast.error(t("chat.selectionMenu.copyFailed"));
+      });
+  }, [menu, t]);
 
   const handleQuoteSelection = useCallback(() => {
     if (menu && sessionId) {
+      const fence = quoteFenceFor(menu.text);
       useComposerInsertStore
         .getState()
-        .requestInsert(sessionId, `\`\`\`quoted\n${menu.text}\n\`\`\``);
+        .requestInsert(sessionId, `${fence}quoted\n${menu.text}\n${fence}`);
     }
     setMenu(null);
   }, [menu, sessionId]);
+
+  const handleCloseMenu = useCallback(() => setMenu(null), []);
 
   const handleLinkClick = useCallback(
     async (href: string, event: React.MouseEvent<HTMLAnchorElement>) => {
@@ -174,9 +198,10 @@ export function MessageItem({ message, agent, showTime, sessionId, supersededToo
         <SelectionMenu
           x={menu.x}
           y={menu.y}
+          canQuote={sessionId != null}
           onCopy={handleCopySelection}
           onQuote={handleQuoteSelection}
-          onClose={() => setMenu(null)}
+          onClose={handleCloseMenu}
         />
       )}
     </div>
