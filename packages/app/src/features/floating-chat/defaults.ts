@@ -3,6 +3,8 @@ import type { FloatingChatState } from "./store";
 
 export const FLOAT_DEFAULT_WIDTH = 420;
 export const FLOAT_DEFAULT_HEIGHT = 600;
+export const FLOAT_PET_WIDTH = 216;
+export const FLOAT_PET_HEIGHT = 288;
 export { FLOAT_MIN_WIDTH, FLOAT_MIN_HEIGHT, FLOAT_MARGIN } from "../../components/floating-frame/defaults";
 
 export function getDefaultFloatingState(sessionId: string): FloatingChatState {
@@ -13,5 +15,6 @@ export function getDefaultFloatingState(sessionId: string): FloatingChatState {
       width: FLOAT_DEFAULT_WIDTH,
       height: FLOAT_DEFAULT_HEIGHT,
     },
+    mode: "full",
   };
 }

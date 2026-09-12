@@ -476,6 +476,8 @@ export const zhTW: Record<TranslationKey, string> = {
   "project-panel.files": "檔案",
   "project-panel.skills": "技能",
   "project-panel.commands": "命令",
+  "floating-chat.enterPetMode": "桌寵模式",
+  "floating-chat.exitPetMode": "完整模式",
   "command-panel.menu": "命令選單",
   "command-panel.create": "新增命令",
   "command-panel.empty": "暫無命令",

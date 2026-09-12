@@ -476,6 +476,8 @@ export const en: Record<TranslationKey, string> = {
   "project-panel.files": "Files",
   "project-panel.skills": "Skills",
   "project-panel.commands": "Commands",
+  "floating-chat.enterPetMode": "Pet mode",
+  "floating-chat.exitPetMode": "Full mode",
   "command-panel.menu": "Command menu",
   "command-panel.create": "New command",
   "command-panel.empty": "No commands yet",

@@ -975,6 +975,10 @@ export const zhCN = {
   "project-panel.skills": "技能",
   // 项目侧栏命令分组标题
   "project-panel.commands": "命令",
+  // 浮窗标题栏切换为桌宠模式按钮的悬停提示
+  "floating-chat.enterPetMode": "桌宠模式",
+  // 桌宠模式悬浮条返回完整模式按钮的悬停提示
+  "floating-chat.exitPetMode": "完整模式",
 
   // --- Command Panel ---
   // 命令面板右上角三点菜单按钮的无障碍名称

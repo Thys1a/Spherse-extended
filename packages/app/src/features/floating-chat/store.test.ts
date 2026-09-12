@@ -11,6 +11,7 @@ describe("useFloatingChatStore", () => {
       sessionId: "session-1",
       position: { x: 0, y: 0 },
       size: { width: 400, height: 300 },
+      mode: "full",
     });
 
     expect(useFloatingChatStore.getState().byProject["project-1"]?.sessionId).toBe("session-1");
@@ -21,6 +22,7 @@ describe("useFloatingChatStore", () => {
       sessionId: "session-1",
       position: { x: 0, y: 0 },
       size: { width: 400, height: 300 },
+      mode: "pet",
     });
     useFloatingChatStore.getState().clearProject("project-1");
 
@@ -33,9 +35,26 @@ describe("useFloatingChatStore", () => {
       sessionId: "session-1",
       position: { x: 0, y: 0 },
       size: { width: 400, height: 300 },
+      mode: "full",
     });
     useFloatingChatStore.getState().setFloatingChat("project-1", null);
 
     expect(useFloatingChatStore.getState().byProject["project-1"]).toBeUndefined();
+  });
+
+  it("preserves the mode across position and size commits", () => {
+    useFloatingChatStore.getState().setFloatingChat("project-1", {
+      sessionId: "session-1",
+      position: { x: 0, y: 0 },
+      size: { width: 400, height: 300 },
+      mode: "pet",
+    });
+    const current = useFloatingChatStore.getState().byProject["project-1"]!;
+    useFloatingChatStore.getState().setFloatingChat("project-1", {
+      ...current,
+      position: { x: 10, y: 20 },
+    });
+
+    expect(useFloatingChatStore.getState().byProject["project-1"]?.mode).toBe("pet");
   });
 });

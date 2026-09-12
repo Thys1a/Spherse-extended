@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
-import { XIcon } from "lucide-react";
+import { CatIcon, XIcon } from "lucide-react";
 import { useI18n } from "@spherse/i18n/react";
 import { useSidePanelStore } from "../../stores/side-panel-store";
 import { useDrag } from "./use-drag";
@@ -27,6 +27,9 @@ interface FloatingFrameProps {
   onSizeCommit: (size: { width: number; height: number }, pos: { x: number; y: number }) => void;
   onClose: () => void;
   onExpand?: () => void;
+  onTogglePet?: () => void;
+  petToggleTitle?: string;
+  variant?: "full" | "pet";
   children: ReactNode;
 }
 
@@ -39,6 +42,9 @@ export function FloatingFrame({
   onSizeCommit,
   onClose,
   onExpand,
+  onTogglePet,
+  petToggleTitle,
+  variant = "full",
   children,
 }: FloatingFrameProps) {
   const { t } = useI18n();
@@ -57,7 +63,7 @@ export function FloatingFrame({
     onCommit: onPositionCommit,
     containerWidth: size.width,
     containerHeight: size.height,
-    ignoreSelector: closeSelector,
+    ignoreSelector: variant === "pet" ? "button, input, textarea, a" : closeSelector,
   });
 
   const { createHandler } = useResize({
@@ -69,6 +75,21 @@ export function FloatingFrame({
     minWidth: FLOAT_MIN_WIDTH,
     minHeight: FLOAT_MIN_HEIGHT,
   });
+
+  if (variant === "pet") {
+    return (
+      <div
+        {...rootAttr}
+        className={`fixed ${pinned ? "z-50" : "z-30"} flex flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-lg cursor-move select-none`}
+        style={{ left: position.x, top: position.y, width: size.width, height: size.height }}
+        onPointerDown={drag.onPointerDown}
+      >
+        <div className="flex-1 overflow-hidden">
+          {children}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -83,7 +104,17 @@ export function FloatingFrame({
         onDoubleClick={onExpand}
       >
         <span className="text-xs font-medium truncate">{title}</span>
-        <div className="ml-auto" onDoubleClick={(e) => e.stopPropagation()}>
+        <div className="ml-auto flex items-center gap-0.5" onDoubleClick={(e) => e.stopPropagation()}>
+          {onTogglePet && (
+            <button
+              onClick={onTogglePet}
+              title={petToggleTitle}
+              aria-label={petToggleTitle}
+              className="inline-flex h-5 w-5 items-center justify-center rounded-sm hover:bg-muted-foreground/10"
+            >
+              <CatIcon className="h-3.5 w-3.5" />
+            </button>
+          )}
           <button
             {...closeAttr}
             onClick={onClose}
