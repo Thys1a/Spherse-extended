@@ -190,7 +190,7 @@ export class AgentRunner {
     }
   }
 
-  async retryLastTurn(onEvent: RunnerEventHandler, opts?: { modelOverride?: string }): Promise<void> {
+  async retryLastTurn(onEvent: RunnerEventHandler): Promise<void> {
     this.ensureNotBusy();
     this.inFlight = true;
     let unsubscribe: (() => void) | undefined;
@@ -216,7 +216,7 @@ export class AgentRunner {
         );
       }
 
-      this.ensureModel(opts?.modelOverride);
+      this.ensureModel();
       this.eventLog!.appendBatch([
         { type: "turn/retried", data: { abandonedSeqs: [lastEvent.seq] } },
         { type: "turn/start", data: {} },
@@ -354,9 +354,8 @@ export class AgentRunner {
       globalDefaultModel,
       this.readSessionModel(),
     );
-    if (!resolved) return;
     const current = this.agent.state.model;
-    if (current?.id !== resolved.id || current?.provider !== resolved.provider) {
+    if (current?.id !== resolved?.id || current?.provider !== resolved?.provider) {
       this.agent.state.model = resolved;
     }
   }
@@ -369,9 +368,8 @@ export class AgentRunner {
       this.deps.runConfig.current().defaultModel,
       this.readSessionModel(),
     );
-    if (!resolved) return;
     const current = this.agent.state.model;
-    if (current?.id !== resolved.id || current?.provider !== resolved.provider) {
+    if (current?.id !== resolved?.id || current?.provider !== resolved?.provider) {
       this.agent.state.model = resolved;
     }
   }
@@ -486,6 +484,13 @@ export class AgentRunner {
   private ensureModel(modelOverride?: string): void {
     const profile = this.deps.projectStore.getAgent(this.agentId)?.getProfile();
     if (!profile) throw new NotFoundError(`Agent "${this.agentId}" not found`);
+    if (modelOverride) {
+      try {
+        this.deps.modelCatalog.resolveModelById(modelOverride);
+      } catch {
+        throw new ValidationError(`Unknown model: ${modelOverride}`);
+      }
+    }
     this.agent.state.model = this.deps.modelResolver.resolveOrThrow(
       profile,
       this.deps.runConfig.current().defaultModel,

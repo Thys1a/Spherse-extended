@@ -176,7 +176,7 @@ export function registerSessionRoutes(
       );
       const session = req.projectCtx!.projectManager.getSession(req.params.agentId, req.params.id);
       if (!session) throw notFound("Session not found");
-      return parseContract(schemas.sessionInfo, session);
+      return session;
     },
   );
 

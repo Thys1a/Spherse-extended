@@ -931,6 +931,18 @@ describe("SessionManager.setSessionModel", () => {
     });
   });
 
+  it("clears the live runner model when the override is removed", async () => {
+    const sessionId = await runtime.sessionRuntime.createSession(agentId);
+    runtime.sessionRuntime.setSessionModel(agentId, sessionId, "openai/gpt-4o");
+    expect(activeAgent(runtime as RuntimeInternals, sessionId).state.model).toEqual({
+      id: "gpt-4o",
+      provider: "openai",
+    });
+
+    runtime.sessionRuntime.setSessionModel(agentId, sessionId, "");
+    expect(activeAgent(runtime as RuntimeInternals, sessionId).state.model).toBeUndefined();
+  });
+
   it("prefers the session model over the global default on sendMessage", async () => {
     const sessionId = await runtime.sessionRuntime.createSession(agentId);
     runtime.sessionRuntime.setDefaultModel("other/model-x");
@@ -945,5 +957,42 @@ describe("SessionManager.setSessionModel", () => {
     ).resolves.toBeUndefined();
     expect(agent.state.model).toEqual({ id: "gpt-4o", provider: "openai" });
     expect(agent.prompt).toHaveBeenCalledTimes(1);
+  });
+
+  it("applies a one-shot model override without persisting it", async () => {
+    const sessionId = await runtime.sessionRuntime.createSession(agentId);
+    runtime.sessionRuntime.setSessionModel(agentId, sessionId, "openai/gpt-4o");
+
+    const agent = activeAgent(runtime as RuntimeInternals, sessionId);
+    agent.subscribe = vi.fn(() => () => {}) as FakeAgent["subscribe"];
+    agent.prompt = vi.fn().mockResolvedValue(undefined) as FakeAgent["prompt"];
+
+    await expect(
+      runtime.sessionRuntime.sendMessage(sessionId, "hi", [], () => {}, undefined, {
+        modelOverride: "openai/o1",
+      }),
+    ).resolves.toBeUndefined();
+    expect(agent.state.model).toEqual({ id: "o1", provider: "openai" });
+    expect(findSession(sessionId)?.model).toBe("openai/gpt-4o");
+  });
+
+  it("rejects an unknown one-shot override without persisting events", async () => {
+    const sessionId = await runtime.sessionRuntime.createSession(agentId);
+    runtime.sessionRuntime.setDefaultModel("openai/gpt-4o");
+    resolveModelByIdMock.mockImplementationOnce(() => {
+      throw new Error("Could not resolve model: nope/nope");
+    });
+
+    const agent = activeAgent(runtime as RuntimeInternals, sessionId);
+    await expect(
+      runtime.sessionRuntime.sendMessage(sessionId, "hi", [], () => {}, undefined, {
+        modelOverride: "nope/nope",
+      }),
+    ).rejects.toThrow(/Unknown model/);
+    expect(agent.state.model).toEqual({ id: "gpt-4o", provider: "openai" });
+    const runner = (runtime.sessionRuntime as unknown as {
+      sessions: Map<string, { currentEvents: unknown[] }>;
+    }).sessions.get(sessionId);
+    expect(runner?.currentEvents).toHaveLength(0);
   });
 });

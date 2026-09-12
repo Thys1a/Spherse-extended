@@ -42,6 +42,7 @@ export function SessionModelPill({ sessionId }: { sessionId: string }) {
   const [catalog, setCatalog] = useState<ProviderCatalogContract | null>(null);
   const [configuredIds, setConfiguredIds] = useState<Set<string>>(new Set());
   const [globalDefault, setGlobalDefault] = useState("");
+  const [switching, setSwitching] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -82,10 +83,15 @@ export function SessionModelPill({ sessionId }: { sessionId: string }) {
   }
 
   const handleSelect = (modelId: string) => {
-    if (!session) return;
-    void updateProjectSessionModel(projectId, client, session, modelId).catch((err: unknown) => {
-      toast.error(t("chat.modelPill.switchFailed", { message: (err as Error).message }));
-    });
+    if (!session || switching) return;
+    setSwitching(true);
+    void updateProjectSessionModel(projectId, client, session, modelId)
+      .catch((err: unknown) => {
+        toast.error(t("chat.modelPill.switchFailed", { message: (err as Error).message }));
+      })
+      .finally(() => {
+        setSwitching(false);
+      });
   };
 
   return (
@@ -97,7 +103,7 @@ export function SessionModelPill({ sessionId }: { sessionId: string }) {
             size="sm"
             className="h-6 gap-1 px-2 text-xs text-muted-foreground"
             title={t("chat.modelPill.switchModel")}
-            disabled={!session}
+            disabled={!session || switching}
           />
         }
       >

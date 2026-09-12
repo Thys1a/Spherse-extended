@@ -38,9 +38,9 @@
 
 持久覆盖与单次 override 是两套机制，分开实现：
 
-- 会话模型（持久）：core `sessions` 表新增 `model` 列（沿 `store/session.ts:133` 的 ALTER TABLE 迁移先例）；`SessionManager` 持 per-session map 并落库；`buildAgent` 初始化/`restore`、 `getSessionStatus`（现只读全局 `defaultModel`，`session-manager.ts:143-160`）、`SessionInfo` contract 全部改读 `session > profile.model > global`。
-- 单次 override（供 §2 命令 `model` 字段）：`ensureModel` 新增一次性入参，仅本 turn 生效，不入库。
-- contracts：`PATCH /projects/:pid/sessions/:sid/model`，body `{modelId}`（空串表示清除覆盖），经 `ModelCatalog.resolveModelById` 校验；`SessionInfo`/`agentSummary` 加可选 `model`。
+- 会话模型（持久）：core `sessions` 表新增 `model` 列（沿 `store/session.ts:133` 的 ALTER TABLE 迁移先例）；`SessionManager.setSessionModel` 经 `ModelCatalog` 校验后落库（未知模型抛 `ValidationError`→HTTP 400，空串清除），活会话经 `applySessionModel` 即时生效、无模型时显式清空内存模型；解析统一 `session > profile.model > global`（`status`/`model-resolver`/`agent-assembly`/`ensureModel`/`applyDefaultModel`/`getSessionStatus`）。读取为 DB 直读（落库即真相，无内存 map）。
+- 单次 override（供 §2 命令 `model` 字段）：`ensureModel`/`sendMessage` 新增可选 `modelOverride` 入参，仅本 turn 生效，不入库；无效值抛 `ValidationError`（与持久路径同语义），抛错点在事件落盘前。`retryLastTurn` 暂不加参（等批次 F 真需要时再加）。
+- contracts：`PATCH /projects/:pid/sessions/:sid/model`，body `{modelId}`（空串表示清除；Fastify 会把数字 coerce 成字符串，接受该行为，无效 id 由 catalog 校验以 400 拦下），经 `ModelCatalog.resolveModelById` 校验；`SessionInfo`/`agentSummary` 加可选 `model`。
 - server：`routes/sessions.ts` 加路由，通知 `SessionManager.setSessionModel()`。
 - app：Composer 顶栏当前模型 pill 标记（显示 model 名/简写，点击展开下拉切换）；数据源 provider catalog，初值 `session.model || agent.model || global`；切换即调 API。历史中不追加系统消息。
 - vision 模型：保持独立管理，不联动（用户在 Settings 单独切换）。
