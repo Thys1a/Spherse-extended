@@ -14,7 +14,7 @@ import { Header } from "./Header";
 import { MessageList } from "./MessageList";
 import { ConnectionBanner } from "./ConnectionBanner";
 import { ChatRuntimeProvider } from "./runtime-context";
-import { useAgentTheme, scopeAgentThemeCss } from "./hooks/useAgentTheme";
+import { useAgentTheme, prepareAgentThemeCss } from "./hooks/useAgentTheme";
 import { useChatScroll } from "./hooks/useChatScroll";
 import { useChatSession } from "./hooks/useChatSession";
 import { useStreamingStore } from "./runtime/streaming-store";
@@ -68,8 +68,14 @@ export function Chat({ sessionId, agent, onNavigateToPath, onOpenSession, initia
   const sendSummon = useSummonSend(sessionId, agent.id);
   const themeCss = useAgentTheme(client, agent.id, agent.slug, projectId);
   const scopedThemeCss = useMemo(
-    () => (themeCss ? scopeAgentThemeCss(themeCss, sessionId) : ""),
-    [themeCss, sessionId],
+    () =>
+      prepareAgentThemeCss(
+        themeCss,
+        sessionId,
+        client && agent.slug ? `.spherse/agents/${agent.slug}` : undefined,
+        client ? (path: string) => client.getPreviewUrl(path) : undefined,
+      ),
+    [themeCss, sessionId, client, agent.slug],
   );
 
   const handleClose = () => {

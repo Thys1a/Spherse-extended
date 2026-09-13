@@ -143,6 +143,75 @@ export function scopeAgentThemeCss(css: string, instanceId: string): string {
     .replace(/<\/style/gi, "<\\/style");
 }
 
+const THEME_URL_RE = /url\(\s*("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|[^)"'\s][^)"']*?)\s*\)/gi;
+
+function unquoteUrl(raw: string): string {
+  const trimmed = raw.trim();
+  if (
+    trimmed.length >= 2 &&
+    ((trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+      (trimmed.startsWith("'") && trimmed.endsWith("'")))
+  ) {
+    return trimmed.slice(1, -1);
+  }
+  return trimmed;
+}
+
+function shouldKeepThemeUrl(value: string): boolean {
+  if (!value) return true;
+  const lower = value.toLowerCase();
+  return (
+    lower.includes("://") ||
+    lower.startsWith("data:") ||
+    lower.startsWith("blob:") ||
+    value.startsWith("/") ||
+    value.startsWith("#")
+  );
+}
+
+function resolveThemePath(themeDir: string, relative: string): string | null {
+  const parts: string[] = [];
+  for (const segment of `${themeDir}/${relative}`.split("/")) {
+    if (segment === "" || segment === ".") continue;
+    if (segment === "..") {
+      if (parts.length === 0) return null;
+      parts.pop();
+    } else {
+      parts.push(segment);
+    }
+  }
+  return parts.join("/");
+}
+
+export function prepareAgentThemeCss(
+  css: string,
+  instanceId: string,
+  themeDir?: string,
+  previewUrl?: (projectPath: string) => string,
+): string {
+  if (!css) return "";
+  const withAssets =
+    themeDir && previewUrl ? rewriteThemeAssetUrls(css, themeDir, previewUrl) : css;
+  return scopeAgentThemeCss(withAssets, instanceId);
+}
+
+export function rewriteThemeAssetUrls(
+  css: string,
+  themeDir: string,
+  previewUrl: (projectPath: string) => string,
+): string {
+  return css.replace(THEME_URL_RE, (match, raw: string) => {
+    const value = unquoteUrl(raw);
+    if (shouldKeepThemeUrl(value)) return match;
+    const hashIndex = value.search(/[?#]/);
+    const pathPart = hashIndex === -1 ? value : value.slice(0, hashIndex);
+    const suffix = hashIndex === -1 ? "" : value.slice(hashIndex);
+    const resolved = resolveThemePath(themeDir, pathPart);
+    if (!resolved || resolved === themeDir) return match;
+    return `url("${previewUrl(resolved)}${suffix}")`;
+  });
+}
+
 export function useAgentTheme(
   client: ApiClient | undefined,
   agentId: string | undefined,

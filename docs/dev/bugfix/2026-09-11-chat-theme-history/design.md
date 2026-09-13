@@ -106,3 +106,9 @@ _落盘位置说明：按 AGENTS.md「写」路由表，bugfix 分析/调研归 
 - `packages/app/src/features/floating-chat/`（多实例共存方；本分支无 `docked-chat` 目录）
 - `packages/server/src/routes/sessions.ts`、`packages/core/src/project-manager.ts`、`packages/core/src/store/session.ts`（Bug 2 服务端分页语义，现状无改动需求，备查）
 - 文档：`docs/official/architecture/theming.md`（若定多实例优先级语义）、`docs/official/architecture/chat.md`（若改游标/滚动契约）、`docs/dev/backlog.md`（两条修复立项）
+
+## 后续 bug：主题隔离内联化导致主题图片 404（2026-09-13）
+
+- 背景：Bug1 修复（`d1b2c2d`）把主题从 `<link>` 改为按会话内联 `<style>` + 选择器改写；内联 style 里相对 `url()` 解析到 `document.baseURI`，主题内 `url(../../../杂物箱/avatar.png)` 类头像/背景图 404（此前 `9c017a6` 的 `<link>` 方案是好的）。
+- 修复方案：保持内联 + 隔离不动，注入前新增纯函数 `rewriteThemeAssetUrls(css, themeDir, previewUrl)` 把相对 `url()` 改写为 `client.getPreviewUrl` 绝对地址（`themeDir=.spherse/agents/{slug}`，posix 相对解析，出项目根/`?query`/`#fragment` 拆后缀保留后仍出根则不改；跳过 `data:`/任意 scheme/`/`绝对/`#`/空；CSS 转义（如 `a\ b.png`）不解码，保持原样为已知局限）；`Chat/index.tsx` 经 `prepareAgentThemeCss` 先 rewrite 再 `scopeAgentThemeCss`（浮窗/docked 共用同一 `Chat`，不另改；docked-chat 目录存在，同样覆盖）；`@font-face` 的 url 同理改写（现有"整块原样"测试同步更新为只保选择器不被 scope）。
+- 验证：控制台 avatar.png 200、切会话图片跟随不串、保存 theme.css 热更后图还在。

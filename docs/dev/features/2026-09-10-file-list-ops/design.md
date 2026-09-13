@@ -305,3 +305,8 @@
 - **A 单复用槽**：左键始终复用当前 content tab（替换 filePath），新标签只走右键/中键/`force`。
 - 范围限定：**仅文件如此；聊天会话依旧默认新标签打开**（session tab 不动）。
 - 中键（`auxclick button===1`）走现有 `onOpenInNewTab`（等价右键新标签）。
+
+### 4. bug2 文件重命名报错（2026-09-13，已证伪 blur 假设，真因为包里 server 过期）
+
+- 现象：安装版点文件重命名后输入框从没出现（开发版正常），目录正常。
+- **证伪记录**：初判"菜单关闭焦点抢回 → onBlur 自毁"不成立。用户控制台实证为服务端 schema 校验错（`body/action ... anyOf`）+ `/commands` 404：安装包 renderer 新鲜（09-13）而 `packages/server/dist` 是 09-09 旧构建（无 move/commands 路由），`predist` 只编 renderer 从不编 server。`BLUR_GRACE_MS` 宽限作为无害防御保留，不再视为根因修法。
