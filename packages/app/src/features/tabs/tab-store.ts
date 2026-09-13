@@ -131,6 +131,30 @@ export const useTabStore = create<TabStore>((set, get) => ({
         }
         return match.id;
       }
+      if (spec.kind === "content" && spec.filePath) {
+        const slot =
+          existing.tabs.find((t) => t.id === existing.activeTabId && t.kind === "content") ??
+          [...existing.tabs].reverse().find((t) => t.kind === "content");
+        if (slot) {
+          set((s) => {
+            const entry = s.byProject[projectId];
+            if (!entry) return s;
+            const byProject = {
+              ...s.byProject,
+              [projectId]: {
+                ...entry,
+                tabs: entry.tabs.map((t) =>
+                  t.id === slot.id ? { ...t, filePath: spec.filePath, label: spec.label } : t,
+                ),
+                activeTabId: slot.id,
+              },
+            };
+            persist(byProject);
+            return { byProject };
+          });
+          return slot.id;
+        }
+      }
     }
     const tab: Tab = {
       id: crypto.randomUUID(),

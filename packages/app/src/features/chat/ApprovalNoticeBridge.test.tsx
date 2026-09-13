@@ -1,11 +1,16 @@
 import { cleanup } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { toast } from "sonner";
 import { ApprovalNoticeBridge } from "./ApprovalNoticeBridge";
 import { useStreamingStore } from "./runtime/streaming-store";
 import { useSettingsStore } from "../../stores/settings-store";
 import { createMockHostBridge } from "../../test/host-bridge";
 import { renderWithProviders } from "../../test/render";
 import type { ChatMessage } from "./types";
+
+vi.mock("sonner", () => ({
+  toast: { error: vi.fn(), success: vi.fn() },
+}));
 
 function seedApprovalSession() {
   useStreamingStore.setState({
@@ -63,14 +68,20 @@ describe("ApprovalNoticeBridge OS notification", () => {
     }
   });
 
-  function renderBridge() {
+  function renderBridge(route = "/project/p1/chat/active-session") {
     const bridge = createMockHostBridge({ notify });
     renderWithProviders(<ApprovalNoticeBridge />, {
       bridge,
-      route: "/project/p1/chat/active-session",
+      route,
     });
     return bridge;
   }
+
+  it("toasts even when viewing the approval session", () => {
+    seedApprovalSession();
+    renderBridge("/project/p1/chat/s2");
+    expect(vi.mocked(toast.success)).toHaveBeenCalledTimes(1);
+  });
 
   it("sends an OS notification for other-session approvals when blurred", () => {
     seedApprovalSession();

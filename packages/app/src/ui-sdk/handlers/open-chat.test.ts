@@ -65,7 +65,26 @@ describe("openChat", () => {
   it("opens floating instead of navigating on explicit float", () => {
     openChat(makeCtx("electron"), "s1", true);
 
-    expect(mockSetFloatingChat).toHaveBeenCalledWith("proj-1", { sessionId: "s1" });
+    expect(mockSetFloatingChat).toHaveBeenCalledWith("proj-1", { sessionId: "s1", mode: "full" });
+    expect(mockNavigate).not.toHaveBeenCalled();
+  });
+
+  it("opens floating chat in pet mode when requested", () => {
+    openChat(makeCtx("electron"), "s1", true, "pet");
+
+    expect(mockSetFloatingChat).toHaveBeenCalledWith("proj-1", { sessionId: "s1", mode: "pet" });
+    expect(mockNavigate).not.toHaveBeenCalled();
+  });
+
+  it("switches the floating session to pet mode without recreating", () => {
+    mockGetState.mockReturnValue({
+      byProject: { "proj-1": { sessionId: "s1", mode: "full" } },
+      setFloatingChat: mockSetFloatingChat,
+    });
+
+    openChat(makeCtx("electron"), "s1", true, "pet");
+
+    expect(mockSetFloatingChat).toHaveBeenCalledWith("proj-1", { sessionId: "s1", mode: "pet" });
     expect(mockNavigate).not.toHaveBeenCalled();
   });
 

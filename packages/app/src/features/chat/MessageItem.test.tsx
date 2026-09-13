@@ -296,4 +296,16 @@ describe("MessageItem edit and resend", () => {
     await user.click(screen.getByRole("button", { name: "取消" }));
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   });
+
+  it("grows the editor beyond three rows for long drafts", async () => {
+    const user = userEvent.setup();
+    renderEditable("line1\nline2");
+    await user.click(screen.getByRole("button", { name: "编辑" }));
+
+    const editor = screen.getByRole("textbox") as HTMLTextAreaElement;
+    Object.defineProperty(editor, "scrollHeight", { configurable: true, value: 500 });
+    await user.type(editor, "\nmore");
+
+    expect(editor.style.height).toBe("208px");
+  });
 });

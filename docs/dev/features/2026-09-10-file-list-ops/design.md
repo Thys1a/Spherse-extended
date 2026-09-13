@@ -282,3 +282,26 @@
 
 - app 单测：split open/replace/no-op/ratio 边界/持久化；双栏渲染；右窗 `onNavigate` 不触主路由；非聚焦窗 `Ctrl+S/F` 不触发；隐藏实例不响应；dirty 同 path 多实例归零才清。
 - 手动：双 md 并排独立滚动；右窗编辑保存与 dirty toast；关闭项目清理 split（`project-lifecycle.ts` 加一行，与 dirty store 同款结构测试覆盖）；Web 端分栏可用。
+
+---
+
+## 增补调研（bugfix 2026-09-12）：打开文件默认不打开新标签页
+
+> 状态：**调研完成，未实施**。待产品确认默认行为语义。
+
+### 1. 原 design 理解错误点
+
+原 §"增补调研（2026-09-10）：默认同标签页面打开"把"同文件去重"当成了"默认不打开新标签页"：
+
+- 现状（已验证 `dev` 代码）：左键链路 `FileRow onClick`（`FileTreeNode.tsx:68`，经 P3 多选的 `selectFileWithModifiers`，普通左键仍走 `onSelectFile`）→ `UserFilePanel handleSelectFile`（`index.tsx:34-37`，纯 `navigate(.../content?path=)`）→ `use-tab-route-sync.ts:20` 裸 `openTab(projectId, spec)` → `tab-store.ts:105-106` 按 `identityOf`（`content:${filePath}`）去重。**同文件重复点仅激活（不开新），但不同文件必建新 tab**（落到 `:135-154`）。无"单复用槽 / preview tab"逻辑。
+- 即：越点文件 tab 越多是当前必然行为，原 design"默认行为符合需求，不改"不成立。
+
+### 2. 附带发现：P2 已实施，原 design 行号/现状描述过期
+
+`ba9d342 2026-09-11` 已落地 P2 核心：`openTab opts.force` 跳过去重、`closeOthers/closeAll/remapPaths`、`user-file-panel/index.tsx:75-84` 的 `onOpenInNewTab`（`openTab force`）、`TabStrip` 右键。`readOnly 右键整体缺失` 也不再成立（只读下仍显示打开组 + 复制路径）。唯一未做：`open-file.ts` 的 `newTab` 扩展（右键走直接 `openTab force`）。
+
+### 3. 已确认语义（2026-09-12 产品决策）
+
+- **A 单复用槽**：左键始终复用当前 content tab（替换 filePath），新标签只走右键/中键/`force`。
+- 范围限定：**仅文件如此；聊天会话依旧默认新标签打开**（session tab 不动）。
+- 中键（`auxclick button===1`）走现有 `onOpenInNewTab`（等价右键新标签）。

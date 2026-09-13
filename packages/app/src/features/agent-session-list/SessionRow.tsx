@@ -181,9 +181,14 @@ export function SessionRow({ session, active, floating }: SessionRowProps) {
               {t("agent-session-list.cancelFloat")}
             </ContextMenuItem>
           ) : (
-            <ContextMenuItem onClick={() => actions.floatSession(session)}>
-              {t("agent-session-list.floatSession")}
-            </ContextMenuItem>
+            <>
+              <ContextMenuItem onClick={() => actions.floatSession(session)}>
+                {t("agent-session-list.floatSession")}
+              </ContextMenuItem>
+              <ContextMenuItem onClick={() => actions.openPetSession(session)}>
+                {t("agent-session-list.petMode")}
+              </ContextMenuItem>
+            </>
           ))}
           <ContextMenuItem onClick={startEditing}>
             {t("common.rename")}

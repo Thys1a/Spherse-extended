@@ -7,9 +7,12 @@ import {
 } from "./slash-menu";
 
 describe("matchSlashToken", () => {
-  it("matches slash prefixes with kinds", () => {
-    expect(matchSlashToken("/sk")?.kinds).toEqual(["skill", "command"]);
-    expect(matchSlashToken("/sk")?.query).toBe("");
+  it("matches only full slash prefixes with kinds", () => {
+    expect(matchSlashToken("/") ).toBeNull();
+    expect(matchSlashToken("/sk")).toBeNull();
+    expect(matchSlashToken("/skill")).toBeNull();
+    expect(matchSlashToken("/skill:")?.kinds).toEqual(["skill"]);
+    expect(matchSlashToken("/skill:")?.query).toBe("");
     expect(matchSlashToken("/skill:re")?.kinds).toEqual(["skill"]);
     expect(matchSlashToken("/command:te")?.kinds).toEqual(["command"]);
     expect(matchSlashToken("do /skill:re")).toMatchObject({ query: "re", start: 3 });
@@ -23,6 +26,7 @@ describe("matchSlashToken", () => {
     expect(matchSlashToken("hello world")).toBeNull();
     expect(matchSlashToken("/unknown:x")).toBeNull();
     expect(matchSlashToken("a/b")).toBeNull();
+    expect(matchSlashToken("/")).toBeNull();
   });
 });
 

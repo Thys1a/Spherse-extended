@@ -69,7 +69,13 @@ describe("floatSession action", () => {
 
   it("opens floating chat on electron", async () => {
     await dispatchAction("floatSession", { sessionId: "s1" }, makeCtx("electron"));
-    expect(mockSetFloatingChat).toHaveBeenCalledWith("proj-1", { sessionId: "s1" });
+    expect(mockSetFloatingChat).toHaveBeenCalledWith("proj-1", { sessionId: "s1", mode: "full" });
+    expect(mockNavigate).not.toHaveBeenCalled();
+  });
+
+  it("opens floating chat in pet mode when requested", async () => {
+    await dispatchAction("floatSession", { sessionId: "s1", mode: "pet" }, makeCtx("electron"));
+    expect(mockSetFloatingChat).toHaveBeenCalledWith("proj-1", { sessionId: "s1", mode: "pet" });
     expect(mockNavigate).not.toHaveBeenCalled();
   });
 

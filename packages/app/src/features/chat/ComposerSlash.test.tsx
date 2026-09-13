@@ -54,15 +54,22 @@ function renderSlashComposer() {
 }
 
 describe("Composer slash completion", () => {
-  it("lists skills and commands on / and completes on Enter", async () => {
+  it("lists skills and commands on /skill: and completes on Enter", async () => {
     renderSlashComposer();
     const box = screen.getByRole("textbox");
     await user.type(box, "/");
+    expect(screen.queryByRole("option")).not.toBeInTheDocument();
 
+    await user.type(box, "skill:");
     expect(await screen.findByRole("option", { name: /review/ })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /test/ })).not.toBeInTheDocument();
+
+    await user.clear(box);
+    await user.type(box, "/command:");
     expect(await screen.findByRole("option", { name: /test/ })).toBeInTheDocument();
 
-    await user.type(box, "skill:re");
+    await user.clear(box);
+    await user.type(box, "/skill:re");
     await user.keyboard("{Enter}");
     expect(box).toHaveValue("/skill:review ");
   });

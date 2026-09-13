@@ -488,6 +488,8 @@ export const zhCN = {
   "agent-session-list.groupLabel": "对话",
   // 右键菜单：将对话显示为浮窗
   "agent-session-list.floatSession": "浮窗",
+  // 右键菜单：将对话以桌宠模式打开
+  "agent-session-list.petMode": "桌宠模式",
   // 右键菜单：取消对话浮窗
   "agent-session-list.cancelFloat": "取消浮窗",
   // 智能体会话列表分组底部的「加载更多」按钮，用于分页加载下一批会话

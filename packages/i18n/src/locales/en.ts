@@ -240,6 +240,7 @@ export const en: Record<TranslationKey, string> = {
   "agent-session-list.sessionNameTooLong": "Session name must not exceed 80 characters",
   "agent-session-list.groupLabel": "Conversations",
   "agent-session-list.floatSession": "Float",
+  "agent-session-list.petMode": "Pet mode",
   "agent-session-list.cancelFloat": "Cancel Float",
   "agent-session-list.loadMore": "Load more",
   "agent-session-list.copyAgentId": "Copy slug",

@@ -7,7 +7,7 @@ import { openChat } from "./open-chat";
 import { ensureProjectSession } from "../../queries/project";
 
 registerAction("floatSession", async (params, ctx) => {
-  const { sessionId } = params as { sessionId: string };
+  const { sessionId, mode } = params as { sessionId: string; mode?: "full" | "pet" };
   if (!sessionId || typeof sessionId !== "string") return;
 
   const session = await ensureProjectSession(ctx.projectId, ctx.client, sessionId).catch(() => null);
@@ -18,5 +18,5 @@ registerAction("floatSession", async (params, ctx) => {
     return;
   }
 
-  openChat(ctx, sessionId, true);
+  openChat(ctx, sessionId, true, mode === "pet" ? "pet" : undefined);
 });

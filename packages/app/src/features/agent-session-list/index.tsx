@@ -140,6 +140,9 @@ export function AgentSessionList() {
     floatSession: (s) => {
       dispatchAction("floatSession", { sessionId: s.id }, { navigate, projectId, hostKind, client, openExternal });
     },
+    openPetSession: (s) => {
+      dispatchAction("floatSession", { sessionId: s.id, mode: "pet" }, { navigate, projectId, hostKind, client, openExternal });
+    },
     cancelFloat: () => {
       dispatchAction("unfloatSession", {}, { navigate, projectId, hostKind, client, openExternal });
     },
