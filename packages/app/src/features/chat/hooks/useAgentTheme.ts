@@ -161,9 +161,8 @@ function shouldKeepThemeUrl(value: string): boolean {
   if (!value) return true;
   const lower = value.toLowerCase();
   return (
+    lower.includes("://") ||
     lower.startsWith("data:") ||
-    lower.startsWith("http://") ||
-    lower.startsWith("https://") ||
     lower.startsWith("blob:") ||
     value.startsWith("/") ||
     value.startsWith("#")
@@ -184,6 +183,18 @@ function resolveThemePath(themeDir: string, relative: string): string | null {
   return parts.join("/");
 }
 
+export function prepareAgentThemeCss(
+  css: string,
+  instanceId: string,
+  themeDir?: string,
+  previewUrl?: (projectPath: string) => string,
+): string {
+  if (!css) return "";
+  const withAssets =
+    themeDir && previewUrl ? rewriteThemeAssetUrls(css, themeDir, previewUrl) : css;
+  return scopeAgentThemeCss(withAssets, instanceId);
+}
+
 export function rewriteThemeAssetUrls(
   css: string,
   themeDir: string,
@@ -192,9 +203,12 @@ export function rewriteThemeAssetUrls(
   return css.replace(THEME_URL_RE, (match, raw: string) => {
     const value = unquoteUrl(raw);
     if (shouldKeepThemeUrl(value)) return match;
-    const resolved = resolveThemePath(themeDir, value);
-    if (!resolved) return match;
-    return `url("${previewUrl(resolved)}")`;
+    const hashIndex = value.search(/[?#]/);
+    const pathPart = hashIndex === -1 ? value : value.slice(0, hashIndex);
+    const suffix = hashIndex === -1 ? "" : value.slice(hashIndex);
+    const resolved = resolveThemePath(themeDir, pathPart);
+    if (!resolved || resolved === themeDir) return match;
+    return `url("${previewUrl(resolved)}${suffix}")`;
   });
 }
 

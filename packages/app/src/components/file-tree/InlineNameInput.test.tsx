@@ -40,4 +40,24 @@ describe("InlineNameInput", () => {
     fireEvent.keyDown(box, { key: "Enter" });
     expect(onSubmit).toHaveBeenCalledWith("new-name.md");
   });
+
+  it("cancels on Escape", () => {
+    const onCancel = vi.fn();
+    const onSubmit = vi.fn();
+    render(<InlineNameInput depth={0} onSubmit={onSubmit} onCancel={onCancel} />);
+    fireEvent.keyDown(screen.getByRole("textbox"), { key: "Escape" });
+    expect(onCancel).toHaveBeenCalledTimes(1);
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("ignores Enter for empty or invalid names", () => {
+    const onSubmit = vi.fn();
+    render(<InlineNameInput depth={0} onSubmit={onSubmit} onCancel={() => {}} />);
+    const box = screen.getByRole("textbox");
+    fireEvent.change(box, { target: { value: "   " } });
+    fireEvent.keyDown(box, { key: "Enter" });
+    fireEvent.change(box, { target: { value: "a/b" } });
+    fireEvent.keyDown(box, { key: "Enter" });
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
 });

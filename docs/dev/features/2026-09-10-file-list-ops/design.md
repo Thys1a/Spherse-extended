@@ -306,7 +306,7 @@
 - 范围限定：**仅文件如此；聊天会话依旧默认新标签打开**（session tab 不动）。
 - 中键（`auxclick button===1`）走现有 `onOpenInNewTab`（等价右键新标签）。
 
-### 4. bug2 文件重命名无响应（2026-09-13，仅 dev 可复现差异）
+### 4. bug2 文件重命名无响应（2026-09-13，现象仅安装版出现，根因假设待安装版验证）
 
-- 现象：安装版点文件重命名毫无反应（输入框从没出现），目录正常，开发版正常。
-- 根因（待安装版验证）：菜单关闭时焦点被抢回触发行，`InlineNameInput` 的 `onBlur→onCancel` 瞬间自毁输入框；开发版因 StrictMode 双重聚焦侥幸存活。修法：`InlineNameInput` 挂载 200ms 内忽略 blur（`BLUR_GRACE_MS`），正常点空失焦取消不受影响。已补 `InlineNameInput.test.tsx` 4 例。
+- 现象：安装版点文件重命名后输入框从没出现（开发版正常），目录正常。
+- 根因假设：菜单关闭时焦点被抢回触发行，`InlineNameInput` 的 `onBlur→onCancel` 瞬间自毁输入框。修法（机制防御，未证实根因）：`InlineNameInput` 挂载 200ms 内忽略 blur（`BLUR_GRACE_MS`，值待安装版实测校准），正常点空失焦取消不受影响。测试锁的是 grace 机制本身（宽限内不取消/宽限后取消），不是根因。
