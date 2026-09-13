@@ -305,3 +305,8 @@
 - **A 单复用槽**：左键始终复用当前 content tab（替换 filePath），新标签只走右键/中键/`force`。
 - 范围限定：**仅文件如此；聊天会话依旧默认新标签打开**（session tab 不动）。
 - 中键（`auxclick button===1`）走现有 `onOpenInNewTab`（等价右键新标签）。
+
+### 4. bug2 文件重命名无响应（2026-09-13，仅 dev 可复现差异）
+
+- 现象：安装版点文件重命名毫无反应（输入框从没出现），目录正常，开发版正常。
+- 根因（待安装版验证）：菜单关闭时焦点被抢回触发行，`InlineNameInput` 的 `onBlur→onCancel` 瞬间自毁输入框；开发版因 StrictMode 双重聚焦侥幸存活。修法：`InlineNameInput` 挂载 200ms 内忽略 blur（`BLUR_GRACE_MS`），正常点空失焦取消不受影响。已补 `InlineNameInput.test.tsx` 4 例。

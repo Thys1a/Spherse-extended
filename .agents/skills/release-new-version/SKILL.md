@@ -61,6 +61,8 @@ description: Use when the user says "发新版本", "release", "publish a new ve
 
 ## Key Knowledge
 
+- **版本号约定（fork）**：dev 分支打包为 `-alpha`，main 分支打包为 `-beta`（如 dev 出 `0.3.2-alpha`，main 出 `0.3.2-beta`）。发版前确认 `packages/desktop/package.json` 的 version 后缀与所在分支一致。
+
 - **不需要手动改 version**：CI step `Sync app version from tag`（build-and-release.yml:62-64）执行 `npm version "${GITHUB_REF_NAME#v}" --no-git-tag-version`，从 tag 名自动设置 `packages/desktop` 的版本号。
 - **`packages/desktop/package.json` 的 version 平时保持 `0.1.0`**，不随发布更新，只在 CI 构建时临时设置。
 - **tag push 即触发**：workflow 监听 `push.tags: ["v*"]`，推送 tag 自动启动全流程。

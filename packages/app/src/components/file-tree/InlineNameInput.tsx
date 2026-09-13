@@ -2,6 +2,8 @@ import { useEffect, useRef } from "react";
 import { Input } from "../../components/ui/input";
 import { INVALID_NAME_RE } from "./tree-model";
 
+const BLUR_GRACE_MS = 200;
+
 export function InlineNameInput({
   depth,
   initialValue,
@@ -14,6 +16,11 @@ export function InlineNameInput({
   onCancel: () => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const mountAtRef = useRef(0);
+
+  useEffect(() => {
+    mountAtRef.current = Date.now();
+  }, []);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -37,7 +44,10 @@ export function InlineNameInput({
             onCancel();
           }
         }}
-        onBlur={() => onCancel()}
+          onBlur={() => {
+            if (Date.now() - mountAtRef.current < BLUR_GRACE_MS) return;
+            onCancel();
+          }}
       />
     </div>
   );
