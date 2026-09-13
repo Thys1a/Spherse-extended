@@ -69,6 +69,35 @@ export const useStreamingStore = create<StreamingStoreState & StreamingStoreActi
   const runtimes = new ChatRuntimeRegistry<StreamingSession>();
   const eventQueue = new Map<string, AgentEvent[]>();
   let flushRaf: number | undefined;
+  let flushTimer: ReturnType<typeof setTimeout> | undefined;
+
+  function cancelScheduledFlush() {
+    if (flushRaf !== undefined) {
+      cancelAnimationFrame(flushRaf);
+      flushRaf = undefined;
+    }
+    if (flushTimer !== undefined) {
+      clearTimeout(flushTimer);
+      flushTimer = undefined;
+    }
+  }
+
+  function scheduleFlush() {
+    if (flushRaf !== undefined || flushTimer !== undefined) return;
+    if (typeof document !== "undefined" && document.hidden) {
+      flushTimer = setTimeout(flushQueuedEvents, 0);
+    } else {
+      flushRaf = requestAnimationFrame(flushQueuedEvents);
+    }
+  }
+
+  if (typeof document !== "undefined") {
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) return;
+      cancelScheduledFlush();
+      flushQueuedEvents();
+    });
+  }
 
   function updateSession(
     sessionId: string,
@@ -167,6 +196,7 @@ export const useStreamingStore = create<StreamingStoreState & StreamingStoreActi
 
   function flushQueuedEvents() {
     flushRaf = undefined;
+    flushTimer = undefined;
     if (eventQueue.size === 0) return;
     const queued = new Map(eventQueue);
     eventQueue.clear();
@@ -216,9 +246,7 @@ export const useStreamingStore = create<StreamingStoreState & StreamingStoreActi
       eventQueue.set(sessionId, queue);
     }
     queue.push(event);
-    if (flushRaf === undefined) {
-      flushRaf = requestAnimationFrame(flushQueuedEvents);
-    }
+    scheduleFlush();
   }
 
   function startCleanupTimer() {

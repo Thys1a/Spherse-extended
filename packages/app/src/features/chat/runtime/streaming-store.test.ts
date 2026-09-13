@@ -124,6 +124,53 @@ describe("streaming-store resilience", () => {
     expect(socket.closeSpy).toHaveBeenCalled();
   });
 
+  function assistantReply(socket: { onmessage: ((ev: MessageEvent) => void) | null }) {
+    socket.onmessage?.({
+      data: JSON.stringify({
+        type: "message_end",
+        message: { role: "assistant", content: [{ type: "text", text: "hi" }] },
+      }),
+    } as MessageEvent);
+    socket.onmessage?.({
+      data: JSON.stringify({ type: "agent_end", messages: [] }),
+    } as MessageEvent);
+  }
+
+  it("flushes queued events via timeout while the document is hidden", async () => {
+    const raf = vi.fn();
+    vi.stubGlobal("requestAnimationFrame", raf);
+    Object.defineProperty(document, "hidden", { configurable: true, value: true });
+    try {
+      const socket = await attachAndConnect("h1");
+      assistantReply(socket);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(raf).not.toHaveBeenCalled();
+      expect(useStreamingStore.getState().sessions.h1.messages.length).toBeGreaterThan(0);
+    } finally {
+      Object.defineProperty(document, "hidden", { configurable: true, value: false });
+    }
+  });
+
+  it("flushes immediately when the document becomes hidden with a pending rAF flush", async () => {
+    const pendingRaf: FrameRequestCallback[] = [];
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
+      pendingRaf.push(cb);
+      return pendingRaf.length;
+    });
+    const socket = await attachAndConnect("h2");
+    assistantReply(socket);
+    expect(pendingRaf).toHaveLength(1);
+    expect(useStreamingStore.getState().sessions.h2.messages).toHaveLength(0);
+    Object.defineProperty(document, "hidden", { configurable: true, value: true });
+    try {
+      document.dispatchEvent(new Event("visibilitychange"));
+      expect(useStreamingStore.getState().sessions.h2.messages.length).toBeGreaterThan(0);
+    } finally {
+      Object.defineProperty(document, "hidden", { configurable: true, value: false });
+    }
+    expect(pendingRaf).toHaveLength(1);
+  });
+
   it("withdrawLastTurn sends withdraw and turn_withdrawn drops the last user turn", async () => {
     const socket = await attachAndConnect("w1");
     useStreamingStore.getState().sendMessage("w1", "q2");

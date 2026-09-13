@@ -118,6 +118,9 @@ v2（本次不做）：OS 级第二窗口（独立 JS context 会产生第二份
 - 用户"没看到"最大嫌疑：正盯着该会话（toast 被吃，只剩行内卡片）+ 窗口聚焦（OS 被吃）。按设计（§8）两门都是刻意的。
 - 待确认：是否放宽（如聚焦时后台会话仍 toast 已有；是否要"同会话也给轻 toast"或"聚焦时也发 OS"）。
 - 产品决策（2026-09-12）：**同会话也 toast**；OS 失焦门不动。
+- 通知策略定稿（2026-09-13）：**失焦发 OS 通知，聚焦时不发 OS、只走原有 toast**（toast 全场景保留）。
+- 根因调研（2026-09-13，最小化无通知）：WS 事件经 `enqueueEvent` 走 `requestAnimationFrame` 批量落盘（`streaming-store.ts:219-221`）；最小化时 rAF 暂停，事件堆在 `eventQueue`，`ApprovalNoticeBridge` 的 `check()` 看不到卡片；恢复窗口时积压一次落盘恰撞上聚焦门，OS 全跳过。修法备选：`document.hidden` 时用 `setTimeout` 兜底 flush（首选）；或 `blur` 时对 pending 补发 OS（需拆 toast/OS 已通知集合）。未实施。
+- 修复方案（2026-09-13）：只改 `streaming-store.ts` flush 调度，`notify-user.ts`/`ApprovalNoticeBridge` 不动。`enqueueEvent`：可见走 rAF，`document.hidden` 走 `setTimeout(flush,0)`，`flushKind` 配对取消句柄；store 创建挂 `visibilitychange`，切 hidden 有待 flush 则取消 rAF 立刻落盘。测试：hidden 下事件仍落盘、切 hidden 立刻落盘。明确不做：拆去重、blur 补发、改 `hasFocus` 门。
 
 ### 10.2 斜杠补全时机：裸 `/` 即弹是按设计（§2），用户要 `/skill:` 才弹
 
