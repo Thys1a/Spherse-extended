@@ -306,7 +306,7 @@
 - 范围限定：**仅文件如此；聊天会话依旧默认新标签打开**（session tab 不动）。
 - 中键（`auxclick button===1`）走现有 `onOpenInNewTab`（等价右键新标签）。
 
-### 4. bug2 文件重命名无响应（2026-09-13，现象仅安装版出现，根因假设待安装版验证）
+### 4. bug2 文件重命名报错（2026-09-13，已证伪 blur 假设，真因为包里 server 过期）
 
 - 现象：安装版点文件重命名后输入框从没出现（开发版正常），目录正常。
-- 根因假设：菜单关闭时焦点被抢回触发行，`InlineNameInput` 的 `onBlur→onCancel` 瞬间自毁输入框。修法（机制防御，未证实根因）：`InlineNameInput` 挂载 200ms 内忽略 blur（`BLUR_GRACE_MS`，值待安装版实测校准），正常点空失焦取消不受影响。测试锁的是 grace 机制本身（宽限内不取消/宽限后取消），不是根因。
+- **证伪记录**：初判"菜单关闭焦点抢回 → onBlur 自毁"不成立。用户控制台实证为服务端 schema 校验错（`body/action ... anyOf`）+ `/commands` 404：安装包 renderer 新鲜（09-13）而 `packages/server/dist` 是 09-09 旧构建（无 move/commands 路由），`predist` 只编 renderer 从不编 server。`BLUR_GRACE_MS` 宽限作为无害防御保留，不再视为根因修法。
