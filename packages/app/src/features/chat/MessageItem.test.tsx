@@ -306,6 +306,6 @@ describe("MessageItem edit and resend", () => {
     Object.defineProperty(editor, "scrollHeight", { configurable: true, value: 500 });
     await user.type(editor, "\nmore");
 
-    expect(editor.style.height).toBe("208px");
+    expect(editor.style.height).toBe("216px");
   });
 });

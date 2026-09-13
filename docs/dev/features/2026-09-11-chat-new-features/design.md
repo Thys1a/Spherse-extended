@@ -143,5 +143,5 @@ v2（本次不做）：OS 级第二窗口（独立 JS context 会产生第二份
 - 现状：进 pet 只有浮窗标题栏猫按钮（`FloatingFrame.tsx:112-121`，须先开浮窗）；退 pet 有形象圆按钮 + 悬浮条；首次永远 full（`open-chat.ts:16` + 无读恢复）；会话列表/右键/设置无直达项。
 - v2（§7）仅 OS 窗口 + 形象上传，入口问题属步骤 1 遗漏。
 - 待确认：入口放哪（推荐：会话行右键"以桌宠打开" + 浮窗标题栏猫按钮保留；是否需要设置默认模式）。
-- 产品决策（2026-09-12）：**会话行右键加"桌宠模式"项**，猫按钮保留。另有 bug：浮窗标题栏猫按钮点了没反应（待查，见下）。
-- **bug（2026-09-12 新增）：浮窗标题栏猫按钮无响应**，根因已定位：`FloatingFrame.tsx:107` 标题栏 `onPointerDown={drag.onPointerDown}`；`use-drag.ts:24-28` 仅对 `ignoreSelector`（full 变体 = 关闭按钮的 `data-chat-float-close`）放行，猫按钮无此 attr → 走 `e.preventDefault()` + `setPointerCapture` → 兼容 mouse/click 被吞（X 按钮因命中 ignore 才正常）。修法：猫按钮加同类 data attr 并纳入 `ignoreSelector`（或 full 变体 ignore 改 `button,input,textarea,a`，与 pet 一致）。
+- 产品决策（2026-09-12）：**会话行右键加"桌宠模式"项**，猫按钮保留。另有 bug：浮窗标题栏猫按钮点了没反应（根因：`use-drag.ts:28` 的 `preventDefault` 吞 click；修法：猫按钮纳入 `ignoreSelector`，已修）。
+- 语义确认（review 后，2026-09-12）：`floatSession` 不带 mode 落在已浮 pet 会话上保持 pet（no-op）；已浮行右键不加桌宠项（用标题栏猫按钮切换）。均为有意。

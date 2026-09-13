@@ -27,8 +27,8 @@ import { useOpenExternalLink } from "../browser/open-external-url";
 import { formatMessageTime } from "./lib/format-time";
 import { quoteFenceFor } from "./lib/quote-fence";
 
-const EDIT_MIN_HEIGHT = 2 * 20 + 8;
-const EDIT_MAX_HEIGHT = 10 * 20 + 8;
+const EDIT_MIN_HEIGHT = 2 * 20 + 16;
+const EDIT_MAX_HEIGHT = 10 * 20 + 16;
 
 interface MessageItemProps {
   message: ChatMessage;
