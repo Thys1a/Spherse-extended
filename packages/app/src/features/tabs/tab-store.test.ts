@@ -55,12 +55,43 @@ describe("useTabStore", () => {
     expect(entry.activeTabId).toBe(first);
   });
 
-  it("openTab creates separate tabs per filePath and url", () => {
+  it("openTab reuses one slot for content files", () => {
+    const first = useTabStore.getState().openTab("p1", { kind: "content", label: "a.md", filePath: "a.md" });
+    const second = useTabStore.getState().openTab("p1", { kind: "content", label: "b.md", filePath: "b.md" });
+
+    expect(second).toBe(first);
+    const entry = useTabStore.getState().byProject["p1"];
+    expect(entry.tabs).toHaveLength(1);
+    expect(entry.tabs[0]).toMatchObject({ filePath: "b.md", label: "b.md" });
+    expect(entry.activeTabId).toBe(first);
+  });
+
+  it("openTab reuses the last content tab when active is a chat", () => {
+    const content = useTabStore.getState().openTab("p1", { kind: "content", label: "a.md", filePath: "a.md" });
+    useTabStore.getState().openTab("p1", { kind: "chat", label: "s1", sessionId: "s1" });
+
+    const second = useTabStore.getState().openTab("p1", { kind: "content", label: "b.md", filePath: "b.md" });
+
+    expect(second).toBe(content);
+    expect(useTabStore.getState().byProject["p1"].tabs).toHaveLength(2);
+  });
+
+  it("openTab creates a content tab when none exists", () => {
+    useTabStore.getState().openTab("p1", { kind: "chat", label: "s1", sessionId: "s1" });
+
+    const id = useTabStore.getState().openTab("p1", { kind: "content", label: "a.md", filePath: "a.md" });
+
+    const entry = useTabStore.getState().byProject["p1"];
+    expect(entry.tabs).toHaveLength(2);
+    expect(entry.activeTabId).toBe(id);
+  });
+
+  it("openTab creates separate tabs per url while content reuses its slot", () => {
     useTabStore.getState().openTab("p1", { kind: "content", label: "a.md", filePath: "a.md" });
     useTabStore.getState().openTab("p1", { kind: "content", label: "b.md", filePath: "b.md" });
     useTabStore.getState().openTab("p1", { kind: "browser", label: "u", url: "http://localhost:3000" });
 
-    expect(useTabStore.getState().byProject["p1"].tabs).toHaveLength(3);
+    expect(useTabStore.getState().byProject["p1"].tabs).toHaveLength(2);
   });
 
   it("openTab with force creates a duplicate tab for the same file", () => {
@@ -165,8 +196,8 @@ describe("useTabStore", () => {
   });
 
   it("remapPaths rewrites content tabs under the old prefix", () => {
-    const a = useTabStore.getState().openTab("p1", { kind: "content", label: "a.md", filePath: "docs/a.md" });
-    const b = useTabStore.getState().openTab("p1", { kind: "content", label: "b.md", filePath: "docs/sub/b.md" });
+    const a = useTabStore.getState().openTab("p1", { kind: "content", label: "a.md", filePath: "docs/a.md" }, { force: true });
+    const b = useTabStore.getState().openTab("p1", { kind: "content", label: "b.md", filePath: "docs/sub/b.md" }, { force: true });
     const c = useTabStore.getState().openTab("p1", { kind: "chat", label: "s", sessionId: "s" });
 
     useTabStore.getState().remapPaths("p1", "docs", "notes");

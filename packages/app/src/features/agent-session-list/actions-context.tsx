@@ -13,6 +13,7 @@ export interface AgentSessionActions {
   deleteSession: (session: SessionInfo) => void;
   renameSession: (session: SessionInfo, title: string) => Promise<boolean>;
   floatSession: (session: SessionInfo) => void;
+  openPetSession: (session: SessionInfo) => void;
   cancelFloat: () => void;
   exportSession: (session: SessionInfo) => void;
   showSessionStatus: (session: SessionInfo) => void;

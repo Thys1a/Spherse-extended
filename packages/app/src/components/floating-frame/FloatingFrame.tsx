@@ -56,7 +56,6 @@ export function FloatingFrame({
   const [position, setPosition] = useState(initialPosition);
   const [size, setSize] = useState(initialSize);
 
-  const closeSelector = `[data-${hookPrefix}-float-close]`;
   const rootAttr = { [`data-${hookPrefix}-float-root`]: true };
   const titlebarAttr = { [`data-${hookPrefix}-float-titlebar`]: true };
   const closeAttr = { [`data-${hookPrefix}-float-close`]: true };
@@ -67,7 +66,7 @@ export function FloatingFrame({
     onCommit: onPositionCommit,
     containerWidth: size.width,
     containerHeight: size.height,
-    ignoreSelector: variant === "pet" ? "button, input, textarea, a" : closeSelector,
+    ignoreSelector: "button, input, textarea, a",
   });
 
   const { createHandler } = useResize({

@@ -68,7 +68,7 @@ describe("FloatingChatContainer pet mode", () => {
     expect(useFloatingChatStore.getState().byProject["p1"]?.mode).toBe("full");
   });
 
-  it("shows the pet toggle in full mode titlebar", () => {
+  it("enters pet mode from the full mode titlebar toggle", async () => {
     renderWithProviders(
       <FloatingChatContainer
         projectId="p1"
@@ -78,6 +78,7 @@ describe("FloatingChatContainer pet mode", () => {
       { bridge: createMockHostBridge() },
     );
 
-    expect(screen.getByRole("button", { name: "桌宠模式" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "桌宠模式" }));
+    expect(useFloatingChatStore.getState().byProject["p1"]?.mode).toBe("pet");
   });
 });

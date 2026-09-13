@@ -66,6 +66,11 @@ function FileRow({ item, depth }: { item: TreeItem; depth: number }) {
       aria-selected={isSelected}
       data-path={item.path}
       onClick={(e) => selectFileWithModifiers(e, item.path)}
+      onAuxClick={(e) => {
+        if (e.button !== 1) return;
+        e.preventDefault();
+        onOpenInNewTab?.(item.path);
+      }}
       onContextMenu={() => {
         if (!selectedPaths.has(item.path)) selectSingle(item.path);
       }}

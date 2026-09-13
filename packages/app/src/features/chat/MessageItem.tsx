@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useI18n } from "@spherse/i18n/react";
 import { ChevronRightIcon, PencilIcon } from "lucide-react";
@@ -27,6 +27,9 @@ import { useOpenExternalLink } from "../browser/open-external-url";
 import { formatMessageTime } from "./lib/format-time";
 import { quoteFenceFor } from "./lib/quote-fence";
 
+const EDIT_MIN_HEIGHT = 2 * 20 + 16;
+const EDIT_MAX_HEIGHT = 10 * 20 + 16;
+
 interface MessageItemProps {
   message: ChatMessage;
   agent: AgentSummary;
@@ -47,10 +50,21 @@ export function MessageItem({ message, agent, showTime, sessionId, supersededToo
   const openLink = useOpenExternalLink();
   const { t } = useI18n();
   const bubbleRef = useRef<HTMLDivElement>(null);
+  const editRef = useRef<HTMLTextAreaElement>(null);
   const [menu, setMenu] = useState<{ x: number; y: number; text: string } | null>(null);
   const [editing, setEditing] = useState(false);
   const [editDraft, setEditDraft] = useState("");
   const canEdit = editable && sessionId != null && !message._streaming;
+
+  useLayoutEffect(() => {
+    if (!editing) return;
+    const textarea = editRef.current;
+    if (!textarea) return;
+    textarea.style.height = "auto";
+    const target = Math.max(EDIT_MIN_HEIGHT, Math.min(textarea.scrollHeight, EDIT_MAX_HEIGHT));
+    textarea.style.height = `${target}px`;
+    textarea.style.overflowY = textarea.scrollHeight > EDIT_MAX_HEIGHT ? "auto" : "hidden";
+  }, [editing, editDraft]);
 
   const handleContextMenu = useCallback((event: React.MouseEvent) => {
     const selection = window.getSelection();
@@ -160,11 +174,11 @@ export function MessageItem({ message, agent, showTime, sessionId, supersededToo
           ) : editing ? (
             <div className="flex min-w-52 flex-col gap-2">
               <textarea
+                ref={editRef}
                 value={editDraft}
                 onChange={(event) => setEditDraft(event.target.value)}
-                rows={3}
                 autoFocus
-                className="w-full resize-y rounded-md border border-input bg-background px-2 py-1 text-sm text-foreground"
+                className="w-full resize-y rounded-md border border-input bg-background px-3.5 py-2.5 text-sm text-foreground"
               />
               <div className="flex justify-end gap-1.5">
                 <Button

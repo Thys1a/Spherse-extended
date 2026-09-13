@@ -7,13 +7,23 @@ export function openChat(
   ctx: ActionContext,
   sessionId: string,
   float: boolean | undefined,
+  mode?: "full" | "pet",
 ): void {
   const floatingEnabled = isFeatureEnabled("floating-chat", ctx.hostKind);
   const tabsEnabled = isFeatureEnabled("tabs", ctx.hostKind);
   const currentFloating = useFloatingChatStore.getState().byProject[ctx.projectId]?.sessionId;
   if (float && floatingEnabled) {
+    const nextMode = mode ?? "full";
     if (currentFloating !== sessionId) {
-      useFloatingChatStore.getState().setFloatingChat(ctx.projectId, getDefaultFloatingState(sessionId));
+      useFloatingChatStore.getState().setFloatingChat(ctx.projectId, {
+        ...getDefaultFloatingState(sessionId),
+        mode: nextMode,
+      });
+    } else if (mode) {
+      const current = useFloatingChatStore.getState().byProject[ctx.projectId];
+      if (current && current.mode !== mode) {
+        useFloatingChatStore.getState().setFloatingChat(ctx.projectId, { ...current, mode });
+      }
     }
     return;
   }

@@ -109,3 +109,42 @@ v2（本次不做）：OS 级第二窗口（独立 JS context 会产生第二份
 ### 9.2 PDF（二期）
 
 首版拒绝，toast：`"暂不支持 PDF 解析，请粘贴文字或转为图片后发送"`。二期推荐 `unpdf`（unjs，0 依赖，约 1.6MB bundle，`extractText` 覆盖纯文本抽取，MIT）；备选 `pdf-parse` v2（需简单表格时，代价 20MB + `@napi-rs/canvas` 原生依赖）；`pdftotext` 系统二进制方案因双平台打包签名成本不建议。扫描件/多栏/表格超出纯文本抽取能力，一律走失败降级（不在二期做 OCR 与表格还原）。
+
+## 10. bugfix 调研（2026-09-12，未实施）
+
+### 10.1 审批通知"未见"：按设计实现，两道门叠加导致常见场景零弹窗
+
+- 链路：`App.tsx:100` 常驻 `ApprovalNoticeBridge` → `approval-notice.ts` 扫全会话 pending 卡片 → toast 门（`ApprovalNoticeBridge.tsx:45`：与当前会话同 id 则抑制）→ OS 门（`notify-user.ts:13`：`document.hasFocus()` 则丢弃；设置默认开、双壳 capability 均开）。
+- 用户"没看到"最大嫌疑：正盯着该会话（toast 被吃，只剩行内卡片）+ 窗口聚焦（OS 被吃）。按设计（§8）两门都是刻意的。
+- 待确认：是否放宽（如聚焦时后台会话仍 toast 已有；是否要"同会话也给轻 toast"或"聚焦时也发 OS"）。
+- 产品决策（2026-09-12）：**同会话也 toast**；OS 失焦门不动。
+- 通知策略定稿（2026-09-13）：**失焦发 OS 通知，聚焦时不发 OS、只走原有 toast**（toast 全场景保留）。
+- 根因调研（2026-09-13，最小化无通知）：WS 事件经 `enqueueEvent` 走 `requestAnimationFrame` 批量落盘（`streaming-store.ts:219-221`）；最小化时 rAF 暂停，事件堆在 `eventQueue`，`ApprovalNoticeBridge` 的 `check()` 看不到卡片；恢复窗口时积压一次落盘恰撞上聚焦门，OS 全跳过。修法备选：`document.hidden` 时用 `setTimeout` 兜底 flush（首选）；或 `blur` 时对 pending 补发 OS（需拆 toast/OS 已通知集合）。未实施。
+- 修复方案（2026-09-13）：只改 `streaming-store.ts` flush 调度，`notify-user.ts`/`ApprovalNoticeBridge` 不动。`enqueueEvent`：可见走 rAF，`document.hidden` 走 `setTimeout(flush,0)`，`flushKind` 配对取消句柄；store 创建挂 `visibilitychange`，切 hidden 有待 flush 则取消 rAF 立刻落盘。测试：hidden 下事件仍落盘、切 hidden 立刻落盘。明确不做：拆去重、blur 补发、改 `hasFocus` 门。
+
+### 10.2 斜杠补全时机：裸 `/` 即弹是按设计（§2），用户要 `/skill:` 才弹
+
+- 现状（`slash-menu.ts:21-45` + `Composer.tsx:142-155`）：行首/空白后 `/`（含 `/s`、`/sk` 等 partial）立即弹 skill+command 混合列表且 `query:""` 不过滤；完整 `/skill:`/`/command:` 后才按类过滤；`>>x` 走 agent。
+- 待确认：改窄为"仅 `/skill:`/`/command:`（及 `>>`）触发"，裸 `/` 不弹；partial 前缀（`/s`）是否保留。
+- 产品决策（2026-09-12）：**改窄**，裸 `/` 与 partial 前缀不再弹。
+
+### 10.3 command 无内置：设计即无（§2 裁剪"只做项目级"），非回归
+
+- 现状：`CommandStore` 单源（项目 `.spherse/commands/`）；`presets` 无 `commands/`；链路（server CRUD → `queries/commands.ts` → Composer/面板）完整，空目录即空列表。
+- 待确认：是否补充内置（方案：`presets` 加 `commands/` + `PRESET_COMMAND_SOURCES`，`project.ts open/create` 透传多层，对标 `SkillStore` 多源；另需定内置与项目同名时的覆盖序 + i18n/文档）。
+- 产品决策（2026-09-12）：**补充内置**，对标 SkillStore 多源；同名覆盖序待定（默认项目层优先）。
+- 修订（2026-09-12）：**取消**——暂无需要的内置 command，不做。
+
+### 10.4 重发编辑框缩小：`MessageItem.tsx:165` 固定 `rows={3}`，无自适应
+
+- 普通 Composer 有 MIN 2 / MID 10 / MAX 20 自适应（`Composer.tsx:25-29,91-112`）；重发编辑器是独立小 textarea。
+- 修法（待确认即做）：复用 Composer 自适应高度逻辑（抽 `useAutoGrowTextarea` 或照抄三档），内边距对齐气泡。
+- 产品决策（2026-09-12）：**修**，复用 Composer 自适应高度。
+
+### 10.5 桌宠无入口：步骤 1 入口遗漏，非 v2 范围
+
+- 现状：进 pet 只有浮窗标题栏猫按钮（`FloatingFrame.tsx:112-121`，须先开浮窗）；退 pet 有形象圆按钮 + 悬浮条；首次永远 full（`open-chat.ts:16` + 无读恢复）；会话列表/右键/设置无直达项。
+- v2（§7）仅 OS 窗口 + 形象上传，入口问题属步骤 1 遗漏。
+- 待确认：入口放哪（推荐：会话行右键"以桌宠打开" + 浮窗标题栏猫按钮保留；是否需要设置默认模式）。
+- 产品决策（2026-09-12）：**会话行右键加"桌宠模式"项**，猫按钮保留。另有 bug：浮窗标题栏猫按钮点了没反应（根因：`use-drag.ts:28` 的 `preventDefault` 吞 click；修法：猫按钮纳入 `ignoreSelector`，已修）。
+- 语义确认（review 后，2026-09-12）：`floatSession` 不带 mode 落在已浮 pet 会话上保持 pet（no-op）；已浮行右键不加桌宠项（用标题栏猫按钮切换）。均为有意。

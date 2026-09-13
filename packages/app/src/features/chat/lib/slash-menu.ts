@@ -18,13 +18,7 @@ export interface NamedEntry {
   description?: string;
 }
 
-const TOKEN_RE = /(^|\s)(\/(?:skill|command)?:?[^\s]*|>>[^\s]*)$/;
-
-function isSlashPrefix(body: string): boolean {
-  if (body === "") return true;
-  if (body.startsWith("skill:") || body.startsWith("command:")) return true;
-  return "skill:".startsWith(body) || "command:".startsWith(body);
-}
+const TOKEN_RE = /(^|\s)(\/(?:skill|command):[^\s]*|>>[^\s]*)$/;
 
 export function matchSlashToken(textBeforeCursor: string): SlashMenuMatch | null {
   const match = TOKEN_RE.exec(textBeforeCursor);
@@ -35,14 +29,13 @@ export function matchSlashToken(textBeforeCursor: string): SlashMenuMatch | null
     return { start, end: textBeforeCursor.length, query: token.slice(2), kinds: ["agent"] };
   }
   const body = token.slice(1);
-  if (!isSlashPrefix(body)) return null;
   if (body.startsWith("skill:")) {
     return { start, end: textBeforeCursor.length, query: body.slice("skill:".length), kinds: ["skill"] };
   }
   if (body.startsWith("command:")) {
     return { start, end: textBeforeCursor.length, query: body.slice("command:".length), kinds: ["command"] };
   }
-  return { start, end: textBeforeCursor.length, query: "", kinds: ["skill", "command"] };
+  return null;
 }
 
 export function filterSlashItems(

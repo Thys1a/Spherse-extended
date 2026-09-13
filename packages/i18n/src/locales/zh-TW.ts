@@ -240,6 +240,7 @@ export const zhTW: Record<TranslationKey, string> = {
   "agent-session-list.sessionNameTooLong": "工作階段名稱不能超過 80 個字元",
   "agent-session-list.groupLabel": "對話",
   "agent-session-list.floatSession": "浮動視窗",
+  "agent-session-list.petMode": "桌寵模式",
   "agent-session-list.cancelFloat": "取消浮動視窗",
   "agent-session-list.loadMore": "載入更多",
   "agent-session-list.copyAgentId": "複製 slug",

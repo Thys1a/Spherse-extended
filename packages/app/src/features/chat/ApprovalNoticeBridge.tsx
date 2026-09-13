@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
-import { useMatch, useNavigate } from "react-router";
+import { useNavigate } from "react-router";
 import { useI18n } from "@spherse/i18n/react";
 import { collectPendingApprovals } from "./model/approval-notice";
 import { useStreamingStore } from "./runtime/streaming-store";
@@ -13,8 +13,6 @@ export function ApprovalNoticeBridge() {
   const navigate = useNavigate();
   const { t } = useI18n();
   const bridge = useHostBridge();
-  const match = useMatch("/project/:projectId/chat/:sessionId");
-  const activeSessionId = match?.params.sessionId ?? null;
 
   const notifiedRef = useRef<Set<string>>(new Set());
   const tRef = useRef(t);
@@ -42,14 +40,12 @@ export function ApprovalNoticeBridge() {
             : agent?.name
               ? tRef.current("chat.approvalToastMessageWithName", { name: agent.name })
               : tRef.current("chat.approvalToastMessage");
-        if (item.sessionId !== activeSessionId) {
-          toast.success(title, {
-            action: {
-              label: tRef.current("chat.approvalToastAction"),
-              onClick: () => navigate(`/project/${item.projectId}/chat/${item.sessionId}`),
-            },
-          });
-        }
+        toast.success(title, {
+          action: {
+            label: tRef.current("chat.approvalToastAction"),
+            onClick: () => navigate(`/project/${item.projectId}/chat/${item.sessionId}`),
+          },
+        });
         if (useSettingsStore.getState().notifications.approval ?? true) {
           notifyUser(bridge, agent?.name ?? title, title, {
             route: `/project/${item.projectId}/chat/${item.sessionId}`,
@@ -60,7 +56,7 @@ export function ApprovalNoticeBridge() {
     check();
     const unsubscribe = useStreamingStore.subscribe(check);
     return unsubscribe;
-  }, [navigate, activeSessionId, bridge]);
+  }, [navigate, bridge]);
 
   return null;
 }
