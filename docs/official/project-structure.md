@@ -90,7 +90,9 @@ spherse/
 │   │   │   │   └── SKILL.md
 │   │   │   ├── spherse-write-html/    # HTML 页面数据读写与 App 能力调用指南（charset、数据外置、window.spherse 调用）
 │   │   │   │   └── SKILL.md
-│   │   │   └── spherse-create-skill/ # 自定义 skill 创建指南（两层 skill 体系与 SKILL.md 格式）
+│   │   │   ├── spherse-create-skill/ # 自定义 skill 创建指南（两层 skill 体系与 SKILL.md 格式）
+│   │   │   │   └── SKILL.md
+│   │   │   └── spherse-create-command/ # 自定义斜杠命令创建指南（文件格式与占位展开规则）
 │   │   │       └── SKILL.md
 │   │   ├── scripts/
 │   │   │   └── sync-templates.mjs    # 模板与预置内容同步脚本（.md → .ts 常量 + presets.json → 预置常量 + skills/ → skill 源码常量）

@@ -125,6 +125,7 @@ agent-level > .spherse/skills > .agents/skills > builtin
 - `spherse-build-data-app`：页面与 Agent 共同参与的数据应用
 - `spherse-write-html`：生成 Spherse HTML 页面
 - `spherse-create-skill`：创建自定义 Skill
+- `spherse-create-command`：创建自定义斜杠命令
 
 ### MCP 连接器
 
