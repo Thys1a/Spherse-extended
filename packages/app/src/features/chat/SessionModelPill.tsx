@@ -10,7 +10,9 @@ import { Button } from "../../components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "../../components/ui/dropdown-menu";
 import {
@@ -24,12 +26,22 @@ interface ModelOption {
   label: string;
 }
 
-function modelLabel(id: string, catalog: ProviderCatalogContract | null): string {
+interface ModelGroup {
+  providerId: string;
+  providerName: string;
+  models: ModelOption[];
+}
+
+function resolveModelDisplay(
+  id: string,
+  catalog: ProviderCatalogContract | null,
+): { modelName: string; providerName: string | null } {
   const slashIdx = id.indexOf("/");
-  if (slashIdx < 0 || !catalog) return id;
+  if (slashIdx < 0 || !catalog) return { modelName: id, providerName: null };
   const provider = catalog[id.slice(0, slashIdx)];
   const model = provider?.models.find((m) => m.id === id.slice(slashIdx + 1));
-  return model?.name ?? id;
+  if (!model) return { modelName: id, providerName: null };
+  return { modelName: model.name, providerName: provider.name };
 }
 
 export function SessionModelPill({ sessionId }: { sessionId: string }) {
@@ -72,15 +84,25 @@ export function SessionModelPill({ sessionId }: { sessionId: string }) {
   const agent = session ? agents.find((a) => a.id === session.agentId) : undefined;
   const effective = session?.model ?? agent?.model ?? globalDefault;
 
-  const options: ModelOption[] = [];
+  const options: ModelGroup[] = [];
   if (catalog) {
     for (const [providerId, provider] of Object.entries(catalog)) {
       if (!configuredIds.has(providerId) && !provider.keyless) continue;
-      for (const model of provider.models) {
-        options.push({ id: `${providerId}/${model.id}`, label: model.name });
-      }
+      if (provider.models.length === 0) continue;
+      options.push({
+        providerId,
+        providerName: provider.name,
+        models: provider.models.map((model) => ({
+          id: `${providerId}/${model.id}`,
+          label: model.name,
+        })),
+      });
     }
   }
+
+  const { modelName, providerName } = effective
+    ? resolveModelDisplay(effective, catalog)
+    : { modelName: "", providerName: null };
 
   const handleSelect = (modelId: string) => {
     if (!session || switching) return;
@@ -108,18 +130,26 @@ export function SessionModelPill({ sessionId }: { sessionId: string }) {
         }
       >
         <span className="max-w-48 truncate">
-          {effective ? modelLabel(effective, catalog) : t("chat.modelPill.followDefault")}
+          {effective ? modelName : t("chat.modelPill.followDefault")}
         </span>
+        {effective && providerName ? (
+          <span className="shrink-0 text-[10px] text-muted-foreground/70">· {providerName}</span>
+        ) : null}
         <ChevronDownIcon />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">
         <DropdownMenuItem onClick={() => handleSelect("")}>
           {t("chat.modelPill.followDefault")}
         </DropdownMenuItem>
-        {options.map((option) => (
-          <DropdownMenuItem key={option.id} onClick={() => handleSelect(option.id)}>
-            {option.label}
-          </DropdownMenuItem>
+        {options.map((group) => (
+          <DropdownMenuGroup key={group.providerId}>
+            <DropdownMenuLabel>{group.providerName}</DropdownMenuLabel>
+            {group.models.map((option) => (
+              <DropdownMenuItem key={option.id} onClick={() => handleSelect(option.id)}>
+                {option.label}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuGroup>
         ))}
       </DropdownMenuContent>
     </DropdownMenu>
