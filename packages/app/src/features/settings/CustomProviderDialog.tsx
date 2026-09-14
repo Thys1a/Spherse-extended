@@ -73,6 +73,7 @@ export function CustomProviderDialog({
   const [baseUrl, setBaseUrl] = useState("");
   const [modelsText, setModelsText] = useState("");
   const [keyless, setKeyless] = useState(false);
+  const [sanitizeSchemas, setSanitizeSchemas] = useState(false);
   const [contextWindowText, setContextWindowText] = useState("");
   const [maxTokensText, setMaxTokensText] = useState("");
   const [headerRows, setHeaderRows] = useState<HeaderRow[]>([]);
@@ -83,6 +84,7 @@ export function CustomProviderDialog({
     setBaseUrl(initial?.baseUrl ?? "");
     setModelsText(initial?.models?.join("\n") ?? "");
     setKeyless(initial?.keyless ?? false);
+    setSanitizeSchemas(initial?.sanitizeEmptySchemas ?? false);
     setContextWindowText(initial?.contextWindow != null ? String(initial.contextWindow) : "");
     setMaxTokensText(initial?.maxTokens != null ? String(initial.maxTokens) : "");
     setHeaderRows(recordToHeaderRows(initial?.headers));
@@ -153,6 +155,7 @@ export function CustomProviderDialog({
       baseUrl: trimmedBaseUrl,
       models: parsedModels,
       keyless,
+      ...(sanitizeSchemas ? { sanitizeEmptySchemas: true } : {}),
       ...(contextWindow !== undefined && !Number.isNaN(contextWindow)
         ? { contextWindow }
         : {}),
@@ -270,7 +273,26 @@ export function CustomProviderDialog({
                 {t("settings.provider.dialog.keylessDesc")}
               </span>
             </div>
-            <Switch checked={keyless} onCheckedChange={setKeyless} />
+            <Switch
+              checked={keyless}
+              onCheckedChange={setKeyless}
+              aria-label={t("settings.provider.dialog.keyless")}
+            />
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-col gap-1">
+              <span className="text-sm font-medium leading-none">
+                {t("settings.provider.dialog.sanitizeSchemas")}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {t("settings.provider.dialog.sanitizeSchemasDesc")}
+              </span>
+            </div>
+            <Switch
+              checked={sanitizeSchemas}
+              onCheckedChange={setSanitizeSchemas}
+              aria-label={t("settings.provider.dialog.sanitizeSchemas")}
+            />
           </div>
           <div className="space-y-2">
             <div className="flex items-center justify-between gap-3">

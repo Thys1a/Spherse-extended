@@ -189,4 +189,5 @@ export interface CustomProviderDef {
   contextWindow?: number;
   maxTokens?: number;
   headers?: Record<string, string>;
+  sanitizeEmptySchemas?: boolean;
 }

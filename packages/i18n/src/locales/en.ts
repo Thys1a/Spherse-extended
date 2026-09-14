@@ -60,6 +60,8 @@ export const en: Record<TranslationKey, string> = {
   "settings.provider.dialog.modelsHint": "Separate multiple model IDs with commas or newlines",
   "settings.provider.dialog.keyless": "No API Key needed",
   "settings.provider.dialog.keylessDesc": "Suitable for local deployments (Ollama, LM Studio, etc.) without auth",
+  "settings.provider.dialog.sanitizeSchemas": "Strict schema compatibility",
+  "settings.provider.dialog.sanitizeSchemasDesc": "Removes untyped empty nodes from tool parameters (some Gemini relays reject them with 400)",
   "settings.provider.dialog.contextWindow": "Context length",
   "settings.provider.dialog.contextWindowPlaceholder": "Default {value}",
   "settings.provider.dialog.maxTokens": "Max output length",

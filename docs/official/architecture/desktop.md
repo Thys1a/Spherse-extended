@@ -35,6 +35,7 @@
 - electron-store 落 userData 下 `settings.json`；`AppSettings` schema：
   - `locale` + `models: { text, image }`——每 group 含 `defaultModel`、per-provider `apiKey`，text 另含可选 `sampling` 与 `thinkingLevel`（off/low/medium/high，缺省 medium）
   - 可选 `customProviders` / `debugToolsEnabled` / `theme` / `mobileAccess`
+  - 自定义供应商定义可带 `sanitizeEmptySchemas`（为严格 schema 的 Gemini 中转清洗 tool 参数里的无类型空节点，见 `docs/dev/bugfix/2026-09-14-gemini-relay-400/design.md`）
 - **serverToken 是 settingsStore 顶层 key，不是 AppSettings 字段**（`saveSettings` 会从零重建 AppSettings）。`getServerToken()` 迁移链：`serverToken` → legacy `mobileAccess.token` → 生成并持久化；它是 server 鉴权唯一凭据来源（见 [server.md](server.md)「鉴权模型」）
 - **API key 掩码与合并**：显示前 4 + `****` + 后 4；保存时空串跳过、含 `****` 保留旧值
   - `saveSettings` 强制保留 `mobileAccess` 旧值，防 renderer 覆写

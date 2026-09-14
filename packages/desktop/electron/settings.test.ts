@@ -239,6 +239,19 @@ describe("customProviders persistence", () => {
     expect(settingsStore.get("settings")?.customProviders).toEqual([updated]);
   });
 
+  it("saveSettings persists the sanitizeEmptySchemas flag on customProviders", () => {
+    settingsStore.set("settings", undefined);
+    const flagged = { ...customDef, sanitizeEmptySchemas: true };
+    saveSettings({
+      locale: "zh-CN",
+      models: { text: { defaultModel: "", providers: {} }, image: { defaultModel: "", providers: {} } },
+      customProviders: [flagged],
+    });
+
+    expect(settingsStore.get("settings")?.customProviders).toEqual([flagged]);
+    expect(getMaskedSettings()?.customProviders).toEqual([flagged]);
+  });
+
   it("getMaskedSettings passes through customProviders unchanged", () => {
     settingsStore.set("settings", {
       locale: "zh-CN",

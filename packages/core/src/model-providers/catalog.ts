@@ -20,6 +20,7 @@ import type {
 } from "../types.js";
 import { createZhipuImagesProvider } from "./zhipu-images.js";
 import { createOpenaiImagesProvider } from "./openai-images.js";
+import { sanitizeToolsPayload } from "./sanitize-empty-schemas.js";
 
 export const ENABLED_PROVIDERS = [
   "openai",
@@ -317,12 +318,25 @@ export class ModelCatalog {
   getChatStreamFn(sampling?: SamplingParams): StreamFn {
     const { temperature, topP } = sampling ?? {};
     const models = this.models;
-    return (model, context, options) =>
-      models.streamSimple(model, context, {
+    return (model, context, options) => {
+      const sanitize =
+        model.provider !== undefined &&
+        this.registeredDefs.some((d) => d.id === model.provider && d.sanitizeEmptySchemas);
+      const topPInjector = topP != null ? injectTopP(topP) : undefined;
+      const onPayload =
+        sanitize || topPInjector
+          ? (payload: unknown, current: { api?: string }) => {
+              if (!sanitize) return topPInjector?.(payload, current);
+              const cleaned = sanitizeToolsPayload(payload as Record<string, unknown>);
+              return topPInjector?.(cleaned, current) ?? cleaned;
+            }
+          : undefined;
+      return models.streamSimple(model, context, {
         ...options,
         ...(temperature != null ? { temperature } : {}),
-        ...(topP != null ? { onPayload: injectTopP(topP) } : {}),
+        ...(onPayload ? { onPayload } : {}),
       });
+    };
   }
 
   getChatModels(): Models {

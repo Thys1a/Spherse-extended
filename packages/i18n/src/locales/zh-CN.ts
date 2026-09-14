@@ -116,6 +116,10 @@ export const zhCN = {
   "settings.provider.dialog.keyless": "无需 API Key",
   // keyless 开关描述，说明适用于本地部署无鉴权的服务
   "settings.provider.dialog.keylessDesc": "适用于本地部署（Ollama、LM Studio 等）无鉴权的服务",
+  // 清洗空 schema 开关标签，打开后清洗 tool 参数里的无类型空节点
+  "settings.provider.dialog.sanitizeSchemas": "兼容严格 schema",
+  // 清洗空 schema 开关描述，说明部分 Gemini 中转会因此 400
+  "settings.provider.dialog.sanitizeSchemasDesc": "清洗 tool 参数里的无类型空节点（部分 Gemini 中转会因此 400）",
   // 自定义供应商对话框「上下文长度」字段标签（供应商级，应用于该供应商全部模型）
   "settings.provider.dialog.contextWindow": "上下文长度",
   // 上下文长度输入框 placeholder，{value} 为默认值（tokens 数，留空使用默认）

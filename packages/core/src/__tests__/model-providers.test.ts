@@ -8,6 +8,8 @@ vi.mock("@earendil-works/pi-ai/providers/all", () => ({
     getProviders: () => [],
     getModels: () => [],
     getModel: () => undefined,
+    setProvider: () => {},
+    deleteProvider: () => {},
   }),
   builtinImagesModels: () => ({
     getProviders: () => [],
@@ -169,5 +171,93 @@ describe("getChatStreamFn topP injection", () => {
     const [, , passedOptions] = streamSimpleMock.mock.calls[0];
     expect(passedOptions).toHaveProperty("temperature", 0.7);
     expect(typeof passedOptions.onPayload).toBe("function");
+  });
+});
+
+describe("getChatStreamFn sanitizeEmptySchemas", () => {
+  beforeEach(() => {
+    streamSimpleMock.mockReset();
+  });
+
+  function catalogWithCustomFlag(sanitizeEmptySchemas?: boolean) {
+    const catalog = new ModelCatalog();
+    catalog.syncCustomProviders(
+      [
+        {
+          id: "custom-x",
+          name: "X",
+          baseUrl: "https://x.example/v1",
+          models: ["m"],
+          keyless: false,
+          ...(sanitizeEmptySchemas ? { sanitizeEmptySchemas: true } : {}),
+        },
+      ],
+      {},
+    );
+    return catalog;
+  }
+
+  function payloadWithEmptySchema() {
+    return {
+      tools: [
+        {
+          type: "function",
+          function: {
+            name: "t",
+            parameters: { type: "object", properties: { p: {} } },
+          },
+        },
+      ],
+    };
+  }
+
+  it("omits onPayload for a custom provider without the flag and without topP", async () => {
+    const streamFn = catalogWithCustomFlag().getChatStreamFn(undefined);
+    const model = { id: "m", provider: "custom-x", api: "openai-completions" } as never;
+
+    await streamFn(model, { input: [] } as never, {});
+
+    const [, , passedOptions] = streamSimpleMock.mock.calls[0];
+    expect(passedOptions).not.toHaveProperty("onPayload");
+  });
+
+  it("sanitizes the tools payload when the flag is on", async () => {
+    const streamFn = catalogWithCustomFlag(true).getChatStreamFn(undefined);
+    const model = { id: "m", provider: "custom-x", api: "openai-completions" } as never;
+
+    await streamFn(model, { input: [] } as never, {});
+
+    const [, , passedOptions] = streamSimpleMock.mock.calls[0];
+    expect(typeof passedOptions.onPayload).toBe("function");
+    const result = passedOptions.onPayload(payloadWithEmptySchema(), model);
+    expect(result.tools[0].function.parameters).toEqual({
+      type: "object",
+      properties: { p: { type: "string" } },
+    });
+  });
+
+  it("leaves builtin providers alone even when a custom flag exists", async () => {
+    const streamFn = catalogWithCustomFlag(true).getChatStreamFn(undefined);
+    const model = { id: "m", provider: "openai", api: "openai-completions" } as never;
+
+    await streamFn(model, { input: [] } as never, {});
+
+    const [, , passedOptions] = streamSimpleMock.mock.calls[0];
+    expect(passedOptions).not.toHaveProperty("onPayload");
+  });
+
+  it("applies sanitize before topP when both are active", async () => {
+    const streamFn = catalogWithCustomFlag(true).getChatStreamFn({ topP: 0.5 });
+    const model = { id: "m", provider: "custom-x", api: "openai-completions" } as never;
+
+    await streamFn(model, { input: [] } as never, {});
+
+    const [, , passedOptions] = streamSimpleMock.mock.calls[0];
+    const result = passedOptions.onPayload({ messages: [], ...payloadWithEmptySchema() }, model);
+    expect(result).toHaveProperty("top_p", 0.5);
+    expect(result.tools[0].function.parameters).toEqual({
+      type: "object",
+      properties: { p: { type: "string" } },
+    });
   });
 });

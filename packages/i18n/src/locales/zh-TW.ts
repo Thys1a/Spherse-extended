@@ -60,6 +60,8 @@ export const zhTW: Record<TranslationKey, string> = {
   "settings.provider.dialog.modelsHint": "多個模型 ID 用逗號或換行分隔",
   "settings.provider.dialog.keyless": "無需 API Key",
   "settings.provider.dialog.keylessDesc": "適用於本地部署（Ollama、LM Studio 等）無驗證的服務",
+  "settings.provider.dialog.sanitizeSchemas": "相容嚴格 schema",
+  "settings.provider.dialog.sanitizeSchemasDesc": "清洗 tool 參數裡的無類型空節點（部分 Gemini 中轉會因此 400）",
   "settings.provider.dialog.contextWindow": "上下文長度",
   "settings.provider.dialog.contextWindowPlaceholder": "預設 {value}",
   "settings.provider.dialog.maxTokens": "最大輸出長度",
