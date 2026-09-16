@@ -3,6 +3,7 @@ import * as agents from "./agents.js";
 import * as sessions from "./sessions.js";
 import * as content from "./content.js";
 import * as data from "./data.js";
+import * as card from "./card.js";
 import * as fileTree from "./file-tree.js";
 import * as settings from "./settings.js";
 import * as schedules from "./trigger.js";
@@ -20,6 +21,7 @@ export const schemas = {
   ...sessions.schemas,
   ...content.schemas,
   ...data.schemas,
+  ...card.schemas,
   ...fileTree.schemas,
   ...settings.schemas,
   ...schedules.schemas,
@@ -78,6 +80,27 @@ export type {
 } from "./content.js";
 
 export type { DataReadResponseContract } from "./data.js";
+
+export type {
+  CardErrorCode,
+  CardListRequest,
+  CardListResponse,
+  CardMetaRequest,
+  CardMetaResponse,
+  CardEntriesRequest,
+  CardEntriesResponse,
+  CardSearchRequest,
+  CardSearchResponse,
+  CardEntryRequest,
+  CardEntryContract,
+  CardEntryManyRequest,
+  CardEntryManyResponse,
+  CardEntryUpdateRequest,
+  CardEntryUpdateResponse,
+  CardEntryBulkRequest,
+  CardEntryBulkResponse,
+  EntryPatchContract,
+} from "./card.js";
 
 export type { FileTreeResponse } from "./file-tree.js";
 

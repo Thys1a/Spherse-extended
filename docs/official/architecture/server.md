@@ -41,7 +41,7 @@
 
 ## 路由
 
-16 个域文件由 `routes/index.ts` 聚合注册；项目级路由统一 `/api/projects/:projectId/...`，全局 preHandler 从 registry 解析并注入 `req.projectCtx`（miss 抛 404）：
+17 个域文件由 `routes/index.ts` 聚合注册；项目级路由统一 `/api/projects/:projectId/...`，全局 preHandler 从 registry 解析并注入 `req.projectCtx`（miss 抛 404）：
 
 | 域 | 端点概要 |
 |---|---|
@@ -51,6 +51,7 @@
 | sessions | 项目级批量会话目录、agent 级列表、创建、详情、messages GET/POST、status、rename、删除 |
 | content | stat、文件/目录的读写删建 |
 | data | `/data/read` `/mutate` `/raw-set` `/raw-delete` |
+| card | `/card/list` `/meta` `/entries` `/search` `/entry` `/entry/many` `/entry/update` `/entry/bulk`（`.card.json` 世界书读写） |
 | settings | 全局：文本与图片 provider 目录；项目级：ai-access / welcome-page / theme |
 | preview | 预览文件服务（见下节） |
 | skills / marketplace | skill 列表/详情/创建/zip 安装；市场 manifest 代理与远程安装 |
@@ -64,6 +65,7 @@
 - core 错误：`NotFoundError`→404、`ValidationError`→400、`AccessDeniedError`→403、`ConflictError`→409
 - Fastify schema 校验失败→400；兜底 500；未知路由 404
 - data 域本地映射：VersionConflict→409（带 currentVersion）、DataFileCorrupted→422 等
+- card 域本地映射：CardNotFound→404（`card_not_found`）、EntryNotFound→404（`entry_not_found`）、CardFileCorrupted→422（`invalid_json`）、InvalidField→400（`invalid_field`，带 fields）、CardTooLarge→413（`too_large`）、CardWriteFailed→500（`write_failed`）
 - marketplace 网络失败统一 502
 
 ## contracts 机制
@@ -99,6 +101,12 @@
 - 4 个 POST 端点全部 `schema.body` + handler 内 `parseContract` 双重绑定，委派 `runtime.dataStore`
 - 与 agent 的 `read_data` / `mutate_data` 工具共享同一 DataStore 实例与 FileWriteMutex——SDK 写入与 LLM 写入在同一把锁上串行
 - mutate 带 `origin: "sdk"` 与可选 `idempotencyKey`；乐观并发用 `ifVersion`
+
+## card 路由
+
+- 8 个 POST 端点（list/meta/entries/search/entry/entry/many/entry/update/entry/bulk）同样双重绑定，委派 `runtime.cardStore`（`factory.ts` 建单例）
+- 读过 `serverAccessPolicy.assertRead`、写过 `assertWrite`；`list` 结果再按 `canRead` 过滤 denied 目录
+- 写路径：白名单 + 类型/值域校验 → `JSON.stringify(doc, null, 2)`（与真实卡逐字节兼容）→ 字节等价短路 → tmp（`.spcard.tmp`）+ rename → 回读校验，失败回滚；全程持 FileWriteMutex
 
 ## 访问策略白名单（server 端）
 

@@ -31,6 +31,15 @@ import type {
   SessionStatusResponse,
   DataReadResponseContract as DataReadResponse,
   MarketplaceManifestResponse,
+  CardListResponse,
+  CardMetaResponse,
+  CardEntriesResponse,
+  CardSearchResponse,
+  CardEntryContract,
+  CardEntryManyResponse,
+  CardEntryUpdateResponse,
+  CardEntryBulkResponse,
+  EntryPatchContract,
 } from "@spherse/contracts";
 import { parseApiResponse, schemas } from "@spherse/contracts";
 import { Type } from "@sinclair/typebox";
@@ -59,6 +68,7 @@ export class ApiError extends Error {
   constructor(
     message: string,
     readonly status: number,
+    readonly code?: string,
   ) {
     super(message);
   }
@@ -67,7 +77,11 @@ export class ApiError extends Error {
 async function assertOk(res: Response): Promise<void> {
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: "request failed" }));
-    throw new ApiError(err.error ?? "request failed", res.status);
+    throw new ApiError(
+      err.error ?? "request failed",
+      res.status,
+      typeof err.code === "string" ? err.code : undefined,
+    );
   }
 }
 
@@ -130,7 +144,11 @@ export function createApiClient(baseUrl: string, projectId: string, accessToken?
       );
       if (!res.ok) {
         const body = await res.json().catch(() => ({ error: "request failed" }));
-        throw new ApiError(body.error ?? "request failed", res.status);
+        throw new ApiError(
+          body.error ?? "request failed",
+          res.status,
+          typeof body.code === "string" ? body.code : undefined,
+        );
       }
       return parseJsonResponse<{ ok: boolean }>(res, schemas.sendMessageOkResponse);
     },
@@ -252,6 +270,110 @@ export function createApiClient(baseUrl: string, projectId: string, accessToken?
       });
       await assertOk(res);
       return parseJsonResponse<{ version: string }>(res, schemas.dataWriteResponse);
+    },
+
+    async cardList(dir?: string): Promise<CardListResponse> {
+      const res = await authedFetch(`${apiBase}/card/list`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(dir !== undefined ? { dir } : {}),
+      });
+      await assertOk(res);
+      return parseJsonResponse<CardListResponse>(res, schemas.cardListResponse);
+    },
+
+    async cardMeta(path: string): Promise<CardMetaResponse> {
+      const res = await authedFetch(`${apiBase}/card/meta`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path }),
+      });
+      await assertOk(res);
+      return parseJsonResponse<CardMetaResponse>(res, schemas.cardMetaResponse);
+    },
+
+    async cardEntries(
+      path: string,
+      filter?: { enabled?: boolean; constant?: boolean },
+    ): Promise<CardEntriesResponse> {
+      const res = await authedFetch(`${apiBase}/card/entries`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(filter !== undefined ? { path, filter } : { path }),
+      });
+      await assertOk(res);
+      return parseJsonResponse<CardEntriesResponse>(res, schemas.cardEntriesResponse);
+    },
+
+    async cardSearch(params: {
+      path: string;
+      query?: string;
+      fields?: Array<"keys" | "secondary_keys" | "comment" | "content">;
+      onlyEnabled?: boolean;
+      limit?: number;
+      snippetChars?: number;
+    }): Promise<CardSearchResponse> {
+      const res = await authedFetch(`${apiBase}/card/search`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(params),
+      });
+      await assertOk(res);
+      return parseJsonResponse<CardSearchResponse>(res, schemas.cardSearchResponse);
+    },
+
+    async cardEntry(path: string, id: number): Promise<CardEntryContract> {
+      const res = await authedFetch(`${apiBase}/card/entry`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path, id }),
+      });
+      await assertOk(res);
+      return parseJsonResponse<CardEntryContract>(res, schemas.cardEntryResponse);
+    },
+
+    async cardEntryMany(path: string, ids: number[]): Promise<CardEntryManyResponse> {
+      const res = await authedFetch(`${apiBase}/card/entry/many`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path, ids }),
+      });
+      await assertOk(res);
+      return parseJsonResponse<CardEntryManyResponse>(res, schemas.cardEntryManyResponse);
+    },
+
+    async cardEntryUpdate(
+      path: string,
+      id: number,
+      patch: EntryPatchContract,
+      idempotencyKey?: string,
+    ): Promise<CardEntryUpdateResponse> {
+      const res = await authedFetch(`${apiBase}/card/entry/update`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(
+          idempotencyKey !== undefined ? { path, id, patch, idempotencyKey } : { path, id, patch },
+        ),
+      });
+      await assertOk(res);
+      return parseJsonResponse<CardEntryUpdateResponse>(res, schemas.cardEntryUpdateResponse);
+    },
+
+    async cardEntryBulk(
+      path: string,
+      ids: number[],
+      patch: EntryPatchContract,
+      idempotencyKey?: string,
+    ): Promise<CardEntryBulkResponse> {
+      const res = await authedFetch(`${apiBase}/card/entry/bulk`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(
+          idempotencyKey !== undefined ? { path, ids, patch, idempotencyKey } : { path, ids, patch },
+        ),
+      });
+      await assertOk(res);
+      return parseJsonResponse<CardEntryBulkResponse>(res, schemas.cardEntryBulkResponse);
     },
 
     async getContent(filePath: string): Promise<ContentResponse | null> {

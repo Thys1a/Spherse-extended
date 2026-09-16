@@ -32,6 +32,7 @@ spherse/
 │   │       │   ├── compaction/       # maybeCompactLog 纯变换（transform.ts）+ capability
 │   │       │   ├── time-perception/ # streamDecorators 贡献（<time> 前缀注入）+ previewTransforms（debug snapshot 重放）+ 提示 block；感知时间数学在 time-perception.ts
 │   │       │   ├── memory/           # memory capability（memory_save/recall 工具接线 + <memory> block；MemoryStore 在 store/memory.ts）
+│   │       │   ├── card/             # CardStore（.card.json 世界书读写：解析/检索/原子写；经 factory 挂 runtime.cardStore，server card 路由消费）
 │   │       │   ├── shared/           # llmPolicyOf 等跨能力共享工具
 │   │       │   └── builtin.ts        # builtinToolCapabilities()：纯工具类 capability 集合
 │   │       ├── session/              # 会话运行时（kernel 抽象的编排实例化）
@@ -135,6 +136,7 @@ spherse/
 │   │       │   ├── actions.ts        # 触发型便捷方法（openFile/createSession/float* 等）
 │   │       │   ├── dock.ts           # 聊天面板嵌入：占位元素（spherse-chat）扫描、auto-dock（getRuntime 兜底）、rect leading-edge 节流上报、pagehide/占位移除 undock
 │   │       │   ├── data.ts           # data.get/set/delete 键值存储
+│   │       │   ├── card.ts           # card.* 世界书读写（list/meta/entries/search/entry/many/update/bulk）
 │   │       │   ├── api.ts            # api.* 只读 HTTP bridge（api.call + agents/sessions/content/... 子命名空间）
 │   │       │   └── events.ts         # events.on 订阅 API + spherse:event 消息分发与 pagehide 清理
 │   │       └── __tests__/
@@ -150,6 +152,7 @@ spherse/
 │   │       ├── agents.ts             # AgentProfile、AgentCreate/Update、MCP（mcpServerConfig/AgentMcpResponse/AgentMcpUpdateRequest）Request/Response
 │   │       ├── sessions.ts           # SessionInfo、SessionList/Messages Response、SessionMessagesPage（分页信封）、rename 请求
 │   │       ├── content.ts            # FileEntry、ContentResponse、create/save 请求
+│   │       ├── card.ts               # card.* 8 组 Request/Response + CardErrorCode（card_not_found/…/too_large）
 │   │       ├── file-tree.ts          # FileTreeResponse
 │   │       ├── settings.ts           # ProviderCatalog、AiAccess/WelcomePage/Theme Request/Response
 │   │       ├── trigger.ts            # TriggerEntry、TriggerCreate/Update 请求、List/Log Response
@@ -175,6 +178,7 @@ spherse/
     │   │       │   ├── agent-mcp.ts      # Agent MCP 连接器配置读写（GET/PUT /api/projects/:projectId/agents/:id/mcp）
 │       │       │   ├── sessions.ts       # Session 创建/查询/重命名/删除与消息读取
 │   │       │   ├── content.ts        # 内容浏览、读取、保存、删除、新建文件/目录
+│   │       │   ├── card.ts           # .card.json 世界书 8 路由（读过 assertRead、写过 assertWrite，错误码透传）
 │   │       │   ├── file-tree.ts      # 面向 agent context 选择的项目文件列表
 │   │       │   ├── preview.ts        # HTML 文件预览服务
 │   │       │   ├── skills.ts         # Skill 列表、详情与创建/安装路由
@@ -268,6 +272,7 @@ spherse/
 │   │       │       ├── unfloat-content.ts # 关闭指定文件的浮窗
 │   │       │       ├── unfloat-session.ts # 取消浮窗
 │   │       │       ├── data.ts           # data.get/set/delete key-value 持久化
+│   │       │       ├── card.ts           # card.* 世界书读写薄代理（.card.json 前置校验 + 服务端错误码透传）
 │   │       │       └── api.ts            # api.call 只读 HTTP bridge（op 白名单转发 ApiClient，agents/sessions/content/fileTree）
 │   │       ├── features/
 │   │       │   ├── activity-bar/         # 自治型 Activity Bar（项目头像轨、设置/添加按钮），内部读 app-store/app-ui-store 与 useProjectActions；pin 按钮通过 pinToggle prop 可选注入

@@ -21,6 +21,7 @@ SDK 由两半组成，仅以 postMessage 协议耦合：
   - 触发型：openFile / openExternalLink / openSession / floatSession / unfloatSession / floatContent / unfloatContent / emitAgentTriggerEvent / undockChat / toast
   - 请求型：createSession（resolve `{sessionId}`）/ sendMessage / dockChat（占位元素位置叠加聊天面板）
   - 数据：`data.get / set / delete / keys / entries / mutate`
+  - 卡文件：`card.list / meta / entries / search / entry / entry.many / entry.update / entry.bulk`
   - 只读 HTTP bridge：`api.call(op, args)` 及 agents / sessions / content / fileTree 快捷方法
   - 订阅：`events.on("file:update", { path }, handler)` 返回取消函数
   - 上下文：`runtime` 同步 getter 与 `getRuntime()` Promise
@@ -36,7 +37,7 @@ SDK 由两半组成，仅以 postMessage 协议耦合：
 ## host 侧 action 桥
 
 - 入站校验：`type === "spherse:action"` 且 origin 在白名单——renderer origin、server origin，以及 `"null"`（防御性放行，当前无实际产生场景）
-- **rate limit**：外部调用 30 次 / 60s，超限静默丢弃；白名单 `{ data.get, data.keys, data.entries, data.mutate, chat.rect, chat.dock }` 不计数（dock 幂等：重载驱动的重复 dock 不能耗尽配额；`data.set` / `data.delete` / `api.call` 不在白名单）
+- **rate limit**：外部调用 300 次 / 60s，超限静默丢弃；白名单 `{ data.get, data.keys, data.entries, data.mutate, chat.rect, chat.dock }` 不计数（dock 幂等：重载驱动的重复 dock 不能耗尽配额；`data.set` / `data.delete` / `api.call` / `card.*` 不在白名单）
   - 配额为模块级单数组，跨全部 iframe 共享——高频写页面会耗尽配额
   - 对 call 型 action，静默丢弃在 SDK 侧表现为 10s 超时而非错误返回；参数校验失败的早退路径同样不 respond
 - `registry` 是 `Map<action, handler>`，handlers 文件以 import 副作用注册；新增 action = `handlers/` 新文件 + `registerAction` + 在 `ui-sdk/index.ts` barrel 补 import（无自动发现）
@@ -48,6 +49,7 @@ SDK 由两半组成，仅以 postMessage 协议耦合：
 | 会话 | createSession、sendMessage、openSession（仅打开不发消息）、floatSession / unfloatSession |
 | 聊天嵌入 | chat.dock（校验会话 + source→iframe 映射后登记 dock）、chat.rect（占位 rect 上报，白名单豁免）、chat.undock |
 | 数据 | data.get / set / delete / keys / entries / mutate（见下节） |
+| 卡文件 | card.list / meta / entries / search / entry / entry.many / entry.update / entry.bulk（`.card.json` 世界书读写，错误码透传） |
 | 其它 | showToast（sonner variant 分派）、api.call（只读白名单）、emitAgentTriggerEvent（经 bus WS） |
 
 - 请求-响应：`respond` 仅在 ctx 带 requestId 与 source 时回 `spherse:response`；触发型 action 无 requestId，respond 短路为 no-op

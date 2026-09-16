@@ -33,6 +33,25 @@ export type { TimerService } from "./trigger/timer-service.js";
 export { createProject } from "./factory.js";
 export type { DataStore, DataChangeEvent, OutlineResult, ReadResult, QueryResult, MutateResult, WriteResult } from "./capabilities/data/index.js";
 export { createDataStore } from "./capabilities/data/index.js";
+export type {
+  CardStore,
+  CardListItem,
+  CardMeta,
+  CardEntrySummary,
+  CardEntry,
+  CardSearchOpts,
+  CardSearchHit,
+  EntryPatch,
+} from "./capabilities/card/index.js";
+export {
+  createCardStore,
+  CardNotFoundError,
+  EntryNotFoundError,
+  InvalidFieldError,
+  CardFileCorruptedError,
+  CardTooLargeError,
+  CardWriteFailedError,
+} from "./capabilities/card/index.js";
 export { FileWriteMutex } from "./utils/file-write-mutex.js";
 export {
   VersionConflictError,

@@ -32,6 +32,7 @@ SDK 已由 App 注入，**不要**再自己写 `<script>` 加载它，也**不�
 | 请求型（Promise） | `createSession(params)` → `Promise<{ sessionId }>` | 创建会话，返回新会话 ID |
 | 请求型（Promise） | `sendMessage(params)` → `Promise` | 等待发送结果 |
 | 请求型（Promise） | `data.get` / `data.set` / `data.delete` / `data.keys` / `data.entries` / `data.mutate` | key-value 持久化 + manifest 结构性变更 |
+| 请求型（Promise） | `card.list` / `card.meta` / `card.entries` / `card.search` / `card.entry` / `card.many` / `card.update` / `card.bulk` | `.card.json` 世界书读写（条目清单不带正文，写操作返回错误码） |
 | 请求型（Promise） | `api.call(op, args)` 及 `api.*` 命名方法 | 只读查询项目信息（agents / sessions / content / fileTree） |
 | 请求型（Promise） | `dockChat(params?)` → `Promise` | 在占位元素位置叠加真实聊天面板（仅聊天 HtmlCard） |
 | 事件型 | `events.on("file:update", filter, handler)` | 订阅指定项目文件的变化信号 |
@@ -337,6 +338,46 @@ const all = await spherse.data.entries({ file: "world/game.data.json" });
 
 数据会随使用增长、且希望 agent 后续能直接按业务语义读写（而不是整文件读改写）时，生成页面时应在数据文件根部内嵌 `$manifest`，声明业务命名的查询/变更入口。agent 将通过 `query_data` / `mutate_data` 工具按这些入口精准读写，schema 校验也保证不会写坏页面渲染假设。数据建模方法见 `spherse-build-data-app` skill，HTML 落地约束见 `spherse-write-html` skill。
 
+## 请求型 Action — 卡文件（`.card.json` 世界书）
+
+`spherse.card.*` 读写项目内的 `.card.json` 世界书文件（酒馆 `chara_card_v3` 格式）。与 `data.*` 并列的新通道，**不要**用 `spherse.api.call`（只读语义，无写操作）。
+
+核心约定：
+
+- 条目清单类接口（`list` / `meta` / `entries` / `search`）**永远不带正文**；只有 `entry` / `many` 返回完整字段（含 `content`）。
+- `search` 默认只返回启用的条目（`onlyEnabled` 默认 `true`）。
+- 写操作失败时 reject 的 `Error.message` 即服务端错误码：`card_not_found` / `entry_not_found` / `invalid_json` / `invalid_field` / `write_failed` / `forbidden` / `too_large`。
+- 可写字段仅：`keys` / `secondary_keys` / `comment` / `content` / `constant` / `selective` / `insertion_order` / `enabled` / `position`（`before_char` | `after_char`）/ `use_regex`；`id` 与 `extensions` 只读。
+- 文件变化订阅复用 `events.on("file:update", { path }, handler)`，无新事件类型。
+
+```javascript
+// 列出项目内卡文件
+const cards = await spherse.card.list();
+// 卡概览（不带正文）
+const meta = await spherse.card.meta({ path: "game/world.card.json" });
+// 条目清单（不带正文），words 为 content.length
+const entries = await spherse.card.entries({ path: "game/world.card.json", filter: { enabled: true } });
+// 检索（默认只查启用条目，content 命中只回 snippet）
+const hits = await spherse.card.search({ path: "game/world.card.json", query: "领主" });
+// 取全文
+const entry = await spherse.card.entry({ path: "game/world.card.json", id: 0 });
+const many = await spherse.card.many({ path: "game/world.card.json", ids: [0, 1] });
+// 写：改单条返回 { id, changed }，批量返回 { count }
+await spherse.card.update({ path: "game/world.card.json", id: 0, patch: { enabled: false } });
+await spherse.card.bulk({ path: "game/world.card.json", ids: [0, 1], patch: { enabled: true } });
+```
+
+| 方法 | 必填参数 | 说明 |
+|------|----------|------|
+| `card.list(params?)` | `dir?` | 列项目内 `.card.json`，返回 `[{ path, name, entryCount, bytes }]` |
+| `card.meta(params)` | `path` | 卡概览 `{ spec, name, entryCount, enabledCount, regexCount }` |
+| `card.entries(params)` | `path`，`filter?`（`{ enabled?, constant? }`） | 条目清单（无 content） |
+| `card.search(params)` | `path`，`query?`、`fields?`（默认 `["keys","comment"]`，可加 `"content"`）、`onlyEnabled?`（默认 true）、`limit?`（默认 20）、`snippetChars?`（默认 160） | 命中清单（无全文，可带 snippet）；`use_regex` 条目按正则解释检索词 |
+| `card.entry(params)` | `path`、`id` | 单条完整字段（含 content） |
+| `card.many(params)` | `path`、`ids[]` | 多条完整字段 |
+| `card.update(params)` | `path`、`id`、`patch`、`idempotencyKey?` | 改单条，返回 `{ id, changed }` |
+| `card.bulk(params)` | `path`、`ids[]`、`patch`、`idempotencyKey?` | 批量改，返回 `{ count }`（请求 id 数，非实际变更数） |
+
 ## 事件订阅 — 文件变化
 
 ### `spherse.events.on("file:update", filter, handler)` → `unsubscribe`
@@ -496,7 +537,7 @@ document.getElementById("agent-select").innerHTML = html;
 
 - **SDK 自动注入**：App 向每个 HTML 注入 `<script src="__spherse-sdk.js">`（同源加载，保留 iframe 真实 origin）。**不要**自己加载或复制 SDK 源码
 - **媒体播放**：Preview Server 支持 mp3/mp4/wav/webm/ogg/flac/mov 等音视频格式（含 Range 请求，可拖动进度条）。HTML 中直接用相对路径的 `<audio src="music.mp3">` 或 `<video src="clip.mp4">` 即可播放
-- **频率限制**：每分钟最多触发 30 次操作，超出会被静默丢弃。`data.get`、`data.keys`、`data.entries`、`data.mutate` 与聊天面板的 dock/位置上报（SDK 内部自动发送）不受限，交互式页面仍应优先通过事件刷新而非高频轮询
+- **频率限制**：每分钟最多触发 300 次操作，超出会被静默丢弃。`data.get`、`data.keys`、`data.entries`、`data.mutate` 与聊天面板的 dock/位置上报（SDK 内部自动发送）不受限，交互式页面仍应优先通过事件刷新而非高频轮询
 - **事件订阅限制**：每个 HTML 最多同时订阅 100 个事件；订阅控制消息不计入 action 频率限制
 - **无 script-src 加载失败时**：若 HTML 自身设了限制性 CSP（如 `meta http-equiv="Content-Security-Policy"` 禁止同源 script），SDK 可能无法加载。应放宽 CSP 允许同源 script 加载，不要绕开 SDK 自行拼装 `postMessage`
 - **参数校验**：缺少必填参数或类型不匹配时操作会被静默忽略

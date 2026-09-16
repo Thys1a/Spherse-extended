@@ -9,6 +9,8 @@ import { RunConfigHolder, createRuntimeDeps } from "./session/runtime.js";
 import { builtinToolCapabilities } from "./capabilities/builtin.js";
 import { createDataStore } from "./capabilities/data/index.js";
 import type { DataStore } from "./capabilities/data/index.js";
+import { createCardStore } from "./capabilities/card/index.js";
+import type { CardStore } from "./capabilities/card/index.js";
 import { createTriggerCapability } from "./capabilities/trigger/index.js";
 import { createMcpCapability } from "./capabilities/mcp/index.js";
 import { attachmentsCapability } from "./capabilities/attachments/index.js";
@@ -33,17 +35,20 @@ export interface AssembleOptions {
   capabilities?: Capability[] | ((builtin: Capability[]) => Capability[]);
 }
 
-export function defaultCapabilities(
-  projectStore: ProjectStore,
-  logger: Logger,
-  dataStore?: DataStore,
-): Capability[] {
+export interface DefaultCapabilitiesOptions {
+  projectStore: ProjectStore;
+  logger: Logger;
+  dataStore?: DataStore;
+  cardStore?: CardStore;
+}
+
+export function defaultCapabilities(opts: DefaultCapabilitiesOptions): Capability[] {
   return [
-    ...builtinToolCapabilities(dataStore),
-    createTriggerCapability({ projectStore, logger }),
-    createMcpCapability({ projectStore, logger }),
+    ...builtinToolCapabilities(opts.dataStore),
+    createTriggerCapability({ projectStore: opts.projectStore, logger: opts.logger }),
+    createMcpCapability({ projectStore: opts.projectStore, logger: opts.logger }),
     attachmentsCapability(),
-    compactionCapability({ logger }),
+    compactionCapability({ logger: opts.logger }),
     timePerceptionCapability(),
     memoryCapability(),
   ];
@@ -58,6 +63,7 @@ export async function assembleProject(
   const fileWriteMutex = new FileWriteMutex();
   const projectStore = new ProjectStore(projectRoot, logger, fileWriteMutex);
   const dataStore = createDataStore({ projectRoot, fileWriteMutex, logger });
+  const cardStore = createCardStore({ projectRoot, fileWriteMutex, logger });
 
   let isNewProject = false;
   try {
@@ -78,10 +84,11 @@ export async function assembleProject(
 
   const projectManager = new ProjectManager(projectStore, logger, fileWriteMutex);
   const stores = createStoreRegistry(logger);
+  const builtin = { projectStore, logger, dataStore, cardStore };
   const capabilities =
     typeof options?.capabilities === "function"
-      ? options.capabilities(defaultCapabilities(projectStore, logger, dataStore))
-      : (options?.capabilities ?? defaultCapabilities(projectStore, logger, dataStore));
+      ? options.capabilities(defaultCapabilities(builtin))
+      : (options?.capabilities ?? defaultCapabilities(builtin));
 
   const runConfig = new RunConfigHolder({
     ...(options?.defaultModel !== undefined ? { defaultModel: options.defaultModel } : {}),
@@ -128,6 +135,7 @@ export async function assembleProject(
     logger,
     capabilities,
     dataStore,
+    cardStore,
   });
 }
 
