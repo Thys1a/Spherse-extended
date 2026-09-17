@@ -32,7 +32,7 @@ SDK 已由 App 注入，**不要**再自己写 `<script>` 加载它，也**不�
 | 请求型（Promise） | `createSession(params)` → `Promise<{ sessionId }>` | 创建会话，返回新会话 ID |
 | 请求型（Promise） | `sendMessage(params)` → `Promise` | 等待发送结果 |
 | 请求型（Promise） | `data.get` / `data.set` / `data.delete` / `data.keys` / `data.entries` / `data.mutate` | key-value 持久化 + manifest 结构性变更 |
-| 请求型（Promise） | `card.list` / `card.meta` / `card.entries` / `card.search` / `card.entry` / `card.many` / `card.update` / `card.bulk` | `.card.json` 世界书读写（条目清单不带正文，写操作返回错误码） |
+| 请求型（Promise） | `card.list` / `card.meta` / `card.entries` / `card.search` / `card.entry` / `card.many` / `card.update` / `card.bulk` / `card.add` / `card.remove` | `.card.json` 世界书读写（条目清单不带正文，写操作返回错误码） |
 | 请求型（Promise） | `api.call(op, args)` 及 `api.*` 命名方法 | 只读查询项目信息（agents / sessions / content / fileTree） |
 | 请求型（Promise） | `dockChat(params?)` → `Promise` | 在占位元素位置叠加真实聊天面板（仅聊天 HtmlCard） |
 | 事件型 | `events.on("file:update", filter, handler)` | 订阅指定项目文件的变化信号 |
@@ -365,6 +365,9 @@ const many = await spherse.card.many({ path: "game/world.card.json", ids: [0, 1]
 // 写：改单条返回 { id, changed }，批量返回 { count }
 await spherse.card.update({ path: "game/world.card.json", id: 0, patch: { enabled: false } });
 await spherse.card.bulk({ path: "game/world.card.json", ids: [0, 1], patch: { enabled: true } });
+// 增删：add 的 id 自动分配（max+1），返回 { id }；remove 按 id 删除，返回 { ok }
+const { id } = await spherse.card.add({ path: "game/world.card.json", entry: { comment: "新条目", content: "..." } });
+await spherse.card.remove({ path: "game/world.card.json", id });
 ```
 
 | 方法 | 必填参数 | 说明 |
@@ -377,6 +380,8 @@ await spherse.card.bulk({ path: "game/world.card.json", ids: [0, 1], patch: { en
 | `card.many(params)` | `path`、`ids[]` | 多条完整字段 |
 | `card.update(params)` | `path`、`id`、`patch`、`idempotencyKey?` | 改单条，返回 `{ id, changed }` |
 | `card.bulk(params)` | `path`、`ids[]`、`patch`、`idempotencyKey?` | 批量改，返回 `{ count }`（请求 id 数，非实际变更数） |
+| `card.add(params)` | `path`、`entry`（白名单 10 字段子集）、`idempotencyKey?` | 追加条目，id 自动分配（`max+1`），返回 `{ id }`；`extensions` 不可传，恒为 `{}` |
+| `card.remove(params)` | `path`、`id` | 按 id 删除单条，返回 `{ ok }`；不存在 → `entry_not_found` |
 
 ## 事件订阅 — 文件变化
 
