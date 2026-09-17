@@ -20,6 +20,8 @@ function makeClient() {
     cardEntryMany: vi.fn(async (path: string, ids: number[]) => ids.map((id) => ({ id }))),
     cardEntryUpdate: vi.fn(async (path: string, id: number) => ({ id, changed: ["enabled"] })),
     cardEntryBulk: vi.fn(async () => ({ count: 2 })),
+    cardEntryAdd: vi.fn(async () => ({ id: 5 })),
+    cardEntryRemove: vi.fn(async () => ({ ok: true })),
   } as any;
 }
 
@@ -87,6 +89,17 @@ describe("card actions", () => {
       { enabled: true },
       undefined,
     );
+  });
+
+  it("proxies add/remove", async () => {
+    const client = makeClient();
+    const ctx = makeCtx(client);
+    await dispatchAction("card.entry.add", { path: "g/w.card.json", entry: { comment: "n" } }, ctx);
+    expect(client.cardEntryAdd).toHaveBeenCalledWith("g/w.card.json", { comment: "n" }, undefined);
+    expect(lastResponse(ctx)).toMatchObject({ ok: true, data: { id: 5 } });
+    await dispatchAction("card.entry.remove", { path: "g/w.card.json", id: 3 }, ctx);
+    expect(client.cardEntryRemove).toHaveBeenCalledWith("g/w.card.json", 3);
+    expect(lastResponse(ctx)).toMatchObject({ ok: true, data: { ok: true } });
   });
 
   it("rejects non .card.json files without responding", async () => {

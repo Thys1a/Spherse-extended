@@ -127,4 +127,28 @@ describe("card contracts", () => {
     ).toBeTruthy();
     expect(parseContract(schemas.cardEntryBulkResponse, { count: 3 })).toBeTruthy();
   });
+
+  it("accepts valid add/remove requests and rejects bad entry bodies", () => {
+    expect(
+      parseContract(schemas.cardEntryAddRequest, {
+        path: "a.card.json",
+        entry: { comment: "n", content: "c" },
+      }),
+    ).toBeTruthy();
+    expect(
+      parseContract(schemas.cardEntryRemoveRequest, { path: "a.card.json", id: 1 }),
+    ).toBeTruthy();
+    expect(() =>
+      parseContract(schemas.cardEntryAddRequest, {
+        path: "a.card.json",
+        entry: { id: 9 },
+      }),
+    ).toThrow(/Invalid payload/);
+    expect(() =>
+      parseContract(schemas.cardEntryAddRequest, {
+        path: "a.card.json",
+        entry: { extensions: {} },
+      }),
+    ).toThrow(/Invalid payload/);
+  });
 });

@@ -85,6 +85,29 @@ function sameValue(a: unknown, b: unknown): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
+function canonicalEntry(id: number, body: EntryPatch): Record<string, unknown> {
+  return {
+    id,
+    keys: body.keys ?? [],
+    secondary_keys: body.secondary_keys ?? [],
+    comment: body.comment ?? "",
+    content: body.content ?? "",
+    constant: body.constant ?? false,
+    selective: body.selective ?? false,
+    insertion_order: body.insertion_order ?? 0,
+    enabled: body.enabled ?? true,
+    position: body.position ?? "after_char",
+    use_regex: body.use_regex ?? false,
+    extensions: {},
+  };
+}
+
+function rawEntryList(doc: Record<string, unknown>): Array<Record<string, unknown>> {
+  const data = doc.data as Record<string, unknown>;
+  const book = data.character_book as Record<string, unknown>;
+  return book.entries as Array<Record<string, unknown>>;
+}
+
 export interface CreateCardStoreOptions {
   projectRoot: string;
   fileWriteMutex: FileWriteMutex;
@@ -247,8 +270,18 @@ export function createCardStore(opts: CreateCardStoreOptions): CardStore {
       const absPath = resolveCardFile(root, file);
       const rel = toPosixRelative(root, absPath);
       return mutex.run(absPath, async () => {
-        const result = await applyPatchLocked(absPath, rel, [id], patch);
-        return { id, changed: result.changed };
+        const changed: string[] = [];
+        await withLockedDoc(absPath, rel, (list) => {
+          const raw = list.find((e) => e.id === id);
+          if (!raw) throw new EntryNotFoundError(rel, id);
+          for (const [key, value] of Object.entries(patch)) {
+            if (!sameValue(raw[key], value)) {
+              raw[key] = value;
+              if (!changed.includes(key)) changed.push(key);
+            }
+          }
+        });
+        return { id, changed };
       });
     },
 
@@ -263,8 +296,48 @@ export function createCardStore(opts: CreateCardStoreOptions): CardStore {
       const absPath = resolveCardFile(root, file);
       const rel = toPosixRelative(root, absPath);
       return mutex.run(absPath, async () => {
-        await applyPatchLocked(absPath, rel, ids, patch);
+        await withLockedDoc(absPath, rel, (list) => {
+          for (const id of ids) {
+            const raw = list.find((e) => e.id === id);
+            if (!raw) throw new EntryNotFoundError(rel, id);
+            for (const [key, value] of Object.entries(patch)) {
+              raw[key] = value;
+            }
+          }
+        });
         return { count: ids.length };
+      });
+    },
+
+    async addEntry(
+      file: string,
+      entry: EntryPatch,
+      _opts?: { idempotencyKey?: string },
+    ): Promise<{ id: number }> {
+      const invalid = validatePatch(entry);
+      if (invalid.length > 0) throw new InvalidFieldError(invalid);
+      const absPath = resolveCardFile(root, file);
+      const rel = toPosixRelative(root, absPath);
+      return mutex.run(absPath, async () => {
+        let newId = 0;
+        await withLockedDoc(absPath, rel, (list) => {
+          newId = list.reduce((m, e) => Math.max(m, typeof e.id === "number" ? e.id : -1), -1) + 1;
+          list.push(canonicalEntry(newId, entry));
+        });
+        return { id: newId };
+      });
+    },
+
+    async removeEntry(file: string, id: number): Promise<{ ok: boolean }> {
+      const absPath = resolveCardFile(root, file);
+      const rel = toPosixRelative(root, absPath);
+      return mutex.run(absPath, async () => {
+        await withLockedDoc(absPath, rel, (list) => {
+          const idx = list.findIndex((e) => e.id === id);
+          if (idx < 0) throw new EntryNotFoundError(rel, id);
+          list.splice(idx, 1);
+        });
+        return { ok: true };
       });
     },
   };
@@ -273,12 +346,11 @@ export function createCardStore(opts: CreateCardStoreOptions): CardStore {
     return path.join(path.dirname(absPath), `.${path.basename(absPath)}.spcard.tmp`);
   }
 
-  async function applyPatchLocked(
+  async function withLockedDoc(
     absPath: string,
     rel: string,
-    ids: number[],
-    patch: EntryPatch,
-  ): Promise<{ changed: string[] }> {
+    mutate: (list: Array<Record<string, unknown>>) => void,
+  ): Promise<void> {
     let original: Buffer;
     try {
       original = await fs.readFile(absPath);
@@ -288,24 +360,9 @@ export function createCardStore(opts: CreateCardStoreOptions): CardStore {
     }
     const card = toParsedCard(original);
     if (!card) throw new CardFileCorruptedError(rel);
-    const rawEntries = (card.doc.data as Record<string, unknown>).character_book as Record<
-      string,
-      unknown
-    >;
-    const list = rawEntries.entries as Array<Record<string, unknown>>;
-    const changed: string[] = [];
-    for (const id of ids) {
-      const raw = list.find((e) => e.id === id);
-      if (!raw) throw new EntryNotFoundError(rel, id);
-      for (const [key, value] of Object.entries(patch)) {
-        if (!sameValue(raw[key], value)) {
-          raw[key] = value;
-          if (!changed.includes(key)) changed.push(key);
-        }
-      }
-    }
+    mutate(rawEntryList(card.doc));
     const serialized = Buffer.from(JSON.stringify(card.doc, null, 2), "utf8");
-    if (serialized.equals(original)) return { changed: [] };
+    if (serialized.equals(original)) return;
     if (serialized.length > MAX_CARD_FILE_SIZE) throw new CardTooLargeError(rel);
     const tmp = tmpPathFor(absPath);
     try {
@@ -324,6 +381,5 @@ export function createCardStore(opts: CreateCardStoreOptions): CardStore {
       throw new CardWriteFailedError(rel);
     }
     cache.invalidateFile(absPath);
-    return { changed };
   }
 }

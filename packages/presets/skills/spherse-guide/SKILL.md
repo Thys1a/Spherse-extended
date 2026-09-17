@@ -93,6 +93,7 @@ Content Browser 支持：
 | 文件读取 | `read_file`、`list_files`、`search_content` |
 | 文件修改 | `write_file`、`edit_file`、`move_file`、`copy_file` |
 | 结构化数据 | `read_data`、`query_data`、`mutate_data` |
+| 世界书（卡文件） | `read_card`、`search_card`、`edit_card`（先 search 再 entry 取全文，不要用 `search_content` 扫卡文件） |
 | 交互与展示 | `ask_user`、`render_card`、`generate_image` |
 | 项目协作 | `append_changelog`、`load_skill`、`emit_trigger_event` |
 | 记忆 | `memory_save`、`memory_recall` |
@@ -184,7 +185,16 @@ HTML 可以：
 - Agent 用 `query_data` / `mutate_data`
 - 两者共享同一 mutation 和原子写入通道
 
-这样可以避免 Agent 每次读取整个 JSON 浪费上下文，也能通过字段校验、自动 ID/时间和 item 级 mutation 提升写入准确性。构建论坛、任务板、模拟经营等数据型应用时加载 `spherse-build-data-app`。
+这样可以避免 Agent 每次读取整个 JSON 浪费上下文，也能通过字段校验、自动 ID/时间和 item 级 mutation 提升写入准确性。构建论坛、任务板、模拟经营等数据类型应用时加载 `spherse-build-data-app`。
+
+### 世界书（卡文件）
+
+页面和 Agent 可以围绕同一个 `.card.json` 协作。世界书条目用 `character_book.entries` 存放，单条正文可能很长：
+
+- 页面用 `spherse.card.*`
+- Agent 用 `read_card` / `search_card` / `edit_card`
+- 先 `search` 定位条目，再 `entry` 取全文；不要用 `search_content` 扫卡文件（会把整条几千字倒进上下文，还看不到条目边界）
+- `search` 默认只返回启用的条目；在编辑台里关掉的条目不会再被当作设定依据。
 
 ### 主题
 

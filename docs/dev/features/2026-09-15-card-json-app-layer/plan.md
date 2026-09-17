@@ -199,3 +199,122 @@ export class CardFileCorruptedError extends Error {}
 - `npm run verify`（lint + build + typecheck + unit + i18n）
 - 手测（真实卡：292 条沉沦法则级）：list/meta/entries/search 延迟记录；entry.update 后 git diff 确认未改条目零 diff；外部改动触发 `file:update` 重拉；`entries` 的 `words` 抽查 = `content.length`
 - 收尾：`design.md` 状态行更新为已实施；检查 `docs/official/` 同步项（ui-sdk 配额已在 T7；如新增能力清单条目需补对应域文件）
+
+---
+
+# 二期：add/remove + Agent 内置工具（2026-09-16 终审，未实施）
+
+终审决策：Agent 工具与 add/remove 一起做，`edit_card`（`action: update|bulk|add|remove`）一次性完成。工具参数一律扁平 `action` + optional（仿 `manage-trigger.ts:10-22`），禁用 union-of-object 与 `Record(String, Unknown())`。
+
+## 二期依赖图
+
+```
+B1 core 写路径重构 + addEntry/removeEntry
+      │
+      ▼
+B2 contracts 加/删 schema ──► B3 server 两路由 ──► B4 sdk 两方法 ──► B5 app 两 handler
+      │                                                              │
+      ▼                                                              ▼
+B6 core 三工具 + capability + 装配              B7 两模板 tools 清单 + presets 构建
+      │                                                              │
+      └──────────────────────► B8 doc-sync + verify 全量 ◄──────────┘
+```
+
+## Task B1: Core — `withLockedDoc` + add/remove
+
+**依赖**：一期 T4（`applyPatchLocked` 现状）。
+
+**改动文件**：
+- `packages/core/src/capabilities/card/card-store.ts` [修改]：抽 `withLockedDoc(absPath, rel, mutate: (doc) => string[] | void)`（锁内 read → `toParsedCard` → mutate 改 doc → reserialize → 字节等价短路 → 20MB 检查 → tmp + rename → 回读校验（失败回滚删 tmp）→ 失效缓存）；`applyPatchLocked` 改为其调用方；加 `addEntry(path, entry)`（id **锁内** `max+1`，空表首 id 为 0；缺省字段补默认后按固定键序写出 canonical 12 字段，`extensions` 恒 `{}`）/ `removeEntry(path, id)`（按 id splice，不存在 → `EntryNotFoundError`）
+
+**测试**（`__tests__/capabilities/card/t3-card-store-write.test.ts` 追加）：
+- 并发 add 无同 id（**关键不变量**，N 个并行 add 后 id 全唯一且全部落盘可读）
+- add 写出 canonical 12 字段（键序 + `extensions: {}` 断言）
+- remove 后 JSON 深等（除被删条目外全同）、对不存在 id → `EntryNotFoundError`
+
+**验证**：`npm test --workspace=packages/core`（card 相关）
+
+## Task B2: Contracts — 加/删 schema
+
+**依赖**：B1（store 方法签名定型）。
+
+**改动文件**：
+- `packages/contracts/src/card.ts` [修改]：`cardEntryAddRequest`（`{ path, entry }`，entry 为写白名单 10 字段**显式 optional** + `additionalProperties: false`）/ `cardEntryAddResponse`（`{ id }`）/ `cardEntryRemoveRequest`（`{ path, id }`）/ `cardEntryRemoveResponse`（`{ ok }`）
+- `packages/contracts/src/index.ts` [修改]：聚合新增 schema 与类型
+
+**测试**（`__tests__/card.test.ts` 追加）：entry 带 `id`/`extensions` → Invalid payload；缺 `path` → Invalid payload。
+
+**验证**：`npm test --workspace=packages/contracts`
+
+## Task B3: Server — 两路由
+
+**依赖**：B1、B2。
+
+**改动文件**：
+- `packages/server/src/routes/card.ts` [修改]：`POST /api/projects/:projectId/card/entry/add|remove`（`parseContract` 校验 + `assertWrite` + `sendCardError` 复用）
+
+**测试**（`__tests__/card-routes.test.ts` 追加，真 CardStore 不 mock）：add → `entry` 可读 round-trip；remove → 404；非法 entry 体 → 400。
+
+**验证**：`npm test --workspace=packages/server`（card 相关）
+
+## Task B4: SDK — 两方法
+
+**依赖**：B2。
+
+**改动文件**：
+- `packages/sdk/src/runtime/card.ts` [修改]：`add(params)` → `call("card.entry.add")`、`remove(params)` → `call("card.entry.remove")`
+
+**测试**（`__tests__/card.test.ts` 追加）：action 名与参数透传。
+
+**验证**：`npm test --workspace=packages/sdk`
+
+## Task B5: App — 两 handler
+
+**依赖**：B3（ApiClient 方法先行：`lib/api.ts` 加 `cardEntryAdd/cardEntryRemove`）。
+
+**改动文件**：
+- `packages/app/src/lib/api.ts` [修改]：两 client 方法（复用 `parseApiResponse`）
+- `packages/app/src/ui-sdk/handlers/card.ts` [修改]：`card.entry.add` / `card.entry.remove` 薄代理（`.card.json` 前置校验 + 错误码透传）
+
+**测试**（`handlers/card.test.ts` 追加）：代理调用 + 非 `.card.json` 前置拒绝。
+
+**验证**：`npm test --workspace=packages/app`（card 相关）
+
+## Task B6: Core — 三工具 + capability + 装配
+
+**依赖**：B1（store 全方法）。
+
+**改动文件**：
+- `packages/core/src/capabilities/card/tools.ts` [新增]：`createReadCardTool`（`action: list|meta|entries|entry|many`）/ `createSearchCardTool` / `createEditCardTool`（`action: update|bulk|add|remove`），工厂签名 `(cardStore, getPolicy)`，`execute` 内 `assertRead/assertWrite` + 错误转文本（仿 data `errorText`）；`edit_card` **不挂** `withApproval`（与 fs 写工具同例）
+- `packages/core/src/capabilities/card/capability.ts` [新增]：`cardCapability(shared?)`（`id: "card"`，`llmPolicyOf(host)`，未传 shared 时懒建 own store；仿 `data/capability.ts:8-26`）
+- `packages/core/src/capabilities/builtin.ts` [修改]：`builtinToolCapabilities` 签名改 options 对象（`{ dataStore?, cardStore? }`），注册 `cardCapability(...)`
+- `packages/core/src/factory.ts` [修改]：调用行同步（`DefaultCapabilitiesOptions.cardStore?` 已预留单例）
+- `packages/core/src/capabilities/card/index.ts` [修改]：导出 tools/capability（按 barrel 规范仅导出消费符号）
+
+**测试**（`__tests__/capabilities/card/t5-card-tools.test.ts` [新增]，仿 `data/t5-tools.test.ts`）：policy deny → 错误文本；三工具成功路径 `content[0].text` 含 JSON block；`add` 非法 entry 体 → `invalid_field` 文本。
+
+**验证**：`npm test --workspace=packages/core`（card 相关）+ `npm run build --workspace=packages/core`
+
+## Task B7: 两模板 tools 清单 + presets 构建
+
+**依赖**：B6（工具名定死：`read_card / search_card / edit_card`）。
+
+**改动文件**：
+- `packages/presets/templates/agent-template.md`、`packages/presets/templates/preset-agents/assistant.md` [修改]：`tools:` 各加三名
+- 构建触发 sync：`npm run build --workspace=packages/presets`
+
+**验证**：sync 产物含三名；`npm test --workspace=packages/presets`。注：模板只惠及**新建** agent，存量项目 agent .md 需手动加三名（`manage_agent` 或直接编辑），本次不做批量迁移。
+
+## Task B8: doc-sync + verify 全量
+
+**依赖**：B1–B7 全部。
+
+**改动文件**（文档）：
+- `docs/official/architecture/capabilities.md`：工具表加 card 一行（`:20` 处），DataStore 暴露段补 CardStore（`:83` 处）
+- agent 可见的使用纪律落点：草案 §7（先 `search` 再 `entry`、不要用 `search_content` 扫卡文件）写入 agent 模板正文或 builtin skill
+- `docs/official/project-structure.md`：新增文件（tools.ts/capability.ts）如列文件级索引则补行
+- `design.md` 附节状态行更新为已实施
+
+**验证**：
+- `npm run verify`（lint + build + typecheck + unit + i18n）
+- 收尾：backlog 如有对应条目则勾选；E2E 按 `testing.md` 选受影响场景（编辑台页面未在本次范围，agent 工具路径走单测覆盖即可）

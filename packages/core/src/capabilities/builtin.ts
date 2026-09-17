@@ -8,8 +8,15 @@ import { agentMgmtCapability } from "./agent-mgmt/index.js";
 import { interactionCapability } from "./interaction/index.js";
 import { projectConfigCapability } from "./project-config/index.js";
 import { dataCapability } from "./data/index.js";
+import type { CardStore } from "./card/index.js";
+import { cardCapability } from "./card/index.js";
 
-export function builtinToolCapabilities(sharedDataStore?: DataStore): Capability[] {
+export interface BuiltinToolCapabilitiesOptions {
+  dataStore?: DataStore;
+  cardStore?: CardStore;
+}
+
+export function builtinToolCapabilities(opts?: BuiltinToolCapabilitiesOptions): Capability[] {
   return [
     fsCapability(),
     skillCapability(),
@@ -18,6 +25,7 @@ export function builtinToolCapabilities(sharedDataStore?: DataStore): Capability
     agentMgmtCapability(),
     interactionCapability(),
     projectConfigCapability(),
-    dataCapability(sharedDataStore),
+    dataCapability(opts?.dataStore),
+    cardCapability(opts?.cardStore),
   ];
 }

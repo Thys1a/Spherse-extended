@@ -99,6 +99,10 @@ export type {
   CardEntryUpdateResponse,
   CardEntryBulkRequest,
   CardEntryBulkResponse,
+  CardEntryAddRequest,
+  CardEntryAddResponse,
+  CardEntryRemoveRequest,
+  CardEntryRemoveResponse,
   EntryPatchContract,
 } from "./card.js";
 

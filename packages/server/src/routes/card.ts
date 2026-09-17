@@ -216,4 +216,50 @@ export function registerCardRoutes(fastify: FastifyInstance, registry: ProjectRe
       }
     },
   );
+
+  fastify.post<{ Params: { projectId: string } }>(
+    "/api/projects/:projectId/card/entry/add",
+    {
+      schema: {
+        body: schemas.cardEntryAddRequest,
+        response: { 200: schemas.cardEntryAddResponse },
+      },
+    },
+    async (req, reply) => {
+      const body = parseContract(schemas.cardEntryAddRequest, req.body);
+      const store = cardStoreOf(registry, req);
+      const root = req.projectCtx!.projectManager.getRootPath();
+      try {
+        serverAccessPolicy(root).assertWrite(body.path);
+        return reply.code(200).send(
+          await store.addEntry(body.path, body.entry, {
+            ...(body.idempotencyKey !== undefined ? { idempotencyKey: body.idempotencyKey } : {}),
+          }),
+        );
+      } catch (err) {
+        return sendCardError(reply, err);
+      }
+    },
+  );
+
+  fastify.post<{ Params: { projectId: string } }>(
+    "/api/projects/:projectId/card/entry/remove",
+    {
+      schema: {
+        body: schemas.cardEntryRemoveRequest,
+        response: { 200: schemas.cardEntryRemoveResponse },
+      },
+    },
+    async (req, reply) => {
+      const body = parseContract(schemas.cardEntryRemoveRequest, req.body);
+      const store = cardStoreOf(registry, req);
+      const root = req.projectCtx!.projectManager.getRootPath();
+      try {
+        serverAccessPolicy(root).assertWrite(body.path);
+        return reply.code(200).send(await store.removeEntry(body.path, body.id));
+      } catch (err) {
+        return sendCardError(reply, err);
+      }
+    },
+  );
 }

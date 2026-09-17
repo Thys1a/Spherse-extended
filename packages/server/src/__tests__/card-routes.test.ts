@@ -181,6 +181,56 @@ describe("card routes (real CardStore, no mocks)", () => {
     expect(JSON.parse(missing.body).code).toBe("entry_not_found");
   });
 
+  it("add/remove round-trip", async () => {
+    const add = await app.inject({
+      method: "POST",
+      url: "/api/projects/p1/card/entry/add",
+      payload: { path: FILE, entry: { comment: "n", content: "c" } },
+    });
+    expect(add.statusCode).toBe(200);
+    const addedId = JSON.parse(add.body).id as number;
+    const got = await app.inject({
+      method: "POST",
+      url: "/api/projects/p1/card/entry",
+      payload: { path: FILE, id: addedId },
+    });
+    expect(got.statusCode).toBe(200);
+    expect(JSON.parse(got.body).comment).toBe("n");
+    const bad = await app.inject({
+      method: "POST",
+      url: "/api/projects/p1/card/entry/add",
+      payload: { path: FILE, entry: { position: "middle_earth" } },
+    });
+    expect(bad.statusCode).toBe(400);
+    const remove = await app.inject({
+      method: "POST",
+      url: "/api/projects/p1/card/entry/remove",
+      payload: { path: FILE, id: addedId },
+    });
+    expect(remove.statusCode).toBe(200);
+    expect(JSON.parse(remove.body)).toEqual({ ok: true });
+    const gone = await app.inject({
+      method: "POST",
+      url: "/api/projects/p1/card/entry",
+      payload: { path: FILE, id: addedId },
+    });
+    expect(gone.statusCode).toBe(404);
+    const removeMissing = await app.inject({
+      method: "POST",
+      url: "/api/projects/p1/card/entry/remove",
+      payload: { path: FILE, id: 9999 },
+    });
+    expect(removeMissing.statusCode).toBe(404);
+    expect(JSON.parse(removeMissing.body).code).toBe("entry_not_found");
+    const addDenied = await app.inject({
+      method: "POST",
+      url: "/api/projects/p1/card/entry/add",
+      payload: { path: ".spherse/x.card.json", entry: { comment: "n" } },
+    });
+    expect(addDenied.statusCode).toBe(403);
+    expect(JSON.parse(addDenied.body).code).toBe("forbidden");
+  });
+
   it("422 on corrupted file, 403 inside .spherse", async () => {
     const broken = await app.inject({
       method: "POST",

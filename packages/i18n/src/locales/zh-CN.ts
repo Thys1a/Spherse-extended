@@ -1239,6 +1239,11 @@ export const zhCN = {
   // 独立工具 tooltip：数据文件读写的作用说明——按 $manifest 入口/outline 局部读写，避免整文件进上下文
   "tool.data_access_hint":
     "允许智能体按入口读写页面数据文件（*.data.json）：查看结构大纲、按业务入口查询与变更，与页面数据联动而无需读取整个文件",
+  // 独立工具标签：卡文件读写（read_card/search_card/edit_card 三个工具，对 *.card.json 世界书条目的选择性读写）
+  "tool.card_access": "卡文件读写",
+  // 独立工具 tooltip：卡文件读写的作用说明——按条目清单/检索局部读写，避免整卡进上下文
+  "tool.card_access_hint":
+    "允许智能体按条目读写世界书卡文件（*.card.json）：查看条目清单、检索后取全文、开关或修改条目，无需读取整个卡文件",
   // 独立工具标签：追加日志
   "tool.append_log": "追加日志",
   // 独立工具 tooltip：追加日志的作用说明

@@ -39,6 +39,8 @@ import type {
   CardEntryManyResponse,
   CardEntryUpdateResponse,
   CardEntryBulkResponse,
+  CardEntryAddResponse,
+  CardEntryRemoveResponse,
   EntryPatchContract,
 } from "@spherse/contracts";
 import { parseApiResponse, schemas } from "@spherse/contracts";
@@ -374,6 +376,32 @@ export function createApiClient(baseUrl: string, projectId: string, accessToken?
       });
       await assertOk(res);
       return parseJsonResponse<CardEntryBulkResponse>(res, schemas.cardEntryBulkResponse);
+    },
+
+    async cardEntryAdd(
+      path: string,
+      entry: EntryPatchContract,
+      idempotencyKey?: string,
+    ): Promise<CardEntryAddResponse> {
+      const res = await authedFetch(`${apiBase}/card/entry/add`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(
+          idempotencyKey !== undefined ? { path, entry, idempotencyKey } : { path, entry },
+        ),
+      });
+      await assertOk(res);
+      return parseJsonResponse<CardEntryAddResponse>(res, schemas.cardEntryAddResponse);
+    },
+
+    async cardEntryRemove(path: string, id: number): Promise<CardEntryRemoveResponse> {
+      const res = await authedFetch(`${apiBase}/card/entry/remove`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path, id }),
+      });
+      await assertOk(res);
+      return parseJsonResponse<CardEntryRemoveResponse>(res, schemas.cardEntryRemoveResponse);
     },
 
     async getContent(filePath: string): Promise<ContentResponse | null> {

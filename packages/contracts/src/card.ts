@@ -153,6 +153,21 @@ export const schemas = {
   cardEntryBulkResponse: Type.Object({
     count: Type.Integer({ minimum: 0 }),
   }),
+  cardEntryAddRequest: Type.Object({
+    path: Type.String({ minLength: 1 }),
+    entry: entryPatch,
+    idempotencyKey: Type.Optional(Type.String({ minLength: 1 })),
+  }),
+  cardEntryAddResponse: Type.Object({
+    id: Type.Integer({ minimum: 0 }),
+  }),
+  cardEntryRemoveRequest: Type.Object({
+    path: Type.String({ minLength: 1 }),
+    id: Type.Integer({ minimum: 0 }),
+  }),
+  cardEntryRemoveResponse: Type.Object({
+    ok: Type.Boolean(),
+  }),
   cardErrorCode,
 } as const;
 
@@ -173,4 +188,8 @@ export type CardEntryUpdateRequest = Static<typeof schemas.cardEntryUpdateReques
 export type CardEntryUpdateResponse = Static<typeof schemas.cardEntryUpdateResponse>;
 export type CardEntryBulkRequest = Static<typeof schemas.cardEntryBulkRequest>;
 export type CardEntryBulkResponse = Static<typeof schemas.cardEntryBulkResponse>;
+export type CardEntryAddRequest = Static<typeof schemas.cardEntryAddRequest>;
+export type CardEntryAddResponse = Static<typeof schemas.cardEntryAddResponse>;
+export type CardEntryRemoveRequest = Static<typeof schemas.cardEntryRemoveRequest>;
+export type CardEntryRemoveResponse = Static<typeof schemas.cardEntryRemoveResponse>;
 export type EntryPatchContract = Static<typeof entryPatch>;

@@ -11,4 +11,6 @@ export const card = {
   many: (params: Params): Promise<unknown> => call("card.entry.many", params),
   update: (params: Params): Promise<unknown> => call("card.entry.update", params),
   bulk: (params: Params): Promise<unknown> => call("card.entry.bulk", params),
+  add: (params: Params): Promise<unknown> => call("card.entry.add", params),
+  remove: (params: Params): Promise<unknown> => call("card.entry.remove", params),
 };

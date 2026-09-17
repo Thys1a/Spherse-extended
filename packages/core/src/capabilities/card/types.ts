@@ -93,6 +93,12 @@ export interface CardStore {
     patch: EntryPatch,
     opts?: { idempotencyKey?: string },
   ): Promise<{ count: number }>;
+  addEntry(
+    path: string,
+    entry: EntryPatch,
+    opts?: { idempotencyKey?: string },
+  ): Promise<{ id: number }>;
+  removeEntry(path: string, id: number): Promise<{ ok: boolean }>;
 }
 
 export class CardNotFoundError extends Error {

@@ -18,6 +18,7 @@
 | `interaction` | `run_command`（逐次审批）、`ask_user`（问答门） |
 | `project-config` | `manage_project_config` 工具 |
 | `data` | `read_data` / `query_data` / `mutate_data` 工具（`*.data.json`） |
+| `card` | `read_card` / `search_card` / `edit_card` 工具（`*.card.json` 世界书条目读写） |
 | `trigger` | `emit_trigger_event` / `manage_trigger` 工具 + `TriggerManager` / `TimerService` 调度（time 型 10 分钟墙钟对齐轮询、event 型即时；磁盘为唯一真相源，每 tick 重读） |
 | `mcp` | MCP server 连接、工具运行时合并、`<mcp-context>` 注入 |
 | `attachments` | 图片等附件处理器 |
@@ -81,6 +82,7 @@
   - `TriggerCapability.manager` / `timerService` → `ProjectRuntime.triggerManager` / `timerService`
   - `McpCapability.manager` / `invalidate` → deleteAgent 级联清理与配置失效
   - `DataStore` 由 factory 创建、构造注入 data capability、经 `ProjectRuntime.dataStore` 暴露给 `/data/*` 路由
+  - `CardStore` 同构：factory 创建、构造注入 card capability、经 `ProjectRuntime.cardStore` 暴露给 `/card/*` 路由
   - 新增此类能力需在 ProjectRuntime 补转发 getter
 - 能力间共享代码放 `capabilities/shared/`（如 llm-policy 被 fs / data / render 共用）；能力目录之间不互相 import
 

@@ -601,6 +601,8 @@ export const zhTW: Record<TranslationKey, string> = {
   "pages.projectNotFound": "專案不存在",
 "tool.data_access": "資料檔案讀寫",
   "tool.data_access_hint": "允許智慧代理人按入口讀寫頁面資料檔案（*.data.json）：查看結構大綱、按業務入口查詢與變更，與頁面資料連動而無需讀取整個檔案",
+  "tool.card_access": "卡檔案讀寫",
+  "tool.card_access_hint": "允許智慧代理人按條目讀寫世界書卡檔案（*.card.json）：查看條目清單、檢索後取全文、開關或修改條目，無需讀取整個卡檔案",
     "tool.append_log": "附加日誌",
   "tool.append_log_hint": "允許智能體向專案變更日誌（CHANGELOG.md）附加操作記錄",
   "tool.load_skill": "使用技能",

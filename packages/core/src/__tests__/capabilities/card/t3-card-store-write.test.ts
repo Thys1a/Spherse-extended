@@ -188,3 +188,82 @@ describe("CardStore bulkUpdate", () => {
     expect(e.comment).toBe("first");
   });
 });
+
+describe("CardStore addEntry", () => {
+  it("appends a canonical 12-field entry with max+1 id", async () => {
+    const { id } = await store.addEntry(FILE, { comment: "third", content: "!" });
+    expect(id).toBe(2);
+    const raw = JSON.parse(await fs.readFile(abs(FILE), "utf8"));
+    const added = raw.data.character_book.entries.find(
+      (e: Record<string, unknown>) => e.id === 2,
+    );
+    expect(Object.keys(added)).toEqual([
+      "id",
+      "keys",
+      "secondary_keys",
+      "comment",
+      "content",
+      "constant",
+      "selective",
+      "insertion_order",
+      "enabled",
+      "position",
+      "use_regex",
+      "extensions",
+    ]);
+    expect(added).toMatchObject({ comment: "third", extensions: {} });
+    const e = await store.entry(FILE, 2);
+    expect(e.content).toBe("!");
+  });
+
+  it("rejects id / extensions in the body with invalid_field", async () => {
+    await expect(store.addEntry(FILE, { id: 9 } as never)).rejects.toBeInstanceOf(
+      InvalidFieldError,
+    );
+    await expect(store.addEntry(FILE, { extensions: {} } as never)).rejects.toBeInstanceOf(
+      InvalidFieldError,
+    );
+  });
+
+  it("assigns unique ids under concurrent adds", async () => {
+    const results = await Promise.all(
+      Array.from({ length: 10 }, (_, i) => store.addEntry(FILE, { comment: `n${i}` })),
+    );
+    const ids = results.map((r) => r.id);
+    expect(new Set(ids).size).toBe(10);
+    const entries = await store.entries(FILE);
+    expect(entries).toHaveLength(12);
+  });
+});
+
+describe("CardStore removeEntry", () => {
+  it("removes one entry and keeps the rest fully deep-equal", async () => {
+    const readRaw = async () =>
+      JSON.parse(await fs.readFile(abs(FILE), "utf8")).data.character_book.entries as Array<
+        Record<string, unknown>
+      >;
+    const before = await readRaw();
+    const r = await store.removeEntry(FILE, 0);
+    expect(r).toEqual({ ok: true });
+    const after = await readRaw();
+    expect(after.map((e) => e.id)).toEqual([1]);
+    expect(after[0]).toEqual(before.find((e) => e.id === 1));
+    await expect(store.entry(FILE, 0)).rejects.toThrow(/not found/i);
+  });
+
+  it("throws entry_not_found for unknown id", async () => {
+    await expect(store.removeEntry(FILE, 99)).rejects.toThrow(/not found/i);
+  });
+});
+
+describe("CardStore addEntry on empty table", () => {
+  it("assigns id 0 as the first entry", async () => {
+    const raw = JSON.parse(await fs.readFile(abs(FILE), "utf8"));
+    raw.data.character_book.entries = [];
+    await fs.writeFile(abs(FILE), JSON.stringify(raw, null, 2));
+    const { id } = await store.addEntry(FILE, { comment: "first" });
+    expect(id).toBe(0);
+    const e = await store.entry(FILE, 0);
+    expect(e.comment).toBe("first");
+  });
+});

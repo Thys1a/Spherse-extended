@@ -44,7 +44,7 @@ export interface DefaultCapabilitiesOptions {
 
 export function defaultCapabilities(opts: DefaultCapabilitiesOptions): Capability[] {
   return [
-    ...builtinToolCapabilities(opts.dataStore),
+    ...builtinToolCapabilities({ dataStore: opts.dataStore, cardStore: opts.cardStore }),
     createTriggerCapability({ projectStore: opts.projectStore, logger: opts.logger }),
     createMcpCapability({ projectStore: opts.projectStore, logger: opts.logger }),
     attachmentsCapability(),

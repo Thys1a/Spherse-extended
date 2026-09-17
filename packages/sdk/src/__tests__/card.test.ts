@@ -38,6 +38,8 @@ describe("card runtime", () => {
     await card.many({ path: "g/w.card.json", ids: [0] });
     await card.update({ path: "g/w.card.json", id: 0, patch: { enabled: false } });
     await card.bulk({ path: "g/w.card.json", ids: [0], patch: { enabled: true } });
+    await card.add({ path: "g/w.card.json", entry: { comment: "n" } });
+    await card.remove({ path: "g/w.card.json", id: 3 });
     expect(messages.map((m) => m.action)).toEqual([
       "card.list",
       "card.meta",
@@ -47,6 +49,8 @@ describe("card runtime", () => {
       "card.entry.many",
       "card.entry.update",
       "card.entry.bulk",
+      "card.entry.add",
+      "card.entry.remove",
     ]);
     expect(messages[3].params).toEqual({ path: "g/w.card.json", query: "q" });
     expect(messages[6].params).toEqual({

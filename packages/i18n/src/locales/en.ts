@@ -601,6 +601,8 @@ export const en: Record<TranslationKey, string> = {
   "pages.projectNotFound": "Project not found",
 "tool.data_access": "Data File Access",
   "tool.data_access_hint": "Allows the agent to read and write page data files (*.data.json) entry-wise: inspect the structure outline, query and mutate via named entries, and interact with page data without loading whole files",
+  "tool.card_access": "Card File Access",
+  "tool.card_access_hint": "Allows the agent to read and write world-book card files (*.card.json) entry-wise: list entries, search then read full text, toggle or edit entries without loading whole files",
     "tool.append_log": "Append Log",
   "tool.append_log_hint": "Allows the agent to append entries to the project changelog (CHANGELOG.md)",
   "tool.load_skill": "Use Skill",

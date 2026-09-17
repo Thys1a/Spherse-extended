@@ -1,6 +1,6 @@
 # `.card.json` App 层接口（`card.*`）调研
 
-> 状态：**已实施（2026-09-16，未 commit）**。plan 见 `plan.md`（同目录，T1–T8 全部完成）。本文只覆盖《设计草案-卡编辑台.md》**第五节「接口规格（App 层）」**的需求提取与代码侧调研，供阶段一立项使用。页面（第六节）、迁移（第八节）不在本文范围。
+> 状态：**一期 + 二期已实施（2026-09-16，未 commit）**。plan 见 `plan.md`（同目录，T1–T8、B1–B8 全部完成）。本文只覆盖《设计草案-卡编辑台.md》**第五节「接口规格（App 层）」**的需求提取与代码侧调研，供阶段一立项使用。页面（第六节）、迁移（第八节）不在本文范围。
 > 来源草案：`设计草案-卡编辑台.md`（根目录）。
 
 ## 一、§5 需求提取（XE "requirements"）
@@ -113,9 +113,9 @@
 ## 核心决策（已锁定，2026-09-15 审查结论）
 
 1. **路径守卫**：`.card.json` 后缀 + 禁入 `.spherse/`（收紧草案的"`.json` 结尾"）。
-2. **写入策略**：整份 `JSON.stringify(parsed, null, 2)` reserialize，**无尾随换行**；序列化结果与原字节相等时跳过写盘。**已实测**：两张真实卡（292 条 / 31 条，`chara_card_v3`）`JSON.stringify(j, null, 2) === 原文件` 均为 true——未改动条目零 diff，字符串手术彻底放弃。
+2. **写入策略**：整份 `JSON.stringify(parsed, null, 2)` reserialize，**无尾随换行**；序列化结果与原字节相等时跳过写盘。**已实测**：两张真实卡（292 条 / 31 条，`chara_card_v3`）`JSON.stringify(j, null, 2) === 原文件` 均为 true——未改动条目零 diff，字符串手术彻底放弃。（2026-09-16 终审接受 reserialize：JSON 字符串手术风险高——转义/Unicode/缩进推断；业界标准做法均为整份重排——Prettier / ESLint --fix / package.json 管理工具；功能安全优先于 diff 友好。）
 3. **字段位置（已实测）**：`position`（string，如 `after_char`）与 `insertion_order` 在条目**顶层**；`extensions.position` 是另一个数字字段（酒馆 depth 位置），**必须**保持只读。`extensions` 整个只读，`category` 走阶段二迁移时一次性写入，编辑台不提供改分类功能。
-4. **words**：`content.length`（UTF-16 码元数，O(1)）。**已知偏差（留档，不修正）**：含空白与标点，中文条目偏大约 15–45%（雷恩哈特条目 length=2385 vs CJK 1691）；草案示例的 `words: 1842` 经实测不存在（292 条按任何口径都不等于 1842），属示意值，不构成规格。
+4. **words**：`content.length`（UTF-16 码元数，O(1)）——2026-09-16 终审定为**正式定义**：简单快速，与其他语言一致（Python `len(str)` 也是码元数），该量级下感知误差可忽略。**已知偏差（留档）**：含空白与标点，中文条目偏大约 15–45%（雷恩哈特条目 length=2385 vs CJK 1691）；草案示例的 `words: 1842` 经实测不存在（292 条按任何口径都不等于 1842），属示意值，不构成规格。
 5. **幂等性**：update/bulk 保留可选 `idempotencyKey` 参数（与 data 对齐），不建专门机制（data 的幂等是进程内 LRU；update 语义天然幂等；SDK `call` 不自动重试）。
 6. **缓存**：core 层缓存解析后卡对象，key 含内容哈希（避免 stat/read 竞态），按字节数设上限。
 7. **限流**：`MAX_CALLS_PER_MINUTE` 30 → 300（编辑台高频写会触发 30/60s 静默丢弃，表现为"点了没反应"）；同步改 `docs/official/architecture/ui-sdk.md` 与 `spherse-use-ui-sdk/SKILL.md` 的配额文案。
@@ -270,34 +270,52 @@ export const card = {
 
 ---
 
-## 附：二期（add/remove）与 Agent 内置工具调研（2026-09-16，未实施）
+## 附：二期（add/remove）与 Agent 内置工具（2026-09-16 已实施，未 commit）
+
+> 终审决策（2026-09-16）：**Agent 工具与 add/remove 一起做**——`edit_card` 直接支持 update/bulk/add/remove 四操作（扁平 `action` 分支），一次性完成，不分两批。
+> 审查修订（2026-09-16 code review）：多动作工具一律用 `action: Type.Union([...Literal])`（`manage-trigger.ts:10-22`、`manage-agent.ts:9`、`manage-project-config.ts:7` 三处先例），不用 `op`；`add` 的 entry 体用**显式 optional 字段**，禁用 `Type.Record(String, Unknown())`（`additionalProperties: {}` 会触发严格 schema 中转 400，见 `docs/dev/bugfix/2026-09-14-gemini-relay-400/design.md`）。
 
 ### Agent 工具装配链（5 步，与 data 工具同构）
 
-1. `packages/core/src/capabilities/card/tools.ts` [新增]：`createReadCardTool / createSearchCardTool / createEditCardTool` 工厂 `(cardStore, getPolicy)`，仿 `capabilities/data/tools.ts:55-150`（TypeBox 参数 + `execute` 内 `assertRead/assertWrite` + 错误转文本，仿 `errorText` 风格）。
+1. `packages/core/src/capabilities/card/tools.ts` [新增]：`createReadCardTool / createSearchCardTool / createEditCardTool` 工厂 `(cardStore, getPolicy)`，仿 `capabilities/data/tools.ts:55-150`（TypeBox 参数 + `execute` 内 `assertRead/assertWrite` + 错误转文本，仿 `errorText` 风格）。多动作工具参数形态：`read_card`（`action: list|meta|entries|entry|many`）与 `edit_card`（`action: update|bulk|add|remove`）均为**扁平 `action` + 全 optional 参数**（仿 `manage-trigger.ts:10-22`），禁用 union-of-object 与 `Record(String, Unknown())`（严格 provider 风险）；`add` 带可选 `idempotencyKey`（与 `data.mutate` 对齐，add 非幂等）。
 2. `packages/core/src/capabilities/card/capability.ts` [新增]：`cardCapability(shared?)`，仿 `data/capability.ts:8-26`（`id: "card"`，`tools: (host) => [...]`，`llmPolicyOf(host)` 取策略，未传 shared 时懒建 own store）。
-3. `packages/core/src/capabilities/builtin.ts` [修改]：`builtinToolCapabilities` 注册 `cardCapability(...)`；`DefaultCapabilitiesOptions` 已预留 `cardStore?`（`factory.ts` 建单例中），届时传入。
-4. `packages/presets/templates/agent-template.md` [修改]：`tools:` 加 `read_card / search_card / edit_card`（显式清单，不加则 agent 不可见；profile `tools` 白名单过滤见 `session/agent-assembly.ts:168-169`）。
+3. `packages/core/src/capabilities/builtin.ts` [修改]：`builtinToolCapabilities` 签名改 **options 对象**（`{ dataStore?, cardStore? }`，不新增位置参数——刚在 `defaultCapabilities` 修掉同类问题），注册 `cardCapability(...)`；`factory.ts` 调用行同步。
+4. `packages/presets/templates/agent-template.md` + `packages/presets/templates/preset-agents/assistant.md` [修改]：`tools:` 加 `read_card / search_card / edit_card`（显式清单，不加则 agent 不可见；profile `tools` 白名单过滤见 `session/agent-assembly.ts:168-169`）。**存量 agent 不自动获得新工具**：模板只惠及新建 agent，用户现有项目（含 10 个游戏项目）的 agent .md 需手动加三名（`manage_agent` 或直接编辑），设计不含批量迁移。
 5. `toolCatalog` 自动收敛（`agent-assembly.ts:164-166` 从 capability tools 聚合，无需手动注册，`manage_agent` 名称校验自动通过）。
 
 关键差异（页面通道 vs Agent 通道）：工具**直调 `CardStore` 进程内方法**（仿 data 工具直调 `dataStore`，不走 HTTP）；策略走 `llmPolicyOf`（`LLM_READ/WRITE` 集合），与路由层的 `serverAccessPolicy`（`SRV_*`）规则集不同，denied 行为以各自为准。工具返回仿 data：`content: [{ type: "text", text: jsonBlock(result) }]` + `details: { path, ... }`（card 无 version，details 带 `id` 即可）。上下文纪律沿草案 §7：先 `search` 再 `entry` 取全文，不整卡读取。
 
-工具切分建议：草案定三件（`read_card` 覆盖 list/meta/entries/entry/many、`search_card`、`edit_card` 覆盖 update/bulk [+ 二期 add/remove]），与 data 的 read/query/mutate 三分法同构，保留（不合并），减少单工具参数分叉。
+审批说明：`edit_card` **不挂** `withApproval`——该包装只用于管理类工具（`agent-mgmt/index.ts:9`、`trigger/index.ts:47`、`interaction/index.ts:10`），fs 写工具（`write_file/edit_file/move_file`，`fs/index.ts:18-26`）不挂；card 编辑属文件写，与 fs 同例。
+
+工具切分建议：草案定三件（`read_card` 覆盖 list/meta/entries/entry/many、`search_card`、`edit_card` 覆盖 update/bulk/add/remove），与 data 的 read/query/mutate 三分法同构，保留（不合并），减少单工具参数分叉；多动作一律扁平 `action`（见上条终审修订）。
 
 ### 二期 add/remove：id 实测推翻草案担忧
 
 沉沦法则 292 条实测：`id` 唯一，0–263 连续 + 28 个稀疏大 id（最大 995533，SillyTavern 后加条目的随机分配）。结论：
 
 - `id` 是**不透明唯一号**，无需连续、无需排序；草案 §10-3"新增/删除后重编号"担忧解除——**永远不重编号**。
-- `add`：新 id 取 `max+1`（碰撞不可能，已唯一）或 `Date.now()` + 碰撞检查；Ethernet entry 追加到 `entries` 末尾（`insertion_order` 由调用方指定，不自动重排）。
+- `add`：新 id 取 `max+1`（定死，唯一故碰撞不可能；空表时 `max` 取 -1 → 首 id 为 0），**id 分配必须在 `fileWriteMutex` 内**（否则并发 add 同 id 丢条目）；新 entry 追加到 `entries` 末尾（`insertion_order` 由调用方指定，不自动重排）。
 - `remove`：按 `id` splice 单条，其余条目零触碰。
 - reserialize 策略下 add/remove 是纯数组操作，零额外成本（再次确认放弃字符串手术正确）。
-- 白名单：`add` 的 entry 体复用写白名单 10 字段；`extensions` 强制 `{}`（不接受外部传入，保持只读）；缺 `comment/keys/content` 允许（parser 已容忍缺失，归一化为空）。
+- 白名单：`add` 的 entry 体为写白名单 10 字段的**显式 optional 字段**（禁用 Record，见上条终审修订）；`extensions` 强制 `{}`（不接受外部传入，保持只读；`category` 不开口子，仅由阶段二迁移脚本写入）；缺省字段补默认值后按固定键序写出 canonical 12 字段（`id, keys, secondary_keys, comment, content, constant, selective, insertion_order, enabled, position, use_regex, extensions`）。
 - 命名：`card.entry.add` / `card.entry.remove`（与既有 dotted 风格一致）；store 方法 `addEntry(path, entry) → { id }` / `removeEntry(path, id) → { ok }`；server 路由 `POST /card/entry/add|remove`；sdk `card.add/card.remove`；handler 薄代理同构。
-- Agent 侧：add/remove 并入 `edit_card`（参数加 `op` 分支或独立参数组，立项时定），不新增第四工具。
+- Agent 侧：add/remove 并入 `edit_card`（扁平 `action: update|bulk|add|remove`），不新增第四工具。
+- 写路径复用：从 `applyPatchLocked` 抽出 `withLockedDoc(absPath, rel, mutate)`（锁内 read→parse→改→reserialize→等价短路→tmp+rename→回读→失效缓存），update/bulk/add/remove 共用，不复制三条写路径。
+
+### 二期实施顺序（8 步，2026-09-16 终审 + code review 修订）
+
+1. **core 写路径重构 + add/remove**：抽 `withLockedDoc`，加 `addEntry(path, entry) → { id }`（id 锁内 `max+1`）/ `removeEntry(path, id) → { ok }` + t3 测试（**并发 add 无同 id**为关键不变量）。
+2. **contracts 补 schema**：`CardAddRequest/Response` / `CardRemoveRequest/Response`（显式字段）+ 单测。
+3. **server 补路由**：`card.ts` 加 `POST /card/entry/add|remove`（`assertWrite`）+ 契约测试。
+4. **sdk 补方法**：`card.add(...)` / `card.remove(...)` + 单测。
+5. **app 补 handler**：`card.entry.add` / `card.entry.remove` 薄代理 + 单测。
+6. **core 补工具**：`tools.ts` 三工厂（扁平 `action`）+ `capability.ts` + `builtin.ts` 改 options 对象 + `factory.ts` 调用行 + t5 风格单测（policy deny + 成功路径文本）。
+7. **两模板改 tools 清单**：`agent-template.md` + `preset-agents/assistant.md` 加三名；`npm run build -w packages/presets`（sync 产物含三名即过）。
+8. **doc-sync + verify**：`capabilities.md:20` 工具表加 card 一行、`:83` 补 CardStore 暴露段、agent 可见的使用纪律落点（草案 §7）+ `npm run verify`（lint/build/typecheck/单测/i18n）。
 
 ### 二期验证思路
 
-- core：add 后 id 唯一且落盘可读、remove 后其余条目逐字节等价（仿 T8 零 diff 断言）、对不存在 id remove → `entry_not_found`。
-- server：add/remove round-trip + 非法 entry 体 → `invalid_field`。
-- Agent 工具单测仿 `capabilities/data/t5-tools.test.ts`（policy deny + 成功路径文本）。
+- core：add 后 id 唯一且落盘可读、remove 后 JSON 深等（除被删条目外全同；reserialize 整份重写故不断言逐字节）、对不存在 id remove → `entry_not_found`。
+- server：add/remove round-trip + 非法枚举/类型 → 400；`id`/`extensions` 经网关剥离（200 空操作），store/工具层纵深拒绝。
+- Agent 工具单测仿 `capabilities/data/t5-tools.test.ts`（policy deny + 成功路径 `content[0].text` 含 JSON block）。
+- app/sdk 单测：add/remove 薄代理 + 错误码透传 + 参数透传。

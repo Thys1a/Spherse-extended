@@ -174,3 +174,37 @@ registerAction("card.entry.bulk", async (params, ctx) => {
     respond(ctx, false, cardError(err));
   }
 });
+
+registerAction("card.entry.add", async (params, ctx) => {
+  const { path, entry, idempotencyKey } = params as {
+    path: unknown;
+    entry: unknown;
+    idempotencyKey?: unknown;
+  };
+  const file = validateCardFileParam(path);
+  if (!file || typeof entry !== "object" || entry === null || !ctx.client) return;
+  try {
+    respond(
+      ctx,
+      true,
+      await ctx.client.cardEntryAdd(
+        file,
+        entry as EntryPatchContract,
+        typeof idempotencyKey === "string" ? idempotencyKey : undefined,
+      ),
+    );
+  } catch (err) {
+    respond(ctx, false, cardError(err));
+  }
+});
+
+registerAction("card.entry.remove", async (params, ctx) => {
+  const { path, id } = params as { path: unknown; id: unknown };
+  const file = validateCardFileParam(path);
+  if (!file || typeof id !== "number" || !ctx.client) return;
+  try {
+    respond(ctx, true, await ctx.client.cardEntryRemove(file, id));
+  } catch (err) {
+    respond(ctx, false, cardError(err));
+  }
+});

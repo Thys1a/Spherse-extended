@@ -1,4 +1,6 @@
 export { createCardStore, type CreateCardStoreOptions } from "./card-store.js";
+export { createReadCardTool, createSearchCardTool, createEditCardTool } from "./tools.js";
+export { cardCapability } from "./capability.js";
 export type {
   CardStore,
   CardErrorCode,
