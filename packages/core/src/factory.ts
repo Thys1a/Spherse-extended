@@ -11,7 +11,7 @@ import { createDataStore } from "./capabilities/data/index.js";
 import type { DataStore } from "./capabilities/data/index.js";
 import { createCardStore } from "./capabilities/card/index.js";
 import type { CardStore } from "./capabilities/card/index.js";
-import { createTriggerCapability } from "./capabilities/trigger/index.js";
+import { createTriggerCapability, type TriggerCapability } from "./capabilities/trigger/index.js";
 import { createMcpCapability } from "./capabilities/mcp/index.js";
 import { attachmentsCapability } from "./capabilities/attachments/index.js";
 import { compactionCapability } from "./capabilities/compaction/index.js";
@@ -95,6 +95,7 @@ export async function assembleProject(
     ...(options?.sampling !== undefined ? { sampling: options.sampling } : {}),
     ...(options?.thinkingLevel !== undefined ? { thinkingLevel: options.thinkingLevel } : {}),
   });
+  const triggerCap = capabilities.find((c) => c.id === "trigger") as TriggerCapability | undefined;
   const deps = createRuntimeDeps({
     projectStore,
     logger,
@@ -103,6 +104,9 @@ export async function assembleProject(
     capabilities,
     stores,
     runConfig,
+    ...(triggerCap !== undefined
+      ? { onTurnEvent: (e) => triggerCap.manager.onInternalEvent(e.name, e.payload) }
+      : {}),
   });
 
   const sessionRuntime = new SessionManager(deps, { initialRunConfig: runConfig });

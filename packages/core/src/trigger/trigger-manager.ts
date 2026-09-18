@@ -1,5 +1,6 @@
 import { EventEmitter } from "node:events";
 import type { SessionPort } from "../kernel/ports.js";
+import type { TurnEventPayload } from "../session/runtime.js";
 import type { ProjectStore } from "../store/project.js";
 import type { TriggerStore } from "../store/trigger.js";
 import type { TriggerEntry, TriggerLogEntry } from "../types.js";
@@ -72,7 +73,14 @@ export class TriggerManager extends EventEmitter {
 
   onUserEvent(eventName: string, payload: string): number {
     if (eventName.startsWith("sp:")) return 0;
+    return this.fireMatching(eventName, payload);
+  }
 
+  onInternalEvent(eventName: string, payload: TurnEventPayload): number {
+    return this.fireMatching(eventName, JSON.stringify(payload));
+  }
+
+  private fireMatching(eventName: string, payload: string): number {
     let fired = 0;
     for (const { agentId, agentName, entry } of this.readAllTriggers()) {
       if (entry.type !== "event" || !entry.enabled || !entry.eventName) continue;

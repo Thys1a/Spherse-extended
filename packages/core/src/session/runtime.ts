@@ -36,6 +36,18 @@ export class RunConfigHolder implements RunConfigSource {
   }
 }
 
+export interface TurnEventPayload {
+  sessionId: string;
+  agentId: string;
+  seq: number;
+  reason?: string;
+}
+
+export interface TurnEvent {
+  name: string;
+  payload: TurnEventPayload;
+}
+
 export interface RuntimeDeps {
   readonly projectStore: ProjectStore;
   readonly projectRoot: string;
@@ -43,6 +55,7 @@ export interface RuntimeDeps {
   readonly logger: Logger;
   readonly runConfig: RunConfigSource;
   readonly createTurnHooks?: TurnHooksFactory;
+  readonly onTurnEvent?: (event: TurnEvent) => void;
   readonly modelResolver: ModelResolver;
   readonly modelCatalog: ModelCatalog;
   readonly capabilities: ReadonlyArray<Capability>;
@@ -61,6 +74,7 @@ export function createRuntimeDeps(input: {
   capabilities: ReadonlyArray<Capability>;
   stores: StoreRegistry;
   runConfig: RunConfigSource;
+  onTurnEvent?: (event: TurnEvent) => void;
   modelResolver?: ModelResolver;
   modelCatalog?: ModelCatalog;
 }): Readonly<RuntimeDeps> {
@@ -72,6 +86,7 @@ export function createRuntimeDeps(input: {
     fileWriteMutex: input.fileWriteMutex,
     logger: input.logger,
     runConfig: input.runConfig,
+    ...(input.onTurnEvent !== undefined ? { onTurnEvent: input.onTurnEvent } : {}),
     createTurnHooks: (agentId, sessionId) =>
       composeTurnHooks(
         capabilities

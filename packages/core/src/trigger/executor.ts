@@ -32,6 +32,7 @@ function readTurnError(event: SessionEventPayload): string | undefined {
 
 export class TriggerExecutor extends EventEmitter {
   private readonly inProgress = new Set<string>();
+  private readonly sessionQueues = new Map<string, Promise<void>>();
   private readonly logger: Logger;
 
   constructor(private readonly deps: TriggerExecutorDeps) {
@@ -70,10 +71,12 @@ export class TriggerExecutor extends EventEmitter {
       status: "running",
     };
 
+    let sessionId = "";
+    let releaseQueue = (): void => {};
+    let queuedTurn: Promise<void> | undefined;
+
     try {
       this.emit("trigger_triggered", { agentId, triggerId: entry.id, eventName, triggeredAt: now });
-
-      let sessionId: string;
 
       switch (entry.mode) {
         case "new_session": {
@@ -121,6 +124,14 @@ export class TriggerExecutor extends EventEmitter {
       let agentEnded = false;
       let turnError: string | undefined;
 
+      const prevTurn = this.sessionQueues.get(sessionId) ?? Promise.resolve();
+      const gate = new Promise<void>((resolve) => {
+        releaseQueue = resolve;
+      });
+      queuedTurn = prevTurn.then(() => gate);
+      this.sessionQueues.set(sessionId, queuedTurn);
+      await prevTurn;
+
       await this.deps.session.sendMessage(
         sessionId,
         resolvedMessage,
@@ -162,6 +173,10 @@ export class TriggerExecutor extends EventEmitter {
         error: String(err),
       });
     } finally {
+      releaseQueue();
+      if (queuedTurn !== undefined && this.sessionQueues.get(sessionId) === queuedTurn) {
+        this.sessionQueues.delete(sessionId);
+      }
       this.inProgress.delete(entry.id);
     }
   }

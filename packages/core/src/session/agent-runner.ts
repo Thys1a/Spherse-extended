@@ -8,7 +8,7 @@ import { SessionControlBus } from "./control-bus.js";
 import { createApprovalGate } from "./approval-gate.js";
 import { createAskGate } from "./ask-gate.js";
 import type { SessionStatus } from "./status.js";
-import type { RuntimeDeps } from "./runtime.js";
+import type { RuntimeDeps, TurnEventPayload } from "./runtime.js";
 import { logEventMiddleware } from "./event-middlewares.js";
 import {
   createAttachmentSanitizer,
@@ -172,7 +172,7 @@ export class AgentRunner {
         ? (stripUserAttachments(userMessage as never, attachments) as typeof userMessage)
         : userMessage;
 
-      this.eventLog!.appendBatch([
+      const [userEvent] = this.eventLog!.appendBatch([
         {
           type: "user/message",
           data: {
@@ -184,6 +184,11 @@ export class AgentRunner {
         },
         { type: "turn/start", data: {} },
       ]);
+      this.emitTurnEvent("sp:user-message", {
+        sessionId: this.sessionId,
+        agentId: this.agentId,
+        seq: userEvent.seq,
+      });
 
       const dispatch = createEventPipeline(
         [
@@ -476,13 +481,18 @@ export class AgentRunner {
             .find((message) => message.role === "assistant") as
             | { stopReason?: string }
             | undefined;
-          this.eventLog.append("turn/end", {
-            reason:
-              lastMessage?.stopReason === "error"
-                ? "error"
-                : lastMessage?.stopReason === "aborted"
-                  ? "aborted"
-                  : "completed",
+          const reason =
+            lastMessage?.stopReason === "error"
+              ? "error"
+              : lastMessage?.stopReason === "aborted"
+                ? "aborted"
+                : "completed";
+          const turnEnd = this.eventLog.append("turn/end", { reason });
+          this.emitTurnEvent("sp:turn-end", {
+            sessionId: this.sessionId,
+            agentId: this.agentId,
+            seq: turnEnd.seq,
+            reason,
           });
         }
       }
@@ -493,9 +503,25 @@ export class AgentRunner {
   private appendMessageEvent(message: unknown): void {
     const role = (message as { role?: string }).role;
     if (role === "assistant") {
-      this.eventLog!.append("assistant/message", { message: message as never });
+      const appended = this.eventLog!.append("assistant/message", { message: message as never });
+      this.emitTurnEvent("sp:assistant-message", {
+        sessionId: this.sessionId,
+        agentId: this.agentId,
+        seq: appended.seq,
+      });
     } else if (role === "toolResult") {
       this.eventLog!.append("tool/result", { message: message as never });
+    }
+  }
+
+  private emitTurnEvent(name: string, payload: TurnEventPayload): void {
+    try {
+      this.deps.onTurnEvent?.({ name, payload });
+    } catch (err) {
+      this.deps.logger.warn(
+        { err, sessionId: this.sessionId, name },
+        "turn event listener failed",
+      );
     }
   }
 
