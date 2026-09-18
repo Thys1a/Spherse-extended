@@ -10,6 +10,7 @@ import { createAskGate } from "./ask-gate.js";
 import type { SessionStatus } from "./status.js";
 import { randomUUID } from "node:crypto";
 import type { RuntimeDeps, TurnEventPayload } from "./runtime.js";
+import { deriveSideEffects, type SideEffectRef } from "../tool-attribution.js";
 import { logEventMiddleware } from "./event-middlewares.js";
 import {
   createAttachmentSanitizer,
@@ -67,6 +68,13 @@ export class AgentRunner {
       createAskGate(controlBus),
     );
     const runner = new AgentRunner(agent, agentId, sessionId, deps, controlBus);
+    agent.beforeToolCall = async (context) => {
+      deps.attribution?.begin(context.toolCall.id, {
+        sessionId,
+        turnSeq: runner.currentTurnSeq(),
+      });
+      return undefined;
+    };
     runner.turnHooks = composeTurnHooks(
       deps.createTurnHooks ? [deps.createTurnHooks(agentId, sessionId)] : [],
     );
@@ -509,6 +517,14 @@ export class AgentRunner {
     };
   }
 
+  private currentTurnSeq(): number {
+    const events = this.eventLog?.events ?? [];
+    for (let i = events.length - 1; i >= 0; i--) {
+      if (events[i].type === "turn/start") return events[i].seq;
+    }
+    return 0;
+  }
+
   private appendMessageEvent(message: unknown): void {
     const role = (message as { role?: string }).role;
     if (role === "assistant") {
@@ -521,7 +537,30 @@ export class AgentRunner {
         chainId: this.turnChainId,
       });
     } else if (role === "toolResult") {
-      this.eventLog!.append("tool/result", { message: message as never });
+      const result = message as {
+        toolCallId?: unknown;
+        toolName?: unknown;
+        details?: unknown;
+        isError?: unknown;
+      };
+      let sideEffects: SideEffectRef[] | undefined;
+      const registry = this.deps.attribution;
+      if (registry && typeof result.toolCallId === "string") {
+        const attribution = registry.attribute(result.toolCallId);
+        registry.drop(result.toolCallId);
+        if (
+          attribution !== undefined &&
+          result.isError !== true &&
+          typeof result.toolName === "string"
+        ) {
+          const refs = deriveSideEffects(result.toolName, result.details);
+          if (refs.length > 0) sideEffects = refs;
+        }
+      }
+      this.eventLog!.append("tool/result", {
+        message: message as never,
+        ...(sideEffects !== undefined ? { sideEffects } : {}),
+      });
     }
   }
 

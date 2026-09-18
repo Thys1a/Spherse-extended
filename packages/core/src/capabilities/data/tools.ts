@@ -129,7 +129,7 @@ export function createMutateDataTool(dataStore: DataStore, getPolicy: AccessPoli
     description:
       "Run a named mutation from a *.data.json $manifest (append/update/remove/set with schema validation and auto-generated fields). Atomic and safe to retry with idempotencyKey.",
     parameters: MutateDataParams,
-    async execute(_toolCallId, params, _signal) {
+    async execute(toolCallId, params, _signal) {
       try {
         getPolicy().assertWrite(params.file);
       } catch (err) {
@@ -138,6 +138,7 @@ export function createMutateDataTool(dataStore: DataStore, getPolicy: AccessPoli
       try {
         const result = await dataStore.mutate(params.file, params.name, params.args ?? {}, {
           ...(params.idempotencyKey !== undefined ? { idempotencyKey: params.idempotencyKey } : {}),
+          toolCallId,
         });
         return {
           content: [{ type: "text" as const, text: jsonBlock(result) }],

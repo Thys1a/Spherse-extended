@@ -24,6 +24,25 @@ export function getCachedAgents(projectId: string): AgentSummary[] {
   return queryClient.getQueryData(projectQueryKeys.agents(projectId)) ?? EMPTY_AGENTS;
 }
 
+export function useAgentProfile(projectId: string, client: ApiClient | null, agentId: string) {
+  const profileQuery = useQuery({
+    queryKey: [...projectQueryKeys.agents(projectId), agentId, "profile"],
+    queryFn: () => client!.getAgent(agentId),
+    enabled: Boolean(projectId && client && agentId),
+  });
+  return {
+    profile: profileQuery.data ?? null,
+    loading: profileQuery.isPending,
+    error: profileQuery.error,
+  };
+}
+
+export async function refreshAgentProfile(projectId: string, agentId: string): Promise<void> {
+  await queryClient.invalidateQueries({
+    queryKey: [...projectQueryKeys.agents(projectId), agentId, "profile"],
+  });
+}
+
 export async function ensureProjectAgents(projectId: string, client: ApiClient): Promise<AgentSummary[]> {
   return queryClient.ensureQueryData({
     queryKey: projectQueryKeys.agents(projectId),
@@ -56,6 +75,7 @@ export async function updateProjectAgent(
 ): Promise<void> {
   await client.updateAgent(agentId, content, themeContent);
   await refreshProjectAgents(projectId);
+  await refreshAgentProfile(projectId, agentId);
 }
 
 export async function deleteProjectAgent(

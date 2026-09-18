@@ -3,6 +3,9 @@ export { createReadCardTool, createSearchCardTool, createEditCardTool } from "./
 export { cardCapability } from "./capability.js";
 export type {
   CardStore,
+  CardChangeEvent,
+  CardChangeOrigin,
+  CardWriteOptions,
   CardErrorCode,
   CardPosition,
   CardListItem,

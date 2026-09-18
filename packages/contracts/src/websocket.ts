@@ -41,6 +41,18 @@ type EventOf<
 const agentMessage = Type.Unsafe<AgentMessage>(Type.Unknown());
 const assistantMessage = Type.Unsafe<AssistantMessage>(Type.Unknown());
 const toolResultMessage = Type.Unsafe<ToolResultMessage>(Type.Unknown());
+const sideEffectRef = Type.Object({
+  type: Type.Union([
+    Type.Literal("data"),
+    Type.Literal("card"),
+    Type.Literal("write"),
+    Type.Literal("edit"),
+    Type.Literal("memory"),
+    Type.Literal("trigger"),
+  ]),
+  file: Type.String(),
+  version: Type.Optional(Type.String()),
+});
 const toolResultMessages = Type.Unsafe<ToolResultMessage[]>(
   Type.Array(Type.Unknown()),
 );
@@ -85,7 +97,10 @@ export const chatReplayEvent = Type.Union([
     type: Type.Literal("tool/result"),
     seq: Type.Integer(),
     time: Type.Integer(),
-    data: Type.Object({ message: toolResultMessage }),
+    data: Type.Object({
+      message: toolResultMessage,
+      sideEffects: Type.Optional(Type.Array(sideEffectRef)),
+    }),
   }),
   Type.Object({
     type: Type.Literal("compaction/applied"),

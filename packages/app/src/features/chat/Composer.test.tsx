@@ -48,6 +48,7 @@ afterEach(() => {
 interface ComposerProps {
   streaming?: boolean;
   loading?: boolean;
+  placeholder?: string;
 }
 
 function renderComposer(props: ComposerProps) {
@@ -58,6 +59,7 @@ function renderComposer(props: ComposerProps) {
       streaming={props.streaming ?? false}
       loading={props.loading ?? false}
       sessionId="session-1"
+      placeholder={props.placeholder}
       onSend={onSend}
       onAbort={onAbort}
     />,
@@ -97,6 +99,11 @@ function mockPointerCoarse(matches: boolean) {
 }
 
 describe("Composer input availability", () => {
+  it("uses the agent placeholder when provided", () => {
+    renderComposer({ placeholder: "Ask me anything" });
+    expect(screen.getByPlaceholderText("Ask me anything")).not.toBeNull();
+  });
+
   it("keeps the textarea enabled while the agent is streaming", () => {
     renderComposer({ streaming: true });
     expect(screen.getByRole("textbox")).toBeEnabled();

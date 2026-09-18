@@ -9,6 +9,7 @@ import { useProjectCtx } from "../../context/project-context";
 import { useApiClient } from "../../lib/use-connection";
 import { useHostBridge } from "../../context/host-bridge-context";
 import { useChatRuntime } from "./runtime-context";
+import { useDataLinkedRefresh } from "./hooks/useDataLinkedRefresh";
 import { isPathInsideProject, toProjectRelative, joinProjectPath } from "../../lib/project-path";
 import { ensureCharset, buildFileSrcDoc, buildInlineSrcDoc, isImageFile } from "./html-card-src";
 
@@ -42,6 +43,8 @@ export function HtmlCardRenderer({ card, defaultCollapsed = false }: HtmlCardRen
 
   const previewUrl = card.file_path && client ? client.getPreviewUrl(card.file_path) : null;
   const isImage = !!card.file_path && isImageFile(card.file_path);
+  const linkedHtml = !card.html && !isImage ? (fetchedHtml ?? null) : null;
+  const dataRevision = useDataLinkedRefresh(projectId, card.file_path ?? null, linkedHtml);
 
   useEffect(() => {
     if (collapsed) return;
@@ -60,7 +63,7 @@ export function HtmlCardRenderer({ card, defaultCollapsed = false }: HtmlCardRen
     return () => {
       cancelled = true;
     };
-  }, [collapsed, previewUrl, card.html, isImage]);
+  }, [collapsed, previewUrl, card.html, isImage, dataRevision]);
 
   useEffect(() => {
     if (!expanded) return;
@@ -299,6 +302,7 @@ export function HtmlCardRenderer({ card, defaultCollapsed = false }: HtmlCardRen
     <div
       className="group/card my-2 overflow-hidden rounded-lg border border-border"
       style={{ maxWidth: "100%", width }}
+      data-chat-html-card
     >
       {card.title ? (
         <div className="group-title flex items-center justify-between border-b border-border bg-muted px-3 py-1.5">

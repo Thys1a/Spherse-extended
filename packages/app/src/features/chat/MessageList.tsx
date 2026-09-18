@@ -15,6 +15,7 @@ import { lastWithdrawableUserIndex } from "./model/withdrawable";
 interface MessageListProps {
   messages: ChatMessage[];
   agent: AgentSummary;
+  greeting?: string;
   sessionId?: string;
   streaming: boolean;
   loading?: boolean;
@@ -32,7 +33,7 @@ interface MessageListProps {
   onLoadMore?: () => void;
 }
 
-export function MessageList({ messages, agent, sessionId, streaming, loading = false, containerRef, isAtBottom, onScrollToBottom, onNavigateToPath, onRespondApproval, onRespondQuestion, onRetry, onWithdraw, onOpenSession, hasMore, loadingMore, onLoadMore }: MessageListProps) {
+export function MessageList({ messages, agent, greeting, sessionId, streaming, loading = false, containerRef, isAtBottom, onScrollToBottom, onNavigateToPath, onRespondApproval, onRespondQuestion, onRetry, onWithdraw, onOpenSession, hasMore, loadingMore, onLoadMore }: MessageListProps) {
   const { t } = useI18n();
 
   // 相同 file_path 的 html card 只展开最近一张；较早的同路径卡片折叠（不挂载 iframe）。
@@ -52,9 +53,9 @@ export function MessageList({ messages, agent, sessionId, streaming, loading = f
   }
   if (messages.length === 0) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center gap-2 p-4">
+      <div className="flex-1 flex flex-col items-center justify-center gap-2 p-4" data-chat-welcome>
         <div className="text-muted-foreground text-sm font-medium">{agent.name}</div>
-        <div className="text-muted-foreground text-sm">{t("chat.startConversation")}</div>
+        <div className="text-muted-foreground text-sm">{greeting ?? t("chat.startConversation")}</div>
       </div>
     );
   }

@@ -1,5 +1,6 @@
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { AssistantMessage, ToolResultMessage } from "@earendil-works/pi-ai";
+import type { SideEffectRef } from "../tool-attribution.js";
 
 export type TurnEndReason = "completed" | "aborted" | "error";
 
@@ -35,7 +36,7 @@ export interface SessionEventMap {
     summon?: SummonMeta;
   };
   "assistant/message": { message: AssistantMessage };
-  "tool/result": { message: ToolResultMessage };
+  "tool/result": { message: ToolResultMessage; sideEffects?: SideEffectRef[] };
   "compaction/applied": {
     anchorSeq: number;
     digestContent: string;

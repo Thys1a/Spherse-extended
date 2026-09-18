@@ -32,6 +32,8 @@ export interface AgentProfile {
   };
   timePerception?: TimePerceptionConfig;
   yolo?: boolean;
+  placeholder?: string;
+  greeting?: string;
   systemPrompt: string;
   filePath: string;
 }

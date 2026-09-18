@@ -16,6 +16,7 @@ import {
   CardWriteFailedError,
   EntryNotFoundError,
   InvalidFieldError,
+  type CardChangeEvent,
   type CardEntry,
   type CardEntrySummary,
   type CardListItem,
@@ -25,6 +26,7 @@ import {
   type CardStore,
   type EntryPatch,
 } from "./types.js";
+import type { ToolAttributionRegistry } from "../../tool-attribution.js";
 
 export const MAX_CARD_FILE_SIZE = 20 * 1024 * 1024;
 
@@ -113,6 +115,7 @@ export interface CreateCardStoreOptions {
   fileWriteMutex: FileWriteMutex;
   logger: Logger;
   canRead?: (relativePath: string) => boolean;
+  attribution?: ToolAttributionRegistry;
 }
 
 function sha256(buf: Buffer): string {
@@ -135,8 +138,29 @@ function toSummary(entry: CardEntry): CardEntrySummary {
 export function createCardStore(opts: CreateCardStoreOptions): CardStore {
   const root = path.resolve(opts.projectRoot);
   const mutex = opts.fileWriteMutex;
+  const logger = opts.logger;
   const canRead = opts.canRead;
+  const attribution = opts.attribution;
   const cache = new CardCache();
+  const changeHandlers = new Set<(e: CardChangeEvent) => void>();
+
+  function emitChange(file: string, summary: string, toolCallId: string | undefined): void {
+    const resolved = toolCallId !== undefined ? attribution?.attribute(toolCallId) : undefined;
+    const event: CardChangeEvent = {
+      file,
+      origin: toolCallId !== undefined ? "agent" : "sdk",
+      ...(resolved ?? {}),
+      ...(toolCallId !== undefined ? { toolCallId } : {}),
+      summary,
+    };
+    for (const handler of changeHandlers) {
+      try {
+        handler(event);
+      } catch (err) {
+        logger.warn({ err, file }, "card change handler failed");
+      }
+    }
+  }
 
   async function load(absPath: string): Promise<ParsedCard> {
     const rel = toPosixRelative(root, absPath);
@@ -263,13 +287,13 @@ export function createCardStore(opts: CreateCardStoreOptions): CardStore {
       file: string,
       id: number,
       patch: EntryPatch,
-      _opts?: { idempotencyKey?: string },
+      opts?: { idempotencyKey?: string; toolCallId?: string },
     ): Promise<{ id: number; changed: string[] }> {
       const invalid = validatePatch(patch);
       if (invalid.length > 0) throw new InvalidFieldError(invalid);
       const absPath = resolveCardFile(root, file);
       const rel = toPosixRelative(root, absPath);
-      return mutex.run(absPath, async () => {
+      const result = await mutex.run(absPath, async () => {
         const changed: string[] = [];
         await withLockedDoc(absPath, rel, (list) => {
           const raw = list.find((e) => e.id === id);
@@ -283,19 +307,23 @@ export function createCardStore(opts: CreateCardStoreOptions): CardStore {
         });
         return { id, changed };
       });
+      if (result.changed.length > 0) {
+        emitChange(rel, `updateEntry#${id}`, opts?.toolCallId);
+      }
+      return result;
     },
 
     async bulkUpdate(
       file: string,
       ids: number[],
       patch: EntryPatch,
-      _opts?: { idempotencyKey?: string },
+      opts?: { idempotencyKey?: string; toolCallId?: string },
     ): Promise<{ count: number }> {
       const invalid = validatePatch(patch);
       if (invalid.length > 0) throw new InvalidFieldError(invalid);
       const absPath = resolveCardFile(root, file);
       const rel = toPosixRelative(root, absPath);
-      return mutex.run(absPath, async () => {
+      const result = await mutex.run(absPath, async () => {
         await withLockedDoc(absPath, rel, (list) => {
           for (const id of ids) {
             const raw = list.find((e) => e.id === id);
@@ -307,18 +335,20 @@ export function createCardStore(opts: CreateCardStoreOptions): CardStore {
         });
         return { count: ids.length };
       });
+      emitChange(rel, `bulkUpdate#${ids.length}`, opts?.toolCallId);
+      return result;
     },
 
     async addEntry(
       file: string,
       entry: EntryPatch,
-      _opts?: { idempotencyKey?: string },
+      opts?: { idempotencyKey?: string; toolCallId?: string },
     ): Promise<{ id: number }> {
       const invalid = validatePatch(entry);
       if (invalid.length > 0) throw new InvalidFieldError(invalid);
       const absPath = resolveCardFile(root, file);
       const rel = toPosixRelative(root, absPath);
-      return mutex.run(absPath, async () => {
+      const result = await mutex.run(absPath, async () => {
         let newId = 0;
         await withLockedDoc(absPath, rel, (list) => {
           newId = list.reduce((m, e) => Math.max(m, typeof e.id === "number" ? e.id : -1), -1) + 1;
@@ -326,12 +356,18 @@ export function createCardStore(opts: CreateCardStoreOptions): CardStore {
         });
         return { id: newId };
       });
+      emitChange(rel, `addEntry#${result.id}`, opts?.toolCallId);
+      return result;
     },
 
-    async removeEntry(file: string, id: number): Promise<{ ok: boolean }> {
+    async removeEntry(
+      file: string,
+      id: number,
+      opts?: { idempotencyKey?: string; toolCallId?: string },
+    ): Promise<{ ok: boolean }> {
       const absPath = resolveCardFile(root, file);
       const rel = toPosixRelative(root, absPath);
-      return mutex.run(absPath, async () => {
+      const result = await mutex.run(absPath, async () => {
         await withLockedDoc(absPath, rel, (list) => {
           const idx = list.findIndex((e) => e.id === id);
           if (idx < 0) throw new EntryNotFoundError(rel, id);
@@ -339,6 +375,13 @@ export function createCardStore(opts: CreateCardStoreOptions): CardStore {
         });
         return { ok: true };
       });
+      emitChange(rel, `removeEntry#${id}`, opts?.toolCallId);
+      return result;
+    },
+
+    onChange(handler: (e: CardChangeEvent) => void): () => void {
+      changeHandlers.add(handler);
+      return () => changeHandlers.delete(handler);
     },
   };
 

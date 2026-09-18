@@ -95,6 +95,17 @@
   /*   color: #7a7a8a; */
   /* } */
 
+  /* === 欢迎空态 / 工具调用行 / HTML 卡片容器 === */
+  /* [data-chat-welcome] { */
+  /*   color: #9a9184; */
+  /* } */
+  /* [data-chat-tool-call] { */
+  /*   border-color: rgba(201, 160, 74, 0.08); */
+  /* } */
+  /* [data-chat-html-card] { */
+  /*   border-radius: 12px; */
+  /* } */
+
   /* === Markdown 内容 === */
   /* [data-md-code] { */
   /*   background: rgba(0, 0, 0, 0.3); */

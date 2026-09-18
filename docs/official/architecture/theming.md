@@ -45,6 +45,7 @@
 | `data-app-root` | `App.tsx` / GlobalErrorBoundary | 整窗根，全局装饰锚点 |
 | `data-chat-root` | `features/chat/index.tsx` | 聊天窗口根（agent theme 作用域） |
 | `data-chat-header` / `-messages` / `-message[data-role]` / `-bubble` | Header / MessageList / MessageItem | 聊天结构四层 |
+| `data-chat-welcome` / `-tool-call` / `-html-card` | MessageList（空态） / ToolCallSection / HtmlCard | 欢迎空态、工具调用行、HTML 卡片容器 |
 | `data-chat-turn-collapse` | TriggerTurnGroup | trigger 对话轮折叠摘要条（按钮） |
 | `data-chat-composer` / `-composer-input` | Composer | 输入区外层与外框 |
 | `data-chat-float-root` / `-titlebar` / `-close` | FloatingFrame（动态 `data-{prefix}-float-*`） | 浮窗 chrome，前缀 chat / browser / content 三实例 |

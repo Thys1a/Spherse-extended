@@ -119,6 +119,9 @@ describe("api contracts", () => {
     expect(parseApiResponse(schemas.agentProfile, { ...profile, output: { path: "out", naming: "tpl" } })).toMatchObject({
       output: { path: "out", naming: "tpl" },
     });
+    expect(
+      parseApiResponse(schemas.agentProfile, { ...profile, placeholder: "输入消息…", greeting: "你好" }),
+    ).toMatchObject({ placeholder: "输入消息…", greeting: "你好" });
     expect(() => parseApiResponse(schemas.agentProfile, { id: "a1" })).toThrow(/Invalid payload/);
 
     const summary = { id: "a1", name: "Agent", slug: "agent", createdAt: 1 };

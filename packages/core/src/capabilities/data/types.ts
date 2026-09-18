@@ -5,6 +5,9 @@ export interface DataChangeEvent {
   version: string;
   origin: DataOrigin;
   summary?: string;
+  sessionId?: string;
+  turnSeq?: number;
+  toolCallId?: string;
 }
 
 export class VersionConflictError extends Error {
@@ -172,8 +175,8 @@ export interface DataStore {
   outline(file: string): Promise<OutlineResult>;
   read(file: string, opts: { key?: string; path?: string; offset?: number; limit?: number; ifVersion?: string }): Promise<ReadResult>;
   query(file: string, name: string, params?: Record<string, unknown>, page?: { limit?: number; after?: string }): Promise<QueryResult>;
-  mutate(file: string, name: string, args: Record<string, unknown>, opts?: { idempotencyKey?: string; origin?: DataOrigin }): Promise<MutateResult>;
-  rawSet(file: string, key: string, value: unknown, opts?: { ifVersion?: string }): Promise<WriteResult>;
-  rawDelete(file: string, key: string, opts?: { ifVersion?: string }): Promise<WriteResult>;
+  mutate(file: string, name: string, args: Record<string, unknown>, opts?: { idempotencyKey?: string; origin?: DataOrigin; toolCallId?: string }): Promise<MutateResult>;
+  rawSet(file: string, key: string, value: unknown, opts?: { ifVersion?: string; toolCallId?: string }): Promise<WriteResult>;
+  rawDelete(file: string, key: string, opts?: { ifVersion?: string; toolCallId?: string }): Promise<WriteResult>;
   onChange(handler: (e: DataChangeEvent) => void): () => void;
 }

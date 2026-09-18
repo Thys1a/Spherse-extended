@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   parseChatClientMessage,
+  parseChatReplayEvent,
   parseChatServerEvent,
 } from "../index.js";
 
@@ -224,5 +225,45 @@ describe("chat websocket control contract", () => {
     expect(() =>
       parseChatServerEvent({ type: "turn_withdrawn", seq: "3" }),
     ).toThrow(/Invalid payload/);
+  });
+});
+
+describe("chat replay tool/result sideEffects (R2.5a)", () => {
+  const message = {
+    role: "toolResult",
+    toolCallId: "call-1",
+    toolName: "mutate_data",
+    content: [],
+    details: { path: "board.data.json", version: "v1" },
+    isError: false,
+    timestamp: 1,
+  };
+
+  it("accepts tool/result with sideEffects", () => {
+    const event = {
+      type: "tool/result",
+      seq: 5,
+      time: 1,
+      data: {
+        message,
+        sideEffects: [{ type: "data", file: "board.data.json", version: "v1" }],
+      },
+    };
+    expect(parseChatReplayEvent(event)).toEqual(event);
+  });
+
+  it("accepts tool/result without sideEffects", () => {
+    const event = { type: "tool/result", seq: 5, time: 1, data: { message } };
+    expect(parseChatReplayEvent(event)).toEqual(event);
+  });
+
+  it("rejects tool/result with malformed sideEffects", () => {
+    const event = {
+      type: "tool/result",
+      seq: 5,
+      time: 1,
+      data: { message, sideEffects: [{ type: "nope", file: "x" }] },
+    };
+    expect(() => parseChatReplayEvent(event)).toThrow(/Invalid payload/);
   });
 });

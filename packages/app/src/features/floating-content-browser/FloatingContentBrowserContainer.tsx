@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useDataLinkedRefresh } from "../chat/hooks/useDataLinkedRefresh";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router";
 import { FloatingFrame } from "../../components/floating-frame";
@@ -20,8 +21,21 @@ export function FloatingContentBrowserContainer({
   const { filePath, position, size } = floatWindow;
   const navigate = useNavigate();
   const client = useApiClient(projectId);
-  const { content, binary, loading, error, dataUpdatedAt } = useContentFile(projectId, client, filePath);
+  const { content, binary, loading, error, dataUpdatedAt, reload } = useContentFile(projectId, client, filePath);
   const [refreshKey, setRefreshKey] = useState(0);
+  const { isMarkdown, isHtml, isImage } = classifyFileKind(filePath);
+  const dataRevision = useDataLinkedRefresh(
+    projectId,
+    null,
+    isHtml && typeof content === "string" ? content : null,
+  );
+  const reloadRef = useRef(reload);
+  useEffect(() => {
+    reloadRef.current = reload;
+  });
+  useEffect(() => {
+    if (dataRevision > 0) reloadRef.current();
+  }, [dataRevision]);
   const closeFloat = useFloatingContentBrowserStore((s) => s.closeFloat);
   const setPosition = useFloatingContentBrowserStore((s) => s.setPosition);
   const setSize = useFloatingContentBrowserStore((s) => s.setSize);
@@ -36,7 +50,6 @@ export function FloatingContentBrowserContainer({
     }
   }, [loading, content, error, closeFloat, projectId, filePath]);
 
-  const { isMarkdown, isHtml, isImage } = classifyFileKind(filePath);
   const fileName = filePath.split("/").pop() ?? filePath;
 
   return createPortal(

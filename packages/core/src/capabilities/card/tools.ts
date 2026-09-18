@@ -250,7 +250,7 @@ export function createEditCardTool(
     label: "Edit Card",
     description: EDIT_CARD_GUIDE,
     parameters: EditCardParams,
-    async execute(_toolCallId, params, _signal) {
+    async execute(toolCallId, params, _signal) {
       try {
         getPolicy().assertWrite(params.file);
       } catch (err) {
@@ -287,26 +287,25 @@ export function createEditCardTool(
       }
       try {
         const patch = (params.patch ?? {}) as EntryPatch;
+        const idempotency =
+          params.idempotencyKey !== undefined ? { idempotencyKey: params.idempotencyKey } : {};
         const result =
           params.action === "update"
             ? await cardStore.updateEntry(params.file, params.id ?? -1, patch, {
-                ...(params.idempotencyKey !== undefined
-                  ? { idempotencyKey: params.idempotencyKey }
-                  : {}),
+                ...idempotency,
+                toolCallId,
               })
             : params.action === "bulk"
               ? await cardStore.bulkUpdate(params.file, params.ids ?? [], patch, {
-                  ...(params.idempotencyKey !== undefined
-                    ? { idempotencyKey: params.idempotencyKey }
-                    : {}),
+                  ...idempotency,
+                  toolCallId,
                 })
               : params.action === "add"
                 ? await cardStore.addEntry(params.file, (params.entry ?? {}) as EntryPatch, {
-                    ...(params.idempotencyKey !== undefined
-                      ? { idempotencyKey: params.idempotencyKey }
-                      : {}),
+                    ...idempotency,
+                    toolCallId,
                   })
-                : await cardStore.removeEntry(params.file, params.id ?? -1);
+                : await cardStore.removeEntry(params.file, params.id ?? -1, { toolCallId });
         return {
           content: [{ type: "text" as const, text: jsonBlock(result) }],
           details: { path: params.file },

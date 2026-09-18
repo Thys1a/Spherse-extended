@@ -119,6 +119,14 @@ export class AgentProfileStore {
         output: data.output,
         timePerception: parseTimePerception(data.timePerception),
         yolo: data.yolo === true || undefined,
+        placeholder:
+          typeof data.placeholder === "string" && data.placeholder.trim()
+            ? data.placeholder
+            : undefined,
+        greeting:
+          typeof data.greeting === "string" && data.greeting.trim()
+            ? data.greeting
+            : undefined,
         systemPrompt: content.trim(),
         filePath: this.profilePath,
       };

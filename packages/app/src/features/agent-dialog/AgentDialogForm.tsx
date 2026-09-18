@@ -169,6 +169,24 @@ export function AgentDialogForm({ initial, mode, onSubmit, onCancel }: AgentDial
               value={formData.model ?? ""}
               onChange={(model) => setFormData((prev) => ({ ...prev, model: model || undefined }))}
             />
+            <Field>
+              <FieldLabel>{t("agent-dialog.placeholderLabel")}</FieldLabel>
+              <Input
+                type="text"
+                value={formData.placeholder ?? ""}
+                onChange={(e) => setFormData((prev) => ({ ...prev, placeholder: e.target.value }))}
+                placeholder={t("agent-dialog.placeholderPlaceholder")}
+              />
+            </Field>
+            <Field>
+              <FieldLabel>{t("agent-dialog.greetingLabel")}</FieldLabel>
+              <Textarea
+                className="min-h-20 max-h-40 resize-y"
+                value={formData.greeting ?? ""}
+                onChange={(e) => setFormData((prev) => ({ ...prev, greeting: e.target.value }))}
+                placeholder={t("agent-dialog.greetingPlaceholder")}
+              />
+            </Field>
             <ToolPicker selectedTools={formData.tools} onToggleGroup={toggleGroup} />
             {hasAdvancedTool && (
               <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">

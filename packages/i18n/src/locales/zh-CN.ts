@@ -376,6 +376,14 @@ export const zhCN = {
   "agent-dialog.aliasPlaceholder": "留空则显示名称",
   // 智能体别名 tooltip：说明别名会显示在智能体的消息气泡上，未设置时显示名称
   "agent-dialog.aliasHint": "设置后在智能体的消息气泡上显示该别名，未设置时显示名称。",
+  // 输入框占位字段标签
+  "agent-dialog.placeholderLabel": "输入框占位",
+  // 输入框占位输入框占位提示
+  "agent-dialog.placeholderPlaceholder": "留空使用默认提示，如“输入消息…”",
+  // 开场白字段标签
+  "agent-dialog.greetingLabel": "开场白",
+  // 开场白输入框占位提示
+  "agent-dialog.greetingPlaceholder": "留空则不显示，如“你好，我是小助手，有什么可以帮你？”",
   // Agent 提示词字段标签
   "agent-dialog.promptLabel": "提示词",
   // Agent 提示词字段 tooltip：说明提示词的作用（智能体的设定，智能体始终记住）

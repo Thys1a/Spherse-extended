@@ -5,6 +5,7 @@ import { NotFoundError, ValidationError } from "../errors.js";
 import { AgentRunner, type RunnerEventHandler } from "./agent-runner.js";
 import { SessionEventLog } from "./event-log.js";
 import type { SendMessageMeta, SessionEvent } from "./events.js";
+import type { SideEffectRef } from "../tool-attribution.js";
 import { deriveMessages } from "./fold.js";
 import { computeSessionStatus, type SessionStatus } from "./status.js";
 import type { TurnContextSnapshot } from "./types.js";
@@ -212,6 +213,30 @@ export class SessionManager {
       this.runConfigHolder.current().defaultModel,
       agentStore.sessions.getSession(sessionId)?.model,
     );
+  }
+
+  listSideEffectsByTurn(sessionId: string, turnSeq: number): SideEffectRef[] {
+    const live = this.sessions.get(sessionId);
+    const events =
+      live !== undefined ? [...live.currentEvents] : this.readPersistedSessionEvents(sessionId);
+    const starts = events.filter((event) => event.type === "turn/start").map((event) => event.seq);
+    const idx = starts.indexOf(turnSeq);
+    if (idx < 0) return [];
+    const end = idx + 1 < starts.length ? starts[idx + 1] : Number.POSITIVE_INFINITY;
+    const refs: SideEffectRef[] = [];
+    for (const event of events) {
+      if (event.seq <= turnSeq || event.seq >= end) continue;
+      if (event.type === "tool/result") refs.push(...(event.data.sideEffects ?? []));
+    }
+    return refs;
+  }
+
+  private readPersistedSessionEvents(sessionId: string): SessionEvent[] {
+    for (const [, agentStore] of this.deps.projectStore.agents) {
+      const events = agentStore.sessions.readEvents(sessionId);
+      if (events.length > 0) return events;
+    }
+    return [];
   }
 
   destroySession(sessionId: string): void {

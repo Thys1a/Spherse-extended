@@ -95,6 +95,23 @@ describe("parseAgentMarkdown", () => {
     expect(result.extraFrontmatter).not.toHaveProperty("model");
   });
 
+  it("parses placeholder and greeting into form data", () => {
+    const raw = "---\nname: Agent\nplaceholder: 输入消息…\ngreeting: 你好，我是小助手\n---\n\nsystem prompt";
+    const result = parseAgentMarkdown(raw);
+    expect(result.formData.placeholder).toBe("输入消息…");
+    expect(result.formData.greeting).toBe("你好，我是小助手");
+    expect(result.extraFrontmatter).not.toHaveProperty("placeholder");
+    expect(result.extraFrontmatter).not.toHaveProperty("greeting");
+  });
+
+  it("returns undefined placeholder/greeting when missing or blank", () => {
+    const missing = parseAgentMarkdown("---\nname: Agent\n---\n\nsystem prompt");
+    expect(missing.formData.placeholder).toBeUndefined();
+    expect(missing.formData.greeting).toBeUndefined();
+    const blank = parseAgentMarkdown("---\nname: Agent\nplaceholder: '   '\n---\n\nsystem prompt");
+    expect(blank.formData.placeholder).toBeUndefined();
+  });
+
   it("returns undefined model when missing", () => {
     const raw = "---\nname: Agent\n---\n\nsystem prompt";
     const result = parseAgentMarkdown(raw);
@@ -232,6 +249,29 @@ describe("buildAgentMarkdown", () => {
       false,
     );
     expect(md).not.toContain("alias");
+  });
+
+  it("round-trips placeholder and greeting through frontmatter", () => {
+    const md = buildAgentMarkdown(
+      { name: "Agent", tools: [], context: [], systemPrompt: "hello", yolo: false, placeholder: "输入消息…", greeting: "你好" },
+      {},
+      false,
+    );
+    expect(md).toContain("placeholder");
+    expect(md).toContain("greeting");
+    const parsed = parseAgentMarkdown(md);
+    expect(parsed.formData.placeholder).toBe("输入消息…");
+    expect(parsed.formData.greeting).toBe("你好");
+  });
+
+  it("omits blank placeholder/greeting from frontmatter", () => {
+    const md = buildAgentMarkdown(
+      { name: "Agent", tools: [], context: [], systemPrompt: "hello", yolo: false, placeholder: "  ", greeting: "" },
+      {},
+      false,
+    );
+    expect(md).not.toContain("placeholder");
+    expect(md).not.toContain("greeting");
   });
 
   it("preserves alias through a round-trip with extra frontmatter", () => {

@@ -12,6 +12,7 @@ import type { DataStore } from "./capabilities/data/index.js";
 import { createCardStore } from "./capabilities/card/index.js";
 import type { CardStore } from "./capabilities/card/index.js";
 import { createTriggerCapability, type TriggerCapability } from "./capabilities/trigger/index.js";
+import { ToolAttributionRegistry } from "./tool-attribution.js";
 import { createMcpCapability } from "./capabilities/mcp/index.js";
 import { attachmentsCapability } from "./capabilities/attachments/index.js";
 import { compactionCapability } from "./capabilities/compaction/index.js";
@@ -62,8 +63,9 @@ export async function assembleProject(
 
   const fileWriteMutex = new FileWriteMutex();
   const projectStore = new ProjectStore(projectRoot, logger, fileWriteMutex);
-  const dataStore = createDataStore({ projectRoot, fileWriteMutex, logger });
-  const cardStore = createCardStore({ projectRoot, fileWriteMutex, logger });
+  const attribution = new ToolAttributionRegistry();
+  const dataStore = createDataStore({ projectRoot, fileWriteMutex, logger, attribution });
+  const cardStore = createCardStore({ projectRoot, fileWriteMutex, logger, attribution });
 
   let isNewProject = false;
   try {
@@ -107,6 +109,7 @@ export async function assembleProject(
     capabilities,
     stores,
     runConfig,
+    attribution,
     ...(triggerCap !== undefined
       ? { onTurnEvent: (e) => triggerCap.manager.onInternalEvent(e.name, e.payload) }
       : {}),

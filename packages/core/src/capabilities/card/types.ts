@@ -71,6 +71,22 @@ export type EntryPatch = Partial<{
   use_regex: boolean;
 }>;
 
+export type CardChangeOrigin = "sdk" | "agent";
+
+export interface CardChangeEvent {
+  file: string;
+  origin: CardChangeOrigin;
+  sessionId?: string;
+  turnSeq?: number;
+  toolCallId?: string;
+  summary?: string;
+}
+
+export interface CardWriteOptions {
+  idempotencyKey?: string;
+  toolCallId?: string;
+}
+
 export interface CardStore {
   list(dir?: string): Promise<CardListItem[]>;
   meta(path: string): Promise<CardMeta>;
@@ -85,20 +101,21 @@ export interface CardStore {
     path: string,
     id: number,
     patch: EntryPatch,
-    opts?: { idempotencyKey?: string },
+    opts?: CardWriteOptions,
   ): Promise<{ id: number; changed: string[] }>;
   bulkUpdate(
     path: string,
     ids: number[],
     patch: EntryPatch,
-    opts?: { idempotencyKey?: string },
+    opts?: CardWriteOptions,
   ): Promise<{ count: number }>;
   addEntry(
     path: string,
     entry: EntryPatch,
-    opts?: { idempotencyKey?: string },
+    opts?: CardWriteOptions,
   ): Promise<{ id: number }>;
-  removeEntry(path: string, id: number): Promise<{ ok: boolean }>;
+  removeEntry(path: string, id: number, opts?: CardWriteOptions): Promise<{ ok: boolean }>;
+  onChange(handler: (e: CardChangeEvent) => void): () => void;
 }
 
 export class CardNotFoundError extends Error {

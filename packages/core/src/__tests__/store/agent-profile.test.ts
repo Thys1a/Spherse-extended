@@ -61,6 +61,22 @@ You are a world building assistant.`;
     expect(profile!.alias).toBeUndefined();
   });
 
+  it("parses placeholder and greeting from frontmatter when present", async () => {
+    await writeProfile("---\nname: Agent\nplaceholder: 输入消息…\ngreeting: 你好\n---\n\nprompt");
+    const profile = await store.read();
+    expect(profile).not.toBeNull();
+    expect(profile!.placeholder).toBe("输入消息…");
+    expect(profile!.greeting).toBe("你好");
+  });
+
+  it("returns undefined placeholder/greeting when frontmatter omits them", async () => {
+    await writeProfile(VALID_PROFILE);
+    const profile = await store.read();
+    expect(profile).not.toBeNull();
+    expect(profile!.placeholder).toBeUndefined();
+    expect(profile!.greeting).toBeUndefined();
+  });
+
   it("parses yolo true from frontmatter", async () => {
     await writeProfile("---\nname: Agent\nyolo: true\n---\n\nprompt");
     const profile = await store.read();

@@ -157,6 +157,8 @@ UI SDK 的 `data.mutate` 直接返回业务对象：`append` 返回新增条目�
 
 不要用 `data.get` 读出整个数组、在页面中修改后再用 `data.set` 写回。该模式会覆盖页面读取之后由其他 Agent 或页面写入的变更。
 
+撤回（withdraw）只截断消息、不回滚写入：`mutate_data` 落库后即持久化，撤回上一轮对话不会撤销已写入的数据。如需“撤销”，用新的 mutation 把数据恢复为期望值。
+
 页面不能只处理自己的 mutation 返回值，还要订阅数据文件变化，使 Agent 或其他页面的写入及时反映到 UI：
 
 ```javascript

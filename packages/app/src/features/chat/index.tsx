@@ -20,6 +20,7 @@ import { useChatSession } from "./hooks/useChatSession";
 import { useStreamingStore } from "./runtime/streaming-store";
 import type { AttachedFile } from "./types";
 import { useSummonSend } from "./lib/use-summon-send";
+import { useAgentProfile } from "../../queries/project/agents";
 
 export interface ChatProps {
   sessionId: string;
@@ -66,6 +67,7 @@ export function Chat({ sessionId, agent, onNavigateToPath, onOpenSession, initia
   const loadingMore = useStreamingStore((s) => s.sessions[sessionId]?.loadingMore ?? false);
   const { containerRef, isAtBottom, scrollToBottom } = useChatScroll(messages, sessionId, loadingMore);
   const sendSummon = useSummonSend(sessionId, agent.id);
+  const { profile } = useAgentProfile(projectId, client, agent.id);
   const themeCss = useAgentTheme(client, agent.id, agent.slug, projectId);
   const scopedThemeCss = useMemo(
     () =>
@@ -141,6 +143,7 @@ export function Chat({ sessionId, agent, onNavigateToPath, onOpenSession, initia
         <MessageList
           messages={messages}
           agent={agent}
+          greeting={profile?.greeting}
           sessionId={sessionId}
           streaming={streaming}
           loading={loading}
@@ -161,6 +164,7 @@ export function Chat({ sessionId, agent, onNavigateToPath, onOpenSession, initia
           streaming={streaming}
           loading={loading}
           sessionId={sessionId}
+          placeholder={profile?.placeholder}
           onSend={handleSend}
           onAbort={abort}
         />

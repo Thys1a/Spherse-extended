@@ -32,11 +32,12 @@ interface ComposerProps {
   streaming: boolean;
   loading?: boolean;
   sessionId: string;
+  placeholder?: string;
   onSend: (message: string, attachments?: AttachedFile[]) => boolean;
   onAbort: () => void;
 }
 
-export function Composer({ streaming, loading = false, sessionId, onSend, onAbort }: ComposerProps) {
+export function Composer({ streaming, loading = false, sessionId, placeholder, onSend, onAbort }: ComposerProps) {
   const { t } = useI18n();
   const { projectId } = useProjectCtx();
   const client = useApiClient(projectId);
@@ -330,7 +331,7 @@ export function Composer({ streaming, loading = false, sessionId, onSend, onAbor
           onCompositionEnd={() => {
             composingRef.current = false;
           }}
-          placeholder={t("chat.composerPlaceholder")}
+          placeholder={placeholder ?? t("chat.composerPlaceholder")}
           enterKeyHint={isTouchKeyboard ? "enter" : "send"}
           onKeyDown={(event) => {
             if (menu) {

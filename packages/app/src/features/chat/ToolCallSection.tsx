@@ -42,7 +42,7 @@ export function ToolCallSection({ toolCalls, onNavigateToPath }: ToolCallSection
   };
 
   return (
-    <div className="mt-2 border-t border-dashed border-border pt-2">
+    <div className="mt-2 border-t border-dashed border-border pt-2" data-chat-tool-call>
       {toolCalls.map((toolCall) => {
         const expanded = expandedIds.has(toolCall.toolCallId);
         const summary = getArgsSummary(toolCall.args);

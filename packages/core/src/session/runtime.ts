@@ -9,6 +9,7 @@ import { ModelCatalog } from "../model-providers/catalog.js";
 import type { Capability } from "../kernel/capability.js";
 import type { AttachmentProcessor } from "../attachments/index.js";
 import type { StoreRegistry } from "../kernel/ports.js";
+import type { ToolAttributionRegistry } from "../tool-attribution.js";
 
 export interface RunConfig {
   readonly defaultModel?: string;
@@ -58,6 +59,7 @@ export interface RuntimeDeps {
   readonly runConfig: RunConfigSource;
   readonly createTurnHooks?: TurnHooksFactory;
   readonly onTurnEvent?: (event: TurnEvent) => void;
+  readonly attribution?: ToolAttributionRegistry;
   readonly modelResolver: ModelResolver;
   readonly modelCatalog: ModelCatalog;
   readonly capabilities: ReadonlyArray<Capability>;
@@ -77,6 +79,7 @@ export function createRuntimeDeps(input: {
   stores: StoreRegistry;
   runConfig: RunConfigSource;
   onTurnEvent?: (event: TurnEvent) => void;
+  attribution?: ToolAttributionRegistry;
   modelResolver?: ModelResolver;
   modelCatalog?: ModelCatalog;
 }): Readonly<RuntimeDeps> {
@@ -89,6 +92,7 @@ export function createRuntimeDeps(input: {
     logger: input.logger,
     runConfig: input.runConfig,
     ...(input.onTurnEvent !== undefined ? { onTurnEvent: input.onTurnEvent } : {}),
+    ...(input.attribution !== undefined ? { attribution: input.attribution } : {}),
     createTurnHooks: (agentId, sessionId) =>
       composeTurnHooks(
         capabilities
