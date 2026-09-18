@@ -145,6 +145,58 @@ describe("outline", () => {
     const m = parseManifest({ version: 1, mutations: { up: { op: "update", path: "t", match: "id", fields: { s: { type: "string", required: true } } } } })!;
     expect(formatEntrySignature("mutation", "up", m.mutations.up)).toBe("  mutation: up(id!, s!) → update t");
   });
+
+  it("formatEntrySignature renders nested shapes inline (R1.1)", () => {
+    const m = parseManifest({
+      version: 2,
+      mutations: {
+        addMember: {
+          op: "append",
+          path: "party",
+          fields: {
+            name: { type: "string", required: true },
+            stats: {
+              type: "object",
+              required: true,
+              properties: { hp: { type: "integer", required: true }, level: { type: "integer" } },
+            },
+            tags: { type: "array", items: { type: "string" } },
+          },
+        },
+      },
+    })!;
+    expect(formatEntrySignature("mutation", "addMember", m.mutations.addMember)).toBe(
+      "  mutation: addMember(name!, stats!: {hp!: integer, level?: integer}, tags?: string[]) → append party",
+    );
+  });
+
+  it("formatEntrySignature truncates nesting beyond L1 instead of recursing", () => {
+    const m = parseManifest({
+      version: 2,
+      mutations: {
+        deep: {
+          op: "append",
+          path: "p",
+          fields: {
+            a: {
+              type: "object",
+              properties: {
+                b: {
+                  type: "object",
+                  properties: {
+                    c: { type: "object", properties: { d: { type: "integer" } } },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    })!;
+    const sig = formatEntrySignature("mutation", "deep", m.mutations.deep);
+    expect(sig).toContain("{…}");
+    expect(sig).not.toContain("d!");
+  });
 });
 
 describe("OutlineCache", () => {

@@ -230,6 +230,14 @@ export function createDataStore(opts: CreateDataStoreOptions): DataStore {
       const row = target.value[idx] as Record<string, unknown>;
       for (const [field, value] of Object.entries(validated.value)) {
         if (field === mutation.match) continue;
+        const prev = row[field];
+        if (
+          typeof prev === "object" && prev !== null && !Array.isArray(prev) &&
+          typeof value === "object" && value !== null && !Array.isArray(value)
+        ) {
+          row[field] = { ...(prev as Record<string, unknown>), ...(value as Record<string, unknown>) };
+          continue;
+        }
         row[field] = value;
       }
       for (const [field, gen] of Object.entries(mutation.auto ?? {})) {
@@ -253,6 +261,9 @@ export function createDataStore(opts: CreateDataStoreOptions): DataStore {
         patch[field] = gen === "uuid" ? randomUUID() : new Date().toISOString();
       }
       const target = (parent.value as Record<string, unknown>)[leaf];
+      // NOTE (game-engine R1.1): shallow merge = whole-leaf replacement for
+      // nested objects. Arrays are never merged element-wise; use
+      // append/update/remove for element-level changes.
       (parent.value as Record<string, unknown>)[leaf] = {
         ...(typeof target === "object" && target !== null && !Array.isArray(target) ? target : {}),
         ...patch,

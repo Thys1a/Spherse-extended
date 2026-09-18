@@ -31,7 +31,7 @@ export type { TriggerManager } from "./trigger/trigger-manager.js";
 export type { TriggerEventPayload } from "./trigger/trigger-manager.js";
 export type { TimerService } from "./trigger/timer-service.js";
 export { createProject } from "./factory.js";
-export type { DataStore, DataChangeEvent, OutlineResult, ReadResult, QueryResult, MutateResult, WriteResult } from "./capabilities/data/index.js";
+export type { DataStore, DataChangeEvent, ManifestFieldRule, ManifestFieldType, OutlineResult, ReadResult, QueryResult, MutateResult, WriteResult } from "./capabilities/data/index.js";
 export { createDataStore } from "./capabilities/data/index.js";
 export type {
   CardStore,

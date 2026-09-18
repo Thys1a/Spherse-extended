@@ -69,12 +69,23 @@ export interface ManifestParam {
   desc?: string;
 }
 
+export type ManifestFieldType =
+  | "string"
+  | "integer"
+  | "number"
+  | "boolean"
+  | "enum"
+  | "object"
+  | "array";
+
 export interface ManifestFieldRule {
-  type: "string" | "integer" | "number" | "boolean" | "enum";
+  type: ManifestFieldType;
   values?: string[];
   required?: boolean;
   default?: unknown;
   desc?: string;
+  properties?: Record<string, ManifestFieldRule>;
+  items?: ManifestFieldRule;
 }
 
 export interface ManifestQuery {
@@ -103,10 +114,16 @@ export interface Manifest {
   mutations: Record<string, ManifestMutation>;
 }
 
+export interface ManifestDiagnostic {
+  name: string;
+  reason: string;
+}
+
 export interface ManifestHealth {
   status: "healthy" | "stale" | "absent" | "invalid";
   staleQueries: string[];
   staleMutations: string[];
+  diagnostics?: ManifestDiagnostic[];
 }
 
 export interface OutlineResult {

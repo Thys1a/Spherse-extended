@@ -1,4 +1,10 @@
-import type { Manifest, ManifestHealth, ManifestMutation, ManifestQuery } from "./types.js";
+import type {
+  Manifest,
+  ManifestFieldRule,
+  ManifestHealth,
+  ManifestMutation,
+  ManifestQuery,
+} from "./types.js";
 import { stripReservedKeys } from "./dot-path.js";
 
 const SHAPE_SAMPLE_COUNT = 5;
@@ -70,6 +76,33 @@ function describeValue(value: unknown, depth: number): string {
   return typeName(value);
 }
 
+function formatFieldType(rule: ManifestFieldRule, depth = 0): string {
+  if (rule.type === "object") {
+    if (depth > 1) return "{…}";
+    const props = rule.properties;
+    if (typeof props !== "object" || props === null || Array.isArray(props)) return "{…}";
+    const inner = Object.entries(props)
+      .map(([k, r]) => formatFieldRule(k, r, true, depth + 1))
+      .join(", ");
+    return `{${inner}}`;
+  }
+  if (rule.type === "array") {
+    if (depth > 1) return "array";
+    if (!rule.items || typeof rule.items !== "object") return "array";
+    return `${formatFieldType(rule.items, depth + 1)}[]`;
+  }
+  return rule.type;
+}
+
+function formatFieldRule(fname: string, rule: ManifestFieldRule, nested = false, depth = 0): string {
+  const marker = rule.required ? "!" : "?";
+  if (rule.type === "object" || rule.type === "array") {
+    return `${fname}${marker}: ${formatFieldType(rule, depth)}`;
+  }
+  if (nested) return `${fname}${marker}: ${rule.type}`;
+  return `${fname}${marker}`;
+}
+
 export function formatEntrySignature(
   kind: "query" | "mutation",
   name: string,
@@ -87,11 +120,11 @@ export function formatEntrySignature(
   const m = entry as ManifestMutation;
   const required: string[] = [];
   const optional: string[] = [];
-  if (m.match) required.push(m.match);
+  if (m.match) required.push(`${m.match}!`);
   for (const [fname, rule] of Object.entries(m.fields ?? {})) {
-    (rule.required ? required : optional).push(fname);
+    (rule.required ? required : optional).push(formatFieldRule(fname, rule));
   }
-  const params = [...required.map((n) => `${n}!`), ...optional.map((n) => `${n}?`)];
+  const params = [...required, ...optional];
   return `  mutation: ${name}(${params.join(", ")}) → ${m.op} ${m.path}`;
 }
 

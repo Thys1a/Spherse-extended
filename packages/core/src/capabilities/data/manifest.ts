@@ -49,12 +49,25 @@ export const dataManifestSchema = Type.Object({
 
 type ManifestShape = Static<typeof dataManifestSchema>;
 
-const MANIFEST_SUPPORTED_VERSION = 1;
+const MANIFEST_SUPPORTED_VERSION = 2;
+
+// version:1 predates nested object/array fields (R1.1). A v1 manifest that
+// declares a nested rule is skipped entry-wise (same leniency as other
+// malformed entries); authors must bump to version: 2. See R1.2 diagnostics.
+function hasNestedFieldRule(fields: unknown): boolean {
+  if (typeof fields !== "object" || fields === null) return false;
+  return Object.values(fields).some(
+    (r) =>
+      typeof r === "object" &&
+      r !== null &&
+      ((r as { type?: unknown }).type === "object" || (r as { type?: unknown }).type === "array"),
+  );
+}
 
 export function parseManifest(value: unknown): Manifest | null {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
   const shape = value as Partial<ManifestShape>;
-  if (typeof shape.version !== "number" || shape.version > MANIFEST_SUPPORTED_VERSION) return null;
+  if (typeof shape.version !== "number" || shape.version < 1 || shape.version > MANIFEST_SUPPORTED_VERSION) return null;
   if (shape.queries !== undefined && (typeof shape.queries !== "object" || shape.queries === null || Array.isArray(shape.queries))) return null;
   if (shape.mutations !== undefined && (typeof shape.mutations !== "object" || shape.mutations === null || Array.isArray(shape.mutations))) return null;
 
@@ -74,6 +87,7 @@ export function parseManifest(value: unknown): Manifest | null {
   for (const [name, m] of Object.entries(shape.mutations ?? {})) {
     if (!m || typeof m.path !== "string" || !m.path) continue;
     if (m.op !== "append" && m.op !== "update" && m.op !== "remove" && m.op !== "set") continue;
+    if (shape.version < 2 && hasNestedFieldRule(m.fields)) continue;
     mutations[name] = {
       desc: m.desc,
       op: m.op,

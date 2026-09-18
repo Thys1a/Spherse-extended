@@ -26,8 +26,41 @@ describe("parseManifest", () => {
     expect(parseManifest(null)).toBeNull();
     expect(parseManifest([])).toBeNull();
     expect(parseManifest("x")).toBeNull();
-    expect(parseManifest({ version: 2, queries: {} })).toBeNull();
+    expect(parseManifest({ version: 3, queries: {} })).toBeNull();
+    expect(parseManifest({ version: 0, queries: {} })).toBeNull();
     expect(parseManifest({ queries: {} })).toBeNull();
+  });
+
+  it("parses version 2 manifests", () => {
+    const m = parseManifest({ version: 2, queries: {}, mutations: {} });
+    expect(m).not.toBeNull();
+    expect(m!.version).toBe(2);
+  });
+
+  it("keeps nested field rules on version 2, drops them on version 1", () => {
+    const nested = {
+      op: "append",
+      path: "party",
+      fields: {
+        name: { type: "string", required: true },
+        stats: {
+          type: "object",
+          required: true,
+          properties: { hp: { type: "integer", required: true } },
+        },
+        tags: { type: "array", items: { type: "string" } },
+      },
+    };
+    const v2 = parseManifest({ version: 2, mutations: { addMember: nested } });
+    expect(Object.keys(v2!.mutations)).toEqual(["addMember"]);
+    expect(v2!.mutations.addMember.fields!.stats.type).toBe("object");
+    const v1 = parseManifest({ version: 1, mutations: { addMember: nested } });
+    expect(Object.keys(v1!.mutations)).toEqual([]);
+    const v1scalar = parseManifest({
+      version: 1,
+      mutations: { addTodo: { op: "append", path: "todos", fields: { title: { type: "string" } } } },
+    });
+    expect(Object.keys(v1scalar!.mutations)).toEqual(["addTodo"]);
   });
 
   it("tolerates missing queries/mutations", () => {
@@ -147,6 +180,224 @@ describe("validateMutationArgs", () => {
     expect(validateMutationArgs(m, { id: "a1", status: "done" }).value).toEqual({ status: "done", id: "a1" });
     const redeclared = { ...m, fields: { id: { type: "string" as const }, status: { type: "enum" as const, values: ["done"] } } };
     expect(() => validateMutationArgs(redeclared, { id: "a1", status: "done" })).toThrow(/must not be redeclared/);
+  });
+});
+
+describe("validateMutationArgs nested (R1.1)", () => {
+  const member = {
+    op: "append" as const,
+    path: "party",
+    fields: {
+      name: { type: "string" as const, required: true },
+      stats: {
+        type: "object" as const,
+        required: true,
+        properties: {
+          hp: { type: "integer" as const, required: true },
+          level: { type: "integer" as const, default: 1 },
+        },
+      },
+      tags: { type: "array" as const, items: { type: "string" as const } },
+    },
+  };
+
+  it("accepts valid nested values and fills nested defaults", () => {
+    const input = { name: "ash", stats: { hp: 80 }, tags: ["brave"] };
+    const { value } = validateMutationArgs(member, input);
+    expect(value).toEqual({ name: "ash", stats: { hp: 80, level: 1 }, tags: ["brave"] });
+    // caller input must not be mutated by default filling
+    expect(input).toEqual({ name: "ash", stats: { hp: 80 }, tags: ["brave"] });
+  });
+
+  it("reports nested required missing / type errors with dotted paths", () => {
+    expect(() => validateMutationArgs(member, { name: "x", stats: {} })).toThrow(
+      /stats\.hp: required field missing/,
+    );
+    expect(() => validateMutationArgs(member, { name: "x", stats: { hp: "high" } })).toThrow(
+      /stats\.hp: expected integer/,
+    );
+    expect(() => validateMutationArgs(member, { name: "x", stats: [1] })).toThrow(
+      /stats: expected object/,
+    );
+    expect(() => validateMutationArgs(member, { name: "x", stats: { hp: 1 }, tags: "nope" })).toThrow(
+      /tags: expected array/,
+    );
+    expect(() =>
+      validateMutationArgs(member, { name: "x", stats: { hp: 1 }, tags: ["ok", 7] }),
+    ).toThrow(/tags\[1\]: expected string/);
+  });
+
+  it("rejects unknown nested fields", () => {
+    expect(() =>
+      validateMutationArgs(member, { name: "x", stats: { hp: 1, mp: 5 } }),
+    ).toThrow(/stats\.mp: unknown field/);
+  });
+
+  it("validates arrays of objects element-wise", () => {
+    const m = {
+      op: "append" as const,
+      path: "party",
+      fields: {
+        members: {
+          type: "array" as const,
+          required: true,
+          items: {
+            type: "object" as const,
+            properties: { hp: { type: "integer" as const, required: true } },
+          },
+        },
+      },
+    };
+    const { value } = validateMutationArgs(m, { members: [{ hp: 10 }, { hp: 20 }] });
+    expect(value).toEqual({ members: [{ hp: 10 }, { hp: 20 }] });
+    expect(() => validateMutationArgs(m, { members: [{ hp: 10 }, {}] })).toThrow(
+      /members\[1\]\.hp: required field missing/,
+    );
+    expect(() => validateMutationArgs(m, {})).toThrow(/members: required field missing/);
+  });
+
+  it("rejects nesting beyond L1", () => {
+    const deep = {
+      op: "append" as const,
+      path: "p",
+      fields: {
+        a: {
+          type: "object" as const,
+          properties: {
+            b: {
+              type: "object" as const,
+              properties: {
+                c: { type: "object" as const, properties: { d: { type: "integer" as const } } },
+              },
+            },
+          },
+        },
+      },
+    };
+    expect(() => validateMutationArgs(deep, { a: { b: { c: { d: 1 } } } })).toThrow(/exceeds L1/);
+    const deepArr = {
+      op: "append" as const,
+      path: "p",
+      fields: {
+        arr: {
+          type: "array" as const,
+          items: {
+            type: "object" as const,
+            properties: {
+              nested: {
+                type: "object" as const,
+                properties: { x: { type: "integer" as const } },
+              },
+            },
+          },
+        },
+      },
+    };
+    expect(() => validateMutationArgs(deepArr, { arr: [{ nested: { x: 1 } }] })).toThrow(
+      /exceeds L1/,
+    );
+  });
+
+  it("allows one nested object level with scalar leaves", () => {
+    const m = {
+      op: "append" as const,
+      path: "p",
+      fields: {
+        a: {
+          type: "object" as const,
+          properties: {
+            b: { type: "object" as const, properties: { x: { type: "integer" as const } } },
+          },
+        },
+      },
+    };
+    expect(validateMutationArgs(m, { a: { b: { x: 1 } } }).value).toEqual({ a: { b: { x: 1 } } });
+  });
+
+  it("rejects malformed nested rules instead of silently passing", () => {
+    const badProps = {
+      op: "append" as const,
+      path: "p",
+      fields: { a: { type: "object" as const, properties: "nope" as unknown as Record<string, never> } },
+    };
+    expect(() => validateMutationArgs(badProps, { a: {} })).toThrow(/invalid properties/);
+    const badItems = {
+      op: "append" as const,
+      path: "p",
+      fields: {
+        arr: { type: "array" as const, items: { type: "garbage" as unknown as "string" } },
+      },
+    };
+    expect(() => validateMutationArgs(badItems, { arr: ["x"] })).toThrow(/unsupported field type/);
+    const badSub = {
+      op: "append" as const,
+      path: "p",
+      fields: {
+        a: { type: "object" as const, properties: { x: "oops" as unknown as { type: "string" } } },
+      },
+    };
+    expect(() => validateMutationArgs(badSub, { a: { x: 1 } })).toThrow(/invalid field rule/);
+  });
+
+  it("rejects uncloneable values as validation errors", () => {
+    const fn = () => {};
+    expect(() => validateMutationArgs(member, { name: "x", stats: { hp: 1, cb: fn } })).toThrow(
+      DataValidationError,
+    );
+  });
+
+  it("unshaped object/array defaults are strict", () => {
+    const bareObj = {
+      op: "append" as const,
+      path: "p",
+      fields: { a: { type: "object" as const } },
+    };
+    expect(validateMutationArgs(bareObj, { a: {} }).value).toEqual({ a: {} });
+    expect(() => validateMutationArgs(bareObj, { a: { x: 1 } })).toThrow(/unknown field/);
+    const bareArr = {
+      op: "append" as const,
+      path: "p",
+      fields: { arr: { type: "array" as const } },
+    };
+    expect(validateMutationArgs(bareArr, { arr: [] }).value).toEqual({ arr: [] });
+    expect(() => validateMutationArgs(bareArr, { arr: [1] })).toThrow(/items type not declared/);
+  });
+
+  it("update skips default filling so partial nested writes keep stored values", () => {
+    const upd = {
+      op: "update" as const,
+      path: "party",
+      match: "name",
+      fields: {
+        stats: {
+          type: "object" as const,
+          properties: {
+            hp: { type: "integer" as const, required: true },
+            level: { type: "integer" as const, default: 1 },
+          },
+        },
+        nick: { type: "string" as const, default: "none" },
+      },
+    };
+    const { value } = validateMutationArgs(upd, { name: "ash", stats: { hp: 90 } });
+    expect(value).toEqual({ name: "ash", stats: { hp: 90 } });
+  });
+
+  it("nested field names may repeat top-level auto/match names", () => {
+    const m = {
+      op: "append" as const,
+      path: "party",
+      match: undefined as unknown as string | undefined,
+      fields: {
+        profile: {
+          type: "object" as const,
+          properties: { id: { type: "string" as const, required: true } },
+        },
+      },
+      auto: { id: "uuid" as const },
+    };
+    const { value } = validateMutationArgs(m, { profile: { id: "inner" } });
+    expect(value).toEqual({ profile: { id: "inner" } });
   });
 });
 
