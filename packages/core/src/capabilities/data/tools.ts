@@ -122,7 +122,11 @@ const MutateDataParams = Type.Object({
   idempotencyKey: Type.Optional(Type.String({ description: "Unique key to make retries safe: same key returns the original result instead of executing again (e.g. session:run:n)" })),
 });
 
-export function createMutateDataTool(dataStore: DataStore, getPolicy: AccessPolicyProvider): AgentTool<typeof MutateDataParams> {
+export function createMutateDataTool(
+  dataStore: DataStore,
+  getPolicy: AccessPolicyProvider,
+  sessionId?: string,
+): AgentTool<typeof MutateDataParams> {
   return {
     name: "mutate_data",
     label: "Mutate Data",
@@ -139,6 +143,7 @@ export function createMutateDataTool(dataStore: DataStore, getPolicy: AccessPoli
         const result = await dataStore.mutate(params.file, params.name, params.args ?? {}, {
           ...(params.idempotencyKey !== undefined ? { idempotencyKey: params.idempotencyKey } : {}),
           toolCallId,
+          ...(sessionId !== undefined ? { sessionId } : {}),
         });
         return {
           content: [{ type: "text" as const, text: jsonBlock(result) }],

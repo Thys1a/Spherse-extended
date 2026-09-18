@@ -24,6 +24,7 @@ import {
   type CardSearchHit,
   type CardSearchOpts,
   type CardStore,
+  type CardWriteOptions,
   type EntryPatch,
 } from "./types.js";
 import type { ToolAttributionRegistry } from "../../tool-attribution.js";
@@ -144,12 +145,22 @@ export function createCardStore(opts: CreateCardStoreOptions): CardStore {
   const cache = new CardCache();
   const changeHandlers = new Set<(e: CardChangeEvent) => void>();
 
-  function emitChange(file: string, summary: string, toolCallId: string | undefined): void {
-    const resolved = toolCallId !== undefined ? attribution?.attribute(toolCallId) : undefined;
+  function emitChange(
+    file: string,
+    summary: string,
+    toolCallId: string | undefined,
+    sessionId: string | undefined,
+  ): void {
+    const resolved =
+      toolCallId !== undefined && sessionId !== undefined
+        ? attribution?.attribute(sessionId, toolCallId)
+        : undefined;
     const event: CardChangeEvent = {
       file,
       origin: toolCallId !== undefined ? "agent" : "sdk",
-      ...(resolved ?? {}),
+      ...(resolved !== undefined && sessionId !== undefined
+        ? { sessionId, turnSeq: resolved.turnSeq }
+        : {}),
       ...(toolCallId !== undefined ? { toolCallId } : {}),
       summary,
     };
@@ -287,7 +298,7 @@ export function createCardStore(opts: CreateCardStoreOptions): CardStore {
       file: string,
       id: number,
       patch: EntryPatch,
-      opts?: { idempotencyKey?: string; toolCallId?: string },
+      opts?: CardWriteOptions,
     ): Promise<{ id: number; changed: string[] }> {
       const invalid = validatePatch(patch);
       if (invalid.length > 0) throw new InvalidFieldError(invalid);
@@ -308,7 +319,7 @@ export function createCardStore(opts: CreateCardStoreOptions): CardStore {
         return { id, changed };
       });
       if (result.changed.length > 0) {
-        emitChange(rel, `updateEntry#${id}`, opts?.toolCallId);
+        emitChange(rel, `updateEntry#${id}`, opts?.toolCallId, opts?.sessionId);
       }
       return result;
     },
@@ -317,7 +328,7 @@ export function createCardStore(opts: CreateCardStoreOptions): CardStore {
       file: string,
       ids: number[],
       patch: EntryPatch,
-      opts?: { idempotencyKey?: string; toolCallId?: string },
+      opts?: CardWriteOptions,
     ): Promise<{ count: number }> {
       const invalid = validatePatch(patch);
       if (invalid.length > 0) throw new InvalidFieldError(invalid);
@@ -335,14 +346,16 @@ export function createCardStore(opts: CreateCardStoreOptions): CardStore {
         });
         return { count: ids.length };
       });
-      emitChange(rel, `bulkUpdate#${ids.length}`, opts?.toolCallId);
+      if (ids.length > 0) {
+        emitChange(rel, `bulkUpdate#${ids.length}`, opts?.toolCallId, opts?.sessionId);
+      }
       return result;
     },
 
     async addEntry(
       file: string,
       entry: EntryPatch,
-      opts?: { idempotencyKey?: string; toolCallId?: string },
+      opts?: CardWriteOptions,
     ): Promise<{ id: number }> {
       const invalid = validatePatch(entry);
       if (invalid.length > 0) throw new InvalidFieldError(invalid);
@@ -356,14 +369,14 @@ export function createCardStore(opts: CreateCardStoreOptions): CardStore {
         });
         return { id: newId };
       });
-      emitChange(rel, `addEntry#${result.id}`, opts?.toolCallId);
+      emitChange(rel, `addEntry#${result.id}`, opts?.toolCallId, opts?.sessionId);
       return result;
     },
 
     async removeEntry(
       file: string,
       id: number,
-      opts?: { idempotencyKey?: string; toolCallId?: string },
+      opts?: CardWriteOptions,
     ): Promise<{ ok: boolean }> {
       const absPath = resolveCardFile(root, file);
       const rel = toPosixRelative(root, absPath);
@@ -375,7 +388,7 @@ export function createCardStore(opts: CreateCardStoreOptions): CardStore {
         });
         return { ok: true };
       });
-      emitChange(rel, `removeEntry#${id}`, opts?.toolCallId);
+      emitChange(rel, `removeEntry#${id}`, opts?.toolCallId, opts?.sessionId);
       return result;
     },
 

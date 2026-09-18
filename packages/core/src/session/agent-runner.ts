@@ -69,8 +69,7 @@ export class AgentRunner {
     );
     const runner = new AgentRunner(agent, agentId, sessionId, deps, controlBus);
     agent.beforeToolCall = async (context) => {
-      deps.attribution?.begin(context.toolCall.id, {
-        sessionId,
+      deps.attribution?.begin(sessionId, context.toolCall.id, {
         turnSeq: runner.currentTurnSeq(),
       });
       return undefined;
@@ -546,8 +545,8 @@ export class AgentRunner {
       let sideEffects: SideEffectRef[] | undefined;
       const registry = this.deps.attribution;
       if (registry && typeof result.toolCallId === "string") {
-        const attribution = registry.attribute(result.toolCallId);
-        registry.drop(result.toolCallId);
+        const attribution = registry.attribute(this.sessionId, result.toolCallId);
+        registry.drop(this.sessionId, result.toolCallId);
         if (
           attribution !== undefined &&
           result.isError !== true &&

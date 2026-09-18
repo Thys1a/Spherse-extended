@@ -49,7 +49,7 @@ export function createDataStore(opts: CreateDataStoreOptions): DataStore {
   const root = path.resolve(opts.projectRoot);
   const mutex = opts.fileWriteMutex;
   const logger = opts.logger;
-  const attribution = opts.attribution;
+  const attributionRegistry = opts.attribution;
   const outlineCache = new OutlineCache(64);
   const changeHandlers = new Set<(e: DataChangeEvent) => void>();
   const idempotencyCache = new Map<string, unknown>();
@@ -112,7 +112,7 @@ export function createDataStore(opts: CreateDataStoreOptions): DataStore {
     doc: Record<string, unknown>,
     origin: DataOrigin,
     summary?: string,
-    toolCallId?: string,
+    attribution?: { sessionId: string; toolCallId: string },
   ): Promise<string> {
     const content = JSON.stringify(doc, null, 2);
     const buf = Buffer.from(content, "utf8");
@@ -125,14 +125,17 @@ export function createDataStore(opts: CreateDataStoreOptions): DataStore {
     await fs.rename(tmp, absPath);
     const version = sha256(buf);
     outlineCache.invalidateFile(absPath);
-    const resolved = toolCallId !== undefined ? attribution?.attribute(toolCallId) : undefined;
+    const resolved =
+      attribution !== undefined
+        ? attributionRegistry?.attribute(attribution.sessionId, attribution.toolCallId)
+        : undefined;
     pendingEvents.push({
       file: toPosixRelative(root, absPath),
       version,
       origin,
       ...(summary !== undefined ? { summary } : {}),
-      ...(resolved ?? {}),
-      ...(toolCallId !== undefined ? { toolCallId } : {}),
+      ...(resolved !== undefined ? { sessionId: attribution!.sessionId, turnSeq: resolved.turnSeq } : {}),
+      ...(attribution !== undefined ? { toolCallId: attribution.toolCallId } : {}),
     });
     return version;
   }
@@ -165,7 +168,7 @@ export function createDataStore(opts: CreateDataStoreOptions): DataStore {
     key: string,
     apply: (doc: Record<string, unknown>) => boolean,
     ifVersion: string | undefined,
-    toolCallId?: string,
+    attribution?: { sessionId: string; toolCallId: string },
   ): Promise<WriteResult> {
     if (typeof key !== "string" || !key) throw new Error("key must be a non-empty string");
     if (isReservedKey(key)) throw new ForbiddenKeyError(key);
@@ -177,7 +180,13 @@ export function createDataStore(opts: CreateDataStoreOptions): DataStore {
       }
       const changed = apply(loaded.doc);
       if (!changed) return { version: loaded.version };
-      const version = await persistLocked(absPath, loaded.doc, "sdk", undefined, toolCallId);
+      const version = await persistLocked(
+        absPath,
+        loaded.doc,
+        attribution !== undefined ? "agent" : "sdk",
+        undefined,
+        attribution,
+      );
       return { version };
     });
     flushEvents();
@@ -286,7 +295,9 @@ export function createDataStore(opts: CreateDataStoreOptions): DataStore {
     absPath: string,
     name: string,
     args: Record<string, unknown>,
-    opts: { idempotencyKey?: string; origin?: DataOrigin; toolCallId?: string } | undefined,
+    opts:
+      | { idempotencyKey?: string; origin?: DataOrigin; toolCallId?: string; sessionId?: string }
+      | undefined,
   ): Promise<MutateResult> {
     const origin: DataOrigin = opts?.origin ?? "agent";
     const idemKey = opts?.idempotencyKey !== undefined ? `${name}\0${opts.idempotencyKey}` : undefined;
@@ -320,7 +331,15 @@ export function createDataStore(opts: CreateDataStoreOptions): DataStore {
         throw new ManifestStaleError(name, "mutation", Object.keys(manifest.mutations));
       }
       const result = applyMutation(loaded.doc, mutation, args, name, Object.keys(manifest.mutations));
-      const version = await persistLocked(absPath, loaded.doc, origin, name, opts?.toolCallId);
+      const version = await persistLocked(
+        absPath,
+        loaded.doc,
+        origin,
+        name,
+        opts?.toolCallId !== undefined && opts?.sessionId !== undefined
+          ? { sessionId: opts.sessionId, toolCallId: opts.toolCallId }
+          : undefined,
+      );
       const full = { version, result } satisfies MutateResult;
       rememberIdempotent(absPath, idemKey, full);
       return full;
@@ -454,7 +473,9 @@ export function createDataStore(opts: CreateDataStoreOptions): DataStore {
           return true;
         },
         opts?.ifVersion,
-        opts?.toolCallId,
+        opts?.toolCallId !== undefined && opts?.sessionId !== undefined
+          ? { sessionId: opts.sessionId, toolCallId: opts.toolCallId }
+          : undefined,
       );
     },
 
@@ -468,7 +489,9 @@ export function createDataStore(opts: CreateDataStoreOptions): DataStore {
           return true;
         },
         opts?.ifVersion,
-        opts?.toolCallId,
+        opts?.toolCallId !== undefined && opts?.sessionId !== undefined
+          ? { sessionId: opts.sessionId, toolCallId: opts.toolCallId }
+          : undefined,
       );
     },
 

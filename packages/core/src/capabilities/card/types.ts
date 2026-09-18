@@ -85,6 +85,7 @@ export interface CardChangeEvent {
 export interface CardWriteOptions {
   idempotencyKey?: string;
   toolCallId?: string;
+  sessionId?: string;
 }
 
 export interface CardStore {

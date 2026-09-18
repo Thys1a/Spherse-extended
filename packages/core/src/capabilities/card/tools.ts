@@ -244,6 +244,7 @@ const EditCardParams = Type.Object({
 export function createEditCardTool(
   cardStore: CardStore,
   getPolicy: AccessPolicyProvider,
+  sessionId?: string,
 ): AgentTool<typeof EditCardParams> {
   return {
     name: "edit_card",
@@ -289,23 +290,25 @@ export function createEditCardTool(
         const patch = (params.patch ?? {}) as EntryPatch;
         const idempotency =
           params.idempotencyKey !== undefined ? { idempotencyKey: params.idempotencyKey } : {};
+        const attribution =
+          sessionId !== undefined ? { toolCallId, sessionId } : { toolCallId };
         const result =
           params.action === "update"
             ? await cardStore.updateEntry(params.file, params.id ?? -1, patch, {
                 ...idempotency,
-                toolCallId,
+                ...attribution,
               })
             : params.action === "bulk"
               ? await cardStore.bulkUpdate(params.file, params.ids ?? [], patch, {
                   ...idempotency,
-                  toolCallId,
+                  ...attribution,
                 })
               : params.action === "add"
                 ? await cardStore.addEntry(params.file, (params.entry ?? {}) as EntryPatch, {
                     ...idempotency,
-                    toolCallId,
+                    ...attribution,
                   })
-                : await cardStore.removeEntry(params.file, params.id ?? -1, { toolCallId });
+                : await cardStore.removeEntry(params.file, params.id ?? -1, attribution);
         return {
           content: [{ type: "text" as const, text: jsonBlock(result) }],
           details: { path: params.file },

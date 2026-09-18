@@ -27,7 +27,9 @@ const RAW = [
   "system prompt",
 ].join("\n");
 
-function renderForm(onSubmit = vi.fn(async () => {})) {
+function renderForm(
+  onSubmit = vi.fn(async (_slug: string, _content: string, _theme: string) => {}),
+) {
   renderWithProviders(
     <AgentDialogForm
       initial={{ raw: RAW, theme: "" }}
@@ -54,7 +56,7 @@ describe("AgentDialogForm placeholder/greeting (R4.2)", () => {
     await vi.waitFor(() => {
       expect(onSubmit).toHaveBeenCalledTimes(1);
     });
-    const content = onSubmit.mock.calls[0][1] as string;
+    const content = onSubmit.mock.calls[0]?.[1] as unknown as string;
     expect(content).toContain("问吧");
     expect(content).toContain("你好，我是小助手");
   });

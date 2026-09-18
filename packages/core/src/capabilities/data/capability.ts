@@ -19,7 +19,7 @@ export function dataCapability(shared?: DataStore): Capability {
       return [
         createReadDataTool(store, getPolicy),
         createQueryDataTool(store, getPolicy),
-        createMutateDataTool(store, getPolicy),
+        createMutateDataTool(store, getPolicy, host.sessionId),
       ] satisfies AgentTool[];
     },
   };

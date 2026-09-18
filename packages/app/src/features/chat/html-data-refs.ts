@@ -2,7 +2,7 @@ const DATA_REF_PATTERN = /["'`]([^"'`\s]*\.data\.json)["'`]/g;
 const MAX_DATA_REFS = 32;
 
 function normalizeDataRef(raw: string): string | null {
-  let value = raw.trim();
+  let value = raw.trim().replace(/\\/g, "/");
   if (!value) return null;
   if (
     value.startsWith("/") ||

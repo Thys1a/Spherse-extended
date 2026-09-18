@@ -14,20 +14,40 @@ import type { DataChangeEvent } from "../capabilities/data/types.js";
 import type { CardChangeEvent } from "../capabilities/card/types.js";
 
 describe("ToolAttributionRegistry", () => {
-  it("resolves attributions by toolCallId and drops them", () => {
+  it("resolves attributions by session and toolCallId, then drops them", () => {
     const registry = new ToolAttributionRegistry();
-    expect(registry.attribute("tc-1")).toBeUndefined();
-    registry.begin("tc-1", { sessionId: "s1", turnSeq: 4 });
-    expect(registry.attribute("tc-1")).toEqual({ sessionId: "s1", turnSeq: 4 });
-    registry.drop("tc-1");
-    expect(registry.attribute("tc-1")).toBeUndefined();
+    expect(registry.attribute("s1", "tc-1")).toBeUndefined();
+    registry.begin("s1", "tc-1", { turnSeq: 4 });
+    expect(registry.attribute("s1", "tc-1")).toEqual({ turnSeq: 4 });
+    registry.drop("s1", "tc-1");
+    expect(registry.attribute("s1", "tc-1")).toBeUndefined();
   });
 
   it("replaces a repeated begin for the same toolCallId", () => {
     const registry = new ToolAttributionRegistry();
-    registry.begin("tc-1", { sessionId: "s1", turnSeq: 1 });
-    registry.begin("tc-1", { sessionId: "s1", turnSeq: 2 });
-    expect(registry.attribute("tc-1")).toEqual({ sessionId: "s1", turnSeq: 2 });
+    registry.begin("s1", "tc-1", { turnSeq: 1 });
+    registry.begin("s1", "tc-1", { turnSeq: 2 });
+    expect(registry.attribute("s1", "tc-1")).toEqual({ turnSeq: 2 });
+  });
+
+  it("isolates identical toolCallIds across sessions", () => {
+    const registry = new ToolAttributionRegistry();
+    registry.begin("s1", "call-1", { turnSeq: 1 });
+    registry.begin("s2", "call-1", { turnSeq: 7 });
+    expect(registry.attribute("s1", "call-1")).toEqual({ turnSeq: 1 });
+    expect(registry.attribute("s2", "call-1")).toEqual({ turnSeq: 7 });
+    registry.drop("s1", "call-1");
+    expect(registry.attribute("s1", "call-1")).toBeUndefined();
+    expect(registry.attribute("s2", "call-1")).toEqual({ turnSeq: 7 });
+  });
+
+  it("evicts the oldest entries past capacity", () => {
+    const registry = new ToolAttributionRegistry();
+    for (let i = 0; i < 1025; i++) {
+      registry.begin("s", `tc-${i}`, { turnSeq: i });
+    }
+    expect(registry.attribute("s", "tc-0")).toBeUndefined();
+    expect(registry.attribute("s", "tc-1024")).toEqual({ turnSeq: 1024 });
   });
 });
 
@@ -57,6 +77,30 @@ describe("deriveSideEffects", () => {
     expect(
       deriveSideEffects("manage_trigger", { cardType: "manage_trigger", action: "create", triggerId: "t1" }),
     ).toEqual([{ type: "trigger", file: "t1" }]);
+  });
+
+  it("covers trigger binding resets and file-writing tools", () => {
+    expect(
+      deriveSideEffects("manage_trigger", { cardType: "manage_trigger", action: "reset_binding", triggerId: "t9" }),
+    ).toEqual([{ type: "trigger", file: "t9" }]);
+    expect(
+      deriveSideEffects("append_changelog", { agent: "a", action: "create", target: "x" }),
+    ).toEqual([{ type: "write", file: "CHANGELOG.md" }]);
+    expect(deriveSideEffects("copy_file", { source: "a", destination: "b" })).toEqual([
+      { type: "write", file: "b" },
+    ]);
+    expect(deriveSideEffects("move_file", { source: "a", destination: "b" })).toEqual([
+      { type: "write", file: "b" },
+    ]);
+    expect(deriveSideEffects("generate_image", { path: "img/x.png", status: "done" })).toEqual([
+      { type: "write", file: "img/x.png" },
+    ]);
+  });
+
+  it("ignores failed copies, moves, and generations", () => {
+    expect(deriveSideEffects("copy_file", { source: "a", destination: "b", destinationExists: true })).toEqual([]);
+    expect(deriveSideEffects("move_file", { source: "a", exists: false })).toEqual([]);
+    expect(deriveSideEffects("generate_image", { status: "error", prompt: "p" })).toEqual([]);
   });
 
   it("ignores error results, unknown tools, and malformed details", () => {
@@ -140,9 +184,9 @@ describe("store change events carry turn attribution (R2.5a)", () => {
     });
     const events: DataChangeEvent[] = [];
     store.onChange((e) => events.push(e));
-    registry.begin("tc-1", { sessionId: "s1", turnSeq: 2 });
+    registry.begin("s1", "tc-1", { turnSeq: 2 });
 
-    await store.mutate("board.data.json", "addTodo", { title: "x" }, { toolCallId: "tc-1" });
+    await store.mutate("board.data.json", "addTodo", { title: "x" }, { toolCallId: "tc-1", sessionId: "s1" });
 
     expect(events).toHaveLength(1);
     expect(events[0]).toMatchObject({
@@ -180,9 +224,9 @@ describe("store change events carry turn attribution (R2.5a)", () => {
     });
     const events: CardChangeEvent[] = [];
     store.onChange((e) => events.push(e));
-    registry.begin("tc-9", { sessionId: "s2", turnSeq: 5 });
+    registry.begin("s2", "tc-9", { turnSeq: 5 });
 
-    await store.updateEntry("lore.card.json", 0, { comment: "c0!" }, { toolCallId: "tc-9" });
+    await store.updateEntry("lore.card.json", 0, { comment: "c0!" }, { toolCallId: "tc-9", sessionId: "s2" });
 
     expect(events).toHaveLength(1);
     expect(events[0]).toMatchObject({

@@ -21,7 +21,7 @@ export function cardCapability(shared?: CardStore): Capability {
       return [
         createReadCardTool(store, getPolicy),
         createSearchCardTool(store, getPolicy),
-        createEditCardTool(store, getPolicy),
+        createEditCardTool(store, getPolicy, host.sessionId),
       ] satisfies AgentTool[];
     },
   };

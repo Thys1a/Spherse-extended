@@ -1,5 +1,4 @@
 export interface TurnAttribution {
-  sessionId: string;
   turnSeq: number;
 }
 
@@ -16,9 +15,14 @@ const REGISTRY_CAPACITY = 1024;
 export class ToolAttributionRegistry {
   private readonly attributions = new Map<string, TurnAttribution>();
 
-  begin(toolCallId: string, attribution: TurnAttribution): void {
-    if (this.attributions.has(toolCallId)) this.attributions.delete(toolCallId);
-    this.attributions.set(toolCallId, attribution);
+  private static key(sessionId: string, toolCallId: string): string {
+    return `${sessionId}${toolCallId}`;
+  }
+
+  begin(sessionId: string, toolCallId: string, attribution: TurnAttribution): void {
+    const key = ToolAttributionRegistry.key(sessionId, toolCallId);
+    if (this.attributions.has(key)) this.attributions.delete(key);
+    this.attributions.set(key, attribution);
     while (this.attributions.size > REGISTRY_CAPACITY) {
       const oldest = this.attributions.keys().next().value;
       if (oldest === undefined) break;
@@ -26,12 +30,12 @@ export class ToolAttributionRegistry {
     }
   }
 
-  attribute(toolCallId: string): TurnAttribution | undefined {
-    return this.attributions.get(toolCallId);
+  attribute(sessionId: string, toolCallId: string): TurnAttribution | undefined {
+    return this.attributions.get(ToolAttributionRegistry.key(sessionId, toolCallId));
   }
 
-  drop(toolCallId: string): void {
-    this.attributions.delete(toolCallId);
+  drop(sessionId: string, toolCallId: string): void {
+    this.attributions.delete(ToolAttributionRegistry.key(sessionId, toolCallId));
   }
 }
 
@@ -83,10 +87,37 @@ export function deriveSideEffects(toolName: string, details: unknown): SideEffec
     case "manage_trigger": {
       const record = detailsRecord(details);
       if (!record || record.error === true || typeof record.triggerId !== "string") return [];
-      if (record.action !== "create" && record.action !== "update" && record.action !== "delete") {
+      if (
+        record.action !== "create" &&
+        record.action !== "update" &&
+        record.action !== "delete" &&
+        record.action !== "reset_binding"
+      ) {
         return [];
       }
       return [{ type: "trigger", file: record.triggerId }];
+    }
+    case "append_changelog": {
+      return [{ type: "write", file: "CHANGELOG.md" }];
+    }
+    case "copy_file":
+    case "move_file": {
+      const record = detailsRecord(details);
+      if (!record || typeof record.destination !== "string") return [];
+      if (
+        record.denied === true ||
+        record.destinationExists === true ||
+        record.exists === false ||
+        record.isDirectory === true
+      ) {
+        return [];
+      }
+      return [{ type: "write", file: record.destination }];
+    }
+    case "generate_image": {
+      const record = detailsRecord(details);
+      if (!record || record.status !== "done" || typeof record.path !== "string") return [];
+      return [{ type: "write", file: record.path }];
     }
     default:
       return [];

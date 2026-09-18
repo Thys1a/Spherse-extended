@@ -86,4 +86,5 @@ export async function deleteProjectAgent(
   await client.deleteAgent(agentId);
   await refreshProjectAgents(projectId);
   await refreshProjectSessions(projectId);
+  await refreshAgentProfile(projectId, agentId);
 }
