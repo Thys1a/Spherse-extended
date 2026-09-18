@@ -1,5 +1,5 @@
 import { Type, type Static } from "@sinclair/typebox";
-import type { Manifest, ManifestHealth, ManifestMutation, ManifestQuery } from "./types.js";
+import type { Manifest, ManifestDiagnostic, ManifestHealth, ManifestMutation, ManifestQuery } from "./types.js";
 import { getByDotPath } from "./dot-path.js";
 
 const manifestParamSchema = Type.Object({
@@ -65,15 +65,42 @@ function hasNestedFieldRule(fields: unknown): boolean {
 }
 
 export function parseManifest(value: unknown): Manifest | null {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  return parseManifestWithDiagnostics(value).manifest;
+}
+
+export function parseManifestWithDiagnostics(value: unknown): {
+  manifest: Manifest | null;
+  diagnostics: ManifestDiagnostic[];
+} {
+  const diagnostics: ManifestDiagnostic[] = [];
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return { manifest: null, diagnostics };
   const shape = value as Partial<ManifestShape>;
-  if (typeof shape.version !== "number" || shape.version < 1 || shape.version > MANIFEST_SUPPORTED_VERSION) return null;
-  if (shape.queries !== undefined && (typeof shape.queries !== "object" || shape.queries === null || Array.isArray(shape.queries))) return null;
-  if (shape.mutations !== undefined && (typeof shape.mutations !== "object" || shape.mutations === null || Array.isArray(shape.mutations))) return null;
+  if (typeof shape.version !== "number" || shape.version < 1 || shape.version > MANIFEST_SUPPORTED_VERSION) {
+    diagnostics.push({
+      name: "$manifest",
+      reason: `version must be an integer between 1 and ${MANIFEST_SUPPORTED_VERSION}`,
+    });
+    return { manifest: null, diagnostics };
+  }
+  if (shape.queries !== undefined && (typeof shape.queries !== "object" || shape.queries === null || Array.isArray(shape.queries))) {
+    diagnostics.push({ name: "$manifest", reason: "queries must be an object of query entries" });
+    return { manifest: null, diagnostics };
+  }
+  if (shape.mutations !== undefined && (typeof shape.mutations !== "object" || shape.mutations === null || Array.isArray(shape.mutations))) {
+    diagnostics.push({ name: "$manifest", reason: "mutations must be an object of mutation entries" });
+    return { manifest: null, diagnostics };
+  }
 
   const queries: Record<string, ManifestQuery> = {};
   for (const [name, q] of Object.entries(shape.queries ?? {})) {
-    if (!q || typeof q.path !== "string" || !q.path) continue;
+    if (!q || typeof q !== "object") {
+      diagnostics.push({ name: `queries.${name}`, reason: "entry must be an object" });
+      continue;
+    }
+    if (typeof q.path !== "string" || !q.path) {
+      diagnostics.push({ name: `queries.${name}`, reason: "path must be a non-empty string" });
+      continue;
+    }
     queries[name] = {
       desc: q.desc,
       path: q.path,
@@ -85,9 +112,36 @@ export function parseManifest(value: unknown): Manifest | null {
 
   const mutations: Record<string, ManifestMutation> = {};
   for (const [name, m] of Object.entries(shape.mutations ?? {})) {
-    if (!m || typeof m.path !== "string" || !m.path) continue;
-    if (m.op !== "append" && m.op !== "update" && m.op !== "remove" && m.op !== "set") continue;
-    if (shape.version < 2 && hasNestedFieldRule(m.fields)) continue;
+    if (!m || typeof m !== "object") {
+      diagnostics.push({ name: `mutations.${name}`, reason: "entry must be an object" });
+      continue;
+    }
+    if (typeof m.path !== "string" || !m.path) {
+      diagnostics.push({ name: `mutations.${name}`, reason: "path must be a non-empty string" });
+      continue;
+    }
+    if (m.op !== "append" && m.op !== "update" && m.op !== "remove" && m.op !== "set") {
+      diagnostics.push({
+        name: `mutations.${name}`,
+        reason: `op must be one of append/update/remove/set (got ${JSON.stringify(m.op)})`,
+      });
+      continue;
+    }
+    if (shape.version < 2 && hasNestedFieldRule(m.fields)) {
+      diagnostics.push({
+        name: `mutations.${name}`,
+        reason: "nested object/array fields require version: 2",
+      });
+      continue;
+    }
+    for (const [field, gen] of Object.entries(m.auto ?? {})) {
+      if (gen !== "uuid" && gen !== "nowIso") {
+        diagnostics.push({
+          name: `mutations.${name}`,
+          reason: `auto.${field} must be one of uuid/nowIso (got ${JSON.stringify(gen)})`,
+        });
+      }
+    }
     mutations[name] = {
       desc: m.desc,
       op: m.op,
@@ -99,10 +153,13 @@ export function parseManifest(value: unknown): Manifest | null {
   }
 
   return {
-    version: shape.version,
-    desc: shape.desc,
-    queries,
-    mutations,
+    manifest: {
+      version: shape.version,
+      desc: shape.desc,
+      queries,
+      mutations,
+    },
+    diagnostics,
   };
 }
 
@@ -112,13 +169,27 @@ export function readManifestFromDoc(doc: Record<string, unknown>): Manifest | nu
   return parseManifest(raw);
 }
 
-export function checkManifestHealth(doc: Record<string, unknown>, manifest: Manifest | null): ManifestHealth {
+export function readManifestWithDiagnosticsFromDoc(doc: Record<string, unknown>): {
+  manifest: Manifest | null;
+  diagnostics: ManifestDiagnostic[];
+} {
+  const raw = doc.$manifest;
+  if (raw === undefined) return { manifest: null, diagnostics: [] };
+  return parseManifestWithDiagnostics(raw);
+}
+
+export function checkManifestHealth(
+  doc: Record<string, unknown>,
+  manifest: Manifest | null,
+  diagnostics?: ManifestDiagnostic[],
+): ManifestHealth {
   if (!manifest) {
     const rawPresent = doc.$manifest !== undefined;
     return {
       status: rawPresent ? "invalid" : "absent",
       staleQueries: [],
       staleMutations: [],
+      ...(diagnostics !== undefined ? { diagnostics } : {}),
     };
   }
   const staleQueries: string[] = [];
@@ -133,5 +204,6 @@ export function checkManifestHealth(doc: Record<string, unknown>, manifest: Mani
     status: staleQueries.length > 0 || staleMutations.length > 0 ? "stale" : "healthy",
     staleQueries,
     staleMutations,
+    ...(diagnostics !== undefined ? { diagnostics } : {}),
   };
 }

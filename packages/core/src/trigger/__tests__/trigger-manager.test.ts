@@ -189,7 +189,7 @@ describe("TriggerManager", () => {
       "Hello Alice",
       [],
       expect.any(Function),
-      { source: "triggered", triggerName: "user-login" },
+      { source: "triggered", triggerName: "user-login", triggerDepth: 1, triggerChainId: expect.any(String) },
     );
 
     sendMessageSpy.mockRestore();
@@ -235,7 +235,7 @@ describe("TriggerManager", () => {
       "Payload: []",
       [],
       expect.any(Function),
-      { source: "triggered", triggerName: "test-event" },
+      { source: "triggered", triggerName: "test-event", triggerDepth: 1, triggerChainId: expect.any(String) },
     );
     sendMessageSpy.mockRestore();
   });
@@ -519,6 +519,8 @@ describe("TriggerManager", () => {
       sessionId: "s1",
       agentId,
       seq: 3,
+      depth: 0,
+      chainId: "c1",
     })).toBe(1);
     await new Promise((r) => setTimeout(r, 0));
     expect(sendMessageSpy).toHaveBeenCalledTimes(1);
@@ -535,7 +537,7 @@ describe("TriggerManager", () => {
     triggerManager.create(agentId, entry);
 
     expect(
-      triggerManager.onInternalEvent("user-login", { sessionId: "s1", agentId, seq: 1 }),
+      triggerManager.onInternalEvent("user-login", { sessionId: "s1", agentId, seq: 1, depth: 0, chainId: "c1" }),
     ).toBe(0);
     await new Promise((r) => setTimeout(r, 0));
     expect(sendMessageSpy).not.toHaveBeenCalled();
@@ -548,10 +550,10 @@ describe("TriggerManager", () => {
     const wired = (runtime.sessionRuntime as any).deps.onTurnEvent;
     expect(typeof wired).toBe("function");
     const internalSpy = vi.spyOn(triggerManager, "onInternalEvent").mockReturnValue(0);
-    wired({ name: "sp:turn-end", payload: { sessionId: "s", agentId, seq: 1 } });
+    wired({ name: "sp:turn-end", payload: { sessionId: "s", agentId, seq: 1, depth: 2, chainId: "c9" } });
     expect(internalSpy).toHaveBeenCalledWith(
       "sp:turn-end",
-      { sessionId: "s", agentId, seq: 1 },
+      { sessionId: "s", agentId, seq: 1, depth: 2, chainId: "c9" },
     );
     internalSpy.mockRestore();
 
@@ -596,7 +598,7 @@ describe("TriggerManager", () => {
     triggerManager.create(agentId, makeEventEntry({ eventName: "sp:tick", mode: "existing_session", targetSessionId }));
 
     expect(
-      triggerManager.onInternalEvent("sp:tick", { sessionId: "other", agentId, seq: 1 }),
+      triggerManager.onInternalEvent("sp:tick", { sessionId: "other", agentId, seq: 1, depth: 0, chainId: "c1" }),
     ).toBe(2);
     await new Promise((r) => setTimeout(r, 0));
     expect(sendMessageSpy).toHaveBeenCalledTimes(1);
@@ -614,7 +616,7 @@ describe("TriggerManager", () => {
   });
 
   describe("onInternalEvent across session modes (R2.2)", () => {
-    const spPayload = { sessionId: "s1", agentId: "a1", seq: 3 };
+    const spPayload = { sessionId: "s1", agentId: "a1", seq: 3, depth: 0, chainId: "c1" };
 
     it("fires sp: subscriptions in new_session mode", async () => {
       const sendMessageSpy = vi.spyOn(sessionRuntime, "sendMessage").mockResolvedValue(undefined);
@@ -632,7 +634,7 @@ describe("TriggerManager", () => {
         expect.stringContaining("saw "),
         [],
         expect.any(Function),
-        { source: "triggered", triggerName: "sp:assistant-message" },
+        { source: "triggered", triggerName: "sp:assistant-message", triggerDepth: 1, triggerChainId: "c1" },
       );
 
       sendMessageSpy.mockRestore();
@@ -660,7 +662,7 @@ describe("TriggerManager", () => {
         expect.any(String),
         [],
         expect.any(Function),
-        { source: "triggered", triggerName: "sp:turn-end" },
+        { source: "triggered", triggerName: "sp:turn-end", triggerDepth: 1, triggerChainId: "c1" },
       );
 
       restoreSessionSpy.mockRestore();
@@ -685,7 +687,7 @@ describe("TriggerManager", () => {
         expect.any(String),
         [],
         expect.any(Function),
-        { source: "triggered", triggerName: "sp:user-message" },
+        { source: "triggered", triggerName: "sp:user-message", triggerDepth: 1, triggerChainId: "c1" },
       );
 
       createSessionSpy.mockRestore();
@@ -709,7 +711,7 @@ describe("TriggerManager", () => {
       triggerManager.create(agentId, entry);
 
       expect(
-        triggerManager.onInternalEvent("sp:turn-end", { sessionId: targetId, agentId, seq: 5 }),
+        triggerManager.onInternalEvent("sp:turn-end", { sessionId: targetId, agentId, seq: 5, depth: 0, chainId: "c1" }),
       ).toBe(1);
       await new Promise((r) => setTimeout(r, 0));
       await new Promise((r) => setTimeout(r, 0));

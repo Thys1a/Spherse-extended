@@ -41,6 +41,8 @@ export interface TurnEventPayload {
   agentId: string;
   seq: number;
   reason?: string;
+  depth: number;
+  chainId: string;
 }
 
 export interface TurnEvent {

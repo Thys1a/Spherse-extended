@@ -5,6 +5,15 @@ import type { TriggerEntry, TriggerLogEntry } from "../types.js";
 import { type Logger, createSilentLogger } from "../logger.js";
 import { ValidationError } from "../errors.js";
 import { resolveTemplateVars } from "./template.js";
+import { randomUUID } from "node:crypto";
+
+const MAX_TRIGGER_DEPTH = 5;
+const MAX_TRACKED_CHAINS = 1024;
+
+export interface TriggerFireOptions {
+  depth?: number;
+  chainId?: string;
+}
 
 export interface TriggerExecutorDeps {
   session: SessionPort;
@@ -34,6 +43,7 @@ function readTurnError(event: SessionEventPayload): string | undefined {
 export class TriggerExecutor extends EventEmitter {
   private readonly inProgress = new Set<string>();
   private readonly sessionQueues = new Map<string, Promise<void>>();
+  private readonly chainFiredTriggers = new Map<string, Set<string>>();
   private readonly logger: Logger;
 
   constructor(private readonly deps: TriggerExecutorDeps) {
@@ -56,29 +66,54 @@ export class TriggerExecutor extends EventEmitter {
     agentName: string,
     payload: string,
     eventName?: string,
+    opts?: TriggerFireOptions,
   ): Promise<void> {
-    if (this.inProgress.has(entry.id)) return;
-    this.inProgress.add(entry.id);
-
-    const now = Date.now();
-    const triggerName = entry.name || (entry.type === "time" ? entry.cron! : entry.eventName!);
+    const depth = opts?.depth ?? 0;
+    const chainId = opts?.chainId ?? randomUUID();
 
     const logEntry: TriggerLogEntry = {
       triggerId: entry.id,
-      triggerName,
+      triggerName: entry.name || (entry.type === "time" ? entry.cron! : entry.eventName!),
       agentName,
       eventName,
       sessionId: "",
-      triggeredAt: now,
+      triggeredAt: Date.now(),
       status: "running",
     };
+    if (depth >= MAX_TRIGGER_DEPTH) {
+      this.logger.warn(
+        { agentId, triggerId: entry.id, eventName, depth, chainId },
+        "trigger skipped: max chain depth exceeded",
+      );
+      this.deps.getTriggerStore(agentId)?.appendLog({
+        ...logEntry,
+        completedAt: Date.now(),
+        status: "failed",
+        error: `max trigger depth exceeded (depth ${depth} >= ${MAX_TRIGGER_DEPTH})`,
+      });
+      return;
+    }
+
+    if (this.inProgress.has(entry.id)) return;
+    const chainSeen = this.chainFiredTriggers.get(chainId);
+    if (chainSeen?.has(entry.id)) {
+      this.logger.debug(
+        { agentId, triggerId: entry.id, eventName, chainId },
+        "trigger skipped: already fired in this chain",
+      );
+      return;
+    }
+    this.inProgress.add(entry.id);
+
+    const triggerName = entry.name || (entry.type === "time" ? entry.cron! : entry.eventName!);
+    logEntry.triggerName = triggerName;
 
     let sessionId = "";
     let releaseQueue = (): void => {};
     let queuedTurn: Promise<void> | undefined;
 
     try {
-      this.emit("trigger_triggered", { agentId, triggerId: entry.id, eventName, triggeredAt: now });
+      this.emit("trigger_triggered", { agentId, triggerId: entry.id, eventName, triggeredAt: logEntry.triggeredAt });
 
       switch (entry.mode) {
         case "new_session": {
@@ -134,6 +169,18 @@ export class TriggerExecutor extends EventEmitter {
       this.sessionQueues.set(sessionId, queuedTurn);
       await prevTurn;
 
+      let chainSeen = this.chainFiredTriggers.get(chainId);
+      if (!chainSeen) {
+        chainSeen = new Set();
+        this.chainFiredTriggers.set(chainId, chainSeen);
+        while (this.chainFiredTriggers.size > MAX_TRACKED_CHAINS) {
+          const oldest = this.chainFiredTriggers.keys().next().value;
+          if (oldest === undefined) break;
+          this.chainFiredTriggers.delete(oldest);
+        }
+      }
+      chainSeen.add(entry.id);
+
       await this.deps.session.sendMessage(
         sessionId,
         resolvedMessage,
@@ -142,7 +189,7 @@ export class TriggerExecutor extends EventEmitter {
           agentEnded = true;
           turnError = readTurnError(event);
         },
-        { source: "triggered", triggerName },
+        { source: "triggered", triggerName, triggerDepth: depth + 1, triggerChainId: chainId },
       );
 
       if (turnError !== undefined) {

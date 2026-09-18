@@ -8,6 +8,8 @@ export interface SendMessageMeta {
   triggerName?: string;
   slash?: SlashMeta;
   summon?: SummonMeta;
+  triggerDepth?: number;
+  triggerChainId?: string;
 }
 
 export interface SlashMeta {

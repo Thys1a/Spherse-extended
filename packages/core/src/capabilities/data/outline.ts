@@ -153,6 +153,9 @@ function formatManifestSection(manifest: Manifest | null, health: ManifestHealth
     }
     lines.push(formatEntrySignature("mutation", name, manifest.mutations[name]));
   }
+  for (const diagnostic of health.diagnostics ?? []) {
+    lines.push(`  ! ${diagnostic.name}: ${diagnostic.reason}`);
+  }
   return lines.join("\n");
 }
 

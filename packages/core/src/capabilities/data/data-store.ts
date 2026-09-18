@@ -6,7 +6,7 @@ import type { FileWriteMutex } from "../../utils/file-write-mutex.js";
 import type { Logger } from "../../logger.js";
 import { OutlineCache } from "./outline-cache.js";
 import { buildOutline } from "./outline.js";
-import { checkManifestHealth, readManifestFromDoc } from "./manifest.js";
+import { checkManifestHealth, readManifestFromDoc, readManifestWithDiagnosticsFromDoc } from "./manifest.js";
 import { getByDotPath, getRawByDotPath } from "./dot-path.js";
 import { runQuery, DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT } from "./query-engine.js";
 import { validateMutationArgs } from "./validate.js";
@@ -290,15 +290,24 @@ export function createDataStore(opts: CreateDataStoreOptions): DataStore {
       if (inFlight !== undefined) return inFlight as MutateResult;
 
       const loaded = await loadDoc(absPath);
-      const manifest = readManifestFromDoc(loaded.doc);
+      const { manifest, diagnostics } = readManifestWithDiagnosticsFromDoc(loaded.doc);
+      const invalidNote =
+        diagnostics.length > 0
+          ? `invalid entries: ${diagnostics.map((d) => `${d.name}: ${d.reason}`).join("; ")}`
+          : undefined;
       if (!manifest) {
-        throw new UnknownEntryError(name, "mutation", Object.keys(manifestMutationsOf(loaded.doc.$manifest)));
+        throw new UnknownEntryError(
+          name,
+          "mutation",
+          Object.keys(manifestMutationsOf(loaded.doc.$manifest)),
+          invalidNote,
+        );
       }
       const mutation = manifest.mutations[name];
       if (!mutation) {
-        throw new UnknownEntryError(name, "mutation", Object.keys(manifest.mutations));
+        throw new UnknownEntryError(name, "mutation", Object.keys(manifest.mutations), invalidNote);
       }
-      const health = checkManifestHealth(loaded.doc, manifest);
+      const health = checkManifestHealth(loaded.doc, manifest, diagnostics);
       if (health.staleMutations.includes(name)) {
         throw new ManifestStaleError(name, "mutation", Object.keys(manifest.mutations));
       }
@@ -340,8 +349,8 @@ export function createDataStore(opts: CreateDataStoreOptions): DataStore {
       doc = parsed as Record<string, unknown>;
       const version = sha256(buf);
 
-      const manifest = readManifestFromDoc(doc);
-      const health = checkManifestHealth(doc, manifest);
+      const { manifest, diagnostics } = readManifestWithDiagnosticsFromDoc(doc);
+      const health = checkManifestHealth(doc, manifest, diagnostics);
       const cached = outlineCache.get(absPath, version);
       if (cached !== undefined) {
         return { file: toPosixRelative(root, absPath), sizeBytes, version, outline: cached, health };

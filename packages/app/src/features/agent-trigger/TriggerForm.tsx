@@ -1,12 +1,19 @@
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
+import { NativeSelect, NativeSelectOption } from "../../components/ui/native-select";
 import { Switch } from "../../components/ui/switch";
 import { Textarea } from "../../components/ui/textarea";
 import { PRESETS } from "./constants";
 import { useI18n } from "@spherse/i18n/react";
 import { cn } from "@/lib/utils";
 import type { TriggerDraft, TriggerSessionMode, TriggerType } from "./trigger-form-helpers";
+
+const INTERNAL_EVENT_NAMES = ["sp:user-message", "sp:assistant-message", "sp:turn-end"] as const;
+
+function isInternalEventName(value: string): boolean {
+  return (INTERNAL_EVENT_NAMES as readonly string[]).includes(value);
+}
 
 interface TriggerFormProps {
   draft: TriggerDraft;
@@ -79,11 +86,28 @@ export function TriggerForm({
       {draft.type === "event" && (
         <div className="space-y-1.5">
           <Label>{t("agent-trigger.eventName")}</Label>
-          <Input
-            value={draft.eventName}
-            onChange={(e) => onChange({ eventName: e.target.value })}
-            placeholder={t("agent-trigger.eventNamePlaceholder")}
-          />
+          <NativeSelect
+            value={isInternalEventName(draft.eventName) ? draft.eventName : "custom"}
+            onChange={(e) => {
+              const next = e.target.value;
+              onChange({ eventName: next === "custom" ? "" : next });
+            }}
+          >
+            <NativeSelectOption value="custom">{t("agent-trigger.eventNameCustom")}</NativeSelectOption>
+            {INTERNAL_EVENT_NAMES.map((name) => (
+              <NativeSelectOption key={name} value={name}>
+                {name}
+              </NativeSelectOption>
+            ))}
+          </NativeSelect>
+          {!isInternalEventName(draft.eventName) && (
+            <Input
+              value={draft.eventName}
+              onChange={(e) => onChange({ eventName: e.target.value })}
+              placeholder={t("agent-trigger.eventNamePlaceholder")}
+            />
+          )}
+          <p className="text-xs text-muted-foreground">{t("agent-trigger.internalEventHint")}</p>
           <p className="text-xs text-muted-foreground">{t("agent-trigger.eventHint")}</p>
         </div>
       )}

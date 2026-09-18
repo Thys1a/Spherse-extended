@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkManifestHealth, parseManifest, readManifestFromDoc } from "../../../capabilities/data/manifest.js";
+import { checkManifestHealth, parseManifest, parseManifestWithDiagnostics, readManifestFromDoc } from "../../../capabilities/data/manifest.js";
 import { getByDotPath, splitDotPath, stripReservedKeys } from "../../../capabilities/data/dot-path.js";
 import { validateMutationArgs, validateQueryParams } from "../../../capabilities/data/validate.js";
 import { DataValidationError } from "../../../capabilities/data/types.js";
@@ -61,6 +61,53 @@ describe("parseManifest", () => {
       mutations: { addTodo: { op: "append", path: "todos", fields: { title: { type: "string" } } } },
     });
     expect(Object.keys(v1scalar!.mutations)).toEqual(["addTodo"]);
+  });
+
+  it("parseManifestWithDiagnostics reports skipped entries with reasons", () => {
+    const { manifest, diagnostics } = parseManifestWithDiagnostics({
+      version: 2,
+      queries: {
+        good: { path: "todos" },
+        noPath: { identity: "id" },
+      },
+      mutations: {
+        addTodo: { op: "append", path: "todos", fields: { title: { type: "string" } } },
+        badOp: { op: "frobnicate", path: "todos" },
+        noPath: { op: "append" },
+        badAuto: {
+          op: "append",
+          path: "todos",
+          fields: { title: { type: "string" } },
+          auto: { id: "sequence" },
+        },
+      },
+    });
+    expect(Object.keys(manifest!.queries)).toEqual(["good"]);
+    expect(Object.keys(manifest!.mutations)).toEqual(["addTodo", "badAuto"]);
+    expect(diagnostics).toContainEqual({
+      name: "queries.noPath",
+      reason: "path must be a non-empty string",
+    });
+    expect(diagnostics).toContainEqual({
+      name: "mutations.badOp",
+      reason: 'op must be one of append/update/remove/set (got "frobnicate")',
+    });
+    expect(diagnostics).toContainEqual({
+      name: "mutations.noPath",
+      reason: "path must be a non-empty string",
+    });
+    expect(diagnostics).toContainEqual({
+      name: "mutations.badAuto",
+      reason: 'auto.id must be one of uuid/nowIso (got "sequence")',
+    });
+  });
+
+  it("parseManifestWithDiagnostics reports unparsable manifests", () => {
+    expect(parseManifestWithDiagnostics({ version: 3 }).diagnostics).toContainEqual({
+      name: "$manifest",
+      reason: "version must be an integer between 1 and 2",
+    });
+    expect(parseManifestWithDiagnostics(null).manifest).toBeNull();
   });
 
   it("tolerates missing queries/mutations", () => {

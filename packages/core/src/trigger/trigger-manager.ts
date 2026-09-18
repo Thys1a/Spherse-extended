@@ -6,7 +6,7 @@ import type { TriggerStore } from "../store/trigger.js";
 import type { TriggerEntry, TriggerLogEntry } from "../types.js";
 import { type Logger, createSilentLogger } from "../logger.js";
 import { TriggerScheduler, getNextCronDate, type TriggerRef } from "./scheduler.js";
-import { TriggerExecutor } from "./executor.js";
+import { TriggerExecutor, type TriggerFireOptions } from "./executor.js";
 
 export interface TriggerEventPayload {
   agentId: string;
@@ -81,10 +81,17 @@ export class TriggerManager extends EventEmitter {
       this.logger.debug({ eventName }, "internal event rejected: reserved sp: prefix required");
       return 0;
     }
-    return this.fireMatching(eventName, JSON.stringify(payload));
+    return this.fireMatching(eventName, JSON.stringify(payload), {
+      depth: payload.depth,
+      chainId: payload.chainId,
+    });
   }
 
-  private fireMatching(eventName: string, payload: string): number {
+  private fireMatching(
+    eventName: string,
+    payload: string,
+    opts?: TriggerFireOptions,
+  ): number {
     let fired = 0;
     for (const { agentId, agentName, entry } of this.readAllTriggers()) {
       if (entry.type !== "event" || !entry.enabled || !entry.eventName) continue;
@@ -98,7 +105,7 @@ export class TriggerManager extends EventEmitter {
       }
 
       fired++;
-      void this.executor.fire(entry, agentId, agentName, payload, eventName);
+      void this.executor.fire(entry, agentId, agentName, payload, eventName, opts);
     }
     return fired;
   }

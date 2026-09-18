@@ -537,8 +537,10 @@ export const zhCN = {
   "agent-trigger.eventNamePlaceholder": "输入自定义事件名，如 daily-review",
   // 事件触发模式提示：当此事件被触发时执行此任务
   "agent-trigger.eventHint": "当此事件被触发时执行此任务",
-  // 事件名校验失败提示：不能使用 sp: 保留前缀
-  "agent-trigger.eventNameReserved": "事件名不能以 sp: 开头（保留前缀）",
+  // 内部事件快捷选择：下拉中的自定义选项
+  "agent-trigger.eventNameCustom": "自定义…",
+  // 内部事件说明：sp: 开头为回合内部事件
+  "agent-trigger.internalEventHint": "sp: 开头为回合内部事件：收到用户消息、收到 AI 回复、回合结束时触发",
   // 事件触发模式下提示：使用 {{payload}} 引用事件发送方的消息内容
   "agent-trigger.payloadVarHint": "使用 {{payload}} 引用事件发送方的消息内容",
   // 定时频率输入框标签（时间触发模式下显示）

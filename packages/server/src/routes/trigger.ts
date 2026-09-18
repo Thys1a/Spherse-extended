@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { nanoid } from "nanoid";
-import { isValidCron, isReservedEventName, requiresTargetSession } from "@spherse/core";
+import { isValidCron, requiresTargetSession } from "@spherse/core";
 import { schemas } from "@spherse/contracts";
 import type { TriggerCreateRequest, TriggerUpdateRequest } from "@spherse/contracts";
 import type { ProjectRegistry } from "../registry.js";
@@ -69,7 +69,6 @@ export function registerTriggerRoutes(fastify: FastifyInstance, _registry: Proje
         if (!data.cron || !isValidCron(data.cron)) throw badRequest("invalid cron expression");
       } else if (data.type === "event") {
         if (!data.eventName?.trim()) throw badRequest("eventName is required for event type");
-        if (isReservedEventName(data.eventName)) throw badRequest("eventName cannot use reserved prefix 'sp:'");
       }
 
       if (!isValidTriggerMode(data.mode, data.targetSessionId)) {
@@ -110,9 +109,6 @@ export function registerTriggerRoutes(fastify: FastifyInstance, _registry: Proje
       const data = req.body;
 
       if (data.cron !== undefined && !isValidCron(data.cron)) throw badRequest("invalid cron expression");
-      if (data.eventName !== undefined && isReservedEventName(data.eventName)) {
-        throw badRequest("eventName cannot use reserved prefix 'sp:'");
-      }
 
       const existing = req.projectCtx!.triggerManager.get(req.params.agentId, req.params.triggerId);
       if (!existing) throw notFound("Trigger not found");

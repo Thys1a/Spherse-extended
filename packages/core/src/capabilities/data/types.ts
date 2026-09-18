@@ -30,8 +30,11 @@ export class UnknownEntryError extends Error {
     public entry: string,
     public kind: "query" | "mutation",
     public validNames: string[],
+    detail?: string,
   ) {
-    super(`unknown manifest entry: ${entry}`);
+    super(
+      detail ? `unknown manifest entry: ${entry} (${detail})` : `unknown manifest entry: ${entry}`,
+    );
     this.name = "UnknownEntryError";
   }
 }

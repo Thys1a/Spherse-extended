@@ -4,7 +4,7 @@ import type { AgentTool } from "@earendil-works/pi-agent-core";
 import type { TriggerManager } from "../trigger/trigger-manager.js";
 import type { ProjectStore } from "../store/project.js";
 import type { TriggerEntry } from "../types.js";
-import { isValidCron, isReservedEventName, requiresTargetSession } from "../trigger/validation.js";
+import { isValidCron, requiresTargetSession } from "../trigger/validation.js";
 
 const ManageTriggerParams = Type.Object({
   action: Type.Union(
@@ -47,7 +47,7 @@ const ManageTriggerParams = Type.Object({
   event_name: Type.Optional(
     Type.String({
       description:
-        "Exact event name this trigger listens for. Matching is exact, not fuzzy. Must not start with `sp:` (reserved). Required for `event` triggers.",
+        "Exact event name this trigger listens for. Matching is exact, not fuzzy. Names starting with `sp:` subscribe to internal turn events (`sp:user-message`, `sp:assistant-message`, `sp:turn-end`). Required for `event` triggers.",
     }),
   ),
   mode: Type.Optional(
@@ -118,7 +118,6 @@ function validateShape(
     return null;
   }
   if (!eventName?.trim()) return "`event_name` is required for event triggers.";
-  if (isReservedEventName(eventName)) return "`event_name` must not start with the reserved prefix `sp:`.";
   return null;
 }
 

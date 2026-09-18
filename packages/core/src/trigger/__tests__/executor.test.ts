@@ -55,7 +55,7 @@ describe("TriggerExecutor", () => {
       "s-new",
       "Hello world",
       expect.any(Function),
-      { source: "triggered", triggerName: "evt" },
+      { source: "triggered", triggerName: "evt", triggerDepth: 1, triggerChainId: expect.any(String) },
     );
     expect(triggered).toHaveBeenCalledWith(
       expect.objectContaining({ agentId: "a1", triggerId: "tr-1" }),
@@ -266,6 +266,50 @@ describe("TriggerExecutor", () => {
     expect(store.appendLog).toHaveBeenCalledWith(
       expect.objectContaining({ triggerName: "evt" }),
     );
+  });
+
+  it("passes depth+1 and the chain through to the new turn", async () => {
+    const { executor, session } = makeDeps();
+    await executor.fire(makeEntry(), "a1", "Agent", "", "evt", { depth: 2, chainId: "chain-1" });
+    expect(session.sendMessage).toHaveBeenCalledWith(
+      "s-new",
+      expect.any(String),
+      expect.any(Function),
+      { source: "triggered", triggerName: "evt", triggerDepth: 3, triggerChainId: "chain-1" },
+    );
+  });
+
+  it("rejects fires at max depth without sending", async () => {
+    const { executor, session, store } = makeDeps();
+    const failed = vi.fn();
+    executor.on("trigger_failed", failed);
+
+    await executor.fire(makeEntry(), "a1", "Agent", "", "evt", { depth: 5, chainId: "chain-1" });
+
+    expect(session.sendMessage).not.toHaveBeenCalled();
+    expect(session.createSession).not.toHaveBeenCalled();
+    expect(store.appendLog).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "failed", error: expect.stringContaining("max trigger depth") }),
+    );
+    expect(failed).not.toHaveBeenCalled();
+    expect(executor.isRunning("tr-1")).toBe(false);
+  });
+
+  it("skips refiring the same trigger within one chain (ping-pong guard)", async () => {
+    const { executor, session, store } = makeDeps();
+    await executor.fire(makeEntry(), "a1", "Agent", "", "evt", { depth: 0, chainId: "chain-1" });
+    await executor.fire(makeEntry(), "a1", "Agent", "", "evt", { depth: 1, chainId: "chain-1" });
+
+    expect(session.sendMessage).toHaveBeenCalledTimes(1);
+    expect(store.appendLog).toHaveBeenCalledTimes(2);
+  });
+
+  it("allows the same trigger again in a fresh chain", async () => {
+    const { executor, session } = makeDeps();
+    await executor.fire(makeEntry(), "a1", "Agent", "", "evt");
+    await executor.fire(makeEntry(), "a1", "Agent", "", "evt");
+
+    expect(session.sendMessage).toHaveBeenCalledTimes(2);
   });
 
   it("forgets in-flight ids on forgetAll", async () => {

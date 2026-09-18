@@ -424,6 +424,33 @@ describe("DataStore.mutate nested (R1.1)", () => {
     expect(config.value).toEqual({ audio: { muted: true } });
   });
 
+  it("outline and unknown-mutation errors surface manifest diagnostics (R1.2)", async () => {
+    const BAD_FILE = "broken.data.json";
+    await fs.writeFile(
+      abs(BAD_FILE),
+      JSON.stringify(
+        {
+          $manifest: {
+            version: 2,
+            queries: {},
+            mutations: {
+              addTodo: { op: "append", path: "todos", fields: { title: { type: "string" } } },
+              hpCurve: { op: "upsert", path: "todos" },
+            },
+          },
+          todos: [],
+        },
+        null,
+        2,
+      ),
+    );
+    const outline = await store.outline(BAD_FILE);
+    expect(outline.outline).toContain("! mutations.hpCurve: op must be one of append/update/remove/set");
+    await expect(store.mutate(BAD_FILE, "nope", {})).rejects.toThrow(
+      /invalid entries: mutations\.hpCurve: op must be one of/,
+    );
+  });
+
   it("update with partial nested object keeps stored sibling values", async () => {
     await store.mutate(NESTED_FILE, "addMember", {
       name: "ash",

@@ -120,6 +120,38 @@ describe("AgentRunner turn events (R2.1)", () => {
     }
   });
 
+  it("trigger-sourced turns carry depth/chainId into turn events (R2.4)", async () => {
+    const finalAssistant = assistantMessage("ok");
+    getChatStreamFnMock.mockImplementation(
+      () =>
+        (async () => ({
+          async *[Symbol.asyncIterator]() {},
+          result: async () => finalAssistant,
+        })) as never,
+    );
+    try {
+      const agentStore = (runtime.projectManager as any).projectStore.getAgent(agentId);
+      const sessionId = agentStore.sessions.createSession();
+      const runner = await AgentRunner.init(deps, agentId, sessionId);
+
+      await runner.sendMessage("hello", [], () => {}, {
+        source: "triggered",
+        triggerName: "daily",
+        triggerDepth: 4,
+        triggerChainId: "chain-9",
+      });
+
+      const payloads = onTurnEvent.mock.calls.map((c) => c[0].payload);
+      expect(payloads).toHaveLength(3);
+      for (const payload of payloads) {
+        expect(payload.depth).toBe(4);
+        expect(payload.chainId).toBe("chain-9");
+      }
+    } finally {
+      getChatStreamFnMock.mockImplementation(() => vi.fn() as never);
+    }
+  });
+
   it("toolResult rounds do not emit sp:assistant-message", async () => {
     const agentStore = (runtime.projectManager as any).projectStore.getAgent(agentId);
     const sessionId = agentStore.sessions.createSession();

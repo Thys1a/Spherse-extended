@@ -8,6 +8,7 @@ import { SessionControlBus } from "./control-bus.js";
 import { createApprovalGate } from "./approval-gate.js";
 import { createAskGate } from "./ask-gate.js";
 import type { SessionStatus } from "./status.js";
+import { randomUUID } from "node:crypto";
 import type { RuntimeDeps, TurnEventPayload } from "./runtime.js";
 import { logEventMiddleware } from "./event-middlewares.js";
 import {
@@ -33,6 +34,8 @@ export type RunnerEventHandler = (event: AgentEvent | SessionControlEvent) => vo
 export class AgentRunner {
   private eventLog: SessionEventLog | null = null;
   private inFlight = false;
+  private turnDepth = 0;
+  private turnChainId: string = randomUUID();
   private turnHooks: TurnHooks;
   private capabilityMiddlewares: ReadonlyArray<EventMiddleware<AgentEvent>> = [];
   private pendingReload = false;
@@ -139,6 +142,8 @@ export class AgentRunner {
   ): Promise<void> {
     this.ensureNotBusy();
     this.inFlight = true;
+    this.turnDepth = meta?.triggerDepth ?? 0;
+    this.turnChainId = meta?.triggerChainId ?? randomUUID();
     let sanitizer: AttachmentSanitizer | null = null;
     let unsubscribe: (() => void) | undefined;
     let restoreSink: (() => void) | undefined;
@@ -188,6 +193,8 @@ export class AgentRunner {
         sessionId: this.sessionId,
         agentId: this.agentId,
         seq: userEvent.seq,
+        depth: this.turnDepth,
+        chainId: this.turnChainId,
       });
 
       const dispatch = createEventPipeline(
@@ -493,6 +500,8 @@ export class AgentRunner {
             agentId: this.agentId,
             seq: turnEnd.seq,
             reason,
+            depth: this.turnDepth,
+            chainId: this.turnChainId,
           });
         }
       }
@@ -508,6 +517,8 @@ export class AgentRunner {
         sessionId: this.sessionId,
         agentId: this.agentId,
         seq: appended.seq,
+        depth: this.turnDepth,
+        chainId: this.turnChainId,
       });
     } else if (role === "toolResult") {
       this.eventLog!.append("tool/result", { message: message as never });

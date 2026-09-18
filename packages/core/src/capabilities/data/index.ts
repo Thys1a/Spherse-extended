@@ -1,5 +1,5 @@
 export { createDataStore, type CreateDataStoreOptions } from "./data-store.js";
-export { parseManifest, readManifestFromDoc, checkManifestHealth, dataManifestSchema } from "./manifest.js";
+export { parseManifest, parseManifestWithDiagnostics, readManifestFromDoc, readManifestWithDiagnosticsFromDoc, checkManifestHealth, dataManifestSchema } from "./manifest.js";
 export { getByDotPath, getRawByDotPath, stripReservedKeys } from "./dot-path.js";
 export { runQuery, decodeCursor } from "./query-engine.js";
 export { buildOutline, formatEntrySignature } from "./outline.js";
@@ -19,6 +19,7 @@ export type {
   ManifestQuery,
   ManifestMutation,
   ManifestHealth,
+  ManifestDiagnostic,
   OutlineResult,
   ReadResult,
   QueryResult,
