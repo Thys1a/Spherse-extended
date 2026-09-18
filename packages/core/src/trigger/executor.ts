@@ -3,6 +3,7 @@ import type { SessionEventPayload, SessionPort } from "../kernel/ports.js";
 import type { TriggerStore } from "../store/trigger.js";
 import type { TriggerEntry, TriggerLogEntry } from "../types.js";
 import { type Logger, createSilentLogger } from "../logger.js";
+import { ValidationError } from "../errors.js";
 import { resolveTemplateVars } from "./template.js";
 
 export interface TriggerExecutorDeps {
@@ -46,6 +47,7 @@ export class TriggerExecutor extends EventEmitter {
 
   forgetAll(): void {
     this.inProgress.clear();
+    this.sessionQueues.clear();
   }
 
   async fire(
@@ -161,16 +163,24 @@ export class TriggerExecutor extends EventEmitter {
         });
       }
     } catch (err) {
+      const busy =
+        err instanceof ValidationError && err.message.includes("turn in progress");
+      const error = busy
+        ? `session busy (turn in progress), skipped: ${String(err)}`
+        : String(err);
+      if (busy) {
+        this.logger.warn({ agentId, triggerId: entry.id, sessionId }, "trigger skipped: target session busy");
+      }
       this.deps.getTriggerStore(agentId)?.appendLog({
         ...logEntry,
         completedAt: Date.now(),
         status: "failed",
-        error: String(err),
+        error,
       });
       this.emit("trigger_failed", {
         agentId,
         triggerId: entry.id,
-        error: String(err),
+        error,
       });
     } finally {
       releaseQueue();

@@ -96,6 +96,9 @@ export async function assembleProject(
     ...(options?.thinkingLevel !== undefined ? { thinkingLevel: options.thinkingLevel } : {}),
   });
   const triggerCap = capabilities.find((c) => c.id === "trigger") as TriggerCapability | undefined;
+  if (!triggerCap) {
+    logger.debug("trigger capability absent: turn events are not wired");
+  }
   const deps = createRuntimeDeps({
     projectStore,
     logger,

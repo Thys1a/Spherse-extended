@@ -77,6 +77,10 @@ export class TriggerManager extends EventEmitter {
   }
 
   onInternalEvent(eventName: string, payload: TurnEventPayload): number {
+    if (!eventName.startsWith("sp:")) {
+      this.logger.debug({ eventName }, "internal event rejected: reserved sp: prefix required");
+      return 0;
+    }
     return this.fireMatching(eventName, JSON.stringify(payload));
   }
 
@@ -85,7 +89,13 @@ export class TriggerManager extends EventEmitter {
     for (const { agentId, agentName, entry } of this.readAllTriggers()) {
       if (entry.type !== "event" || !entry.enabled || !entry.eventName) continue;
       if (entry.eventName !== eventName) continue;
-      if (this.executor.isRunning(entry.id)) continue;
+      if (this.executor.isRunning(entry.id)) {
+        this.logger.debug(
+          { agentId, triggerId: entry.id, eventName },
+          "trigger skipped: same trigger already running",
+        );
+        continue;
+      }
 
       fired++;
       void this.executor.fire(entry, agentId, agentName, payload, eventName);

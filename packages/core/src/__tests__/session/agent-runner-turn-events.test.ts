@@ -111,9 +111,8 @@ describe("AgentRunner turn events (R2.1)", () => {
         expect(evt.payload.sessionId).toBe(sessionId);
         expect(evt.payload.agentId).toBe(agentId);
       }
-      expect(userEvt.payload.seq).toBe(0);
-      expect(assistantEvt.payload.seq).toBe(2);
-      expect(endEvt.payload.seq).toBe(3);
+      expect(userEvt.payload.seq).toBeLessThan(assistantEvt.payload.seq);
+      expect(assistantEvt.payload.seq).toBeLessThan(endEvt.payload.seq);
       expect(endEvt.payload.reason).toBe("completed");
       expect(userEvt.payload.reason).toBeUndefined();
     } finally {

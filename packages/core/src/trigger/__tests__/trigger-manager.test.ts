@@ -55,7 +55,8 @@ describe("TriggerManager", () => {
     triggerManager = runtime.triggerManager;
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    await runtime.shutdown();
     triggerManager.stopAll();
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
@@ -526,6 +527,23 @@ describe("TriggerManager", () => {
     vi.restoreAllMocks();
   });
 
+  it("onInternalEvent rejects non-sp: names without firing", async () => {
+    const sendMessageSpy = vi.spyOn(sessionRuntime, "sendMessage").mockResolvedValue(undefined);
+    vi.spyOn(sessionRuntime, "createSession").mockResolvedValue("fake-session");
+
+    const entry = makeEventEntry({ eventName: "user-login" });
+    triggerManager.create(agentId, entry);
+
+    expect(
+      triggerManager.onInternalEvent("user-login", { sessionId: "s1", agentId, seq: 1 }),
+    ).toBe(0);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(sendMessageSpy).not.toHaveBeenCalled();
+
+    sendMessageSpy.mockRestore();
+    vi.restoreAllMocks();
+  });
+
   it("factory wires onTurnEvent to the trigger manager; absent without trigger capability", async () => {
     const wired = (runtime.sessionRuntime as any).deps.onTurnEvent;
     expect(typeof wired).toBe("function");
@@ -584,9 +602,9 @@ describe("TriggerManager", () => {
     expect(sendMessageSpy).toHaveBeenCalledTimes(1);
 
     resolveFirst();
-    await new Promise((r) => setTimeout(r, 0));
-    await new Promise((r) => setTimeout(r, 0));
-    expect(sendMessageSpy).toHaveBeenCalledTimes(2);
+    await vi.waitFor(() => {
+      expect(sendMessageSpy).toHaveBeenCalledTimes(2);
+    });
     const logs = triggerManager.getRecentLogs(agentId, 2);
     expect(logs.filter((l) => l.status === "success")).toHaveLength(2);
     expect(logs.filter((l) => l.status === "failed")).toHaveLength(0);
@@ -673,6 +691,36 @@ describe("TriggerManager", () => {
       createSessionSpy.mockRestore();
       sendMessageSpy.mockRestore();
     });
+  });
+
+  it("skips with a busy log when the target session has a turn in progress", async () => {
+    const targetId = await sessionRuntime.createSession(agentId);
+    const sessions = (sessionRuntime as unknown as { sessions: Map<string, { inFlight: boolean }> })
+      .sessions;
+    const runner = sessions.get(targetId);
+    expect(runner).toBeDefined();
+    runner!.inFlight = true;
+    try {
+      const entry = makeEventEntry({
+        eventName: "sp:turn-end",
+        mode: "existing_session",
+        targetSessionId: targetId,
+      });
+      triggerManager.create(agentId, entry);
+
+      expect(
+        triggerManager.onInternalEvent("sp:turn-end", { sessionId: targetId, agentId, seq: 5 }),
+      ).toBe(1);
+      await new Promise((r) => setTimeout(r, 0));
+      await new Promise((r) => setTimeout(r, 0));
+
+      const logs = triggerManager.getRecentLogs(agentId, 1);
+      expect(logs).toHaveLength(1);
+      expect(logs[0]).toMatchObject({ status: "failed", triggerId: entry.id });
+      expect(logs[0].error ?? "").toMatch(/session busy.*skipped/);
+    } finally {
+      runner!.inFlight = false;
+    }
   });
 
   it("reusable_session rebinds lazily after the bound session is deleted", async () => {
