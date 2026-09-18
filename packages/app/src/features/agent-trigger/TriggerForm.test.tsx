@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { fireEvent, screen } from "@testing-library/react";
 import { renderWithProviders } from "../../test/render";
 import { TriggerForm } from "./TriggerForm";
-import { emptyTriggerDraft } from "./trigger-form-helpers";
+import { emptyTriggerDraft, type TriggerDraft } from "./trigger-form-helpers";
 
 function eventDraft(eventName: string) {
   return { ...emptyTriggerDraft(), type: "event" as const, eventName };
@@ -58,6 +58,48 @@ describe("TriggerForm internal event select (R2.3)", () => {
       />,
     );
     expect(screen.queryByPlaceholderText(/daily-review/)).toBeNull();
+  });
+
+  it("restores the custom name when switching back from a preset", () => {
+    const onChange = vi.fn();
+    let draft: TriggerDraft = eventDraft("");
+    const { rerender } = renderWithProviders(
+      <TriggerForm
+        draft={draft}
+        isNew
+        onChange={(patch) => {
+          onChange(patch);
+          draft = { ...draft, ...patch };
+        }}
+        onInsertVariable={noop}
+        onSave={noop}
+        onCancel={noop}
+        onResetBinding={noop}
+      />,
+    );
+    const renderForm = () =>
+      rerender(
+        <TriggerForm
+          draft={draft}
+          isNew
+          onChange={(patch) => {
+            onChange(patch);
+            draft = { ...draft, ...patch };
+          }}
+          onInsertVariable={noop}
+          onSave={noop}
+          onCancel={noop}
+          onResetBinding={noop}
+        />,
+      );
+
+    fireEvent.change(screen.getByPlaceholderText(/daily-review/), { target: { value: "my-evt" } });
+    renderForm();
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "sp:turn-end" } });
+    renderForm();
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "custom" } });
+
+    expect(onChange).toHaveBeenLastCalledWith({ eventName: "my-evt" });
   });
 
   it("keeps the text input for custom event names", () => {

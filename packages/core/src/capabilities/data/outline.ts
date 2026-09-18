@@ -134,6 +134,9 @@ function formatManifestSection(manifest: Manifest | null, health: ManifestHealth
     return "$manifest: absent — no named query/mutation entries. Use read_data(path) for local reads; writes require edit_file/write_file (fallback path).";
   }
   const lines: string[] = [`$manifest: ${health.status}`];
+  for (const diagnostic of health.diagnostics ?? []) {
+    lines.push(`  ! ${diagnostic.name}: ${diagnostic.reason}`);
+  }
   const queryNames = Object.keys(manifest.queries).sort();
   const mutationNames = Object.keys(manifest.mutations).sort();
   if (queryNames.length === 0 && mutationNames.length === 0) {
@@ -152,9 +155,6 @@ function formatManifestSection(manifest: Manifest | null, health: ManifestHealth
       continue;
     }
     lines.push(formatEntrySignature("mutation", name, manifest.mutations[name]));
-  }
-  for (const diagnostic of health.diagnostics ?? []) {
-    lines.push(`  ! ${diagnostic.name}: ${diagnostic.reason}`);
   }
   return lines.join("\n");
 }

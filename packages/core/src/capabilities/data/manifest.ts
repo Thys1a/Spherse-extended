@@ -78,7 +78,7 @@ export function parseManifestWithDiagnostics(value: unknown): {
   if (typeof shape.version !== "number" || shape.version < 1 || shape.version > MANIFEST_SUPPORTED_VERSION) {
     diagnostics.push({
       name: "$manifest",
-      reason: `version must be an integer between 1 and ${MANIFEST_SUPPORTED_VERSION}`,
+      reason: `version must be a number between 1 and ${MANIFEST_SUPPORTED_VERSION}`,
     });
     return { manifest: null, diagnostics };
   }
@@ -134,14 +134,22 @@ export function parseManifestWithDiagnostics(value: unknown): {
       });
       continue;
     }
-    for (const [field, gen] of Object.entries(m.auto ?? {})) {
+    const autoShape: unknown = m.auto ?? {};
+    if (typeof autoShape !== "object" || autoShape === null || Array.isArray(autoShape)) {
+      diagnostics.push({ name: `mutations.${name}`, reason: "auto must be an object of generators" });
+      continue;
+    }
+    let autoOk = true;
+    for (const [field, gen] of Object.entries(autoShape)) {
       if (gen !== "uuid" && gen !== "nowIso") {
         diagnostics.push({
           name: `mutations.${name}`,
-          reason: `auto.${field} must be one of uuid/nowIso (got ${JSON.stringify(gen)})`,
+          reason: `auto.${field} must be one of uuid/nowIso (got ${JSON.stringify(gen)}); entry skipped`,
         });
+        autoOk = false;
       }
     }
+    if (!autoOk) continue;
     mutations[name] = {
       desc: m.desc,
       op: m.op,

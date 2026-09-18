@@ -301,7 +301,21 @@ describe("TriggerExecutor", () => {
     await executor.fire(makeEntry(), "a1", "Agent", "", "evt", { depth: 1, chainId: "chain-1" });
 
     expect(session.sendMessage).toHaveBeenCalledTimes(1);
-    expect(store.appendLog).toHaveBeenCalledTimes(2);
+    expect(store.appendLog).toHaveBeenCalledTimes(3);
+    expect(store.appendLog).toHaveBeenLastCalledWith(
+      expect.objectContaining({ status: "failed", error: expect.stringContaining("already fired in this chain") }),
+    );
+  });
+
+  it("evicts old chains so tracking stays bounded", async () => {
+    const { executor, session } = makeDeps();
+    await executor.fire(makeEntry(), "a1", "Agent", "", "evt", { depth: 0, chainId: "chain-0" });
+    for (let i = 1; i <= 1024; i++) {
+      await executor.fire(makeEntry(), "a1", "Agent", "", "evt", { depth: 0, chainId: `chain-${i}` });
+    }
+    await executor.fire(makeEntry(), "a1", "Agent", "", "evt", { depth: 0, chainId: "chain-0" });
+
+    expect(session.sendMessage).toHaveBeenCalledTimes(1026);
   });
 
   it("allows the same trigger again in a fresh chain", async () => {

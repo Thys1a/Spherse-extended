@@ -30,7 +30,7 @@ export class UnknownEntryError extends Error {
     public entry: string,
     public kind: "query" | "mutation",
     public validNames: string[],
-    detail?: string,
+    public readonly detail?: string,
   ) {
     super(
       detail ? `unknown manifest entry: ${entry} (${detail})` : `unknown manifest entry: ${entry}`,

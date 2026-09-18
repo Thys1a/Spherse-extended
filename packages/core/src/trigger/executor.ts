@@ -101,12 +101,17 @@ export class TriggerExecutor extends EventEmitter {
         { agentId, triggerId: entry.id, eventName, chainId },
         "trigger skipped: already fired in this chain",
       );
+      this.deps.getTriggerStore(agentId)?.appendLog({
+        ...logEntry,
+        completedAt: Date.now(),
+        status: "failed",
+        error: `already fired in this chain${eventName ? ` (event "${eventName}")` : ""}, skipped`,
+      });
       return;
     }
     this.inProgress.add(entry.id);
 
-    const triggerName = entry.name || (entry.type === "time" ? entry.cron! : entry.eventName!);
-    logEntry.triggerName = triggerName;
+    const triggerName = logEntry.triggerName;
 
     let sessionId = "";
     let releaseQueue = (): void => {};

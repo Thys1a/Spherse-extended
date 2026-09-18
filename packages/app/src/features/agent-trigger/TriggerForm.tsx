@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
@@ -35,6 +36,9 @@ export function TriggerForm({
   onResetBinding,
 }: TriggerFormProps) {
   const { t } = useI18n();
+  const [lastCustomEventName, setLastCustomEventName] = useState(
+    isInternalEventName(draft.eventName) ? "" : draft.eventName,
+  );
 
   const timeVariables = ["date", "time", "datetime", "weekday", "agent_name"];
   const eventVariables = ["payload", "date", "time", "datetime", "weekday", "agent_name"];
@@ -90,7 +94,7 @@ export function TriggerForm({
             value={isInternalEventName(draft.eventName) ? draft.eventName : "custom"}
             onChange={(e) => {
               const next = e.target.value;
-              onChange({ eventName: next === "custom" ? "" : next });
+              onChange({ eventName: next === "custom" ? lastCustomEventName : next });
             }}
           >
             <NativeSelectOption value="custom">{t("agent-trigger.eventNameCustom")}</NativeSelectOption>
@@ -103,7 +107,10 @@ export function TriggerForm({
           {!isInternalEventName(draft.eventName) && (
             <Input
               value={draft.eventName}
-              onChange={(e) => onChange({ eventName: e.target.value })}
+              onChange={(e) => {
+                setLastCustomEventName(e.target.value);
+                onChange({ eventName: e.target.value });
+              }}
               placeholder={t("agent-trigger.eventNamePlaceholder")}
             />
           )}

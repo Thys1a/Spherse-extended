@@ -102,6 +102,26 @@ describe("data tools behavior", () => {
     expect(r.content[0].text).toContain("title: required field missing");
   });
 
+  it("mutate_data unknown entry error carries manifest diagnostics (R1.2)", async () => {
+    await fs.writeFile(
+      path.join(dir, "broken.data.json"),
+      JSON.stringify({
+        $manifest: {
+          version: 2,
+          mutations: {
+            addTodo: { op: "append", path: "todos", fields: { title: { type: "string" } } },
+            hpCurve: { op: "upsert", path: "todos" },
+          },
+        },
+        todos: [],
+      }),
+    );
+    const host = makeHost();
+    const r = await getTool(host, "mutate_data").execute("t1", { file: "broken.data.json", name: "nope", args: {} });
+    expect(r.content[0].text).toContain('unknown mutation entry "nope"');
+    expect(r.content[0].text).toContain("invalid entries: mutations.hpCurve: op must be one of");
+  });
+
   it("path guard rejects non-.data.json and .spherse", async () => {
     const host = makeHost();
     const r1 = await getTool(host, "read_data").execute("t1", { file: "notes.txt" });

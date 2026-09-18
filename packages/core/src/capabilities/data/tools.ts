@@ -25,7 +25,8 @@ function errorText(err: unknown): string {
     return `Error: manifest entry "${err.entry}" is stale (its path no longer resolves). Valid entries: ${err.validNames.join(", ") || "none"}. Call read_data without path to see the current outline.`;
   }
   if (err instanceof UnknownEntryError) {
-    return `Error: unknown ${err.kind} entry "${err.entry}". Valid entries: ${err.validNames.join(", ") || "none"}. Call read_data without path to see the outline.`;
+    const detail = err.detail ? ` (${err.detail})` : "";
+    return `Error: unknown ${err.kind} entry "${err.entry}"${detail}. Valid entries: ${err.validNames.join(", ") || "none"}. Call read_data without path to see the outline.`;
   }
   if (err instanceof DataValidationError) {
     return `Error: ${err.message}`;

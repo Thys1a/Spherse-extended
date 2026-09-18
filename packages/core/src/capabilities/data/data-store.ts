@@ -6,7 +6,7 @@ import type { FileWriteMutex } from "../../utils/file-write-mutex.js";
 import type { Logger } from "../../logger.js";
 import { OutlineCache } from "./outline-cache.js";
 import { buildOutline } from "./outline.js";
-import { checkManifestHealth, readManifestFromDoc, readManifestWithDiagnosticsFromDoc } from "./manifest.js";
+import { checkManifestHealth, readManifestWithDiagnosticsFromDoc } from "./manifest.js";
 import { getByDotPath, getRawByDotPath } from "./dot-path.js";
 import { runQuery, DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT } from "./query-engine.js";
 import { validateMutationArgs } from "./validate.js";
@@ -409,7 +409,7 @@ export function createDataStore(opts: CreateDataStoreOptions): DataStore {
     async query(file, name, params = {}, page): Promise<QueryResult> {
       const absPath = resolveDataFile(root, file);
       const loaded = await readBytesForVersion(absPath);
-      const manifest = readManifestFromDoc(loaded.doc);
+      const { manifest, diagnostics } = readManifestWithDiagnosticsFromDoc(loaded.doc);
       const query = manifest?.queries[name];
       if (!query) {
         const raw = loaded.doc.$manifest;
@@ -417,9 +417,12 @@ export function createDataStore(opts: CreateDataStoreOptions): DataStore {
           name,
           "query",
           raw === undefined ? [] : Object.keys(manifestQueriesOf(raw)),
+          diagnostics.length > 0
+            ? `invalid entries: ${diagnostics.map((d) => `${d.name}: ${d.reason}`).join("; ")}`
+            : undefined,
         );
       }
-      const health = checkManifestHealth(loaded.doc, manifest);
+      const health = checkManifestHealth(loaded.doc, manifest, diagnostics);
       if (health.staleQueries.includes(name)) {
         throw new ManifestStaleError(name, "query", Object.keys(manifest.queries));
       }

@@ -83,7 +83,7 @@ describe("parseManifest", () => {
       },
     });
     expect(Object.keys(manifest!.queries)).toEqual(["good"]);
-    expect(Object.keys(manifest!.mutations)).toEqual(["addTodo", "badAuto"]);
+    expect(Object.keys(manifest!.mutations)).toEqual(["addTodo"]);
     expect(diagnostics).toContainEqual({
       name: "queries.noPath",
       reason: "path must be a non-empty string",
@@ -98,14 +98,14 @@ describe("parseManifest", () => {
     });
     expect(diagnostics).toContainEqual({
       name: "mutations.badAuto",
-      reason: 'auto.id must be one of uuid/nowIso (got "sequence")',
+      reason: 'auto.id must be one of uuid/nowIso (got "sequence"); entry skipped',
     });
   });
 
   it("parseManifestWithDiagnostics reports unparsable manifests", () => {
     expect(parseManifestWithDiagnostics({ version: 3 }).diagnostics).toContainEqual({
       name: "$manifest",
-      reason: "version must be an integer between 1 and 2",
+      reason: "version must be a number between 1 and 2",
     });
     expect(parseManifestWithDiagnostics(null).manifest).toBeNull();
   });
