@@ -25,6 +25,9 @@
 
 ## 技术债（重构与收敛）
 
+- [ ] **同会话 trigger 订阅可用性（game-engine R2.2 遗留）**：`sp:` 订阅指回同一 session 时 turn 必 busy，当前实现跳过并记 `session busy, skipped`（`packages/core/src/trigger/executor.ts`），属安全但不可用的中间态；T9 深度计数已防止无限连锁。方向三选一：turn-end 延迟到 turn 完全关闭后 emit、同源（triggered）turn 不再 emit `sp:` 事件、或维持跳过并文档化。参见 `docs/dev/features/2026-09-17-game-engine/design.md` 决策 10/14
+- [ ] **早失败 turn 的 `sp:turn-end` 配对**：`agent.prompt` 直接抛错时只 emit 了 `sp:user-message`，无配对 turn-end（`agent-runner.ts` persistMiddleware 只处理 `agent_end` 事件）。方向：异常出口补 `reason: "error"` 的 turn-end（需 synthetic seq 决策），或文档明确"无 turn-end = 早失败"。参见 `docs/dev/features/2026-09-17-game-engine/plan.md` T5
+- [ ] **trigger 同 session 并发 restore 竞态**：`executor.fire` 的排队建在 mode switch（`restoreSession`）之后，两次并发 fire 同一非活跃 `existing_session` 可能双初始化 runner（`sessions.has` 早返大概率兜住，未实证）。方向：排队提前到 switch 之前（`existing_session` 用 targetSessionId 为键）。参见 `docs/dev/features/2026-09-17-game-engine/plan.md` T4
 - [ ] **ActivityBar 自治化（D7，推迟）**：ActivityBar 改为 feature root 自治（自己读 store + navigate），App.tsx 精简为中转站。参见 `docs/dev/features/2026-06-19-frontend-routing-p0/design.md`（D7）
 - [ ] **逐步禁止 `any`**：梳理 agent/runtime payload、SQLite row casting、测试 tool context 等现有 `any` 来源，优先通过明确事件/消息/数据库 row 类型替换；完成后开启 `@typescript-eslint/no-explicit-any` 的 warning 或 error 模式。参见 `docs/dev/features/2026-06-05-frontend-lint/design.md`
 - [ ] **消除 server contract 中的 `Type.Unknown()`**：当前 `@spherse/contracts` 的 `websocket.ts`（chat 事件的 `message`/`args`/`result`/`toolResults`/`assistantMessageEvent`、trigger 事件的 `trigger`）、`debug.ts`（`messages`、tool `parameters`）、`sessions.ts`（`sessionMessagesResponse`）用 `Type.Unknown()` 承接 pi-ai/pi-agent-core 的复杂嵌套对象，仅作结构校验。后续应引入 pi-ai `Message` 联合、tool call/result、`AgentMessage[]` 等精确 TypeBox schema 替换，消除所有 `unknown`。

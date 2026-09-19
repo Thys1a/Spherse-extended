@@ -238,10 +238,11 @@ Full skill instructions in Markdown...
 - 顶层 `$` 前缀键为平台保留（如 `$manifest`）：SDK 写入拒绝、`data.keys` / `data.entries` 不返回、dot-path 寻址不可达、core `writeRaw` 抛 `ForbiddenKeyError`
 - 写入不变量：tmp + rename 原子落盘、`FileWriteMutex` 锁内读-改-写、sha256 内容哈希 version + `ifVersion` 乐观锁、`idempotencyKey` 幂等（LRU 1024）、单文件 20MB 上限、变更事件携带 `origin`（sdk / agent）
 - **写入粒度约定**：集合的结构性增删改走 `data.mutate`（SDK）/ `mutate_data`（agent）同一套 manifest 入口（锁内 item 级原子，并发互不覆盖）；`data.set` 仅适合单值 / 低冲突数据，整值覆盖并发写入
-- agent 首次接触文件用 `read_data`（不带 path）获取 outline：结构大纲 + `$manifest` 入口签名（`name!` / `name?` 标注必填 / 可选，超 4096 字符截断）
+- agent 首次接触文件用 `read_data`（不带 path）获取 outline：结构大纲 + `$manifest` 入口签名（`name!` / `name?` 标注必填 / 可选，嵌套标量带类型如 `stats!: {hp!: integer}`，超 4096 字符截断）
   - 无 manifest 的存量文件降级为 outline + dot-path 局部读（数组默认 20 条分页、上限 100）+ `edit_file` / `write_file` 整文件改
 - `$manifest` 由页面生成时的 agent 同源产出（`spherse-build-data-app` / `spherse-write-html` skill 约束）：
   - `queries` 声明等值过滤 / sort / dir / identity 游标分页；`mutations` 声明 append / update / remove / set + fields 类型校验 + auto 补全 uuid / nowIso + match 定位
+  - `version: 2` 起支持嵌套 fields（`object` + `properties` / `array` + `items`，仅一层嵌套 L1；`version: 1` 含嵌套的条目被跳过）；非法条目静默跳过但附诊断（`parseManifestWithDiagnostics`），outline 以 `! name: reason` 行展示，`unknown_entry` 错误附 `invalid entries`
   - 执行时锁内现场校验 manifest 健康，失配报 `manifest_stale` / `unknown_entry`（附 valid names），不信任缓存健康度
 - 损坏（撕裂 JSON）报 `file_corrupted`，不自动修复；server 路由错误映射——version_conflict 409、unknown_entry 404、manifest_stale 409、validation_failed 400、forbidden_key 400、file_corrupted 422
 

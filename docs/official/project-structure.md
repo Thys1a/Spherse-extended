@@ -11,6 +11,7 @@ spherse/
 │   │       ├── presets.ts            # initPresets()：新项目预置 agent 注入（core 内唯一 presets import）
 │   │       ├── project-manager.ts    # ProjectManager：数据访问门面（server 不得见 store 实例）+ 写入门面（writeFile/writeBinaryFile/createEntry/deletePath/copyFileWithin = resolve+policy+per-path mutex）
 │   │       ├── project-runtime.ts    # ProjectRuntime：轻量协调层（capability 生命周期遍历：onAgentDeleted/invalidateAgent/shutdown；triggerManager/timerService 为 derived getter）
+│   │       ├── tool-attribution.ts     # ToolAttributionRegistry（turn 归因：(sessionId, toolCallId)→turnSeq 注册表）+ deriveSideEffects（tool result details→sideEffects 派生表）
 │   │       ├── kernel/               # 内核：零 I/O 纯组合子（capabilities 与 session 的公共契约层）
 │   │       │   ├── capability.ts     # Capability 接口（tools/contextBlocks/turnHooks/attachmentProcessors/pathRules/eventMiddlewares/init/onAgentDeleted/invalidateAgent/shutdown）+ TurnMiddlewareSource + CapabilityRegistry
 │   │       │   ├── ports.ts          # SessionPort / ToolHost / SessionView（窄视图）/ StoreRegistry（含 forAgent 作用域）/ KernelServices（PathRule 定义在 access/path-category.ts，kernel 仅 type 引用）
@@ -32,7 +33,7 @@ spherse/
 │   │       │   ├── compaction/       # maybeCompactLog 纯变换（transform.ts）+ capability
 │   │       │   ├── time-perception/ # streamDecorators 贡献（<time> 前缀注入）+ previewTransforms（debug snapshot 重放）+ 提示 block；感知时间数学在 time-perception.ts
 │   │       │   ├── memory/           # memory capability（memory_save/recall 工具接线 + <memory> block；MemoryStore 在 store/memory.ts）
-│   │       │   ├── card/             # CardStore（.card.json 世界书读写：解析/检索/原子写；经 factory 挂 runtime.cardStore，server card 路由消费）
+│   │       │   ├── card/             # CardStore（.card.json 世界书读写：解析/检索/原子写；经 factory 挂 runtime.cardStore，server card 路由消费）+ worldbook.ts（matchWorldbook 世界书命中 + contextProjector 逐轮注入 + token/条目预算）
 │   │       │   ├── shared/           # llmPolicyOf 等跨能力共享工具
 │   │       │   └── builtin.ts        # builtinToolCapabilities()：纯工具类 capability 集合
 │   │       ├── session/              # 会话运行时（kernel 抽象的编排实例化）
