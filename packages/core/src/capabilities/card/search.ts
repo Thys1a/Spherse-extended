@@ -10,7 +10,7 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, Math.floor(value)));
 }
 
-function matchKeys(entry: CardEntry, query: string): { hit: boolean; regexFallback: boolean } {
+export function matchKeys(entry: CardEntry, query: string): { hit: boolean; regexFallback: boolean } {
   const keys = [...entry.keys, ...entry.secondary_keys];
   const q = query.toLowerCase();
   let fallbackHit = false;

@@ -1,4 +1,17 @@
 export { createCardStore, type CreateCardStoreOptions } from "./card-store.js";
+export {
+  matchWorldbook,
+  applyWorldbookBudget,
+  renderWorldbook,
+  renderWorldbookEntry,
+  recentTextOf,
+  readAgentWorldbook,
+  invalidateWorldbookCache,
+  worldbookProjector,
+  WORLDBOOK_MAX_ENTRIES,
+  WORLDBOOK_MAX_TOKENS,
+  type WorldbookBudget,
+} from "./worldbook.js";
 export { createReadCardTool, createSearchCardTool, createEditCardTool } from "./tools.js";
 export { cardCapability } from "./capability.js";
 export type {
