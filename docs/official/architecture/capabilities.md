@@ -18,7 +18,7 @@
 | `interaction` | `run_command`（逐次审批）、`ask_user`（问答门） |
 | `project-config` | `manage_project_config` 工具 |
 | `data` | `read_data` / `query_data` / `mutate_data` 工具（`*.data.json`） |
-| `card` | `read_card` / `search_card` / `edit_card` 工具（`*.card.json` 世界书条目读写） |
+| `card` | `read_card` / `search_card` / `edit_card` 工具（`*.card.json` 世界书条目读写）+ worldbook contextProjector（agent 级卡逐轮扫描注入，token/条目双预算，见调优记录 `docs/dev/investigation/worldbook-order-tuning.md`） |
 | `trigger` | `emit_trigger_event` / `manage_trigger` 工具 + `TriggerManager` / `TimerService` 调度（time 型 10 分钟墙钟对齐轮询、event 型即时；磁盘为唯一真相源，每 tick 重读） |
 | `mcp` | MCP server 连接、工具运行时合并、`<mcp-context>` 注入 |
 | `attachments` | 图片等附件处理器 |

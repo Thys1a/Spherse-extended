@@ -10,6 +10,28 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, Math.floor(value)));
 }
 
+const REGEX_CACHE_CAPACITY = 500;
+const regexCache = new Map<string, RegExp | null>();
+
+function cachedRegExp(key: string): RegExp | null | undefined {
+  const hit = regexCache.get(key);
+  if (hit !== undefined) return hit;
+  let compiled: RegExp | null;
+  try {
+    compiled = new RegExp(key, "i");
+  } catch {
+    compiled = null;
+  }
+  if (regexCache.has(key)) regexCache.delete(key);
+  regexCache.set(key, compiled);
+  while (regexCache.size > REGEX_CACHE_CAPACITY) {
+    const oldest = regexCache.keys().next().value;
+    if (oldest === undefined) break;
+    regexCache.delete(oldest);
+  }
+  return compiled;
+}
+
 export function matchKeys(entry: CardEntry, query: string): { hit: boolean; regexFallback: boolean } {
   const keys = [...entry.keys, ...entry.secondary_keys];
   const q = query.toLowerCase();
@@ -17,14 +39,14 @@ export function matchKeys(entry: CardEntry, query: string): { hit: boolean; rege
   for (const key of keys) {
     if (!key) continue;
     if (entry.use_regex) {
-      try {
-        if (new RegExp(key, "i").test(query)) return { hit: true, regexFallback: false };
-        continue;
-      } catch {
-        const k = key.toLowerCase();
-        if (k.includes(q) || q.includes(k)) fallbackHit = true;
+      const pattern = cachedRegExp(key);
+      if (pattern) {
+        if (pattern.test(query)) return { hit: true, regexFallback: false };
         continue;
       }
+      const k = key.toLowerCase();
+      if (k.includes(q) || q.includes(k)) fallbackHit = true;
+      continue;
     }
     const k = key.toLowerCase();
     if (k.includes(q) || q.includes(k)) return { hit: true, regexFallback: false };

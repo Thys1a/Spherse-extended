@@ -7,6 +7,7 @@ import {
   invalidateWorldbookCache,
   matchWorldbook,
   readAgentWorldbook,
+  recentTextOf,
   renderWorldbook,
   WORLDBOOK_MAX_ENTRIES,
   worldbookProjector,
@@ -87,10 +88,11 @@ describe("matchWorldbook (R7.1)", () => {
     expect(hits.map((e) => e.content)).toEqual(["Always."]);
   });
 
-  it("selective entries require a secondary-key hit", () => {
+  it("selective entries require both primary and secondary hits", () => {
     const entries = [entry({ keys: ["stark"], secondary_keys: ["direwolf"], selective: true })];
     expect(matchWorldbook("house stark gathers", entries)).toHaveLength(0);
-    expect(matchWorldbook("a direwolf howls", entries)).toHaveLength(1);
+    expect(matchWorldbook("a direwolf howls", entries)).toHaveLength(0);
+    expect(matchWorldbook("house stark marches with a direwolf", entries)).toHaveLength(1);
   });
 
   it("sorts by insertion_order ascending", () => {
@@ -130,6 +132,38 @@ describe("applyWorldbookBudget (R7.2)", () => {
     const entries = [entry({ keys: ["x"], content: "one" }), entry({ keys: ["x"], content: "two" })];
     expect(applyWorldbookBudget(entries, { maxEntries: 1 })).toHaveLength(1);
     expect(applyWorldbookBudget(entries, { maxTokens: 0 })).toHaveLength(1);
+  });
+
+  it("ranks unsorted input by insertion_order before capping", () => {
+    const entries = [entry({ keys: ["x"], insertion_order: 9, content: "nine" }), entry({ keys: ["x"], insertion_order: 1, content: "one" })];
+    const out = applyWorldbookBudget(entries, { maxEntries: 1 });
+    expect(out.map((e) => e.content)).toEqual(["one"]);
+  });
+});
+
+describe("recentTextOf (C1)", () => {
+  it("strips previously injected worldbook blocks so they cannot retrigger", () => {
+    const text = recentTextOf([
+      { role: "user", content: "let us talk about baking" } as never,
+      {
+        role: "user",
+        content: "<worldbook>\n<entry keys=\"Winterfell\">The castle.</entry>\n</worldbook>",
+      } as never,
+    ]);
+    expect(text).not.toContain("Winterfell");
+    expect(text).toContain("baking");
+    expect(
+      matchWorldbook(text, [entry({ keys: ["Winterfell"], content: "The castle." })]),
+    ).toHaveLength(0);
+  });
+
+  it("survives unserializable toolCall arguments", () => {
+    const circular: Record<string, unknown> = {};
+    circular.self = circular;
+    const text = recentTextOf([
+      { role: "assistant", content: [{ type: "toolCall", id: "t", name: "x", arguments: circular }] } as never,
+    ]);
+    expect(text).toContain("x");
   });
 });
 
@@ -198,5 +232,29 @@ describe("worldbookProjector", () => {
     );
     invalidateWorldbookCache(root, "hero");
     expect(readAgentWorldbook(root, "hero")).toHaveLength(1);
+  });
+
+  it("sees in-place rewrites without invalidation (C2)", () => {
+    const file = path.join(slugDir, "lore.card.json");
+    fs.writeFileSync(file, cardFile([{ keys: ["x"], content: "v1" }]));
+    expect(readAgentWorldbook(root, "hero").map((e) => e.content)).toEqual(["v1"]);
+    fs.writeFileSync(file, cardFile([{ keys: ["x"], content: "v2" }]));
+    expect(readAgentWorldbook(root, "hero").map((e) => e.content)).toEqual(["v2"]);
+  });
+
+  it("invalidate by project root does not touch nested roots (M3)", () => {
+    const root2 = path.join(root, "subproj");
+    const dir2 = path.join(root2, ".spherse", "agents", "hero");
+    fs.mkdirSync(dir2, { recursive: true });
+    try {
+      fs.writeFileSync(path.join(slugDir, "lore.card.json"), cardFile([{ keys: ["x"], content: "r1" }]));
+      fs.writeFileSync(path.join(dir2, "lore.card.json"), cardFile([{ keys: ["x"], content: "r2" }]));
+      expect(readAgentWorldbook(root, "hero")).toHaveLength(1);
+      expect(readAgentWorldbook(root2, "hero")).toHaveLength(1);
+      invalidateWorldbookCache(root);
+      expect(readAgentWorldbook(root2, "hero").map((e) => e.content)).toEqual(["r2"]);
+    } finally {
+      invalidateWorldbookCache();
+    }
   });
 });

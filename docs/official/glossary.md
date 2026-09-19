@@ -85,6 +85,8 @@
 | outline | `read_data` 无 path 时输出的结构大纲 + manifest 入口签名 | [data-conventions.md](data-conventions.md) |
 | HTML Card | `render_card` 渲染的 HTML 卡片；全文仅经 onUpdate 传输、不落库 | [data-conventions.md](data-conventions.md) |
 | Image Card | `generate_image` 渲染的图片卡片，三态 generating / done / error | [data-conventions.md](data-conventions.md) |
+| worldbook | agent 级世界书：`.spherse/agents/{slug}/` 下顶层 `*.card.json` 的条目集合，逐轮按 keys 扫描命中后以 `<worldbook>` user 块注入（constant 恒注入） | [architecture/capabilities.md](architecture/capabilities.md) |
+| selective | 世界书条目开关：为 true 时 primary（keys）与 secondary（secondary_keys）必须同时命中才注入（ST AND 语义） | [architecture/capabilities.md](architecture/capabilities.md) |
 | preview URL | `/api/projects/:id/preview/` 静态资源代理，HTML 卡 base 注入的基准 | [architecture/server.md](architecture/server.md) |
 
 ## UI SDK 与前端

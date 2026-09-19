@@ -30,7 +30,7 @@ function normalizeEntry(raw: unknown): CardEntry | null {
     content,
     constant: raw.constant === true,
     selective: raw.selective === true,
-    insertion_order: typeof raw.insertion_order === "number" ? raw.insertion_order : 0,
+    insertion_order: typeof raw.insertion_order === "number" && Number.isFinite(raw.insertion_order) ? raw.insertion_order : 0,
     enabled: raw.enabled !== false,
     position: typeof raw.position === "string" ? raw.position : "",
     use_regex: raw.use_regex === true,

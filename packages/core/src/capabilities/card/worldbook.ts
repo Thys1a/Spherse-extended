@@ -23,6 +23,10 @@ function escapeXmlText(value: string): string {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
+function orderOf(entry: CardEntry): number {
+  return Number.isFinite(entry.insertion_order) ? entry.insertion_order : 0;
+}
+
 export function matchWorldbook(recentText: string, entries: CardEntry[]): CardEntry[] {
   const matched: CardEntry[] = [];
   for (const entry of entries) {
@@ -31,13 +35,21 @@ export function matchWorldbook(recentText: string, entries: CardEntry[]): CardEn
       matched.push(entry);
       continue;
     }
-    const keys = entry.selective ? entry.secondary_keys : [...entry.keys, ...entry.secondary_keys];
+    if (entry.selective) {
+      if (entry.keys.length === 0 || entry.secondary_keys.length === 0) continue;
+      const primaryHit = matchKeys({ ...entry, keys: entry.keys, secondary_keys: [] }, recentText).hit;
+      if (!primaryHit) continue;
+      const secondaryHit = matchKeys({ ...entry, keys: [], secondary_keys: entry.secondary_keys }, recentText).hit;
+      if (secondaryHit) matched.push(entry);
+      continue;
+    }
+    const keys = [...entry.keys, ...entry.secondary_keys];
     if (keys.length === 0) continue;
     if (matchKeys({ ...entry, keys, secondary_keys: [] }, recentText).hit) {
       matched.push(entry);
     }
   }
-  matched.sort((a, b) => a.insertion_order - b.insertion_order);
+  matched.sort((a, b) => orderOf(a) - orderOf(b));
   return matched;
 }
 
@@ -51,7 +63,8 @@ export function applyWorldbookBudget(entries: CardEntry[], budget?: WorldbookBud
   const maxTokens = Math.max(0, budget?.maxTokens ?? WORLDBOOK_MAX_TOKENS);
   const out: CardEntry[] = [];
   let tokens = 0;
-  for (const entry of entries.slice(0, maxEntries)) {
+  const ranked = entries.slice().sort((a, b) => orderOf(a) - orderOf(b));
+  for (const entry of ranked.slice(0, maxEntries)) {
     const cost = estimateTokens(renderWorldbookEntry(entry));
     if (out.length > 0 && tokens + cost > maxTokens) break;
     out.push(entry);
@@ -65,7 +78,14 @@ function blockText(block: unknown): string {
   const typed = block as { type?: unknown; text?: unknown; name?: unknown; arguments?: unknown };
   if (typed.type === "text" && typeof typed.text === "string") return typed.text;
   if (typed.type === "toolCall") {
-    const args = typed.arguments !== undefined ? JSON.stringify(typed.arguments) : "";
+    let args = "";
+    if (typed.arguments !== undefined) {
+      try {
+        args = JSON.stringify(typed.arguments);
+      } catch {
+        args = "";
+      }
+    }
     return `${typeof typed.name === "string" ? typed.name : ""} ${args}`;
   }
   return "";
@@ -78,11 +98,13 @@ function messageText(message: AgentMessage): string {
   return "";
 }
 
+const WORLDBOOK_BLOCK_PATTERN = /<worldbook>[\s\S]*?<\/worldbook>/g;
+
 export function recentTextOf(messages: readonly AgentMessage[]): string {
   const chunks: string[] = [];
   let chars = 0;
   for (let i = messages.length - 1; i >= 0 && chunks.length < RECENT_SCAN_MESSAGES; i--) {
-    const text = messageText(messages[i]);
+    const text = messageText(messages[i]).replace(WORLDBOOK_BLOCK_PATTERN, "");
     if (!text) continue;
     chunks.unshift(text);
     chars += text.length;
@@ -92,14 +114,14 @@ export function recentTextOf(messages: readonly AgentMessage[]): string {
 }
 
 interface CachedBook {
-  mtimeMs: number;
+  fingerprint: string;
   entries: CardEntry[];
 }
 
 const bookCache = new Map<string, CachedBook>();
 
 function cacheKey(projectRoot: string, slug: string): string {
-  return `${projectRoot}${slug}`;
+  return `${projectRoot}\0${slug}`;
 }
 
 export function invalidateWorldbookCache(projectRoot?: string, slug?: string): void {
@@ -108,7 +130,11 @@ export function invalidateWorldbookCache(projectRoot?: string, slug?: string): v
     return;
   }
   for (const key of [...bookCache.keys()]) {
-    if (slug !== undefined ? key === cacheKey(projectRoot, slug) : key.startsWith(projectRoot)) {
+    if (
+      slug !== undefined
+        ? key === cacheKey(projectRoot, slug)
+        : key.startsWith(`${projectRoot}\0`)
+    ) {
       bookCache.delete(key);
     }
   }
@@ -134,20 +160,44 @@ function loadAgentCards(dir: string): CardEntry[] {
   return entries;
 }
 
+function fingerprintDir(dir: string): string | null {
+  let dirStat: fs.Stats;
+  try {
+    dirStat = fs.statSync(dir);
+  } catch {
+    return null;
+  }
+  let names: string[];
+  try {
+    names = fs.readdirSync(dir);
+  } catch {
+    return null;
+  }
+  const parts = [`dir:${dirStat.mtimeMs}`];
+  for (const name of names) {
+    if (!name.endsWith(".card.json")) continue;
+    try {
+      const fileStat = fs.statSync(path.join(dir, name));
+      parts.push(`${name}:${fileStat.mtimeMs}:${fileStat.size}`);
+    } catch {
+      continue;
+    }
+  }
+  return parts.join("|");
+}
+
 export function readAgentWorldbook(projectRoot: string, slug: string): CardEntry[] {
   const key = cacheKey(projectRoot, slug);
   const dir = path.join(projectRoot, ".spherse", "agents", slug);
-  let mtimeMs = -1;
-  try {
-    mtimeMs = fs.statSync(dir).mtimeMs;
-  } catch {
+  const fingerprint = fingerprintDir(dir);
+  if (fingerprint === null) {
     bookCache.delete(key);
     return [];
   }
   const cached = bookCache.get(key);
-  if (cached && cached.mtimeMs === mtimeMs) return cached.entries;
+  if (cached && cached.fingerprint === fingerprint) return cached.entries;
   const entries = loadAgentCards(dir);
-  bookCache.set(key, { mtimeMs, entries });
+  bookCache.set(key, { fingerprint, entries });
   return entries;
 }
 

@@ -13,7 +13,7 @@ spherse/
 │   │       ├── project-runtime.ts    # ProjectRuntime：轻量协调层（capability 生命周期遍历：onAgentDeleted/invalidateAgent/shutdown；triggerManager/timerService 为 derived getter）
 │   │       ├── tool-attribution.ts     # ToolAttributionRegistry（turn 归因：(sessionId, toolCallId)→turnSeq 注册表）+ deriveSideEffects（tool result details→sideEffects 派生表）
 │   │       ├── kernel/               # 内核：零 I/O 纯组合子（capabilities 与 session 的公共契约层）
-│   │       │   ├── capability.ts     # Capability 接口（tools/contextBlocks/turnHooks/attachmentProcessors/pathRules/eventMiddlewares/init/onAgentDeleted/invalidateAgent/shutdown）+ TurnMiddlewareSource + CapabilityRegistry
+│   │       │   ├── capability.ts     # Capability 接口（tools/contextBlocks/contextProjectors/turnHooks/attachmentProcessors/pathRules/eventMiddlewares/init/onAgentDeleted/invalidateAgent/shutdown）+ TurnMiddlewareSource + CapabilityRegistry
 │   │       │   ├── ports.ts          # SessionPort / ToolHost / SessionView（窄视图）/ StoreRegistry（含 forAgent 作用域）/ KernelServices（PathRule 定义在 access/path-category.ts，kernel 仅 type 引用）
 │   │       │   ├── gates.ts          # ApprovalGate / AskGate 端口（session control 请求的类型源）
 │   │       │   ├── event-pipeline.ts # EventMiddleware + createEventPipeline（横切组合律）
@@ -38,7 +38,7 @@ spherse/
 │   │       │   └── builtin.ts        # builtinToolCapabilities()：纯工具类 capability 集合
 │   │       ├── session/              # 会话运行时（kernel 抽象的编排实例化）
 │   │       │   ├── agent-runner.ts   # AgentRunner：turn 编排（sendMessage/retry/abort；in-flight guard；对具体能力零 import）
-│   │       │   ├── agent-assembly.ts # 从 profile 构造 Agent（capability tools 聚合 + 身份 blocks + capability contextBlocks 组装 systemPrompt）
+│   │       │   ├── agent-assembly.ts # 从 profile 构造 Agent（capability tools 聚合 + 身份 blocks + capability contextBlocks 组装 systemPrompt + contextProjectors 接 convertToLlm 逐轮投影）
 │   │       │   ├── session-manager.ts # SessionManager：纯 session 池（直接持 AgentRunner；hot-reload 标记；RunConfig 派发）
 │   │       │   ├── runtime.ts        # RuntimeDeps（冻结）+ createRuntimeDeps 装配函数 + RunConfigHolder
 │   │       │   ├── control-bus.ts    # SessionControlBus（requestId + kind 判别；swapEventSink 栈恢复）
