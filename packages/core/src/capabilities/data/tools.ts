@@ -131,7 +131,7 @@ export function createMutateDataTool(
     name: "mutate_data",
     label: "Mutate Data",
     description:
-      "Run a named mutation from a *.data.json $manifest (append/update/remove/set with schema validation and auto-generated fields). Atomic and safe to retry with idempotencyKey.",
+      "Run a named mutation from a *.data.json $manifest (append/update/remove/set with schema validation and auto-generated fields). Fields may nest one level (object/array; manifests using nesting declare version: 2). Unknown fields are rejected and auto-generated fields must not be passed by the caller. set replaces the target object whole (no merge); arrays only change via append/update/remove. Atomic and safe to retry with idempotencyKey. " + "Prefer this over write_file/edit_file or SDK data.set/delete for *.data.json writes: those bypass manifest validation.",
     parameters: MutateDataParams,
     async execute(toolCallId, params, _signal) {
       try {

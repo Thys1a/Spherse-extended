@@ -35,3 +35,20 @@ export function routeToTabSpec(projectId: string, pathname: string, search: stri
   }
   return null;
 }
+
+const LAST_ROUTE_VALIDATION_PROJECT_ID = "__last_route__";
+
+export function isValidLastRouteSuffix(suffix: string): boolean {
+  if (suffix === "" || suffix === "/") return true;
+  if (!suffix.startsWith("/")) return false;
+  const qIndex = suffix.indexOf("?");
+  const pathname = qIndex === -1 ? suffix : suffix.slice(0, qIndex);
+  const search = qIndex === -1 ? "" : suffix.slice(qIndex);
+  return (
+    routeToTabSpec(
+      LAST_ROUTE_VALIDATION_PROJECT_ID,
+      `/project/${LAST_ROUTE_VALIDATION_PROJECT_ID}${pathname}`,
+      search,
+    ) !== null
+  );
+}

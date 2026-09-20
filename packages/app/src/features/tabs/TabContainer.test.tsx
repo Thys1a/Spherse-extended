@@ -96,6 +96,24 @@ describe("TabContainer split layout", () => {
     expect(screen.queryByRole("separator")).toBeNull();
     expect(screen.getByTestId("split-pane")).toHaveTextContent("b.md");
   });
+
+  it("seeds a home tab when the project has no tabs", () => {
+    renderWithProviders(<TabContainer projectId="p1" />);
+
+    const entry = useTabStore.getState().byProject["p1"];
+    expect(entry?.tabs).toHaveLength(1);
+    expect(entry?.tabs[0].kind).toBe("home");
+    expect(entry?.activeTabId).toBe(entry?.tabs[0].id);
+    expect(screen.getByTestId(`panel-${entry?.tabs[0].id}`)).toBeInTheDocument();
+  });
+
+  it("does not seed a home tab when only a split is open", () => {
+    useSplitStore.getState().openSplit("p1", "b.md");
+    renderWithProviders(<TabContainer projectId="p1" />);
+
+    expect(useTabStore.getState().byProject["p1"]).toBeUndefined();
+    expect(screen.getByTestId("split-pane")).toBeInTheDocument();
+  });
 });
 
 function mockContainerWidth(width: number) {

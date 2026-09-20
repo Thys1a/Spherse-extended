@@ -57,7 +57,7 @@ import { FindBar } from "../../components/find-bar/FindBar";   // content-browse
 
 ---
 
-## Task 1: B2 无标签页首页修复 [ ]
+## Task 1: B2 无标签页首页修复 [x]
 
 **依赖**：无（bug 优先，最先合入）。
 
@@ -75,7 +75,7 @@ import { FindBar } from "../../components/find-bar/FindBar";   // content-browse
 
 ---
 
-## Task 2: B3 本会话内查找（搬移 + Chat 接线）[ ]
+## Task 2: B3 本会话内查找（搬移 + Chat 接线）[x]
 
 **依赖**：无（可与 T1 并行）。
 
@@ -94,7 +94,7 @@ import { FindBar } from "../../components/find-bar/FindBar";   // content-browse
 
 ---
 
-## Task 3: R1.3/R1.4 纯文档化 [ ]
+## Task 3: R1.3/R1.4 纯文档化 [x]
 
 **依赖**：无（可与 T1/T2 并行）。
 

@@ -1,4 +1,4 @@
-import { useMemo, useEffect } from "react";
+import { useMemo, useEffect, useRef, useState } from "react";
 import type { AgentSummary } from "../../lib/types";
 import { useProjectCtx } from "../../context/project-context";
 import { useApiClient, useConnection } from "../../lib/use-connection";
@@ -21,6 +21,7 @@ import { useStreamingStore } from "./runtime/streaming-store";
 import type { AttachedFile } from "./types";
 import { useSummonSend } from "./lib/use-summon-send";
 import { useAgentProfile } from "../../queries/project/agents";
+import { FindBar } from "../../components/find-bar/FindBar";
 
 export interface ChatProps {
   sessionId: string;
@@ -68,6 +69,21 @@ export function Chat({ sessionId, agent, onNavigateToPath, onOpenSession, initia
   const { containerRef, isAtBottom, scrollToBottom } = useChatScroll(messages, sessionId, loadingMore);
   const sendSummon = useSummonSend(sessionId, agent.id);
   const { profile } = useAgentProfile(projectId, client, agent.id);
+  const [findOpen, setFindOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "f") {
+        const active = document.activeElement;
+        if (!rootRef.current || !active || !rootRef.current.contains(active)) return;
+        event.preventDefault();
+        setFindOpen(true);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
   const themeCss = useAgentTheme(client, agent.id, agent.slug, projectId);
   const scopedThemeCss = useMemo(
     () =>
@@ -130,7 +146,7 @@ export function Chat({ sessionId, agent, onNavigateToPath, onOpenSession, initia
 
   return (
     <ChatRuntimeProvider runtime={runtime}>
-      <div className="flex flex-col h-full" data-chat-root data-chat-instance={sessionId}>
+      <div ref={rootRef} className="flex flex-col h-full" data-chat-root data-chat-instance={sessionId}>
         {scopedThemeCss && <style data-agent-theme={sessionId}>{scopedThemeCss}</style>}
         {!hideHeader && <Header agent={agent} onClose={onClose ? handleClose : undefined} />}
         <ConnectionBanner
@@ -140,6 +156,13 @@ export function Chat({ sessionId, agent, onNavigateToPath, onOpenSession, initia
           onReconnect={reconnect}
           onRetryHistory={retryHistory}
         />
+        {findOpen && (
+          <FindBar
+            containerRef={containerRef}
+            contentKey={sessionId}
+            onClose={() => setFindOpen(false)}
+          />
+        )}
         <MessageList
           messages={messages}
           agent={agent}

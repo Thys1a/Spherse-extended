@@ -30,7 +30,7 @@ async function renderAndQuery(text: string, query: string) {
 }
 
 function countLabel(): string {
-  return document.querySelector("[data-content-findbar] span")?.textContent ?? "";
+  return document.querySelector("[data-find-bar] span")?.textContent ?? "";
 }
 
 describe("FindBar", () => {
@@ -46,7 +46,7 @@ describe("FindBar", () => {
 
   it("disables prev/next when there are no matches and enables them on hits", async () => {
     render(<Harness text="foo bar foo" />);
-    const buttons = document.querySelectorAll("[data-content-findbar] button");
+    const buttons = document.querySelectorAll("[data-find-bar] button");
     expect(buttons[0]).toBeDisabled();
     expect(buttons[1]).toBeDisabled();
 
@@ -55,7 +55,7 @@ describe("FindBar", () => {
     await act(async () => {
       await sleep(170);
     });
-    const buttonsAfter = document.querySelectorAll("[data-content-findbar] button");
+    const buttonsAfter = document.querySelectorAll("[data-find-bar] button");
     expect(buttonsAfter[0]).toBeEnabled();
     expect(buttonsAfter[1]).toBeEnabled();
   });

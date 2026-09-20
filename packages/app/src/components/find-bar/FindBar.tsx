@@ -1,9 +1,9 @@
 import { type RefObject, useEffect, useRef } from "react";
 import { ChevronDownIcon, ChevronUpIcon, XIcon } from "lucide-react";
-import { Input } from "../../components/ui/input";
-import { Button } from "../../components/ui/button";
+import { Input } from "../ui/input";
+import { Button } from "../ui/button";
 import { useI18n } from "@spherse/i18n/react";
-import { useContentFind } from "./hooks/useContentFind";
+import { useContentFind } from "./useContentFind";
 
 interface FindBarProps {
   containerRef: RefObject<HTMLDivElement | null>;
@@ -33,7 +33,7 @@ export function FindBar({ containerRef, contentKey, onClose }: FindBarProps) {
 
   return (
     <div
-      data-content-findbar
+      data-find-bar
       className="flex items-center gap-2 border-b border-border bg-background px-3 py-2"
     >
       <Input

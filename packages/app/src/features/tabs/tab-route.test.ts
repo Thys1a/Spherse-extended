@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { tabToRoute, routeToTabSpec } from "./tab-route";
+import { tabToRoute, routeToTabSpec, isValidLastRouteSuffix } from "./tab-route";
 import type { Tab } from "./tab-store";
 
 function makeTab(partial: Partial<Tab> & { kind: Tab["kind"] }): Tab {
@@ -78,5 +78,36 @@ describe("routeToTabSpec", () => {
     const route = tabToRoute(tab);
     const spec = routeToTabSpec("p1", route.split("?")[0], "");
     expect(spec).toMatchObject({ kind: "chat", sessionId: "a b?c#d" });
+  });
+});
+
+describe("isValidLastRouteSuffix", () => {
+  it("accepts empty and index suffixes", () => {
+    expect(isValidLastRouteSuffix("")).toBe(true);
+    expect(isValidLastRouteSuffix("/")).toBe(true);
+  });
+
+  it("accepts chat suffixes with a session id", () => {
+    expect(isValidLastRouteSuffix("/chat/s1")).toBe(true);
+    expect(isValidLastRouteSuffix("/chat/")).toBe(false);
+    expect(isValidLastRouteSuffix("/chat/a/b")).toBe(false);
+  });
+
+  it("accepts content suffixes only with a path query", () => {
+    expect(isValidLastRouteSuffix("/content?path=notes%2Fa.md")).toBe(true);
+    expect(isValidLastRouteSuffix("/content")).toBe(false);
+    expect(isValidLastRouteSuffix("/content?path=")).toBe(false);
+  });
+
+  it("accepts browser suffixes only with a loopback url", () => {
+    expect(isValidLastRouteSuffix("/browser?url=http%3A%2F%2Flocalhost%3A3000")).toBe(true);
+    expect(isValidLastRouteSuffix("/browser")).toBe(false);
+    expect(isValidLastRouteSuffix("/browser?url=https%3A%2F%2Fexample.com")).toBe(false);
+  });
+
+  it("rejects unknown routes and non-suffixes", () => {
+    expect(isValidLastRouteSuffix("/unknown")).toBe(false);
+    expect(isValidLastRouteSuffix("chat/s1")).toBe(false);
+    expect(isValidLastRouteSuffix("/project/p1/chat/s1")).toBe(false);
   });
 });

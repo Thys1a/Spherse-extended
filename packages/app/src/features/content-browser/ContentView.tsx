@@ -9,7 +9,7 @@ import { useApiClient } from "../../lib/use-connection";
 import { mergeRefs } from "../../lib/utils";
 import { useOpenExternalLink } from "../browser/open-external-url";
 import { EditFindReplaceBar } from "./EditFindReplaceBar";
-import { FindBar } from "./FindBar";
+import { FindBar } from "../../components/find-bar/FindBar";
 import { FrontMatterPanel } from "./FrontMatterPanel";
 import { TocPanel } from "./TocPanel";
 import { useContentToc } from "./useContentToc";

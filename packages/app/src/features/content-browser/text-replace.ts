@@ -1,4 +1,4 @@
-import { findMatches } from "./hooks/find-engine";
+import { findMatches } from "../../components/find-bar/find-engine";
 
 export function replaceOneAt(text: string, start: number, end: number, replacement: string): string {
   return text.slice(0, start) + replacement + text.slice(end);
