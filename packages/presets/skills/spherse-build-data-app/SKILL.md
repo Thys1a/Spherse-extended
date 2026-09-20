@@ -60,10 +60,10 @@ description: 设计和构建由 HTML 页面与 Agent 共同读写的 Spherse 数
 | 新增集合条目 | `append` | `createThread`、`addReply` |
 | 按 identity 修改条目 | `update` | `setThreadStatus` |
 | 按 identity 删除条目 | `remove` | `removeReply` |
-| 整体替换对象（不合并） | `set` | `updateForumStats` |
+| 顶层浅合并、嵌套叶整替 | `set` | `updateForumStats` |
 
 mutation 名称描述业务动作，`fields` 只开放允许调用方写入的字段。使用 `required`、`enum` 和 `default` 固化数据约束；使用 `auto.uuid` 和 `auto.nowIso` 统一生成 identity 与时间。
-调用方不得传入 `auto` 字段（由运行时统一生成）；未在 `fields` 声明的字段会被拒收。`set` 对目标对象整叶替换（不合并，未传字段会丢失）；`update` 按 identity 修改条目，嵌套对象部分更新时保留已存兄弟值；数组只能走 `append`/`update`/`remove`，`set` 不做元素级 patch。
+调用方不得传入 `auto` 字段（由运行时统一生成）；未在 `fields` 声明的字段会被拒收。`set` 顶层浅合并（未传且无缺省的可选字段保留旧值），参数中出现的嵌套对象叶整替；`update` 按 identity 修改条目，嵌套对象部分更新时保留已存兄弟值；数组只能走 `append`/`update`/`remove`，`set` 不做元素级 patch。
 
 `match` 用于 `update` 和 `remove` 定位条目，通常与对应 query 的 `identity` 相同。调用方把 match 字段放在 `args` 中传入，但不要在 `fields` 中重复声明。
 
@@ -313,7 +313,7 @@ window.addEventListener("pagehide", unsubscribe, { once: true });
 
 - 含 object/array 即要求 `version: 2`；`version: 1` 文件出现嵌套字段时该 mutation 被丢弃、调用报未知入口（旧纯标量文件自动兼容，无需升级）。
 - 嵌套缺省会填充（如上 `level` 省略时为 1）；类型/缺失错误附字段路径（如 `stats.hp: expected integer`、`tags[1]: expected string`）。
-- `renameParty` 只传 `name` 时，已存的 `motto` 会丢失（整叶替换）；只改部分字段用 `update`（按 identity 定位，保留兄弟值）。
+- `renameParty` 只传 `name` 时，已存的 `motto` 保留（顶层浅合并）；嵌套叶一旦出现在参数中即整替（如 `audio: { muted: true }` 会丢掉 `volume`）。只改条目部分字段用 `update`（按 identity 定位，保留兄弟值）。
 
 ## 旁路声明（有意保留的演化通道）
 

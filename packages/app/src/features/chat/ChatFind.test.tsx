@@ -40,7 +40,6 @@ vi.mock("../../queries/project/agents", async (importOriginal) => {
   return { ...mod, useAgentProfile: () => ({ profile: null, loading: false, error: null }) };
 });
 
-// jsdom lacks Element.scrollTo (used by useChatScroll); stub it for Chat-level tests.
 Element.prototype.scrollTo = Element.prototype.scrollTo ?? (() => {});
 
 const agent = { id: "a1", name: "Helper", slug: "helper" };
@@ -56,6 +55,10 @@ const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 function findBar(): HTMLElement | null {
   return document.querySelector("[data-find-bar]");
+}
+
+function countText(): string {
+  return findBar()?.querySelector("span")?.textContent ?? "";
 }
 
 function findInput(): HTMLInputElement {
@@ -89,6 +92,25 @@ describe("Chat find bar", () => {
     expect(findBar()).toBeNull();
   });
 
+  it("cycles matches in DOM order with Enter and Shift+Enter", async () => {
+    renderChat();
+    (screen.getByRole("textbox") as HTMLElement).focus();
+    fireEvent.keyDown(window, { key: "f", ctrlKey: true });
+    const user = userEvent.setup();
+    await user.type(findInput(), "apple");
+    await act(async () => {
+      await sleep(170);
+    });
+    expect(countText()).toBe("1/2");
+    await user.type(findInput(), "{Enter}");
+    expect(countText()).toBe("2/2");
+    fireEvent.keyDown(findInput(), { key: "Enter", shiftKey: true });
+    expect(countText()).toBe("1/2");
+    await user.type(findInput(), "{Enter}");
+    await user.type(findInput(), "{Enter}");
+    expect(countText()).toBe("1/2");
+  });
+
   it("closes on Escape in the find input", async () => {
     renderChat();
     (screen.getByRole("textbox") as HTMLElement).focus();
@@ -96,7 +118,30 @@ describe("Chat find bar", () => {
     expect(findBar()).not.toBeNull();
 
     const user = userEvent.setup();
+    await user.type(findInput(), "apple");
+    await act(async () => {
+      await sleep(170);
+    });
+    expect(document.querySelectorAll("mark.sp-find-mark").length).toBeGreaterThan(0);
     await user.type(findInput(), "{Escape}");
     expect(findBar()).toBeNull();
+    expect(document.querySelectorAll("mark.sp-find-mark").length).toBe(0);
+  });
+
+  it("keeps the find bar mounted with a stale count when messages change mid-find", async () => {
+    const { rerender } = renderChat();
+    (screen.getByRole("textbox") as HTMLElement).focus();
+    fireEvent.keyDown(window, { key: "f", ctrlKey: true });
+    const user = userEvent.setup();
+    await user.type(findInput(), "apple");
+    await act(async () => {
+      await sleep(170);
+    });
+    expect(countText()).toBe("1/2");
+    MESSAGES.push({ role: "assistant", content: "more apple here", _messageId: 3 });
+    rerender(<Chat sessionId="s1" agent={agent} />);
+    expect(findBar()).not.toBeNull();
+    expect(countText()).toBe("1/2");
+    MESSAGES.pop();
   });
 });

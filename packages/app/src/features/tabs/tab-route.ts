@@ -40,7 +40,7 @@ const LAST_ROUTE_VALIDATION_PROJECT_ID = "__last_route__";
 
 export function isValidLastRouteSuffix(suffix: string): boolean {
   if (suffix === "" || suffix === "/") return true;
-  if (!suffix.startsWith("/")) return false;
+  if (!suffix.startsWith("/") || suffix.includes("#")) return false;
   const qIndex = suffix.indexOf("?");
   const pathname = qIndex === -1 ? suffix : suffix.slice(0, qIndex);
   const search = qIndex === -1 ? "" : suffix.slice(qIndex);

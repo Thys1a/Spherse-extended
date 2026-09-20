@@ -163,5 +163,5 @@
 - Chat 接线（`features/chat/index.tsx`）：`rootRef` + `findOpen` 状态；Ctrl/Cmd+F（**焦点域隔离**：仅当 `rootRef.current.contains(document.activeElement)` 时 `preventDefault + open`，照抄 `ContentView.tsx:143-153` 模式——`TabPanel` 全量 mount tab，仅 `display:none`，全局监听会抢后台 tab 的 Ctrl+F）；Esc 关闭（`FindBar.tsx:45-47` 已有 + `useContentFind.ts:86` 卸载清理）；在 `ConnectionBanner` 与 `MessageList` 之间渲染 `<FindBar containerRef={containerRef} contentKey={sessionId} onClose/>`（bar 在滚动容器外，`containerRef` 仍指向 `data-chat-messages` 内层 div，布局参考 `ContentView.tsx:221-229`；`contentKey=sessionId`，切会话自动重置 `:43-47`）。
 - i18n：复用现有 `content-browser.find.*` 6 键，不新增（免 catalog churn；键名域名泄漏记 tech debt follow-up）。
 - 已知行为（不动共享引擎，防回归 content-browser）：① `MessageList.tsx:91` 容器为 `flex-col-reverse` + groups 已反序，匹配按 DOM 序 = 视觉逆序，next/prev 方向可能反直觉；② `useContentFind.ts:49-66` 只在 `needle/contentKey` 变化时重算，流式中 DOM 变异下计数 stale（流式中查找为 best-effort）。两者均为手动验证项；若不可接受，后续给 hook 加 `order` 参数，另立项。
-- 边界：搜渲染文本，会命中代码块/tool call 文本；`hasMore` 未加载历史不可搜（范围声明为“已加载消息”）；后续「多匹配高亮 + 跳过噪声区」升级动共享引擎时需回归 content-browser。
+- 边界：搜渲染文本，会命中代码块/tool call 文本；`hasMore` 未加载历史不可搜（范围声明为“已加载消息”）；后续「多匹配高亮 + 跳过噪声区」升级动共享引擎时需回归 content-browser；空消息会话可打开空查找条（`data-chat-messages` 未挂载，无容器可搜，计数空白，不报错）。
 - 测试：Chat 内 Ctrl+F 打开（焦点内/外两种）、计数、next/prev、Esc 关闭清高亮；content-browser 侧由既有 `ContentView.test.tsx:39-95` 回归。

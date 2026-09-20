@@ -109,5 +109,7 @@ describe("isValidLastRouteSuffix", () => {
     expect(isValidLastRouteSuffix("/unknown")).toBe(false);
     expect(isValidLastRouteSuffix("chat/s1")).toBe(false);
     expect(isValidLastRouteSuffix("/project/p1/chat/s1")).toBe(false);
+    expect(isValidLastRouteSuffix("/chat/s1#frag")).toBe(false);
+    expect(isValidLastRouteSuffix("/content?path=a.md#x")).toBe(false);
   });
 });
