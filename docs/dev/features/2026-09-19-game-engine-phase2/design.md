@@ -68,12 +68,12 @@
 
 ### R6.1 panic 锁定（P2，小）
 
-- 改动：`Composer.tsx:369,411-419` 加 `disabled + 原因` + i18n；不动 reducer/WS。锁定集合最小化为 `{reconnectFailed}`：唯一传输已死、需手动重连、发送必失的状态；historyError 传输存活且有独立重试不锁，`_withdrawError` 为行级已有展示不锁。
+- 改动：`Composer.tsx:369,411-419` 加 `disabled + 原因` + i18n；不动 reducer/WS。锁定集合最小化为 `{reconnectFailed}`：唯一传输已死、需手动重连、发送必失的状态；historyError 传输存活且有独立重试不锁，`_withdrawError` 为行级已有展示不锁。附件按钮有意不锁：上传是本地动作，重连后可随草稿发出，不因锁定丢失已选文件。
 - 验收：致命错误态输入区禁用 + 原因可见（组件测试）。
 
 ### R6.3 删除回填（P2，小）
 
-- 改动：`MessageItem.tsx:264-287` 加删除入口 + streaming-store 旁新 `deleteAiTurn`（删 assistant + 上一条 user，回填经现有 draft 键），互斥说明：withdraw/edit/delete 同域——同守卫（非 streaming、无 pendingWithdraw/pendingEditResend、runtime 打开）、同范围（仅末轮，服务端只支持撤回末轮）、同通道（经 `runtime.withdraw()` + `turn/withdrawn` 截断）；delete 与 edit 互斥消费本轮，delete 用 `composer-insert-store` 回填用户原文、不重发，附件不跟随回填。
+- 改动：`MessageItem.tsx:264-287` 加删除入口 + streaming-store 旁新 `deleteAiTurn`（删 assistant + 上一条 user，回填经现有 draft 键），互斥说明：withdraw/edit/delete 同域——同守卫（非 streaming、无 pendingWithdraw/pendingEditResend、runtime 打开）、同范围（仅末轮，服务端只支持撤回末轮）、同通道（经 `runtime.withdraw()` + `turn/withdrawn` 截断）；delete 与 edit 互斥消费本轮，delete 用 `composer-insert-store` 回填用户原文、不重发，附件不跟随回填。失败语义：乐观回填——草稿在 withdraw 发出前即写入，服务端失败不回滚（与 edit 失败丢弃 intent 不对称，已用单测钉住）。withdraw 沿既有 fire-and-forget 范式（不检查 boolean 返回；isOpen 竞态悬挂 pendingWithdraw 为已知窄窗口，与 withdrawLastTurn/editAndResend 同例，另立项收敛）。
 - 验收：删 AI 回复连带删上一条 user 并回填草稿（单测 + 组件测试）。
 
 ### R6.2 swipe（P2，单独立项）
@@ -145,7 +145,7 @@
 - 改动：`core/src/types.ts:34` 旁加 `allowInlineHtml?: boolean` + `store/agent-profile.ts:121` 旁 parse（`=== true || undefined` 范式，与 yolo 同例）；`contracts/src/agents.ts:29` 旁加可选字段（`agentSummary` 不动——Chat 经 `useAgentProfile`（`queries/project/agents.ts:27-38`）拿全量 profile，`profile?.allowInlineHtml` 直达）；`agent-markdown.ts`（`AgentFormData:20-31` + 白名单解构 `:58` + parse `:72` + build `:108-110`，raw frontmatter 手写本已生效、`extraFrontmatter` 往返不丢，表单是唯一缺口）；`AgentDialogForm.tsx` 加**无门控**开关（yolo 开关被 `hasAdvancedTool` 包裹 `:191-202`，本开关是渲染语义、不得复用该门控）+ 新 i18n 键 `agent-dialog.allowInlineHtmlLabel/Hint` ×3 locales。
 - 合成渲染：新增 `features/chat/lib/html-fence-parser.ts`（提 ` ```html ` 块 + 位置 + 未闭合容错：`!_streaming` 下未闭合视为模型输出错误，EOF 视作闭合 + 剥离函数）；`MessageItem.tsx` 中 `role==="assistant" && !_streaming && allowInlineHtml` 时 `useMemo` 解析，每块渲染折叠源码 + `HtmlCardRenderer readonly`（key=`syn-html-${messageId ?? index}-${blockIndex}`，transient 行 `_messageId` 为空，兜底沿用 `MessageList.tsx:72` 的 `t-${index}` 惯例），传给 `MarkdownContent` 的 content 剥离围栏避免重复显示；合成卡不参与 `computeSupersededToolCallIds`、不落库。
 - props 链：`index.tsx:70` 的 `profile` → `MessageList`（+`allowInlineHtml`）→ `MessageItem`；不动 summary 契约/列表路由。
-- 边界：仅 ` ```html ` 围栏；user 消息与未开启 agent 不触发；执行面收敛靠 opt-in + 只读无 SDK + `!_streaming` 三重。
+- 边界：仅 ` ```html ` 围栏；user 消息与未开启 agent 不触发；执行面收敛靠 opt-in + 只读无 SDK + `!_streaming` 三重。“只读”仅指不注入 SDK：合成卡复用既有保存入口（`card.html` 非空即提供下载保存），用户可把 assistant 输出存进项目。
 
 ### B2. 无标签页首页修复（对应 A2，bug 优先）
 

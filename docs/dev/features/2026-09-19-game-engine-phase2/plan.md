@@ -39,7 +39,7 @@ interface AgentFormData { allowInlineHtml: boolean }           // agent-markdown
 
 // B1 合成门控（MessageItem 内，useMemo 解析）
 const shouldSynthesize = message.role === "assistant" && !message._streaming && allowInlineHtml === true;
-// 合成卡 key：`syn-html-${messageId ?? index}-${blockIndex}`（transient 行 _messageId 为空，兜底 t-index 惯例）
+// 合成卡 key：`syn-html-${messageId ?? "t"}-${blockIndex}`（作用域仅单消息内，blockIndex 已保证兄弟唯一，无需传 index；transient 行 _messageId 为空时用 "t" 常量）
 // HtmlCard 只读：<HtmlCardRenderer card={synthetic} injectSdk={false} />（injectSdk 默认 true，现有行为不变）
 
 // B2 白名单（tab-route.ts 新增纯函数，哑 projectId 复用 routeToTabSpec）

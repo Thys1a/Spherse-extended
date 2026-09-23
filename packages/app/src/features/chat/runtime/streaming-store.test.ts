@@ -342,6 +342,34 @@ describe("streaming-store resilience", () => {
     expect(useComposerInsertStore.getState().sessionId).not.toBe("d2");
   });
 
+  it("deleteAiTurn keeps the refilled draft when withdraw fails", async () => {
+    const socket = await attachAndConnect("d4");
+    useStreamingStore.getState().sendMessage("d4", "original");
+    socket.onmessage?.({
+      data: JSON.stringify({
+        type: "message_end",
+        message: { role: "assistant", content: [{ type: "text", text: "reply" }] },
+      }),
+    } as MessageEvent);
+    socket.onmessage?.({
+      data: JSON.stringify({ type: "agent_end", messages: [] }),
+    } as MessageEvent);
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(useStreamingStore.getState().deleteAiTurn("d4")).toBe(true);
+    socket.onmessage?.({
+      data: JSON.stringify({ type: "error", message: "gone", code: "PERMANENT" }),
+    } as MessageEvent);
+    await vi.advanceTimersByTimeAsync(0);
+
+    const session = useStreamingStore.getState().sessions.d4;
+    expect(session.pendingWithdraw).toBe(false);
+    expect(session.messages.length).toBeGreaterThan(0);
+    expect(useComposerInsertStore.getState()).toMatchObject({ sessionId: "d4", text: "original" });
+    const sent = socket.sent.map((s) => JSON.parse(s));
+    expect(sent.filter((p) => p.type === "message")).toHaveLength(1);
+  });
+
   it("deleteAiTurn is a no-op while streaming", async () => {
     await attachAndConnect("d3");
     useStreamingStore.getState().sendMessage("d3", "hi");

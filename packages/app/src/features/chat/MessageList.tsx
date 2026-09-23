@@ -82,7 +82,7 @@ export function MessageList({ messages, agent, greeting, sessionId, streaming, l
         onRespondQuestion={onRespondQuestion}
         onRetry={isLast ? onRetry : undefined}
         onWithdraw={index === withdrawableIndex ? onWithdraw : undefined}
-        onDelete={message.role === "assistant" && withdrawableIndex >= 0 && index > withdrawableIndex ? onDelete : undefined}
+        onDelete={message.role === "assistant" && withdrawableIndex >= 0 && index > withdrawableIndex && !messages.slice(index + 1).some((m) => m.role === "assistant") ? onDelete : undefined}
         allowInlineHtml={allowInlineHtml}
         onOpenSession={onOpenSession}
         editable={index === withdrawableIndex}

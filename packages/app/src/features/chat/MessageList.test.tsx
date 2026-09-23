@@ -29,6 +29,12 @@ describe("MessageList empty state (R4.2)", () => {
     expect(screen.queryByText("Helper")).not.toBeNull();
   });
 
+  it("falls back to the generic hint without a greeting", () => {
+    const { container } = renderEmptyList();
+    expect(container.querySelector("[data-chat-welcome]")).not.toBeNull();
+  });
+});
+
 describe("MessageList delete rule", () => {
   function renderDeletable(messages: { role: "user" | "assistant"; content: string }[]) {
     const onDelete = vi.fn();
@@ -58,6 +64,15 @@ describe("MessageList delete rule", () => {
     expect(onDelete).toHaveBeenCalledTimes(1);
   });
 
+  it("shows delete only on the latest assistant of the last turn", () => {
+    renderDeletable([
+      { role: "user", content: "q" },
+      { role: "assistant", content: "a1" },
+      { role: "assistant", content: "a2" },
+    ]);
+    expect(screen.getAllByRole("button", { name: "删除" })).toHaveLength(1);
+  });
+
   it("hides delete on older-turn assistant messages", () => {
     renderDeletable([
       { role: "user", content: "q1" },
@@ -65,11 +80,5 @@ describe("MessageList delete rule", () => {
       { role: "user", content: "q2" },
     ]);
     expect(screen.queryByRole("button", { name: "删除" })).not.toBeInTheDocument();
-  });
-});
-
-  it("falls back to the generic hint without a greeting", () => {
-    const { container } = renderEmptyList();
-    expect(container.querySelector("[data-chat-welcome]")).not.toBeNull();
   });
 });

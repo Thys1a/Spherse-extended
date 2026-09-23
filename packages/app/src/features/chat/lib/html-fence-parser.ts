@@ -10,8 +10,13 @@ export function extractHtmlFenceBlocks(content: string): HtmlFenceBlock[] {
   let offset = 0;
   let openStart = -1;
   let sourceStart = -1;
+  const stripCR = (line: string): string => (line.endsWith("\r") ? line.slice(0, -1) : line);
   const closeOpen = (end: number) => {
-    blocks.push({ source: lines.slice(sourceStart, end).join("\n"), start: openStart, end: offset });
+    blocks.push({
+      source: lines.slice(sourceStart, end).map(stripCR).join("\n"),
+      start: openStart,
+      end: Math.min(offset, content.length),
+    });
     openStart = -1;
     sourceStart = -1;
   };
@@ -36,7 +41,7 @@ export function extractHtmlFenceBlocks(content: string): HtmlFenceBlock[] {
 
   if (openStart !== -1) {
     blocks.push({
-      source: lines.slice(sourceStart).join("\n"),
+      source: lines.slice(sourceStart).map(stripCR).join("\n"),
       start: openStart,
       end: content.length,
     });
@@ -54,6 +59,6 @@ export function stripHtmlFences(content: string): string {
     cursor = block.end;
   }
   out += content.slice(cursor);
-  return out.replace(/\n{3,}/g, "\n\n");
+  return out.replace(/(?:\r?\n){3,}/g, "\n\n");
 }
 

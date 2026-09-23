@@ -43,6 +43,29 @@ describe("extractHtmlFenceBlocks", () => {
     expect(blocks[0].source).toBe("  <p>x</p>");
   });
 
+  it("strips carriage returns from source on CRLF content", () => {
+    const content = "a\r\n```html\r\n<p>x</p>\r\n```\r\nb";
+    const blocks = extractHtmlFenceBlocks(content);
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].source).toBe("<p>x</p>");
+    expect(content.slice(blocks[0].start, blocks[0].end)).toContain("```html");
+    expect(stripHtmlFences(content)).not.toContain("```");
+    expect(stripHtmlFences(content)).not.toMatch(/(?:\r?\n){3,}/);
+  });
+
+  it("clamps the end offset when the closing fence ends the content", () => {
+    const content = "```html\n<p>x</p>\n```";
+    const blocks = extractHtmlFenceBlocks(content);
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].end).toBe(content.length);
+  });
+
+  it("ignores four-backtick fences", () => {
+    const content = "````html\n<p>x</p>\n````";
+    expect(extractHtmlFenceBlocks(content)).toEqual([]);
+    expect(stripHtmlFences(content)).toBe(content);
+  });
+
   it("closes an unclosed fence at end of content", () => {
     const content = ["text", "```html", "<p>open"].join("\n");
     const blocks = extractHtmlFenceBlocks(content);
