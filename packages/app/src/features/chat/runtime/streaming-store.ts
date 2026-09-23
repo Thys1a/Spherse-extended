@@ -17,6 +17,7 @@ import {
 } from "../model/chat-session-reducer";
 import { planRetry } from "../model/retry-plan";
 import { lastWithdrawableUserIndex } from "../model/withdrawable";
+import { useComposerInsertStore } from "../composer-insert-store";
 import type { SendableFile, ChatMessage } from "../types";
 import { emitAssistantTurnComplete, turnSpeechText } from "../tts/bridge";
 
@@ -52,6 +53,7 @@ interface StreamingStoreActions {
   retry: (sessionId: string) => void;
   withdrawLastTurn: (sessionId: string) => void;
   editAndResend: (sessionId: string, content: string) => boolean;
+  deleteAiTurn: (sessionId: string) => boolean;
   abort: (sessionId: string) => void;
   reconnect: (sessionId: string) => void;
   resumeProbeAll: () => void;
@@ -507,6 +509,30 @@ export const useStreamingStore = create<StreamingStoreState & StreamingStoreActi
         pendingWithdraw: true,
         pendingEditResend: { content: trimmed, attachments },
       }));
+      runtime.withdraw();
+      return true;
+    },
+
+    deleteAiTurn(sessionId) {
+      const session = get().sessions[sessionId];
+      if (!session || session.streaming || session.pendingWithdraw || session.pendingEditResend) {
+        return false;
+      }
+      const userIndex = lastWithdrawableUserIndex(session.messages);
+      if (userIndex < 0) return false;
+      const hasAssistantAfter = session.messages
+        .slice(userIndex + 1)
+        .some((message) => message.role === "assistant");
+      if (!hasAssistantAfter) return false;
+      const runtime = runtimes.get(sessionId);
+      if (!runtime?.isOpen()) return false;
+      const userText = session.messages[userIndex].content;
+      updateSession(sessionId, (current) => ({
+        ...current,
+        pendingWithdraw: true,
+        pendingEditResend: null,
+      }));
+      useComposerInsertStore.getState().requestInsert(sessionId, userText);
       runtime.withdraw();
       return true;
     },

@@ -84,6 +84,20 @@ You are a world building assistant.`;
     expect(profile!.yolo).toBe(true);
   });
 
+  it("parses allowInlineHtml true from frontmatter", async () => {
+    await writeProfile("---\nname: Agent\nallowInlineHtml: true\n---\n\nprompt");
+    const profile = await store.read();
+    expect(profile).not.toBeNull();
+    expect(profile!.allowInlineHtml).toBe(true);
+  });
+
+  it("returns undefined allowInlineHtml when frontmatter omits it", async () => {
+    await writeProfile(VALID_PROFILE);
+    const profile = await store.read();
+    expect(profile).not.toBeNull();
+    expect(profile!.allowInlineHtml).toBeUndefined();
+  });
+
   it("returns undefined yolo when frontmatter omits it", async () => {
     await writeProfile(VALID_PROFILE);
     const profile = await store.read();

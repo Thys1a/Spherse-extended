@@ -3,7 +3,7 @@ import { useI18n } from "@spherse/i18n/react";
 import { toast } from "sonner";
 import { Button } from "../../components/ui/button";
 import { Textarea } from "../../components/ui/textarea";
-import { ChevronsDownIcon, ChevronsUpIcon, Loader2Icon, PaperclipIcon, SendIcon, SquareIcon } from "lucide-react";
+import { ChevronsDownIcon, ChevronsUpIcon, Loader2Icon, PaperclipIcon, SendIcon, SquareIcon, WifiOffIcon } from "lucide-react";
 import type { AttachedFile } from "./types";
 import { compressImage } from "./utils/compress-image";
 import { AttachmentBar } from "./AttachmentBar";
@@ -31,13 +31,14 @@ const MAX_HEIGHT = 20 * LINE_HEIGHT + PADDING_Y;
 interface ComposerProps {
   streaming: boolean;
   loading?: boolean;
+  panicLocked?: boolean;
   sessionId: string;
   placeholder?: string;
   onSend: (message: string, attachments?: AttachedFile[]) => boolean;
   onAbort: () => void;
 }
 
-export function Composer({ streaming, loading = false, sessionId, placeholder, onSend, onAbort }: ComposerProps) {
+export function Composer({ streaming, loading = false, panicLocked = false, sessionId, placeholder, onSend, onAbort }: ComposerProps) {
   const { t } = useI18n();
   const { projectId } = useProjectCtx();
   const client = useApiClient(projectId);
@@ -196,7 +197,7 @@ export function Composer({ streaming, loading = false, sessionId, placeholder, o
 
   const send = () => {
     const message = input.trim();
-    if (!message || streaming || loading || attachBusy) return;
+    if (!message || streaming || loading || attachBusy || panicLocked) return;
     if (menu && !pickMenuItem(menu.items[menu.selected])) return;
     if (!checkSlashName(message)) return;
     const sent = onSend(message, files.length > 0 ? files : undefined);
@@ -287,6 +288,12 @@ export function Composer({ streaming, loading = false, sessionId, placeholder, o
         <AttachmentBar files={files} uploading={attachBusy} onRemove={handleRemoveFile} />
       )}
       <div className="relative rounded-lg border border-input bg-background transition-colors focus-within:border-ring" data-chat-composer-input>
+        {panicLocked && (
+          <div className="flex items-center gap-1.5 px-3 pt-2 text-xs text-muted-foreground">
+            <WifiOffIcon className="size-3.5" />
+            <span>{t("chat.panicLockedHint")}</span>
+          </div>
+        )}
         {menu && (
           <div
             role="listbox"
@@ -366,7 +373,7 @@ export function Composer({ streaming, loading = false, sessionId, placeholder, o
               send();
             }
           }}
-          disabled={loading}
+          disabled={loading || panicLocked}
         />
         <input
           ref={fileInputRef}
@@ -411,7 +418,7 @@ export function Composer({ streaming, loading = false, sessionId, placeholder, o
             <Button
               size="icon-lg"
               onClick={send}
-              disabled={!input.trim() || attachBusy}
+              disabled={!input.trim() || attachBusy || panicLocked}
               title={t("chat.send")}
               aria-label={t("chat.send")}
             >

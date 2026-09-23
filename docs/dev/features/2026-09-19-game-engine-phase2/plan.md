@@ -108,7 +108,7 @@ import { FindBar } from "../../components/find-bar/FindBar";   // content-browse
 
 ---
 
-## Task 4: B1 开关 + contracts + 表单（跨包先行）[ ]
+## Task 4: B1 开关 + contracts + 表单（跨包先行）[x]
 
 **依赖**：无（可与 T1–T3 并行；T5 的前置）。
 
@@ -129,7 +129,7 @@ import { FindBar } from "../../components/find-bar/FindBar";   // content-browse
 
 ---
 
-## Task 5: B1 合成渲染（只读卡 + 围栏解析）[ ]
+## Task 5: B1 合成渲染（只读卡 + 围栏解析）[x]
 
 **依赖**：T4（`profile?.allowInlineHtml` 透传链路）。
 
@@ -149,7 +149,7 @@ import { FindBar } from "../../components/find-bar/FindBar";   // content-browse
 
 ---
 
-## Task 6: R6.1 panic 锁定 + R6.3 删除回填 [ ]
+## Task 6: R6.1 panic 锁定 + R6.3 删除回填 [x]
 
 **依赖**：无（可与 T1–T4 并行；与 T5 同改 `MessageItem`，见上）。
 

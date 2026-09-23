@@ -185,6 +185,24 @@ describe("parseAgentMarkdown", () => {
     expect(result.formData.yolo).toBe(false);
   });
 
+  it("parses allowInlineHtml true when present", () => {
+    const raw = "---\nname: Agent\nallowInlineHtml: true\n---\n\nsystem prompt";
+    const result = parseAgentMarkdown(raw);
+    expect(result.formData.allowInlineHtml).toBe(true);
+  });
+
+  it("returns false allowInlineHtml when field is missing", () => {
+    const raw = "---\nname: Agent\n---\n\nsystem prompt";
+    const result = parseAgentMarkdown(raw);
+    expect(result.formData.allowInlineHtml).toBe(false);
+  });
+
+  it("does not leak allowInlineHtml into extra frontmatter", () => {
+    const raw = "---\nname: Agent\nallowInlineHtml: true\n---\n\nsystem prompt";
+    const result = parseAgentMarkdown(raw);
+    expect(result.extraFrontmatter).not.toHaveProperty("allowInlineHtml");
+  });
+
   it("does not leak yolo into extra frontmatter", () => {
     const raw = "---\nname: Agent\nyolo: true\n---\n\nsystem prompt";
     const result = parseAgentMarkdown(raw);
@@ -195,7 +213,7 @@ describe("parseAgentMarkdown", () => {
 describe("buildAgentMarkdown", () => {
   it("writes tools array into frontmatter", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", tools: ["read_file"], context: [], systemPrompt: "hello", yolo: false },
+      { name: "Agent", tools: ["read_file"], context: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false },
       {},
       false,
     );
@@ -206,7 +224,7 @@ describe("buildAgentMarkdown", () => {
 
   it("omits context when empty", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", tools: [], context: [], systemPrompt: "hello", yolo: false },
+      { name: "Agent", tools: [], context: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false },
       {},
       false,
     );
@@ -215,7 +233,7 @@ describe("buildAgentMarkdown", () => {
 
   it("preserves empty tools array through a round-trip", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", tools: [], context: [], systemPrompt: "hello", yolo: false },
+      { name: "Agent", tools: [], context: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false },
       {},
       false,
     );
@@ -225,7 +243,7 @@ describe("buildAgentMarkdown", () => {
 
   it("writes alias into frontmatter when set", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", alias: "小明", tools: [], context: [], systemPrompt: "hello", yolo: false },
+      { name: "Agent", alias: "小明", tools: [], context: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false },
       {},
       false,
     );
@@ -235,7 +253,7 @@ describe("buildAgentMarkdown", () => {
 
   it("omits alias from frontmatter when empty", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", alias: "", tools: [], context: [], systemPrompt: "hello", yolo: false },
+      { name: "Agent", alias: "", tools: [], context: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false },
       {},
       false,
     );
@@ -244,7 +262,7 @@ describe("buildAgentMarkdown", () => {
 
   it("omits alias from frontmatter when whitespace-only", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", alias: "   ", tools: [], context: [], systemPrompt: "hello", yolo: false },
+      { name: "Agent", alias: "   ", tools: [], context: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false },
       {},
       false,
     );
@@ -253,7 +271,7 @@ describe("buildAgentMarkdown", () => {
 
   it("round-trips placeholder and greeting through frontmatter", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", tools: [], context: [], systemPrompt: "hello", yolo: false, placeholder: "输入消息…", greeting: "你好" },
+      { name: "Agent", tools: [], context: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, placeholder: "输入消息…", greeting: "你好" },
       {},
       false,
     );
@@ -266,7 +284,7 @@ describe("buildAgentMarkdown", () => {
 
   it("omits blank placeholder/greeting from frontmatter", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", tools: [], context: [], systemPrompt: "hello", yolo: false, placeholder: "  ", greeting: "" },
+      { name: "Agent", tools: [], context: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, placeholder: "  ", greeting: "" },
       {},
       false,
     );
@@ -276,7 +294,7 @@ describe("buildAgentMarkdown", () => {
 
   it("preserves alias through a round-trip with extra frontmatter", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", alias: "小明", tools: ["read_file"], context: [], systemPrompt: "hello", yolo: false },
+      { name: "Agent", alias: "小明", tools: ["read_file"], context: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false },
       { autoRun: true },
       false,
     );
@@ -288,7 +306,7 @@ describe("buildAgentMarkdown", () => {
 
   it("writes model into frontmatter when set", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", tools: [], context: [], systemPrompt: "hello", yolo: false, model: "gpt-4" },
+      { name: "Agent", tools: [], context: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, model: "gpt-4" },
       {},
       false,
     );
@@ -300,7 +318,7 @@ describe("buildAgentMarkdown", () => {
 
   it("omits model from frontmatter when not set", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", tools: [], context: [], systemPrompt: "hello", yolo: false },
+      { name: "Agent", tools: [], context: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false },
       {},
       false,
     );
@@ -309,7 +327,7 @@ describe("buildAgentMarkdown", () => {
 
   it("omits model from frontmatter when whitespace-only", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", tools: [], context: [], systemPrompt: "hello", yolo: false, model: "   " },
+      { name: "Agent", tools: [], context: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, model: "   " },
       {},
       false,
     );
@@ -318,7 +336,7 @@ describe("buildAgentMarkdown", () => {
 
   it("does not double-write model when it is both form data and extra", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", tools: [], context: [], systemPrompt: "hello", yolo: false, model: "gpt-4" },
+      { name: "Agent", tools: [], context: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, model: "gpt-4" },
       { model: "claude" },
       false,
     );
@@ -333,7 +351,7 @@ describe("buildAgentMarkdown", () => {
         tools: [],
         context: [],
         systemPrompt: "hello",
-        yolo: false,
+        yolo: false, allowInlineHtml: false,
         timePerception: {
           enabled: true,
           epochMs: 1700000000000,
@@ -363,7 +381,7 @@ describe("buildAgentMarkdown", () => {
         tools: [],
         context: [],
         systemPrompt: "hello",
-        yolo: false,
+        yolo: false, allowInlineHtml: false,
         timePerception: { enabled: false, epochMs: 1700000000000 },
       },
       {},
@@ -374,7 +392,7 @@ describe("buildAgentMarkdown", () => {
 
   it("writes yolo into frontmatter when true", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", tools: [], context: [], systemPrompt: "hello", yolo: true },
+      { name: "Agent", tools: [], context: [], systemPrompt: "hello", yolo: true, allowInlineHtml: false },
       {},
       false,
     );
@@ -385,10 +403,30 @@ describe("buildAgentMarkdown", () => {
 
   it("omits yolo from frontmatter when false", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", tools: [], context: [], systemPrompt: "hello", yolo: false },
+      { name: "Agent", tools: [], context: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false },
       {},
       false,
     );
     expect(md).not.toContain("yolo");
+  });
+
+  it("writes allowInlineHtml into frontmatter when true", () => {
+    const md = buildAgentMarkdown(
+      { name: "Agent", tools: [], context: [], systemPrompt: "hello", yolo: false, allowInlineHtml: true },
+      {},
+      false,
+    );
+    expect(md).toContain("allowInlineHtml");
+    const parsed = parseAgentMarkdown(md);
+    expect(parsed.formData.allowInlineHtml).toBe(true);
+  });
+
+  it("omits allowInlineHtml from frontmatter when false", () => {
+    const md = buildAgentMarkdown(
+      { name: "Agent", tools: [], context: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false },
+      {},
+      false,
+    );
+    expect(md).not.toContain("allowInlineHtml");
   });
 });

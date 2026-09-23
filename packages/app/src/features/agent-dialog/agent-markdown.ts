@@ -25,6 +25,7 @@ export interface AgentFormData {
   systemPrompt: string;
   timePerception?: TimePerceptionFormData;
   yolo: boolean;
+  allowInlineHtml: boolean;
   model?: string;
   placeholder?: string;
   greeting?: string;
@@ -46,6 +47,7 @@ export function parseAgentMarkdown(raw: string): ParsedAgent {
         context: [],
         systemPrompt: raw.trim(),
         yolo: false,
+        allowInlineHtml: false,
       },
       extraFrontmatter: {},
     };
@@ -55,7 +57,7 @@ export function parseAgentMarkdown(raw: string): ParsedAgent {
   const body = raw.slice(match[0].length).trim();
   const frontmatter = yaml.load(frontmatterRaw) as Record<string, unknown>;
 
-  const { name, alias, tools, context, timePerception, yolo, model, placeholder, greeting, ...extra } = frontmatter;
+  const { name, alias, tools, context, timePerception, yolo, allowInlineHtml, model, placeholder, greeting, ...extra } = frontmatter;
 
   return {
     formData: {
@@ -70,6 +72,7 @@ export function parseAgentMarkdown(raw: string): ParsedAgent {
       systemPrompt: body,
       timePerception: parseTimePerception(timePerception),
       yolo: yolo === true,
+      allowInlineHtml: allowInlineHtml === true,
       model: typeof model === "string" && model.trim() ? model : undefined,
       placeholder: typeof placeholder === "string" && placeholder.trim() ? placeholder : undefined,
       greeting: typeof greeting === "string" && greeting.trim() ? greeting : undefined,
@@ -107,6 +110,9 @@ export function buildAgentMarkdown(
   }
   if (formData.yolo) {
     frontmatter.yolo = true;
+  }
+  if (formData.allowInlineHtml) {
+    frontmatter.allowInlineHtml = true;
   }
   if (formData.model?.trim()) {
     frontmatter.model = formData.model.trim();

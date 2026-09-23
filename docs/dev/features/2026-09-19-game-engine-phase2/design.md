@@ -68,12 +68,12 @@
 
 ### R6.1 panic 锁定（P2，小）
 
-- 改动：`Composer.tsx:369,411-419` 加 `disabled + 原因`（消费 historyError/reconnectFailed/`_withdrawError`/致命 error，实施时定最小集合）+ i18n；不动 reducer/WS。
+- 改动：`Composer.tsx:369,411-419` 加 `disabled + 原因` + i18n；不动 reducer/WS。锁定集合最小化为 `{reconnectFailed}`：唯一传输已死、需手动重连、发送必失的状态；historyError 传输存活且有独立重试不锁，`_withdrawError` 为行级已有展示不锁。
 - 验收：致命错误态输入区禁用 + 原因可见（组件测试）。
 
 ### R6.3 删除回填（P2，小）
 
-- 改动：`MessageItem.tsx:264-287` 加删除入口 + streaming-store 旁新 `deleteAiTurn`（删 assistant + 上一条 user，回填经现有 draft 键），与 withdraw/edit 互斥说明。
+- 改动：`MessageItem.tsx:264-287` 加删除入口 + streaming-store 旁新 `deleteAiTurn`（删 assistant + 上一条 user，回填经现有 draft 键），互斥说明：withdraw/edit/delete 同域——同守卫（非 streaming、无 pendingWithdraw/pendingEditResend、runtime 打开）、同范围（仅末轮，服务端只支持撤回末轮）、同通道（经 `runtime.withdraw()` + `turn/withdrawn` 截断）；delete 与 edit 互斥消费本轮，delete 用 `composer-insert-store` 回填用户原文、不重发，附件不跟随回填。
 - 验收：删 AI 回复连带删上一条 user 并回填草稿（单测 + 组件测试）。
 
 ### R6.2 swipe（P2，单独立项）

@@ -200,6 +200,16 @@ export function AgentDialogForm({ initial, mode, onSubmit, onCancel }: AgentDial
                 />
               </div>
             )}
+            <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
+              <div className="space-y-0.5 pe-3">
+                <Label>{t("agent-dialog.allowInlineHtmlLabel")}</Label>
+                <p className="text-xs text-muted-foreground">{t("agent-dialog.allowInlineHtmlHint")}</p>
+              </div>
+              <Switch
+                checked={formData.allowInlineHtml}
+                onCheckedChange={(v) => setFormData((prev) => ({ ...prev, allowInlineHtml: v }))}
+              />
+            </div>
             <ContextPathField
               contextPaths={formData.context}
               onAdd={addContext}

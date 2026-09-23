@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useStreamingStore } from "./streaming-store";
+import { useComposerInsertStore } from "../composer-insert-store";
 import { useProjectDataStore } from "../../../stores/project-data-store";
 import type { ApiClient } from "../../../lib/api";
 
@@ -295,6 +296,56 @@ describe("streaming-store resilience", () => {
       type: "message",
       content: "first edit",
     });
+  });
+
+  it("deleteAiTurn withdraws the last turn and refills the draft without resending", async () => {
+    const socket = await attachAndConnect("d1");
+    useStreamingStore.getState().sendMessage("d1", "original");
+    socket.onmessage?.({
+      data: JSON.stringify({
+        type: "message_end",
+        message: { role: "assistant", content: [{ type: "text", text: "reply" }] },
+      }),
+    } as MessageEvent);
+    socket.onmessage?.({
+      data: JSON.stringify({ type: "agent_end", messages: [] }),
+    } as MessageEvent);
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(useStreamingStore.getState().deleteAiTurn("d1")).toBe(true);
+    expect(socket.sent.map((s) => JSON.parse(s))).toContainEqual({ type: "withdraw" });
+    expect(useComposerInsertStore.getState()).toMatchObject({ sessionId: "d1", text: "original" });
+
+    socket.onmessage?.({
+      data: JSON.stringify({ type: "turn_withdrawn", seq: 1 }),
+    } as MessageEvent);
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(useStreamingStore.getState().sessions.d1.messages).toEqual([]);
+    const sent = socket.sent.map((s) => JSON.parse(s));
+    expect(sent.filter((p) => p.type === "message")).toHaveLength(1);
+  });
+
+  it("deleteAiTurn is a no-op without an assistant reply", async () => {
+    const socket = await attachAndConnect("d2");
+    useStreamingStore.setState((state) => ({
+      sessions: {
+        ...state.sessions,
+        d2: {
+          ...state.sessions.d2,
+          messages: [{ role: "user", content: "lonely" }],
+        },
+      },
+    }));
+    expect(useStreamingStore.getState().deleteAiTurn("d2")).toBe(false);
+    expect(socket.sent.map((s) => JSON.parse(s))).not.toContainEqual({ type: "withdraw" });
+    expect(useComposerInsertStore.getState().sessionId).not.toBe("d2");
+  });
+
+  it("deleteAiTurn is a no-op while streaming", async () => {
+    await attachAndConnect("d3");
+    useStreamingStore.getState().sendMessage("d3", "hi");
+    expect(useStreamingStore.getState().deleteAiTurn("d3")).toBe(false);
   });
 
   it("prefers success when turn_withdrawn and error arrive together", async () => {

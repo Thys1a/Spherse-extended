@@ -16,13 +16,14 @@ import { ensureCharset, buildFileSrcDoc, buildInlineSrcDoc, isImageFile } from "
 interface HtmlCardRendererProps {
   card: HtmlCard;
   defaultCollapsed?: boolean;
+  injectSdk?: boolean;
 }
 
 function sanitizeFileName(name: string): string {
   return name.replace(/[\\/:*?"<>|]/g, "_").trim() || "untitled";
 }
 
-export function HtmlCardRenderer({ card, defaultCollapsed = false }: HtmlCardRendererProps) {
+export function HtmlCardRenderer({ card, defaultCollapsed = false, injectSdk = true }: HtmlCardRendererProps) {
   const { t } = useI18n();
   const { projectRoot, projectId } = useProjectCtx();
   const client = useApiClient(projectId);
@@ -202,7 +203,9 @@ export function HtmlCardRenderer({ card, defaultCollapsed = false }: HtmlCardRen
       border: "none",
       display: "block" as const,
     };
-    const onLoad = () => injectRuntime(iframeRef.current);
+    const onLoad = () => {
+      if (injectSdk) injectRuntime(iframeRef.current);
+    };
 
     // 图片 file_path 直接用 <img> 加载 preview URL，避免把二进制当文本读取产生乱码。
     if (isImage && previewUrl) {

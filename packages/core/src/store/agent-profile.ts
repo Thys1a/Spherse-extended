@@ -119,6 +119,7 @@ export class AgentProfileStore {
         output: data.output,
         timePerception: parseTimePerception(data.timePerception),
         yolo: data.yolo === true || undefined,
+        allowInlineHtml: data.allowInlineHtml === true || undefined,
         placeholder:
           typeof data.placeholder === "string" && data.placeholder.trim()
             ? data.placeholder

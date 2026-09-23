@@ -27,13 +27,15 @@ interface MessageListProps {
   onRespondQuestion?: (requestId: string, answer: string) => boolean | void;
   onRetry?: () => void;
   onWithdraw?: () => void;
+  onDelete?: () => void;
+  allowInlineHtml?: boolean;
   onOpenSession?: (sessionId: string) => void;
   hasMore?: boolean;
   loadingMore?: boolean;
   onLoadMore?: () => void;
 }
 
-export function MessageList({ messages, agent, greeting, sessionId, streaming, loading = false, containerRef, isAtBottom, onScrollToBottom, onNavigateToPath, onRespondApproval, onRespondQuestion, onRetry, onWithdraw, onOpenSession, hasMore, loadingMore, onLoadMore }: MessageListProps) {
+export function MessageList({ messages, agent, greeting, sessionId, streaming, loading = false, containerRef, isAtBottom, onScrollToBottom, onNavigateToPath, onRespondApproval, onRespondQuestion, onRetry, onWithdraw, onDelete, onOpenSession, allowInlineHtml, hasMore, loadingMore, onLoadMore }: MessageListProps) {
   const { t } = useI18n();
 
   // 相同 file_path 的 html card 只展开最近一张；较早的同路径卡片折叠（不挂载 iframe）。
@@ -80,6 +82,8 @@ export function MessageList({ messages, agent, greeting, sessionId, streaming, l
         onRespondQuestion={onRespondQuestion}
         onRetry={isLast ? onRetry : undefined}
         onWithdraw={index === withdrawableIndex ? onWithdraw : undefined}
+        onDelete={message.role === "assistant" && withdrawableIndex >= 0 && index > withdrawableIndex ? onDelete : undefined}
+        allowInlineHtml={allowInlineHtml}
         onOpenSession={onOpenSession}
         editable={index === withdrawableIndex}
       />

@@ -1,11 +1,12 @@
-import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useI18n } from "@spherse/i18n/react";
-import { ChevronRightIcon, PencilIcon } from "lucide-react";
+import { ChevronRightIcon, PencilIcon, Trash2Icon } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import type { AgentSummary } from "../../lib/types";
-import type { ChatMessage } from "./types";
+import type { ChatMessage, HtmlCard } from "./types";
 import { MarkdownContent } from "../../components/markdown-content/MarkdownContent";
+import { CodeBlock } from "../../components/markdown-content/CodeBlock";
 import { HtmlCardRenderer } from "./HtmlCard";
 import { ImageCardRenderer } from "./ImageCard";
 import { CommandCardRenderer } from "./CommandCard";
@@ -26,6 +27,7 @@ import { useStreamingStore } from "./runtime/streaming-store";
 import { useOpenExternalLink } from "../browser/open-external-url";
 import { formatMessageTime } from "./lib/format-time";
 import { quoteFenceFor } from "./lib/quote-fence";
+import { extractHtmlFenceBlocks, stripHtmlFences } from "./lib/html-fence-parser";
 
 const EDIT_MIN_HEIGHT = 2 * 20 + 16;
 const EDIT_MAX_HEIGHT = 10 * 20 + 16;
@@ -41,11 +43,13 @@ interface MessageItemProps {
   onRespondQuestion?: (requestId: string, answer: string) => boolean | void;
   onRetry?: () => void;
   onWithdraw?: () => void;
+  onDelete?: () => void;
+  allowInlineHtml?: boolean;
   onOpenSession?: (sessionId: string) => void;
   editable?: boolean;
 }
 
-export function MessageItem({ message, agent, showTime, sessionId, supersededToolCallIds, onNavigateToPath, onRespondApproval, onRespondQuestion, onRetry, onWithdraw, onOpenSession, editable }: MessageItemProps) {
+export function MessageItem({ message, agent, showTime, sessionId, supersededToolCallIds, onNavigateToPath, onRespondApproval, onRespondQuestion, onRetry, onWithdraw, onDelete, onOpenSession, editable, allowInlineHtml }: MessageItemProps) {
   const isUser = message.role === "user";
   const openLink = useOpenExternalLink();
   const { t } = useI18n();
@@ -55,6 +59,15 @@ export function MessageItem({ message, agent, showTime, sessionId, supersededToo
   const [editing, setEditing] = useState(false);
   const [editDraft, setEditDraft] = useState("");
   const canEdit = editable && sessionId != null && !message._streaming;
+  const inlineHtml = useMemo(() => {
+    if (message.role !== "assistant" || message._streaming || allowInlineHtml !== true) {
+      return null;
+    }
+    const blocks = extractHtmlFenceBlocks(message.content);
+    if (blocks.length === 0) return null;
+    return { blocks, content: stripHtmlFences(message.content) };
+  }, [message.role, message._streaming, message.content, allowInlineHtml]);
+  const displayContent = inlineHtml?.content ?? message.content;
 
   useLayoutEffect(() => {
     if (!editing) return;
@@ -201,11 +214,27 @@ export function MessageItem({ message, agent, showTime, sessionId, supersededToo
             </div>
           ) : (
             <>
-              <MarkdownContent variant="chat" plain={isUser} linkClassName="text-inherit" onLinkClick={handleLinkClick}>{message.content}</MarkdownContent>
+              <MarkdownContent variant="chat" plain={isUser} linkClassName="text-inherit" onLinkClick={handleLinkClick}>{displayContent}</MarkdownContent>
               {message._streaming && message.content && <span className="animate-[blink_1s_step-end_infinite]">|</span>}
             </>
           )}
         </div>
+        {inlineHtml?.blocks.map((block, blockIndex) => {
+          const card: HtmlCard = { type: "html", html: block.source };
+          return (
+            <div key={`syn-html-${message._messageId ?? "t"}-${blockIndex}`} className="mt-2">
+              <details className="mb-2 overflow-hidden rounded-lg border border-border">
+                <summary className="cursor-pointer bg-muted px-3 py-1.5 text-xs text-muted-foreground">
+                  {t("chat.inlineHtmlSource")}
+                </summary>
+                <CodeBlock className="overflow-x-auto rounded-none bg-muted p-3 font-mono text-xs">
+                  <code>{block.source}</code>
+                </CodeBlock>
+              </details>
+              <HtmlCardRenderer card={card} injectSdk={false} />
+            </div>
+          );
+        })}
         {isUser && message._attachments && message._attachments.length > 0 && (
           <MessageAttachments attachments={message._attachments} />
         )}
@@ -276,6 +305,17 @@ export function MessageItem({ message, agent, showTime, sessionId, supersededToo
             )}
             {!isUser && message._messageId != null && (
               <SpeakButton messageId={String(message._messageId)} text={message.content} sessionId={sessionId} />
+            )}
+            {!isUser && onDelete && (
+              <button
+                type="button"
+                onClick={onDelete}
+                title={t("chat.deleteTooltip")}
+                aria-label={t("chat.deleteTooltip")}
+                className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <Trash2Icon className="size-3.5" />
+              </button>
             )}
             <CopyButton text={message.content} />
             {showTime && message.timestamp && (

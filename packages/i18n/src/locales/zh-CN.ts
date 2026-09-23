@@ -466,6 +466,10 @@ export const zhCN = {
   "agent-dialog.yoloLabel": "自动放行（Yolo）",
   // Yolo 模式开关行提示语：说明启用后哪些工具会跳过用户确认直接执行
   "agent-dialog.yoloHint": "启用后，命令执行、Agent 与 Trigger 配置变更将跳过确认直接运行。文件访问策略不受影响。",
+  // HTML 内联渲染开关标签，允许该 Agent 的 assistant 文本中的 HTML 代码块直接渲染
+  "agent-dialog.allowInlineHtmlLabel": "HTML 内联渲染",
+  // HTML 内联渲染开关行提示语，说明渲染为只读卡片且默认源码折叠
+  "agent-dialog.allowInlineHtmlHint": "启用后，该 Agent 回复中的 HTML 代码块会渲染为只读卡片。",
   // Agent 默认模型选择器标签
   "agent-dialog.modelLabel": "默认模型",
   // Agent 默认模型选择器提示语
@@ -776,6 +780,8 @@ export const zhCN = {
   "chat.connectionReconnectFailed": "连接失败",
   // 连接失败后，手动「点击重连」按钮文案
   "chat.connectionReconnect": "重连",
+  // 重连耗尽连接已死时 Composer 输入区的锁定原因提示
+  "chat.panicLockedHint": "连接已失败，输入已锁定，请先重连",
   // 审批/批准操作因连接断开未送达时显示的 toast 提示
   "chat.approvalNotDelivered": "操作未送达，连接可能已断开",
   // Composer 底部「附加图片」按钮的悬停提示
@@ -802,6 +808,10 @@ export const zhCN = {
   "chat.attachmentTruncated": "内容较长，仅前 {shown} 进入上下文",
   // 可编辑的用户消息气泡旁「编辑」按钮的悬停提示，点击后原地编辑重发
   "chat.editTooltip": "编辑",
+  // 内联 HTML 合成卡的折叠源码区标题
+  "chat.inlineHtmlSource": "HTML 源码",
+  // 末轮 AI 回复旁删除按钮的悬停提示
+  "chat.deleteTooltip": "删除",
   // 消息编辑态的确认按钮文案，点击撤回原轮并用新内容重发
   "chat.editConfirm": "重新发送",
   // 消息编辑态的取消按钮文案

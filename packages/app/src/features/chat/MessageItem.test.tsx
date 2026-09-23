@@ -5,6 +5,8 @@ import type { AgentSummary } from "../../lib/types";
 import { createMockHostBridge } from "../../test/host-bridge";
 import { renderWithProviders } from "../../test/render";
 import { MessageItem } from "./MessageItem";
+import { HtmlCardRenderer } from "./HtmlCard";
+import { ChatRuntimeProvider } from "./runtime-context";
 import { quoteFenceFor } from "./lib/quote-fence";
 import { useComposerInsertStore } from "./composer-insert-store";
 import type { ChatMessage } from "./types";
@@ -307,5 +309,133 @@ describe("MessageItem edit and resend", () => {
     await user.type(editor, "\nmore");
 
     expect(editor.style.height).toBe("216px");
+  });
+});
+
+describe("MessageItem inline html synthesis", () => {
+  const FENCED = "look:\n```html\n<p>x</p>\n```\ndone";
+
+  function renderAssistant(content: string, allowInlineHtml?: boolean, extra = {}) {
+    renderWithProviders(
+      <MessageItem
+        message={{ role: "assistant", content, _messageId: 7, ...extra } as ChatMessage}
+        agent={agent}
+        sessionId="session-1"
+        allowInlineHtml={allowInlineHtml}
+      />,
+      { bridge: createMockHostBridge() },
+    );
+  }
+
+  it("renders a readonly card with folded source and strips the fence from markdown", () => {
+    renderAssistant(FENCED, true);
+    expect(document.querySelector("[data-chat-html-card]")).not.toBeNull();
+    expect(screen.getByText("HTML 源码")).not.toBeNull();
+    expect(document.querySelectorAll("[data-md-code]")).toHaveLength(1);
+    const iframe = document.querySelector("[data-chat-html-card] iframe") as HTMLIFrameElement | null;
+    expect(iframe?.getAttribute("srcdoc") ?? "").toContain("<p>x</p>");
+  });
+
+  it("renders multiple blocks in order", () => {
+    renderAssistant("```html\n<p>a</p>\n```\nmid\n```html\n<p>b</p>\n```", true);
+    const cards = document.querySelectorAll("[data-chat-html-card]");
+    expect(cards).toHaveLength(2);
+    expect(cards[0].querySelector("iframe")?.getAttribute("srcdoc") ?? "").toContain("<p>a</p>");
+    expect(cards[1].querySelector("iframe")?.getAttribute("srcdoc") ?? "").toContain("<p>b</p>");
+  });
+
+  it("does not synthesize for user messages", () => {
+    renderWithProviders(
+      <MessageItem
+        message={{ role: "user", content: FENCED } as ChatMessage}
+        agent={agent}
+        sessionId="session-1"
+        allowInlineHtml
+      />,
+      { bridge: createMockHostBridge() },
+    );
+    expect(document.querySelector("[data-chat-html-card]")).toBeNull();
+  });
+
+  it("does not synthesize when the flag is off", () => {
+    renderAssistant(FENCED);
+    expect(document.querySelector("[data-chat-html-card]")).toBeNull();
+  });
+
+  it("does not synthesize while streaming", () => {
+    renderAssistant(FENCED, true, { _streaming: true });
+    expect(document.querySelector("[data-chat-html-card]")).toBeNull();
+  });
+});
+
+describe("HtmlCardRenderer sdk injection", () => {
+  function renderCard(injectSdk?: boolean) {
+    renderWithProviders(
+      <ChatRuntimeProvider runtime={{ sessionId: "s1", agentId: "a1" }}>
+        <HtmlCardRenderer card={{ type: "html", html: "<p>x</p>" }} injectSdk={injectSdk} />
+      </ChatRuntimeProvider>,
+      { bridge: createMockHostBridge() },
+    );
+  }
+
+  it("injects the runtime by default", () => {
+    renderCard();
+    const iframe = document.querySelector("iframe") as HTMLIFrameElement | null;
+    fireEvent.load(iframe as Element);
+    expect(
+      (iframe?.contentWindow as unknown as Record<string, unknown> | null)?.__SPHERSE__,
+    ).toMatchObject({ sessionId: "s1", agentId: "a1", projectId: "p1" });
+  });
+
+  it("skips runtime injection when injectSdk is false", () => {
+    renderCard(false);
+    const iframe = document.querySelector("iframe") as HTMLIFrameElement | null;
+    fireEvent.load(iframe as Element);
+    expect(
+      (iframe?.contentWindow as unknown as Record<string, unknown> | null)?.__SPHERSE__,
+    ).toBeUndefined();
+  });
+});
+
+describe("MessageItem delete turn", () => {
+  it("shows a delete button for assistant messages with a delete handler", async () => {
+    const user = userEvent.setup();
+    const onDelete = vi.fn();
+    renderWithProviders(
+      <MessageItem
+        message={{ role: "assistant", content: "reply" } as ChatMessage}
+        agent={agent}
+        sessionId="session-1"
+        onDelete={onDelete}
+      />,
+      { bridge: createMockHostBridge() },
+    );
+    await user.click(screen.getByRole("button", { name: "删除" }));
+    expect(onDelete).toHaveBeenCalledTimes(1);
+  });
+
+  it("hides the delete button without a delete handler", () => {
+    renderWithProviders(
+      <MessageItem
+        message={{ role: "assistant", content: "reply" } as ChatMessage}
+        agent={agent}
+        sessionId="session-1"
+      />,
+      { bridge: createMockHostBridge() },
+    );
+    expect(screen.queryByRole("button", { name: "删除" })).not.toBeInTheDocument();
+  });
+
+  it("hides the delete button on user messages", () => {
+    renderWithProviders(
+      <MessageItem
+        message={{ role: "user", content: "q" } as ChatMessage}
+        agent={agent}
+        sessionId="session-1"
+        onDelete={vi.fn()}
+      />,
+      { bridge: createMockHostBridge() },
+    );
+    expect(screen.queryByRole("button", { name: "删除" })).not.toBeInTheDocument();
   });
 });

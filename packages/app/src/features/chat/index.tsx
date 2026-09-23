@@ -111,6 +111,10 @@ export function Chat({ sessionId, agent, onNavigateToPath, onOpenSession, initia
     return delivered;
   };
 
+  const handleDeleteTurn = () => {
+    useStreamingStore.getState().deleteAiTurn(sessionId);
+  };
+
   const handleSend = (text: string, attachments?: AttachedFile[]) => {
     if (text.trim().startsWith(">>")) {
       if (attachments && attachments.length > 0) {
@@ -178,6 +182,8 @@ export function Chat({ sessionId, agent, onNavigateToPath, onOpenSession, initia
           onRespondQuestion={handleRespondQuestion}
           onRetry={retry}
           onWithdraw={withdrawLastTurn}
+          onDelete={handleDeleteTurn}
+          allowInlineHtml={profile?.allowInlineHtml}
           onOpenSession={onOpenSession}
           hasMore={hasMore}
           loadingMore={loadingMore}
@@ -186,6 +192,7 @@ export function Chat({ sessionId, agent, onNavigateToPath, onOpenSession, initia
         <Composer
           streaming={streaming}
           loading={loading}
+          panicLocked={reconnectFailed}
           sessionId={sessionId}
           placeholder={profile?.placeholder}
           onSend={handleSend}

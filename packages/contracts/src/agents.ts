@@ -27,6 +27,7 @@ const agentProfile = Type.Object({
   ),
   timePerception: Type.Optional(timePerceptionConfig),
   yolo: Type.Optional(Type.Boolean()),
+  allowInlineHtml: Type.Optional(Type.Boolean()),
   placeholder: Type.Optional(Type.String()),
   greeting: Type.Optional(Type.String()),
   systemPrompt: Type.String(),
