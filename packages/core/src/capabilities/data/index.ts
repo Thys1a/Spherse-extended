@@ -1,6 +1,6 @@
 export { createDataStore, type CreateDataStoreOptions } from "./data-store.js";
 export { parseManifest, parseManifestWithDiagnostics, readManifestFromDoc, readManifestWithDiagnosticsFromDoc, checkManifestHealth, dataManifestSchema } from "./manifest.js";
-export { getByDotPath, getRawByDotPath, stripReservedKeys } from "./dot-path.js";
+export { getByDotPath, getRawByDotPath, setByDotPath, deleteByDotPath, stripReservedKeys } from "./dot-path.js";
 export { runQuery, decodeCursor } from "./query-engine.js";
 export { buildOutline, formatEntrySignature } from "./outline.js";
 export { OutlineCache } from "./outline-cache.js";

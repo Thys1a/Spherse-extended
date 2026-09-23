@@ -81,7 +81,9 @@ afterEach(async () => {
 describe("CardStore updateEntry", () => {
   it("updates a single field and reports changed", async () => {
     const r = await store.updateEntry(FILE, 0, { enabled: false });
-    expect(r).toEqual({ id: 0, changed: ["enabled"] });
+    expect(r).toMatchObject({ id: 0, changed: ["enabled"], undo: { op: "cardUpdate", path: "entry:0" } });
+    expect(r.version).toMatch(/^[0-9a-f]{64}$/);
+    expect(r.undo?.before).toMatchObject({ id: 0, enabled: true });
     const e = await store.entry(FILE, 0);
     expect(e.enabled).toBe(false);
     expect(e.extensions).toEqual({ position: 1, depth: 4 });
@@ -132,7 +134,9 @@ describe("CardStore updateEntry", () => {
 describe("CardStore bulkUpdate", () => {
   it("updates many entries and counts them", async () => {
     const r = await store.bulkUpdate(FILE, [0, 1], { enabled: false });
-    expect(r).toEqual({ count: 2 });
+    expect(r).toMatchObject({ count: 2, undo: { op: "cardBulk", path: "entries:0,1" } });
+    expect(r.version).toMatch(/^[0-9a-f]{64}$/);
+    expect(r.undo?.before).toHaveLength(2);
     expect((await store.entry(FILE, 0)).enabled).toBe(false);
     expect((await store.entry(FILE, 1)).enabled).toBe(false);
   });
@@ -244,7 +248,9 @@ describe("CardStore removeEntry", () => {
       >;
     const before = await readRaw();
     const r = await store.removeEntry(FILE, 0);
-    expect(r).toEqual({ ok: true });
+    expect(r).toMatchObject({ ok: true, undo: { op: "cardRemove", path: "entry:0", index: 0 } });
+    expect(r.version).toMatch(/^[0-9a-f]{64}$/);
+    expect(r.undo?.before).toMatchObject({ id: 0 });
     const after = await readRaw();
     expect(after.map((e) => e.id)).toEqual([1]);
     expect(after[0]).toEqual(before.find((e) => e.id === 1));

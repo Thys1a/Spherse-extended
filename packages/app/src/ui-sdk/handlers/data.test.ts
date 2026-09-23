@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { useDockedChatStore } from "../../features/docked-chat/store";
 
 const { dispatchAction } = await import("../registry");
 await import("./data");
@@ -119,6 +120,18 @@ describe("data.set action", () => {
     expect(ctx2.source.postMessage).not.toHaveBeenCalled();
   });
 
+  it("attaches the docked session id when the source is a docked card", async () => {
+    const client = makeClient({});
+    const ctx = makeCtx(client);
+    useDockedChatStore.getState().dock(ctx.source, "sess-9", document.createElement("iframe"));
+    try {
+      await dispatchAction("data.set", { file: "world/game.data.json", key: "score", value: 100 }, ctx);
+      expect(client.dataRawSet).toHaveBeenCalledWith({ file: "world/game.data.json", key: "score", value: 100, sessionId: "sess-9" });
+    } finally {
+      useDockedChatStore.getState().undock(ctx.source);
+    }
+  });
+
   it("responds ok:false when the server rejects the write", async () => {
     const client = makeClient({});
     client.dataRawSet = vi.fn(async () => {
@@ -168,6 +181,18 @@ describe("data.mutate action", () => {
 });
 
 describe("data.delete action", () => {
+  it("attaches the docked session id when the source is a docked card", async () => {
+    const client = makeClient({ a: 1 });
+    const ctx = makeCtx(client);
+    useDockedChatStore.getState().dock(ctx.source, "sess-9", document.createElement("iframe"));
+    try {
+      await dispatchAction("data.delete", { file: "world/game.data.json", key: "a" }, ctx);
+      expect(client.dataRawDelete).toHaveBeenCalledWith({ file: "world/game.data.json", key: "a", sessionId: "sess-9" });
+    } finally {
+      useDockedChatStore.getState().undock(ctx.source);
+    }
+  });
+
   it("proxies to dataRawDelete", async () => {
     const client = makeClient({ a: 1 });
     const ctx = makeCtx(client);

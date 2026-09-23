@@ -28,6 +28,7 @@
 | 控制事件（重启点） | `turn/retried` / `turn/withdrawn` / `compaction/applied` 三类事件，restore 时按语义重建 | [architecture/core.md](architecture/core.md) |
 | compaction（上下文压缩） | 历史超阈值时生成摘要、以 `compaction/applied` 重启点表达；LLM 双路与机械回退 | [architecture/core.md](architecture/core.md) |
 | withdraw（撤回） | 以 `turn/withdrawn {seq}` 锚定被撤回 user message，fold 推导废弃区间 | [architecture/core.md](architecture/core.md) |
+| rollback（回滚） | `rollback_turn` 按 turn 整轮逆转 data/card 写入（版本冲突转人工）；与 withdraw（仅截断）正交 | [architecture/capabilities.md](architecture/capabilities.md) |
 | 历史对账 | renderer 重连后拉取历史、按 `_messageId` 去重合并的过程 | [architecture/chat.md](architecture/chat.md) |
 
 ## Capability 架构
@@ -35,7 +36,7 @@
 | 术语 | 定义 | 详见 |
 |---|---|---|
 | kernel（内核） | core 中零 I/O 的类型与纯组合子层（`kernel/`） | [architecture/core.md](architecture/core.md) |
-| Capability（能力模块） | 实现 kernel 贡献点的模块（fs / skill / mcp / trigger / memory 等 14 个） | [architecture/capabilities.md](architecture/capabilities.md) |
+| Capability（能力模块） | 实现 kernel 贡献点的模块（fs / skill / mcp / trigger / memory / rollback 等 16 个） | [architecture/capabilities.md](architecture/capabilities.md) |
 | 贡献点 | `Capability` 接口的扩展槽：tools / contextBlocks / turnHooks / eventMiddlewares 等 | [architecture/capabilities.md](architecture/capabilities.md) |
 | SessionPort | 能力反向触达会话的窄入口（createSession / sendMessage 等） | [architecture/capabilities.md](architecture/capabilities.md) |
 | ToolHost | 工具可见的全部环境：项目、store、mutex、审批/问答门、toolCatalog | [architecture/capabilities.md](architecture/capabilities.md) |

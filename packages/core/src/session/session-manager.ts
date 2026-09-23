@@ -5,7 +5,7 @@ import { NotFoundError, ValidationError } from "../errors.js";
 import { AgentRunner, type RunnerEventHandler } from "./agent-runner.js";
 import { SessionEventLog } from "./event-log.js";
 import type { SendMessageMeta, SessionEvent } from "./events.js";
-import type { SideEffectRef } from "../tool-attribution.js";
+import { TURN_SIDE_EFFECTS_STORE_KEY, type SideEffectRef, type TurnSideEffectSource } from "../tool-attribution.js";
 import { deriveMessages } from "./fold.js";
 import { computeSessionStatus, type SessionStatus } from "./status.js";
 import type { TurnContextSnapshot } from "./types.js";
@@ -15,12 +15,15 @@ import { migrateLegacySession } from "./legacy-migrate.js";
 
 export class SessionManager {
   private readonly sessions = new Map<string, AgentRunner>();
+  private readonly restoreInflight = new Map<string, Promise<string>>();
   private readonly deps: RuntimeDeps;
   private readonly runConfigHolder: RunConfigHolder;
   private readonly appendChains = new Map<string, Promise<void>>();
 
   constructor(deps: RuntimeDeps, options?: { initialRunConfig?: RunConfigHolder }) {
     this.deps = deps;
+    const source: TurnSideEffectSource = { listSideEffectsByTurn: this.listSideEffectsByTurn.bind(this) };
+    deps.stores.register(TURN_SIDE_EFFECTS_STORE_KEY, source);
     this.runConfigHolder = options?.initialRunConfig ?? new RunConfigHolder();
     deps.projectStore.on("agent_updated", (payload: AgentChangePayload) => {
       if (payload.action !== "updated") return;
@@ -55,6 +58,18 @@ export class SessionManager {
 
   async restoreSession(agentId: string, sessionId: string): Promise<string> {
     if (this.sessions.has(sessionId)) return sessionId;
+    const pending = this.restoreInflight.get(sessionId);
+    if (pending) return pending;
+    const task = this.restoreSessionInner(agentId, sessionId);
+    this.restoreInflight.set(sessionId, task);
+    try {
+      return await task;
+    } finally {
+      if (this.restoreInflight.get(sessionId) === task) this.restoreInflight.delete(sessionId);
+    }
+  }
+
+  private async restoreSessionInner(agentId: string, sessionId: string): Promise<string> {
     this.ensureMigrated(agentId, sessionId);
     const session = await AgentRunner.initForRestore(this.deps, agentId, sessionId);
     this.sessions.set(sessionId, session);

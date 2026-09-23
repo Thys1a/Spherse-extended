@@ -4,11 +4,38 @@ export interface TurnAttribution {
 
 export type SideEffectType = "data" | "card" | "write" | "edit" | "memory" | "trigger";
 
+export type UndoOp =
+  | "append"
+  | "update"
+  | "remove"
+  | "set"
+  | "rawSet"
+  | "rawDelete"
+  | "cardUpdate"
+  | "cardBulk"
+  | "cardAdd"
+  | "cardRemove";
+
+export interface UndoRecord {
+  op: UndoOp;
+  path: string;
+  before?: unknown;
+  after?: unknown;
+  index?: number;
+}
+
 export interface SideEffectRef {
   type: SideEffectType;
   file: string;
   version?: string;
+  undo?: UndoRecord;
 }
+
+export interface TurnSideEffectSource {
+  listSideEffectsByTurn(sessionId: string, turnSeq: number): SideEffectRef[];
+}
+
+export const TURN_SIDE_EFFECTS_STORE_KEY = "turnSideEffects";
 
 const REGISTRY_CAPACITY = 1024;
 
@@ -52,6 +79,26 @@ function pathOf(details: unknown): string | null {
   return record.path;
 }
 
+const UNDO_OPS: ReadonlySet<string> = new Set([
+  "append", "update", "remove", "set", "rawSet", "rawDelete",
+  "cardUpdate", "cardBulk", "cardAdd", "cardRemove",
+]);
+
+function undoOf(details: unknown): UndoRecord | undefined {
+  const record = detailsRecord(details);
+  const raw = record?.undo;
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return undefined;
+  const envelope = raw as Record<string, unknown>;
+  if (typeof envelope.op !== "string" || !UNDO_OPS.has(envelope.op)) return undefined;
+  if (typeof envelope.path !== "string" || !envelope.path) return undefined;
+  return {
+    op: envelope.op as UndoOp,
+    path: envelope.path,
+    ...(envelope.before !== undefined ? { before: envelope.before } : {}),
+    ...(envelope.after !== undefined ? { after: envelope.after } : {}),
+  };
+}
+
 export function deriveSideEffects(toolName: string, details: unknown): SideEffectRef[] {
   switch (toolName) {
     case "mutate_data": {
@@ -59,11 +106,14 @@ export function deriveSideEffects(toolName: string, details: unknown): SideEffec
       if (!file) return [];
       const record = detailsRecord(details);
       const version = record && typeof record.version === "string" ? record.version : undefined;
-      return [{ type: "data", file, ...(version !== undefined ? { version } : {}) }];
+      const undo = undoOf(details);
+      return [{ type: "data", file, ...(version !== undefined ? { version } : {}), ...(undo !== undefined ? { undo } : {}) }];
     }
     case "edit_card": {
       const file = pathOf(details);
-      return file ? [{ type: "card", file }] : [];
+      if (!file) return [];
+      const undo = undoOf(details);
+      return [{ type: "card", file, ...(undo !== undefined ? { undo } : {}) }];
     }
     case "write_file": {
       const file = pathOf(details);

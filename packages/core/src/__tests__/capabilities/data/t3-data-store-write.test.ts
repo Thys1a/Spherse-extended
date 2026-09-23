@@ -38,7 +38,7 @@ describe("DataStore rawSet/rawDelete", () => {
     expect(r.version).toMatch(/^[0-9a-f]{64}$/);
     const onDisk = JSON.parse(await fs.readFile(abs(FILE), "utf8"));
     expect(onDisk).toEqual({ score: 42 });
-    expect(events).toEqual([{ file: FILE, version: r.version, origin: "sdk" }]);
+    expect(events).toEqual([{ file: FILE, version: r.version, origin: "sdk", op: "rawSet", path: "score" }]);
     expect(await fs.readdir(dir)).not.toContain(".game.data.json.spdata.tmp");
   });
 

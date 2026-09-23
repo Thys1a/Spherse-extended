@@ -120,6 +120,52 @@ describe("AgentRunner turn events (R2.1)", () => {
     }
   });
 
+  it("prompt throw emits a synthetic error turn-end exactly once", async () => {
+    const agentStore = (runtime.projectManager as any).projectStore.getAgent(agentId);
+    const sessionId = agentStore.sessions.createSession();
+    const runner = await AgentRunner.init(deps, agentId, sessionId);
+    (runner as any).agentRef.prompt = () => Promise.reject(new Error("model exploded"));
+
+    await expect(runner.sendMessage("hello", [], () => {})).rejects.toThrow("model exploded");
+
+    const names = onTurnEvent.mock.calls.map((c) => c[0].name);
+    expect(names).toEqual(["sp:user-message", "sp:turn-end"]);
+    const [userEvt, endEvt] = onTurnEvent.mock.calls.map((c) => c[0]);
+    expect(endEvt.payload.reason).toBe("error");
+    expect(endEvt.payload.seq).toBeGreaterThan(userEvt.payload.seq);
+  });
+
+  it("no synthetic turn-end when the normal error turn-end already fired", async () => {
+    const finalAssistant = assistantMessage("ok");
+    getChatStreamFnMock.mockImplementation(
+      () =>
+        (async () => ({
+          async *[Symbol.asyncIterator]() {},
+          result: async () => finalAssistant,
+        })) as never,
+    );
+    try {
+      const hookDeps = {
+        ...deps,
+        createTurnHooks: () => ({
+          afterTurn: async () => {
+            throw new Error("hook blew");
+          },
+        }),
+      };
+      const agentStore = (runtime.projectManager as any).projectStore.getAgent(agentId);
+      const sessionId = agentStore.sessions.createSession();
+      const runner = await AgentRunner.init(hookDeps as never, agentId, sessionId);
+
+      await expect(runner.sendMessage("hello", [], () => {})).rejects.toThrow("hook blew");
+
+      const names = onTurnEvent.mock.calls.map((c) => c[0].name);
+      expect(names).toEqual(["sp:user-message", "sp:assistant-message", "sp:turn-end"]);
+      expect(onTurnEvent.mock.calls[2][0].payload.reason).toBe("completed");
+    } finally {
+      getChatStreamFnMock.mockImplementation(() => vi.fn() as never);
+    }
+  });
   it("trigger-sourced turns carry depth/chainId into turn events (R2.4)", async () => {
     const finalAssistant = assistantMessage("ok");
     getChatStreamFnMock.mockImplementation(

@@ -27,6 +27,7 @@ spherse/
 │   │       │   ├── agent-mgmt/       # manage_agent 工具（工具名校验用运行时 toolCatalog）
 │   │       │   ├── interaction/      # run_command / ask_user 工具（经 kernel gates）
 │   │       │   ├── project-config/   # manage_project_config 工具（项目级配置：欢迎页设置）
+│   │       │   ├── data/                # DataStore（*.data.json 读写：manifest 校验/mutate 原子写/undo 回滚；经 factory 挂 runtime.dataStore，server data 路由消费）
 │   │       │   ├── trigger/          # TriggerManager + TimerService（只见 SessionPort，循环依赖消解）
 │   │       │   ├── mcp/              # McpConnectionManager + turnHooks（按配置版本 memo 的工具合并）+ mcp-context block
 │   │       │   ├── attachments/      # image processor 贡献 + contextProjector（convertToLlm 前剥 _attachments/空 image block）
@@ -34,6 +35,7 @@ spherse/
 │   │       │   ├── time-perception/ # streamDecorators 贡献（<time> 前缀注入）+ previewTransforms（debug snapshot 重放）+ 提示 block；感知时间数学在 time-perception.ts
 │   │       │   ├── memory/           # memory capability（memory_save/recall 工具接线 + <memory> block；MemoryStore 在 store/memory.ts）
 │   │       │   ├── card/             # CardStore（.card.json 世界书读写：解析/检索/原子写；经 factory 挂 runtime.cardStore，server card 路由消费）+ worldbook.ts（matchWorldbook 世界书命中 + contextProjector 逐轮注入 + token/条目预算）
+│   │       │   ├── rollback/           # rollback_turn 工具（turn 级 undo：读 SessionManager 自注册的 side-effect 源，经 stores registry 桥接）
 │   │       │   ├── shared/           # llmPolicyOf 等跨能力共享工具
 │   │       │   └── builtin.ts        # builtinToolCapabilities()：纯工具类 capability 集合
 │   │       ├── session/              # 会话运行时（kernel 抽象的编排实例化）

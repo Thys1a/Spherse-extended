@@ -309,9 +309,14 @@ export function createEditCardTool(
                     ...attribution,
                   })
                 : await cardStore.removeEntry(params.file, params.id ?? -1, attribution);
+        const { undo, ...shown } = result;
         return {
-          content: [{ type: "text" as const, text: jsonBlock(result) }],
-          details: { path: params.file },
+          content: [{ type: "text" as const, text: jsonBlock(shown) }],
+          details: {
+            path: params.file,
+            version: result.version,
+            ...(undo !== undefined ? { undo } : {}),
+          },
         };
       } catch (err) {
         return failed(params.file, err);

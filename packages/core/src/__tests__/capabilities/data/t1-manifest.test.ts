@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { checkManifestHealth, parseManifest, parseManifestWithDiagnostics, readManifestFromDoc } from "../../../capabilities/data/manifest.js";
-import { getByDotPath, splitDotPath, stripReservedKeys } from "../../../capabilities/data/dot-path.js";
+import { deleteByDotPath, getByDotPath, setByDotPath, splitDotPath, stripReservedKeys } from "../../../capabilities/data/dot-path.js";
 import { validateMutationArgs, validateQueryParams } from "../../../capabilities/data/validate.js";
 import { DataValidationError } from "../../../capabilities/data/types.js";
 
@@ -182,6 +182,25 @@ describe("dot-path", () => {
     const r = getByDotPath(doc, ".");
     expect(r.missing).toBe(false);
     expect(Object.keys(r.value as object)).toEqual(["todos", "stats"]);
+  });
+
+  it("setByDotPath writes nested leaves and refuses arrays", () => {
+    const doc: Record<string, unknown> = { stats: { hp: 80 } };
+    expect(setByDotPath(doc, "stats.hp", 90)).toBe(true);
+    expect(doc).toEqual({ stats: { hp: 90 } });
+    expect(setByDotPath(doc, "stats.mp", 50)).toBe(true);
+    expect(setByDotPath(doc, "stats.hp.deep", 1)).toBe(false);
+    expect(setByDotPath(doc, ".", {})).toBe(false);
+    expect(setByDotPath(doc, "$manifest", {})).toBe(false);
+  });
+
+  it("deleteByDotPath removes leaves and reports missing targets", () => {
+    const doc: Record<string, unknown> = { stats: { hp: 80 }, gone: 1 };
+    expect(deleteByDotPath(doc, "stats.hp")).toBe(true);
+    expect(doc).toEqual({ stats: {}, gone: 1 });
+    expect(deleteByDotPath(doc, "stats.hp")).toBe(false);
+    expect(deleteByDotPath(doc, ".")).toBe(false);
+    expect(deleteByDotPath(doc, "$manifest")).toBe(false);
   });
 
   it("stripReservedKeys removes $ keys", () => {

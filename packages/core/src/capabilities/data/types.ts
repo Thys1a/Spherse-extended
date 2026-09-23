@@ -1,3 +1,5 @@
+import type { UndoOp, UndoRecord } from "../../tool-attribution.js";
+
 export type DataOrigin = "sdk" | "agent";
 
 export interface DataChangeEvent {
@@ -5,6 +7,9 @@ export interface DataChangeEvent {
   version: string;
   origin: DataOrigin;
   summary?: string;
+  op?: UndoOp;
+  path?: string;
+  before?: unknown;
   sessionId?: string;
   turnSeq?: number;
   toolCallId?: string;
@@ -165,10 +170,12 @@ export interface QueryResult {
 export interface MutateResult {
   version: string;
   result: unknown;
+  undo?: UndoRecord;
 }
 
 export interface WriteResult {
   version: string;
+  undo?: UndoRecord;
 }
 
 export interface DataStore {
@@ -178,5 +185,6 @@ export interface DataStore {
   mutate(file: string, name: string, args: Record<string, unknown>, opts?: { idempotencyKey?: string; origin?: DataOrigin; toolCallId?: string; sessionId?: string }): Promise<MutateResult>;
   rawSet(file: string, key: string, value: unknown, opts?: { ifVersion?: string; toolCallId?: string; sessionId?: string }): Promise<WriteResult>;
   rawDelete(file: string, key: string, opts?: { ifVersion?: string; toolCallId?: string; sessionId?: string }): Promise<WriteResult>;
+  rollbackUndo(file: string, undo: UndoRecord, expectedVersion: string, opts?: { idempotencyKey?: string; toolCallId?: string; sessionId?: string }): Promise<WriteResult>;
   onChange(handler: (e: DataChangeEvent) => void): () => void;
 }

@@ -60,7 +60,8 @@ describe("card store assembly contract (real ProjectRuntime, no mocks)", () => {
     const meta = await runtime.cardStore!.meta("asm.card.json");
     expect(meta).toMatchObject({ spec: "chara_card_v3", name: "asm", entryCount: 1 });
     const r = await runtime.cardStore!.updateEntry("asm.card.json", 0, { comment: "c0!" });
-    expect(r).toEqual({ id: 0, changed: ["comment"] });
+    expect(r).toMatchObject({ id: 0, changed: ["comment"], undo: { op: "cardUpdate", path: "entry:0" } });
+    expect(r.version).toMatch(/^[0-9a-f]{64}$/);
     const onDisk = JSON.parse(fs.readFileSync(path.join(tmpDir, "asm.card.json"), "utf8"));
     expect(onDisk.data.character_book.entries[0].comment).toBe("c0!");
   });

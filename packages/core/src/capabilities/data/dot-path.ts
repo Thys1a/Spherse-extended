@@ -47,6 +47,39 @@ export function getByDotPath(root: unknown, path: string): DotPathResult {
   return { value: current, missing: false };
 }
 
+export function setByDotPath(root: Record<string, unknown>, path: string, value: unknown): boolean {
+  if (path === ROOT_PATH) return false;
+  const segments = splitDotPath(path);
+  if (!segments) return false;
+  let current: unknown = root;
+  for (let i = 0; i < segments.length - 1; i++) {
+    if (typeof current !== "object" || current === null || Array.isArray(current)) return false;
+    const next = (current as Record<string, unknown>)[segments[i]];
+    if (typeof next !== "object" || next === null || Array.isArray(next)) return false;
+    current = next;
+  }
+  (current as Record<string, unknown>)[segments[segments.length - 1]] = value;
+  return true;
+}
+
+export function deleteByDotPath(root: Record<string, unknown>, path: string): boolean {
+  if (path === ROOT_PATH) return false;
+  const segments = splitDotPath(path);
+  if (!segments) return false;
+  let current: unknown = root;
+  for (let i = 0; i < segments.length - 1; i++) {
+    if (typeof current !== "object" || current === null || Array.isArray(current)) return false;
+    const next = (current as Record<string, unknown>)[segments[i]];
+    if (typeof next !== "object" || next === null || Array.isArray(next)) return false;
+    current = next;
+  }
+  const parent = current as Record<string, unknown>;
+  const leaf = segments[segments.length - 1];
+  if (!(leaf in parent)) return false;
+  delete parent[leaf];
+  return true;
+}
+
 export function getRawByDotPath(root: unknown, path: string): DotPathResult {
   if (path === ROOT_PATH) {
     return typeof root === "object" && root !== null && !Array.isArray(root)

@@ -184,7 +184,7 @@ export class AgentRunner {
         ? (stripUserAttachments(userMessage as never, attachments) as typeof userMessage)
         : userMessage;
 
-      const [userEvent] = this.eventLog!.appendBatch([
+      const [userEvent, turnStartEvent] = this.eventLog!.appendBatch([
         {
           type: "user/message",
           data: {
@@ -218,8 +218,13 @@ export class AgentRunner {
       restoreSink = () => this.controlBus.swapEventSink(previousSink);
       unsubscribe = this.agent.subscribe(dispatch);
 
-      await this.agent.prompt(userMessage);
-      await this.applyAfterTurnHooks();
+      try {
+        await this.agent.prompt(userMessage);
+        await this.applyAfterTurnHooks();
+      } catch (err) {
+        this.emitErrorTurnEnd(turnStartEvent.seq);
+        throw err;
+      }
     } finally {
       if (sanitizer) {
         const result = sanitizer.finalize(this.agent.state.messages);
@@ -258,7 +263,7 @@ export class AgentRunner {
       }
 
       this.ensureModel();
-      this.eventLog!.appendBatch([
+      const [, retryStartEvent] = this.eventLog!.appendBatch([
         { type: "turn/retried", data: { abandonedSeqs: [lastEvent.seq] } },
         { type: "turn/start", data: {} },
       ]);
@@ -278,8 +283,13 @@ export class AgentRunner {
       restoreSink = () => this.controlBus.swapEventSink(previousSink);
       unsubscribe = this.agent.subscribe(dispatch);
 
-      await this.agent.continue();
-      await this.applyAfterTurnHooks();
+      try {
+        await this.agent.continue();
+        await this.applyAfterTurnHooks();
+      } catch (err) {
+        this.emitErrorTurnEnd(retryStartEvent.seq);
+        throw err;
+      }
     } finally {
       unsubscribe?.();
       restoreSink?.();
@@ -561,6 +571,21 @@ export class AgentRunner {
         ...(sideEffects !== undefined ? { sideEffects } : {}),
       });
     }
+  }
+
+  private emitErrorTurnEnd(turnStartSeq: number): void {
+    const ended = this.eventLog!.events.some(
+      (event) => event.type === "turn/end" && event.seq > turnStartSeq,
+    );
+    if (ended) return;
+    this.emitTurnEvent("sp:turn-end", {
+      sessionId: this.sessionId,
+      agentId: this.agentId,
+      seq: turnStartSeq,
+      reason: "error",
+      depth: this.turnDepth,
+      chainId: this.turnChainId,
+    });
   }
 
   private emitTurnEvent(name: string, payload: TurnEventPayload): void {

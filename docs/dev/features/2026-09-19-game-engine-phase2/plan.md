@@ -163,7 +163,7 @@ import { FindBar } from "../../components/find-bar/FindBar";   // content-browse
 
 ---
 
-## Task 7: R2.5b 回滚执行器 [ ]
+## Task 7: R2.5b 回滚执行器 [x]
 
 **依赖**：无（中项，建议单独排期；可与 T5/T6 并行开工，合入前跑全量回归）。
 
@@ -181,7 +181,7 @@ import { FindBar } from "../../components/find-bar/FindBar";   // content-browse
 
 ---
 
-## Task 8: R6.2 swipe 单独立项（本期只定方向）[ ]
+## Task 8: R6.2 swipe 单独立项（本期只定方向）[x]
 
 **依赖**：无。
 
@@ -191,7 +191,7 @@ import { FindBar } from "../../components/find-bar/FindBar";   // content-browse
 
 ---
 
-## Task 9: E5 `chat.html` 整窗替换（开工门槛检查）[ ]
+## Task 9: E5 `chat.html` 整窗替换（开工门槛检查）[x]
 
 **依赖**：E1–E2 验证结论（design §二决策 7）。
 

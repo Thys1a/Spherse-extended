@@ -81,6 +81,9 @@ export class TriggerManager extends EventEmitter {
       this.logger.debug({ eventName }, "internal event rejected: reserved sp: prefix required");
       return 0;
     }
+    if (eventName === "sp:turn-end" && payload.sessionId) {
+      this.executor.drainDeferred(payload.sessionId);
+    }
     return this.fireMatching(eventName, JSON.stringify(payload), {
       depth: payload.depth,
       chainId: payload.chainId,

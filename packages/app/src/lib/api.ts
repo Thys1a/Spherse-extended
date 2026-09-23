@@ -244,6 +244,8 @@ export function createApiClient(baseUrl: string, projectId: string, accessToken?
       name: string;
       args?: Record<string, unknown>;
       idempotencyKey?: string;
+      sessionId?: string;
+      toolCallId?: string;
     }): Promise<{ version: string; result: unknown }> {
       const res = await authedFetch(`${apiBase}/data/mutate`, {
         method: "POST",
@@ -254,7 +256,7 @@ export function createApiClient(baseUrl: string, projectId: string, accessToken?
       return parseJsonResponse<{ version: string; result: unknown }>(res, schemas.dataMutateResponse);
     },
 
-    async dataRawSet(params: { file: string; key: string; value: unknown; ifVersion?: string }): Promise<{ version: string }> {
+    async dataRawSet(params: { file: string; key: string; value: unknown; ifVersion?: string; sessionId?: string; toolCallId?: string }): Promise<{ version: string }> {
       const res = await authedFetch(`${apiBase}/data/raw-set`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -264,7 +266,7 @@ export function createApiClient(baseUrl: string, projectId: string, accessToken?
       return parseJsonResponse<{ version: string }>(res, schemas.dataWriteResponse);
     },
 
-    async dataRawDelete(params: { file: string; key: string; ifVersion?: string }): Promise<{ version: string }> {
+    async dataRawDelete(params: { file: string; key: string; ifVersion?: string; sessionId?: string; toolCallId?: string }): Promise<{ version: string }> {
       const res = await authedFetch(`${apiBase}/data/raw-delete`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

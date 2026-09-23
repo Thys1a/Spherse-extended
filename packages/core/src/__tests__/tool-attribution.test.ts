@@ -113,6 +113,29 @@ describe("deriveSideEffects", () => {
     expect(deriveSideEffects("mutate_data", null)).toEqual([]);
     expect(deriveSideEffects("mutate_data", { path: 42 })).toEqual([]);
   });
+
+  it("passes valid undo envelopes into data/card refs", () => {
+    expect(deriveSideEffects("mutate_data", { path: "b", undo: { op: "set", path: "cfg" } })).toEqual([
+      { type: "data", file: "b", undo: { op: "set", path: "cfg" } },
+    ]);
+    expect(
+      deriveSideEffects("edit_card", { path: "lore.card.json", undo: { op: "cardUpdate", path: "entry:3", before: { id: 3 } } }),
+    ).toEqual([
+      { type: "card", file: "lore.card.json", undo: { op: "cardUpdate", path: "entry:3", before: { id: 3 } } },
+    ]);
+  });
+
+  it("drops malformed undo envelopes", () => {
+    expect(deriveSideEffects("mutate_data", { path: "b", undo: { op: "nuke", path: "x" } })).toEqual([
+      { type: "data", file: "b" },
+    ]);
+    expect(deriveSideEffects("mutate_data", { path: "b", undo: { op: "set" } })).toEqual([
+      { type: "data", file: "b" },
+    ]);
+    expect(deriveSideEffects("mutate_data", { path: "b", undo: 42 })).toEqual([
+      { type: "data", file: "b" },
+    ]);
+  });
 });
 
 const BOARD_MANIFEST = {

@@ -27,7 +27,7 @@ import {
   type CardWriteOptions,
   type EntryPatch,
 } from "./types.js";
-import type { ToolAttributionRegistry } from "../../tool-attribution.js";
+import type { ToolAttributionRegistry, UndoRecord } from "../../tool-attribution.js";
 
 export const MAX_CARD_FILE_SIZE = 20 * 1024 * 1024;
 
@@ -105,6 +105,75 @@ function canonicalEntry(id: number, body: EntryPatch): Record<string, unknown> {
   };
 }
 
+function parseUndoEntryIds(path: string): { kind: "entry" | "entries"; ids: number[] } | null {
+  const single = /^entry:(\d+)$/.exec(path);
+  if (single) return { kind: "entry", ids: [Number(single[1])] };
+  const multi = /^entries:(\d+(,\d+)*)$/.exec(path);
+  if (multi) return { kind: "entries", ids: multi[1].split(",").map(Number) };
+  return null;
+}
+
+function cloneUndoEntry(value: unknown, path: string): Record<string, unknown> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error(`rollback record incomplete: ${path}`);
+  }
+  return structuredClone(value) as Record<string, unknown>;
+}
+
+function applyCardInverse(
+  list: Array<Record<string, unknown>>,
+  rel: string,
+  undo: UndoRecord,
+): UndoRecord {
+  switch (undo.op) {
+    case "cardUpdate": {
+      const parsed = parseUndoEntryIds(undo.path);
+      const id = parsed?.kind === "entry" ? parsed.ids[0] : undefined;
+      if (id === undefined) throw new Error(`unsupported rollback path: ${undo.path}`);
+      const idx = list.findIndex((e) => e.id === id);
+      if (idx < 0) throw new EntryNotFoundError(rel, id);
+      const current = structuredClone(list[idx]);
+      list[idx] = cloneUndoEntry(undo.before, undo.path);
+      return { op: "cardUpdate", path: undo.path, before: current };
+    }
+    case "cardBulk": {
+      const parsed = parseUndoEntryIds(undo.path);
+      if (parsed?.kind !== "entries" || !Array.isArray(undo.before)) {
+        throw new Error(`unsupported rollback path: ${undo.path}`);
+      }
+      const dual: Array<{ id: number; entry: Record<string, unknown> }> = [];
+      for (const item of undo.before as Array<{ id: number; entry: unknown }>) {
+        const idx = list.findIndex((e) => e.id === item.id);
+        if (idx < 0) throw new EntryNotFoundError(rel, item.id);
+        dual.push({ id: item.id, entry: structuredClone(list[idx]) });
+        list[idx] = cloneUndoEntry(item.entry, undo.path);
+      }
+      return { op: "cardBulk", path: undo.path, before: dual };
+    }
+    case "cardAdd": {
+      const parsed = parseUndoEntryIds(undo.path);
+      const id = parsed?.kind === "entry" ? parsed.ids[0] : undefined;
+      if (id === undefined) throw new Error(`unsupported rollback path: ${undo.path}`);
+      const idx = list.findIndex((e) => e.id === id);
+      if (idx < 0) throw new EntryNotFoundError(rel, id);
+      const [removed] = list.splice(idx, 1);
+      return { op: "cardRemove", path: `entry:${id}`, before: structuredClone(removed), index: idx };
+    }
+    case "cardRemove": {
+      const parsed = parseUndoEntryIds(undo.path);
+      if (parsed?.kind !== "entry") throw new Error(`unsupported rollback path: ${undo.path}`);
+      const id = parsed.ids[0];
+      if (list.some((e) => e.id === id)) throw new Error(`rollback entry exists: ${undo.path}`);
+      const entry = cloneUndoEntry(undo.before, undo.path);
+      const at = undo.index !== undefined ? Math.min(Math.max(undo.index, 0), list.length) : list.length;
+      list.splice(at, 0, entry);
+      return { op: "cardAdd", path: `entry:${id}`, after: id };
+    }
+    default:
+      throw new Error(`unsupported rollback op: ${String((undo as { op?: unknown }).op)}`);
+  }
+}
+
 function rawEntryList(doc: Record<string, unknown>): Array<Record<string, unknown>> {
   const data = doc.data as Record<string, unknown>;
   const book = data.character_book as Record<string, unknown>;
@@ -144,10 +213,13 @@ export function createCardStore(opts: CreateCardStoreOptions): CardStore {
   const attribution = opts.attribution;
   const cache = new CardCache();
   const changeHandlers = new Set<(e: CardChangeEvent) => void>();
+  const rollbackIdem = new Map<string, { version: string; dual: UndoRecord }>();
 
   function emitChange(
     file: string,
     summary: string,
+    version: string,
+    undo: UndoRecord | undefined,
     toolCallId: string | undefined,
     sessionId: string | undefined,
   ): void {
@@ -157,12 +229,14 @@ export function createCardStore(opts: CreateCardStoreOptions): CardStore {
         : undefined;
     const event: CardChangeEvent = {
       file,
+      version,
       origin: toolCallId !== undefined ? "agent" : "sdk",
       ...(resolved !== undefined && sessionId !== undefined
         ? { sessionId, turnSeq: resolved.turnSeq }
         : {}),
       ...(toolCallId !== undefined ? { toolCallId } : {}),
       summary,
+      ...(undo !== undefined ? { op: undo.op, path: undo.path, ...(undo.before !== undefined ? { before: undo.before } : {}) } : {}),
     };
     for (const handler of changeHandlers) {
       try {
@@ -299,16 +373,18 @@ export function createCardStore(opts: CreateCardStoreOptions): CardStore {
       id: number,
       patch: EntryPatch,
       opts?: CardWriteOptions,
-    ): Promise<{ id: number; changed: string[] }> {
+    ): Promise<{ id: number; changed: string[]; version: string; undo?: UndoRecord }> {
       const invalid = validatePatch(patch);
       if (invalid.length > 0) throw new InvalidFieldError(invalid);
       const absPath = resolveCardFile(root, file);
       const rel = toPosixRelative(root, absPath);
       const result = await mutex.run(absPath, async () => {
         const changed: string[] = [];
-        await withLockedDoc(absPath, rel, (list) => {
+        let previous: Record<string, unknown> | undefined;
+        const version = await withLockedDoc(absPath, rel, (list) => {
           const raw = list.find((e) => e.id === id);
           if (!raw) throw new EntryNotFoundError(rel, id);
+          previous = structuredClone(raw);
           for (const [key, value] of Object.entries(patch)) {
             if (!sameValue(raw[key], value)) {
               raw[key] = value;
@@ -316,12 +392,12 @@ export function createCardStore(opts: CreateCardStoreOptions): CardStore {
             }
           }
         });
-        return { id, changed };
+        return { id, changed, previous, version };
       });
-      if (result.changed.length > 0) {
-        emitChange(rel, `updateEntry#${id}`, opts?.toolCallId, opts?.sessionId);
-      }
-      return result;
+      if (result.changed.length === 0 || result.previous === undefined) return { id: result.id, changed: result.changed, version: result.version };
+      const undo: UndoRecord = { op: "cardUpdate", path: `entry:${id}`, before: result.previous };
+      emitChange(rel, `updateEntry#${id}`, result.version, undo, opts?.toolCallId, opts?.sessionId);
+      return { id: result.id, changed: result.changed, version: result.version, undo };
     },
 
     async bulkUpdate(
@@ -329,67 +405,124 @@ export function createCardStore(opts: CreateCardStoreOptions): CardStore {
       ids: number[],
       patch: EntryPatch,
       opts?: CardWriteOptions,
-    ): Promise<{ count: number }> {
+    ): Promise<{ count: number; version: string; undo?: UndoRecord }> {
       const invalid = validatePatch(patch);
       if (invalid.length > 0) throw new InvalidFieldError(invalid);
       const absPath = resolveCardFile(root, file);
       const rel = toPosixRelative(root, absPath);
+      if (ids.length === 0) {
+        const buf = await fs.readFile(absPath).catch(() => null);
+        return { count: 0, version: buf ? sha256(buf) : sha256(Buffer.alloc(0)) };
+      }
       const result = await mutex.run(absPath, async () => {
-        await withLockedDoc(absPath, rel, (list) => {
+        const previous: Array<{ id: number; entry: Record<string, unknown> }> = [];
+        const version = await withLockedDoc(absPath, rel, (list) => {
           for (const id of ids) {
             const raw = list.find((e) => e.id === id);
             if (!raw) throw new EntryNotFoundError(rel, id);
+            previous.push({ id, entry: structuredClone(raw) });
             for (const [key, value] of Object.entries(patch)) {
               raw[key] = value;
             }
           }
         });
-        return { count: ids.length };
+        return { count: ids.length, previous, version };
       });
-      if (ids.length > 0) {
-        emitChange(rel, `bulkUpdate#${ids.length}`, opts?.toolCallId, opts?.sessionId);
-      }
-      return result;
+      const undo: UndoRecord = { op: "cardBulk", path: `entries:${ids.join(",")}`, before: result.previous };
+      emitChange(rel, `bulkUpdate#${ids.length}`, result.version, undo, opts?.toolCallId, opts?.sessionId);
+      return { count: result.count, version: result.version, undo };
     },
 
     async addEntry(
       file: string,
       entry: EntryPatch,
       opts?: CardWriteOptions,
-    ): Promise<{ id: number }> {
+    ): Promise<{ id: number; version: string; undo?: UndoRecord }> {
       const invalid = validatePatch(entry);
       if (invalid.length > 0) throw new InvalidFieldError(invalid);
       const absPath = resolveCardFile(root, file);
       const rel = toPosixRelative(root, absPath);
       const result = await mutex.run(absPath, async () => {
         let newId = 0;
-        await withLockedDoc(absPath, rel, (list) => {
+        const version = await withLockedDoc(absPath, rel, (list) => {
           newId = list.reduce((m, e) => Math.max(m, typeof e.id === "number" ? e.id : -1), -1) + 1;
           list.push(canonicalEntry(newId, entry));
         });
-        return { id: newId };
+        return { id: newId, version };
       });
-      emitChange(rel, `addEntry#${result.id}`, opts?.toolCallId, opts?.sessionId);
-      return result;
+      const undo: UndoRecord = { op: "cardAdd", path: `entry:${result.id}`, after: result.id };
+      emitChange(rel, `addEntry#${result.id}`, result.version, undo, opts?.toolCallId, opts?.sessionId);
+      return { id: result.id, version: result.version, undo };
     },
 
     async removeEntry(
       file: string,
       id: number,
       opts?: CardWriteOptions,
-    ): Promise<{ ok: boolean }> {
+    ): Promise<{ ok: boolean; version: string; undo?: UndoRecord }> {
       const absPath = resolveCardFile(root, file);
       const rel = toPosixRelative(root, absPath);
       const result = await mutex.run(absPath, async () => {
-        await withLockedDoc(absPath, rel, (list) => {
+        let removed: Record<string, unknown> | undefined;
+        let index = -1;
+        const version = await withLockedDoc(absPath, rel, (list) => {
           const idx = list.findIndex((e) => e.id === id);
           if (idx < 0) throw new EntryNotFoundError(rel, id);
-          list.splice(idx, 1);
+          index = idx;
+          const [entry] = list.splice(idx, 1);
+          removed = structuredClone(entry);
         });
-        return { ok: true };
+        return { ok: true as const, removed, index, version };
       });
-      emitChange(rel, `removeEntry#${id}`, opts?.toolCallId, opts?.sessionId);
-      return result;
+      if (result.removed === undefined) return { ok: true as const, version: result.version };
+      const undo: UndoRecord = { op: "cardRemove", path: `entry:${id}`, before: result.removed, index: result.index };
+      emitChange(rel, `removeEntry#${id}`, result.version, undo, opts?.toolCallId, opts?.sessionId);
+      return { ok: true as const, version: result.version, undo };
+    },
+
+    async rollbackUndo(
+      file: string,
+      undo: UndoRecord,
+      expectedVersion: string,
+      opts?: CardWriteOptions,
+    ): Promise<{ version: string; undo?: UndoRecord }> {
+      const absPath = resolveCardFile(root, file);
+      const rel = toPosixRelative(root, absPath);
+      const idemKey = opts?.idempotencyKey !== undefined ? `${absPath}\0${opts.idempotencyKey}` : undefined;
+      if (idemKey !== undefined) {
+        const cached = rollbackIdem.get(idemKey);
+        if (cached !== undefined) return cached;
+      }
+      const result = await mutex.run(absPath, async () => {
+        if (idemKey !== undefined) {
+          const inFlight = rollbackIdem.get(idemKey);
+          if (inFlight !== undefined) return inFlight;
+        }
+        const buf = await fs.readFile(absPath).catch((err: unknown) => {
+          if ((err as NodeJS.ErrnoException).code === "ENOENT") throw new CardNotFoundError(rel);
+          throw err;
+        });
+        if (sha256(buf) !== expectedVersion) {
+          throw new Error(`card version conflict for ${rel}: file changed since the recorded write`);
+        }
+        let dual: UndoRecord | undefined;
+        const version = await withLockedDoc(absPath, rel, (list) => {
+          dual = applyCardInverse(list, rel, undo);
+        });
+        if (!dual) throw new Error(`rollback produced no changes for ${rel}`);
+        return { version, dual };
+      });
+      emitChange(rel, `rollback:${result.dual.op}`, result.version, result.dual, opts?.toolCallId, opts?.sessionId);
+      const full = { version: result.version, undo: result.dual };
+      if (idemKey !== undefined) {
+        rollbackIdem.set(idemKey, { version: result.version, dual: result.dual });
+        while (rollbackIdem.size > 1024) {
+          const oldest = rollbackIdem.keys().next().value;
+          if (oldest === undefined) break;
+          rollbackIdem.delete(oldest);
+        }
+      }
+      return full;
     },
 
     onChange(handler: (e: CardChangeEvent) => void): () => void {
@@ -406,7 +539,7 @@ export function createCardStore(opts: CreateCardStoreOptions): CardStore {
     absPath: string,
     rel: string,
     mutate: (list: Array<Record<string, unknown>>) => void,
-  ): Promise<void> {
+  ): Promise<string> {
     let original: Buffer;
     try {
       original = await fs.readFile(absPath);
@@ -418,7 +551,7 @@ export function createCardStore(opts: CreateCardStoreOptions): CardStore {
     if (!card) throw new CardFileCorruptedError(rel);
     mutate(rawEntryList(card.doc));
     const serialized = Buffer.from(JSON.stringify(card.doc, null, 2), "utf8");
-    if (serialized.equals(original)) return;
+    if (serialized.equals(original)) return sha256(original);
     if (serialized.length > MAX_CARD_FILE_SIZE) throw new CardTooLargeError(rel);
     const tmp = tmpPathFor(absPath);
     try {
@@ -437,5 +570,6 @@ export function createCardStore(opts: CreateCardStoreOptions): CardStore {
       throw new CardWriteFailedError(rel);
     }
     cache.invalidateFile(absPath);
+    return sha256(serialized);
   }
 }

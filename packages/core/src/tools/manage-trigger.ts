@@ -47,7 +47,7 @@ const ManageTriggerParams = Type.Object({
   event_name: Type.Optional(
     Type.String({
       description:
-        "Exact event name this trigger listens for. Matching is exact, not fuzzy. Names starting with `sp:` subscribe to internal turn events (`sp:user-message`, `sp:assistant-message`, `sp:turn-end`). Required for `event` triggers.",
+        "Exact event name this trigger listens for. Matching is exact, not fuzzy. Names starting with `sp:` subscribe to internal turn events (`sp:user-message`, `sp:assistant-message`, `sp:turn-end`). Required for `event` triggers. If the target session is busy when an event fires, the trigger retries once at that turn end instead of skipping.",
     }),
   ),
   mode: Type.Optional(

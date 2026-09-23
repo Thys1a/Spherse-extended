@@ -4,11 +4,11 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import type { FileWriteMutex } from "../../utils/file-write-mutex.js";
 import type { Logger } from "../../logger.js";
-import type { ToolAttributionRegistry } from "../../tool-attribution.js";
+import type { ToolAttributionRegistry, UndoOp, UndoRecord } from "../../tool-attribution.js";
 import { OutlineCache } from "./outline-cache.js";
 import { buildOutline } from "./outline.js";
 import { checkManifestHealth, readManifestWithDiagnosticsFromDoc } from "./manifest.js";
-import { getByDotPath, getRawByDotPath } from "./dot-path.js";
+import { deleteByDotPath, getByDotPath, getRawByDotPath, setByDotPath } from "./dot-path.js";
 import { runQuery, DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT } from "./query-engine.js";
 import { validateMutationArgs } from "./validate.js";
 import { isReservedKey, resolveDataFile, toPosixRelative } from "./path-guard.js";
@@ -112,7 +112,8 @@ export function createDataStore(opts: CreateDataStoreOptions): DataStore {
     doc: Record<string, unknown>,
     origin: DataOrigin,
     summary?: string,
-    attribution?: { sessionId: string; toolCallId: string },
+    attribution?: { sessionId: string; toolCallId?: string },
+    undo?: UndoRecord,
   ): Promise<string> {
     const content = JSON.stringify(doc, null, 2);
     const buf = Buffer.from(content, "utf8");
@@ -126,7 +127,7 @@ export function createDataStore(opts: CreateDataStoreOptions): DataStore {
     const version = sha256(buf);
     outlineCache.invalidateFile(absPath);
     const resolved =
-      attribution !== undefined
+      attribution?.toolCallId !== undefined
         ? attributionRegistry?.attribute(attribution.sessionId, attribution.toolCallId)
         : undefined;
     pendingEvents.push({
@@ -134,8 +135,10 @@ export function createDataStore(opts: CreateDataStoreOptions): DataStore {
       version,
       origin,
       ...(summary !== undefined ? { summary } : {}),
-      ...(resolved !== undefined ? { sessionId: attribution!.sessionId, turnSeq: resolved.turnSeq } : {}),
-      ...(attribution !== undefined ? { toolCallId: attribution.toolCallId } : {}),
+      ...(undo !== undefined ? { op: undo.op, path: undo.path, ...(undo.before !== undefined ? { before: undo.before } : {}) } : {}),
+      ...(attribution !== undefined ? { sessionId: attribution.sessionId } : {}),
+      ...(resolved !== undefined ? { turnSeq: resolved.turnSeq } : {}),
+      ...(attribution?.toolCallId !== undefined ? { toolCallId: attribution.toolCallId } : {}),
     });
     return version;
   }
@@ -168,7 +171,8 @@ export function createDataStore(opts: CreateDataStoreOptions): DataStore {
     key: string,
     apply: (doc: Record<string, unknown>) => boolean,
     ifVersion: string | undefined,
-    attribution?: { sessionId: string; toolCallId: string },
+    attribution?: { sessionId: string; toolCallId?: string },
+    undoMeta?: { op: "rawSet" | "rawDelete"; after?: unknown },
   ): Promise<WriteResult> {
     if (typeof key !== "string" || !key) throw new Error("key must be a non-empty string");
     if (isReservedKey(key)) throw new ForbiddenKeyError(key);
@@ -178,16 +182,27 @@ export function createDataStore(opts: CreateDataStoreOptions): DataStore {
       if (ifVersion !== undefined && loaded.version !== ifVersion) {
         throw new VersionConflictError(loaded.version);
       }
+      const before = key in loaded.doc ? structuredClone(loaded.doc[key]) : undefined;
       const changed = apply(loaded.doc);
       if (!changed) return { version: loaded.version };
+      const undo: UndoRecord | undefined =
+        undoMeta === undefined
+          ? undefined
+          : {
+              op: undoMeta.op,
+              path: key,
+              ...(before !== undefined ? { before } : {}),
+              ...(undoMeta.after !== undefined ? { after: structuredClone(undoMeta.after) } : {}),
+            };
       const version = await persistLocked(
         absPath,
         loaded.doc,
-        attribution !== undefined ? "agent" : "sdk",
+        "sdk",
         undefined,
         attribution,
+        undo,
       );
-      return { version };
+      return undo === undefined ? { version } : { version, undo };
     });
     flushEvents();
     return result;
@@ -211,7 +226,7 @@ export function createDataStore(opts: CreateDataStoreOptions): DataStore {
     args: Record<string, unknown>,
     entryName: string,
     validNames: string[],
-  ): unknown {
+  ): { result: unknown; index?: number; previous?: unknown } {
     const validated = validateMutationArgs(mutation, args);
     const target = getByDotPath(doc, mutation.path);
 
@@ -225,7 +240,7 @@ export function createDataStore(opts: CreateDataStoreOptions): DataStore {
         row[field] = gen === "uuid" ? randomUUID() : new Date().toISOString();
       }
       target.value.push(row);
-      return row;
+      return { result: row, index: target.value.length - 1 };
     }
 
     if (mutation.op === "update" || mutation.op === "remove") {
@@ -242,9 +257,10 @@ export function createDataStore(opts: CreateDataStoreOptions): DataStore {
       }
       if (mutation.op === "remove") {
         const [removed] = target.value.splice(idx, 1);
-        return removed;
+        return { result: removed, index: idx };
       }
       const row = target.value[idx] as Record<string, unknown>;
+      const previousRow = structuredClone(row);
       for (const [field, value] of Object.entries(validated.value)) {
         if (field === mutation.match) continue;
         const prev = row[field];
@@ -261,7 +277,7 @@ export function createDataStore(opts: CreateDataStoreOptions): DataStore {
         if (field === mutation.match || validated.value[field] !== undefined) continue;
         row[field] = gen === "uuid" ? randomUUID() : new Date().toISOString();
       }
-      return row;
+      return { result: row, previous: previousRow };
     }
 
     if (mutation.op === "set") {
@@ -285,7 +301,7 @@ export function createDataStore(opts: CreateDataStoreOptions): DataStore {
         ...(typeof target === "object" && target !== null && !Array.isArray(target) ? target : {}),
         ...patch,
       };
-      return (parent.value as Record<string, unknown>)[leaf];
+      return { result: (parent.value as Record<string, unknown>)[leaf] };
     }
 
     throw new Error(`unsupported mutation op: ${mutation.op}`);
@@ -330,17 +346,130 @@ export function createDataStore(opts: CreateDataStoreOptions): DataStore {
       if (health.staleMutations.includes(name)) {
         throw new ManifestStaleError(name, "mutation", Object.keys(manifest.mutations));
       }
-      const result = applyMutation(loaded.doc, mutation, args, name, Object.keys(manifest.mutations));
+      const pathTarget = getByDotPath(loaded.doc, mutation.path);
+      const pathBefore = pathTarget.missing ? undefined : structuredClone(pathTarget.value);
+      const applied = applyMutation(loaded.doc, mutation, args, name, Object.keys(manifest.mutations));
+      const result = applied.result;
+      const before = mutation.op === "update" || mutation.op === "remove" ? applied.previous ?? result : pathBefore;
+      const undo: UndoRecord = {
+        op: mutation.op,
+        path: mutation.path,
+        ...(mutation.op === "append" ? {} : before !== undefined ? { before } : {}),
+        after: structuredClone(result),
+        ...(applied.index !== undefined ? { index: applied.index } : {}),
+      };
       const version = await persistLocked(
         absPath,
         loaded.doc,
         origin,
         name,
-        opts?.toolCallId !== undefined && opts?.sessionId !== undefined
-          ? { sessionId: opts.sessionId, toolCallId: opts.toolCallId }
+        opts?.sessionId !== undefined
+          ? {
+              sessionId: opts.sessionId,
+              ...(opts.toolCallId !== undefined ? { toolCallId: opts.toolCallId } : {}),
+            }
           : undefined,
+        undo,
       );
-      const full = { version, result } satisfies MutateResult;
+      const full = { version, result, undo } satisfies MutateResult;
+      rememberIdempotent(absPath, idemKey, full);
+      return full;
+    });
+    flushEvents();
+    return result;
+  }
+
+  function rowsEqual(a: unknown, b: unknown): boolean {
+    return JSON.stringify(a) === JSON.stringify(b);
+  }
+
+  function applyDataInverse(doc: Record<string, unknown>, undo: UndoRecord): UndoRecord {
+    switch (undo.op) {
+      case "set":
+      case "rawSet":
+      case "rawDelete": {
+        const dualOp: UndoOp = undo.op === "rawDelete" ? "rawSet" : undo.op;
+        const current = getByDotPath(doc, undo.path);
+        const currentBefore = current.missing ? undefined : structuredClone(current.value);
+        if (undo.before === undefined) {
+          if (!deleteByDotPath(doc, undo.path)) throw new Error(`rollback target missing: ${undo.path}`);
+        } else if (!setByDotPath(doc, undo.path, structuredClone(undo.before))) {
+          throw new Error(`rollback target missing: ${undo.path}`);
+        }
+        const restored = getByDotPath(doc, undo.path);
+        return {
+          op: dualOp,
+          path: undo.path,
+          ...(currentBefore !== undefined ? { before: currentBefore } : {}),
+          ...(restored.missing ? {} : { after: structuredClone(restored.value) }),
+        };
+      }
+      case "update": {
+        if (undo.before === undefined) throw new Error(`rollback record incomplete: ${undo.path}`);
+        const target = getByDotPath(doc, undo.path);
+        if (target.missing || !Array.isArray(target.value)) throw new Error(`rollback target missing: ${undo.path}`);
+        const list = target.value as unknown[];
+        const idx = list.findIndex((row) => rowsEqual(row, undo.after));
+        if (idx < 0) throw new Error(`rollback target row missing: ${undo.path}`);
+        const currentRow = structuredClone(list[idx]);
+        list[idx] = structuredClone(undo.before);
+        return { op: "update", path: undo.path, before: currentRow, after: structuredClone(undo.before) };
+      }
+      case "append": {
+        const target = getByDotPath(doc, undo.path);
+        if (target.missing || !Array.isArray(target.value)) throw new Error(`rollback target missing: ${undo.path}`);
+        const list = target.value as unknown[];
+        let idx = undo.index !== undefined && rowsEqual(list[undo.index], undo.after) ? undo.index : -1;
+        if (idx < 0) idx = list.findIndex((row) => rowsEqual(row, undo.after));
+        if (idx < 0) throw new Error(`rollback target row missing: ${undo.path}`);
+        const [removed] = list.splice(idx, 1);
+        return { op: "remove", path: undo.path, before: removed, index: idx };
+      }
+      case "remove": {
+        if (undo.before === undefined) throw new Error(`rollback record incomplete: ${undo.path}`);
+        const target = getByDotPath(doc, undo.path);
+        if (target.missing || !Array.isArray(target.value)) throw new Error(`rollback target missing: ${undo.path}`);
+        const list = target.value as unknown[];
+        const arrayBefore = structuredClone(list);
+        const at = undo.index !== undefined ? Math.min(Math.max(undo.index, 0), list.length) : list.length;
+        list.splice(at, 0, structuredClone(undo.before));
+        return { op: "append", path: undo.path, before: arrayBefore, after: structuredClone(undo.before), index: at };
+      }
+      default:
+        throw new Error(`unsupported rollback op: ${String((undo as { op?: unknown }).op)}`);
+    }
+  }
+
+  async function rollbackUndoImpl(
+    file: string,
+    undo: UndoRecord,
+    expectedVersion: string,
+    opts?: { idempotencyKey?: string; toolCallId?: string; sessionId?: string },
+  ): Promise<WriteResult> {
+    const absPath = resolveDataFile(root, file);
+    const idemKey = opts?.idempotencyKey !== undefined ? `${absPath}\0${opts.idempotencyKey}` : undefined;
+    const cached = recallIdempotent(absPath, idemKey);
+    if (cached !== undefined) return cached as WriteResult;
+    const result = await mutex.run(absPath, async () => {
+      const inFlight = recallIdempotent(absPath, idemKey);
+      if (inFlight !== undefined) return inFlight as WriteResult;
+      const loaded = await loadDoc(absPath);
+      if (loaded.version !== expectedVersion) throw new VersionConflictError(loaded.version);
+      const dual = applyDataInverse(loaded.doc, undo);
+      const version = await persistLocked(
+        absPath,
+        loaded.doc,
+        "agent",
+        `rollback:${dual.op}`,
+        opts?.sessionId !== undefined
+          ? {
+              sessionId: opts.sessionId,
+              ...(opts.toolCallId !== undefined ? { toolCallId: opts.toolCallId } : {}),
+            }
+          : undefined,
+        dual,
+      );
+      const full = { version, undo: dual } satisfies WriteResult;
       rememberIdempotent(absPath, idemKey, full);
       return full;
     });
@@ -473,9 +602,13 @@ export function createDataStore(opts: CreateDataStoreOptions): DataStore {
           return true;
         },
         opts?.ifVersion,
-        opts?.toolCallId !== undefined && opts?.sessionId !== undefined
-          ? { sessionId: opts.sessionId, toolCallId: opts.toolCallId }
+        opts?.sessionId !== undefined
+          ? {
+              sessionId: opts.sessionId,
+              ...(opts.toolCallId !== undefined ? { toolCallId: opts.toolCallId } : {}),
+            }
           : undefined,
+        { op: "rawSet", after: value },
       );
     },
 
@@ -489,10 +622,18 @@ export function createDataStore(opts: CreateDataStoreOptions): DataStore {
           return true;
         },
         opts?.ifVersion,
-        opts?.toolCallId !== undefined && opts?.sessionId !== undefined
-          ? { sessionId: opts.sessionId, toolCallId: opts.toolCallId }
+        opts?.sessionId !== undefined
+          ? {
+              sessionId: opts.sessionId,
+              ...(opts.toolCallId !== undefined ? { toolCallId: opts.toolCallId } : {}),
+            }
           : undefined,
+        { op: "rawDelete" },
       );
+    },
+
+    async rollbackUndo(file, undo, expectedVersion, opts) {
+      return rollbackUndoImpl(file, undo, expectedVersion, opts);
     },
 
     onChange(handler) {

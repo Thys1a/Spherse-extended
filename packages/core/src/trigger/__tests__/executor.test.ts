@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
+import { ValidationError } from "../../errors.js";
 import { TriggerExecutor } from "../executor.js";
 import type { SessionPort } from "../../kernel/ports.js";
 import type { TriggerStore } from "../../store/trigger.js";
@@ -323,6 +324,47 @@ describe("TriggerExecutor", () => {
     await executor.fire(makeEntry(), "a1", "Agent", "", "evt");
     await executor.fire(makeEntry(), "a1", "Agent", "", "evt");
 
+    expect(session.sendMessage).toHaveBeenCalledTimes(2);
+  });
+
+  it("defers a busy-session fire and retries it on drainDeferred", async () => {
+    let calls = 0;
+    const { executor, session, store } = makeDeps({
+      sessionExists: vi.fn(() => true) as unknown as SessionPort["sessionExists"],
+      sendMessage: vi.fn(async (_sid: string, _msg: string, onEvent: (e: { type: string }) => void) => {
+        calls++;
+        if (calls === 1) throw new ValidationError("Session \"s1\" already has a turn in progress");
+        onEvent({ type: "agent_end" });
+      }) as unknown as SessionPort["sendMessage"],
+    });
+    const entry = makeEntry({ mode: "existing_session", targetSessionId: "s1" });
+    await executor.fire(entry, "a1", "Agent", "");
+
+    expect(session.sendMessage).toHaveBeenCalledTimes(1);
+    expect(store.appendLog).toHaveBeenLastCalledWith(
+      expect.objectContaining({ status: "failed", error: expect.stringContaining("deferred until turn end") }),
+    );
+
+    executor.drainDeferred("s1");
+    await vi.waitFor(() => {
+      expect(session.sendMessage).toHaveBeenCalledTimes(2);
+    });
+    expect(store.appendLog).toHaveBeenLastCalledWith(expect.objectContaining({ status: "success" }));
+  });
+
+  it("drops a deferred fire that is still busy after retry", async () => {
+    const { executor, session } = makeDeps({
+      sessionExists: vi.fn(() => true) as unknown as SessionPort["sessionExists"],
+      sendMessage: vi.fn(async () => {
+        throw new ValidationError("Session \"s1\" already has a turn in progress");
+      }) as unknown as SessionPort["sendMessage"],
+    });
+    const entry = makeEntry({ mode: "existing_session", targetSessionId: "s1" });
+    await executor.fire(entry, "a1", "Agent", "");
+    executor.drainDeferred("s1");
+    await vi.waitFor(() => {
+      expect(session.sendMessage).toHaveBeenCalledTimes(2);
+    });
     expect(session.sendMessage).toHaveBeenCalledTimes(2);
   });
 

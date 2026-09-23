@@ -146,8 +146,12 @@ export function createMutateDataTool(
           ...(sessionId !== undefined ? { sessionId } : {}),
         });
         return {
-          content: [{ type: "text" as const, text: jsonBlock(result) }],
-          details: { path: params.file, version: result.version },
+          content: [{ type: "text" as const, text: jsonBlock({ version: result.version, result: result.result }) }],
+          details: {
+            path: params.file,
+            version: result.version,
+            ...(result.undo !== undefined ? { undo: result.undo } : {}),
+          },
         };
       } catch (err) {
         return { content: [{ type: "text" as const, text: errorText(err) }], details: { path: params.file, error: true } };

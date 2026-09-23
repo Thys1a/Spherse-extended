@@ -179,6 +179,19 @@ render();
 window.addEventListener("pagehide", unsubscribe, { once: true });
 ```
 
+## 回滚（turn 级撤销）
+
+某轮写入错了，用 `rollback_turn` 按 turn 整轮逆转（从新到旧逐条恢复写入前的值），而不是手工反向再写一轮：
+
+```text
+rollback_turn({ turnSeq: 12 })
+```
+
+- 只回滚 data（`*.data.json`）与 card（`*.card.json`）写入；`write_file`/`edit_file` 直写、`memory`、`trigger`（已产生新 turn）不可回滚。
+- 有文件在目标 turn 之后又被改过时拒绝执行并转人工，不强制覆盖。
+- 撤回（withdraw）只截断消息、不回滚写入；回滚只走显式指令。
+- 页面 `data.set`/`data.delete` 直写不经过 turn，无归因可查，同样不可回滚——页面写入请走 `data.mutate` 同名 mutation。
+
 ## 虚拟论坛示例
 
 下面的模型让页面和 Agent 共享发帖、回复与状态修改能力，同时允许 Agent 分页读取与任务相关的数据。

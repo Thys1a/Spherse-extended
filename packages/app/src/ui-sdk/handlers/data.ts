@@ -1,4 +1,6 @@
 import { registerAction } from "../registry";
+import { useDockedChatStore } from "../../features/docked-chat/store";
+import type { ActionContext } from "../types";
 import { respond } from "../respond";
 
 function validateFileParam(file: unknown): string | null {
@@ -11,6 +13,11 @@ function validateFileParam(file: unknown): string | null {
 function validateKeyParam(key: unknown): string | null {
   if (typeof key !== "string" || !key) return null;
   return key;
+}
+
+function dockedSessionId(ctx: ActionContext): string | undefined {
+  if (!ctx.source) return undefined;
+  return useDockedChatStore.getState().entries.get(ctx.source)?.sessionId;
 }
 
 function isReservedKey(key: string): boolean {
@@ -46,7 +53,13 @@ registerAction("data.set", async (params, ctx) => {
   }
 
   try {
-    await ctx.client.dataRawSet({ file: validFile, key: validKey, value });
+    const sessionId = dockedSessionId(ctx);
+    await ctx.client.dataRawSet({
+      file: validFile,
+      key: validKey,
+      value,
+      ...(sessionId !== undefined ? { sessionId } : {}),
+    });
     respond(ctx, true, value);
   } catch {
     respond(ctx, false);
@@ -64,7 +77,12 @@ registerAction("data.delete", async (params, ctx) => {
   }
 
   try {
-    await ctx.client.dataRawDelete({ file: validFile, key: validKey });
+    const sessionId = dockedSessionId(ctx);
+    await ctx.client.dataRawDelete({
+      file: validFile,
+      key: validKey,
+      ...(sessionId !== undefined ? { sessionId } : {}),
+    });
     respond(ctx, true, true);
   } catch {
     respond(ctx, false);
@@ -82,11 +100,13 @@ registerAction("data.mutate", async (params, ctx) => {
   if (!validFile || typeof name !== "string" || !name || !ctx.client) return;
 
   try {
+    const sessionId = dockedSessionId(ctx);
     const r = await ctx.client.dataMutate({
       file: validFile,
       name,
       ...(typeof args === "object" && args !== null && !Array.isArray(args) ? { args: args as Record<string, unknown> } : {}),
       ...(typeof idempotencyKey === "string" && idempotencyKey ? { idempotencyKey } : {}),
+      ...(sessionId !== undefined ? { sessionId } : {}),
     });
     respond(ctx, true, r.result);
   } catch {

@@ -1,3 +1,5 @@
+import type { UndoOp, UndoRecord } from "../../tool-attribution.js";
+
 export type CardErrorCode =
   | "card_not_found"
   | "entry_not_found"
@@ -75,7 +77,11 @@ export type CardChangeOrigin = "sdk" | "agent";
 
 export interface CardChangeEvent {
   file: string;
+  version: string;
   origin: CardChangeOrigin;
+  op?: UndoOp;
+  path?: string;
+  before?: unknown;
   sessionId?: string;
   turnSeq?: number;
   toolCallId?: string;
@@ -103,19 +109,20 @@ export interface CardStore {
     id: number,
     patch: EntryPatch,
     opts?: CardWriteOptions,
-  ): Promise<{ id: number; changed: string[] }>;
+  ): Promise<{ id: number; changed: string[]; version: string; undo?: UndoRecord }>;
   bulkUpdate(
     path: string,
     ids: number[],
     patch: EntryPatch,
     opts?: CardWriteOptions,
-  ): Promise<{ count: number }>;
+  ): Promise<{ count: number; version: string; undo?: UndoRecord }>;
   addEntry(
     path: string,
     entry: EntryPatch,
     opts?: CardWriteOptions,
-  ): Promise<{ id: number }>;
-  removeEntry(path: string, id: number, opts?: CardWriteOptions): Promise<{ ok: boolean }>;
+  ): Promise<{ id: number; version: string; undo?: UndoRecord }>;
+  removeEntry(path: string, id: number, opts?: CardWriteOptions): Promise<{ ok: boolean; version: string; undo?: UndoRecord }>;
+  rollbackUndo(file: string, undo: UndoRecord, expectedVersion: string, opts?: CardWriteOptions): Promise<{ version: string; undo?: UndoRecord }>;
   onChange(handler: (e: CardChangeEvent) => void): () => void;
 }
 

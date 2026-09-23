@@ -25,6 +25,8 @@ export const dataMutateRequest = Type.Object({
   name: Type.String({ minLength: 1 }),
   args: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
   idempotencyKey: Type.Optional(Type.String({ minLength: 1 })),
+  sessionId: Type.Optional(Type.String({ minLength: 1 })),
+  toolCallId: Type.Optional(Type.String({ minLength: 1 })),
 });
 
 export const dataMutateResponse = Type.Object({
@@ -37,12 +39,16 @@ export const dataRawSetRequest = Type.Object({
   key: Type.String({ minLength: 1 }),
   value: Type.Unknown(),
   ifVersion: Type.Optional(Type.String({ minLength: 8 })),
+  sessionId: Type.Optional(Type.String({ minLength: 1 })),
+  toolCallId: Type.Optional(Type.String({ minLength: 1 })),
 });
 
 export const dataRawDeleteRequest = Type.Object({
   file: Type.String({ minLength: 1 }),
   key: Type.String({ minLength: 1 }),
   ifVersion: Type.Optional(Type.String({ minLength: 8 })),
+  sessionId: Type.Optional(Type.String({ minLength: 1 })),
+  toolCallId: Type.Optional(Type.String({ minLength: 1 })),
 });
 
 export const dataWriteResponse = Type.Object({

@@ -546,6 +546,14 @@ describe("TriggerManager", () => {
     vi.restoreAllMocks();
   });
 
+  it("onInternalEvent drains deferred fires on sp:turn-end", () => {
+    const drainSpy = vi.spyOn((triggerManager as any).executor, "drainDeferred").mockImplementation(() => {});
+    triggerManager.onInternalEvent("sp:turn-end", { sessionId: "s9", agentId, seq: 4, depth: 0, chainId: "c1" });
+    expect(drainSpy).toHaveBeenCalledWith("s9");
+    drainSpy.mockRestore();
+    vi.restoreAllMocks();
+  });
+
   it("factory wires onTurnEvent to the trigger manager; absent without trigger capability", async () => {
     const wired = (runtime.sessionRuntime as any).deps.onTurnEvent;
     expect(typeof wired).toBe("function");
@@ -695,7 +703,7 @@ describe("TriggerManager", () => {
     });
   });
 
-  it("skips with a busy log when the target session has a turn in progress", async () => {
+  it("defers with a busy log when the target session has a turn in progress", async () => {
     const targetId = await sessionRuntime.createSession(agentId);
     const sessions = (sessionRuntime as unknown as { sessions: Map<string, { inFlight: boolean }> })
       .sessions;
@@ -719,7 +727,7 @@ describe("TriggerManager", () => {
       const logs = triggerManager.getRecentLogs(agentId, 1);
       expect(logs).toHaveLength(1);
       expect(logs[0]).toMatchObject({ status: "failed", triggerId: entry.id });
-      expect(logs[0].error ?? "").toMatch(/session busy.*skipped/);
+      expect(logs[0].error ?? "").toMatch(/session busy.*deferred until turn end/);
     } finally {
       runner!.inFlight = false;
     }

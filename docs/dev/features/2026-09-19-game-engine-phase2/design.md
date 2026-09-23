@@ -42,11 +42,11 @@
 1. **R1.3 = 纯文档化**：实现已对（version:2 + 拒收 + 整替 + L1），本期只补 `spherse-build-data-app` skill（嵌套建模、`version:2` 升级规则、`set` 整替、未知字段拒收、`auto`/`match` 互斥）+ `mutate_data` 描述补嵌套/version/L1 字样；`SKILL.md:62`“合并”措辞必改。
 2. **R1.4 = 声明优先**：三条旁路显式声明为“有意保留的演化通道”（`write_file`/`edit_file` 修 manifest、`data.set/delete` 键值直写），skill + 工具描述写明无校验；`write_file`/`edit_file` 写 `.data.json` 场景加提示文案（不拦截，实施时定文案）。补写时告警为备选，不默认做。
 3. **R2.5b = undo 日志路线**：全文件快照在 20MB 上限（`data-store.ts:32,75`）下成本不可接受，选 before 镜像 undo。粒度为 turn 整轮逆、显式 `rollback` 指令（**withdraw 语义不变**：仍截断不回滚，见决策 6）。并发冲突（ifVersion/sha256）拒绝转人工，不强制覆盖。回滚本身走 `mutate` 幂等并产生新 `DataChangeEvent`（可再回滚）。
-4. **R2.5b 可回滚边界**：首版仅 `data` + `card`；`write/edit` 文件型、`memory`（无 delete）、`trigger`（已产生新 turn）列为不可回滚类型，UX/skill 明确声明。前置条件：SDK `data.set/delete` 先补归因（`server/routes/data.ts:96,113` 透传 sessionId/toolCallId），否则回滚永远有漏网。
+4. **R2.5b 可回滚边界**：首版仅 `data` + `card`；`write/edit` 文件型、`memory`（无 delete）、`trigger`（已产生新 turn）列为不可回滚类型，UX/skill 明确声明。前置条件（已部分落定，见实施注记）：SDK `data.set/delete` 补归因 plumbing（contracts 请求体 + routes 转发 + docked 卡片挂 sessionId，事件带 session）；但回滚发现面仍为 turn/tool-result（`listSideEffectsByTurn`），SDK 写无 session log 条目故首版不可回滚——合成 `tool/result` 会污染 fold/LLM 上下文，另建旁路日志则机制翻倍，均否决；plumbing 已就位供后续发现机制复用。
 5. **R6.2 单独立项**：reducer 分支状态 + 持久化（append-only，分支带走 active 版）+ WS 事件 + swipe UI 三层联动，且与 backlog 会话分支项关系待定，本期只定接口方向（decision 8），实现另立项。
 6. **withdraw 语义冻结**：withdraw = 截断不回滚（R2.5a 已文档化）；“撤回即回滚”不做，回滚只走显式指令。
 7. **E5 方向锁定（实施最后）**：`chat.*` 只读+订阅族对标 data/card 五层（contracts → server → app handler → sdk → skill）；`useSpherseChat()` 封装；缺失/报错/超时降级回默认 `Chat`；仅项目本地文件可声明，作用域沿 project→agent 层叠；配额计入 300/min。E1–E2 验证（真机 prompt 实测 + 联动配额实测）完成前不开工。
-8. **遗留三件套归属**：同会话 trigger 可用性 / 早失败 turn-end 配对 / 并发 restore 竞态，随 R2.5b 同批决策（排队 vs 跳过文档化、synthetic seq vs 明确无配对、排队提前到 switch 前），实施时落定，不另开域。
+8. **遗留三件套归属（已落定）**：① 同会话可用性 = busy-defer（executor 按 session 排队，busy 时存一次、 turn-end 到达重放一次，再忙则丢弃；`manage-trigger` event_name 描述已声明）；② 早失败配对 = synthetic `sp:turn-end{reason:error}`（`sendMessage`/`retryLastTurn` 在 prompt/afterTurn 抛错且无 `turn/end` 时补发，seq 取 turn/start，已有正常 turn-end 不双发）；③ 并发 restore = manager 级 per-session init memo（覆盖全部调用方，比 executor 内排队更彻底）。
 
 ## 三、分域方案
 
@@ -64,6 +64,7 @@
 
 - 改动：`DataChangeEvent`/`CardChangeEvent` 加 before 镜像（字段名实施时定，contracts 同步）；store 落库时填 before；SDK `data.set/delete` 补归因透传；新增显式回滚指令（工具名与参数实施时定，推荐 `rollback_turn{sessionId,turnSeq}`）；`listSideEffectsByTurn` 复用为回滚源；不可回滚类型声明进 skill + 用户可见说明。
 - 不碰：fold 废弃语义、withdraw 截断路径、retry 对称行为。
+- 实施注记：`rollback_turn{turnSeq}`（host session 隐式、同会话限定；plan 曾推荐带 sessionId 参数，实施时简化）；store 层 `rollbackUndo` 自带版本守卫 + toolCallId 级幂等 + 双向 undo 记录（可再回滚）；`rollback` capability 经 `host.stores` 取 manager 自注册的 side-effect 源（`turnSideEffects` 键），无内核改动；`UndoRecord.path` 按 op 解释（data 为 mutation path/key，card 为 `entry:<id>`/`entries:<ids>`），`index` 保数组序；undo 信封只走进程内结果，不进 HTTP 响应 schema（wire 零变更）。
 - 验收：某 turn 写入后显式回滚，data/card 恢复 before 值（单测 + 端到端）；SDK 直写纳入归因（单测）；ifVersion 冲突拒绝转人工（单测）；不可回滚类型声明检查。
 
 ### R6.1 panic 锁定（P2，小）
@@ -84,6 +85,7 @@
 
 - 改动（对标五层）：contracts chat schema（`messages.list/subscribe/send/retry/withdraw` + runtime 上下文）→ server 路由/WS 扩展 → `handlers/chat.*.ts` → `sdk/chat.ts` + `useSpherseChat()` → skill 声明；配额计入 300/min（白名单与否立项定）；降级回默认 `Chat`（抄 `HtmlCard.tsx:244-254` 模式）。
 - 验收（开工时定）：整窗替换端到端 + 降级三态（缺失/报错/超时）+ 配额说明。开工门槛：E1–E2 验证完成。
+- 评估结论（2026-09-23，T9）：门槛未过，不开工。缺：① E1 真机 prompt 实测（`worldbook-order-tuning.md` 明确记录尚未执行）；② E2 联动配额实测。重估触发：两项验证结论落盘后。
 
 ## 四、实施顺序
 

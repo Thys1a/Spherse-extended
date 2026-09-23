@@ -29,6 +29,7 @@ vi.mock("../../model-providers/catalog.js", async (importOriginal) => {
 });
 
 import { createProject } from "../../factory.js";
+import { AgentRunner } from "../../session/agent-runner.js";
 
 const TEST_AGENT_PROFILE = `---
 name: Test Agent
@@ -1089,5 +1090,49 @@ describe("SessionManager.appendUserMessage", () => {
     expect(new Set([first, second]).size).toBe(2);
     const history = runtime.projectManager.getRecentSessionHistory(agentId, sessionId, 20);
     expect(history.entries).toHaveLength(2);
+  });
+});
+
+describe("SessionManager concurrent restore", () => {
+  let tmpDir: string;
+  let runtime: RuntimeInternals & Awaited<ReturnType<typeof createProject>>;
+  let agentId: string;
+
+  beforeEach(async () => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "wb-mgr-restore-"));
+    getChatStreamFnMock.mockClear();
+    resolveModelByIdMock.mockClear();
+    runtime = (await createProject(tmpDir, {
+      projectName: "Test",
+      logger: createSilentLogger(),
+    })) as RuntimeInternals & Awaited<ReturnType<typeof createProject>>;
+    const projectStore = runtime.projectManager.projectStore;
+    const testAgent = await projectStore.createAgent("test-agent", TEST_AGENT_PROFILE);
+    agentId = testAgent.getProfile().id;
+    runtime.timerService.stop();
+  });
+
+  afterEach(async () => {
+    await runtime.shutdown();
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("shares one init across concurrent restores of the same session", async () => {
+    const projectStore = runtime.projectManager.projectStore;
+    const agentStore = projectStore.getAgent(agentId);
+    const sessionId = agentStore.sessions.createSession();
+    runtime.sessionRuntime.destroySession(sessionId);
+    const spy = vi.spyOn(AgentRunner, "initForRestore");
+    try {
+      const [first, second] = await Promise.all([
+        runtime.sessionRuntime.restoreSession(agentId, sessionId),
+        runtime.sessionRuntime.restoreSession(agentId, sessionId),
+      ]);
+      expect(first).toBe(sessionId);
+      expect(second).toBe(sessionId);
+      expect(spy).toHaveBeenCalledTimes(1);
+    } finally {
+      spy.mockRestore();
+    }
   });
 });

@@ -171,14 +171,14 @@ describe("DataStore.mutate", () => {
     expect(row.id).toMatch(/^[0-9a-f-]{36}$/);
     expect(row.createdAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     expect(events).toEqual([
-      { file: FILE, version: r.version, origin: "agent", summary: "addTodo" },
+      { file: FILE, version: r.version, origin: "agent", summary: "addTodo", op: "append", path: "todos" },
     ]);
   });
 
   it("mutate with origin 'sdk' emits sdk-origin events (same entry as page calls)", async () => {
     events.length = 0;
     const r = await store.mutate(FILE, "addTodo", { title: "from page" }, { origin: "sdk" });
-    expect(events).toEqual([{ file: FILE, version: r.version, origin: "sdk", summary: "addTodo" }]);
+    expect(events).toEqual([{ file: FILE, version: r.version, origin: "sdk", summary: "addTodo", op: "append", path: "todos" }]);
     await store.mutate(FILE, "addTodo", { title: "from page again" });
     expect(events[events.length - 1].origin).toBe("agent");
   });

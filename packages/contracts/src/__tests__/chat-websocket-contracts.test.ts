@@ -257,6 +257,21 @@ describe("chat replay tool/result sideEffects (R2.5a)", () => {
     expect(parseChatReplayEvent(event)).toEqual(event);
   });
 
+  it("accepts tool/result with undo-enriched sideEffects", () => {
+    const event = {
+      type: "tool/result",
+      seq: 5,
+      time: 1,
+      data: {
+        message,
+        sideEffects: [
+          { type: "data", file: "board.data.json", version: "v1", undo: { op: "set", path: "cfg", before: { a: 1 } } },
+        ],
+      },
+    };
+    expect(parseChatReplayEvent(event)).toEqual(event);
+  });
+
   it("rejects tool/result with malformed sideEffects", () => {
     const event = {
       type: "tool/result",

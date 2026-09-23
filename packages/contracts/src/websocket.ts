@@ -41,6 +41,13 @@ type EventOf<
 const agentMessage = Type.Unsafe<AgentMessage>(Type.Unknown());
 const assistantMessage = Type.Unsafe<AssistantMessage>(Type.Unknown());
 const toolResultMessage = Type.Unsafe<ToolResultMessage>(Type.Unknown());
+const undoRecord = Type.Object({
+  op: Type.String(),
+  path: Type.String(),
+  before: Type.Optional(Type.Unknown()),
+  after: Type.Optional(Type.Unknown()),
+  index: Type.Optional(Type.Integer()),
+});
 const sideEffectRef = Type.Object({
   type: Type.Union([
     Type.Literal("data"),
@@ -52,6 +59,7 @@ const sideEffectRef = Type.Object({
   ]),
   file: Type.String(),
   version: Type.Optional(Type.String()),
+  undo: Type.Optional(undoRecord),
 });
 const toolResultMessages = Type.Unsafe<ToolResultMessage[]>(
   Type.Array(Type.Unknown()),

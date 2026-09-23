@@ -8,6 +8,7 @@ import { agentMgmtCapability } from "./agent-mgmt/index.js";
 import { interactionCapability } from "./interaction/index.js";
 import { projectConfigCapability } from "./project-config/index.js";
 import { dataCapability } from "./data/index.js";
+import { rollbackCapability } from "./rollback/index.js";
 import type { CardStore } from "./card/index.js";
 import { cardCapability } from "./card/index.js";
 
@@ -27,5 +28,6 @@ export function builtinToolCapabilities(opts?: BuiltinToolCapabilitiesOptions): 
     projectConfigCapability(),
     dataCapability(opts?.dataStore),
     cardCapability(opts?.cardStore),
+    rollbackCapability({ dataStore: opts?.dataStore, cardStore: opts?.cardStore }),
   ];
 }
