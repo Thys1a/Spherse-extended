@@ -1135,4 +1135,25 @@ describe("SessionManager concurrent restore", () => {
       spy.mockRestore();
     }
   });
+
+  it("propagates restore failure to all waiters and clears the memo", async () => {
+    const projectStore = runtime.projectManager.projectStore;
+    const agentStore = projectStore.getAgent(agentId);
+    const sessionId = agentStore.sessions.createSession();
+    runtime.sessionRuntime.destroySession(sessionId);
+    const spy = vi.spyOn(AgentRunner, "initForRestore").mockRejectedValueOnce(new Error("db gone"));
+    try {
+      const [first, second] = await Promise.allSettled([
+        runtime.sessionRuntime.restoreSession(agentId, sessionId),
+        runtime.sessionRuntime.restoreSession(agentId, sessionId),
+      ]);
+      expect(first.status).toBe("rejected");
+      expect(second.status).toBe("rejected");
+      expect(spy).toHaveBeenCalledTimes(1);
+    } finally {
+      spy.mockRestore();
+    }
+    await expect(runtime.sessionRuntime.restoreSession(agentId, sessionId)).resolves.toBe(sessionId);
+    expect((runtime.sessionRuntime as any).sessions.has(sessionId)).toBe(true);
+  });
 });

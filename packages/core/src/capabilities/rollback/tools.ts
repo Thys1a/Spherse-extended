@@ -48,10 +48,15 @@ export function createRollbackTurnTool(deps: RollbackTurnDeps): AgentTool<typeof
       const undone: string[] = [];
       const skipped: string[] = [];
       const failed: string[] = [];
+      const producedVersions = new Map<string, string>();
+      let refIndex = 0;
       for (const ref of [...refs].reverse()) {
-        const outcome = await rollbackRef(ref, deps, toolCallId);
-        if (outcome === "undone") undone.push(describeRef(ref));
-        else if (outcome === "skipped") skipped.push(describeRef(ref));
+        const outcome = await rollbackRef(ref, deps, toolCallId, refIndex, producedVersions);
+        refIndex++;
+        if (outcome.status === "undone") {
+          undone.push(describeRef(ref));
+          if (outcome.version !== undefined) producedVersions.set(ref.file, outcome.version);
+        } else if (outcome.status === "skipped") skipped.push(describeRef(ref));
         else failed.push(describeRef(ref));
       }
       const lines = [`rollback turn ${params.turnSeq}: ${undone.length} undone, ${skipped.length} skipped, ${failed.length} failed.`];
@@ -74,33 +79,36 @@ async function rollbackRef(
   ref: SideEffectRef,
   deps: RollbackTurnDeps,
   toolCallId: string,
-): Promise<"undone" | "skipped" | "failed"> {
-  if (ref.undo === undefined || ref.version === undefined) return "skipped";
+  refIndex: number,
+  producedVersions: Map<string, string>,
+): Promise<{ status: "undone" | "skipped" | "failed"; version?: string }> {
+  if (ref.undo === undefined || ref.version === undefined) return { status: "skipped" };
   try {
     deps.getPolicy().assertWrite(ref.file);
   } catch {
-    return "failed";
+    return { status: "failed" };
   }
+  const expectedVersion = producedVersions.get(ref.file) ?? ref.version;
   const attribution = { sessionId: deps.sessionId, toolCallId };
-  const idempotencyKey = `rollback:${toolCallId}`;
+  const idempotencyKey = `rollback:${toolCallId}:${refIndex}`;
   try {
     if (ref.type === "data") {
-      await deps.dataStore.rollbackUndo(ref.file, ref.undo, ref.version, {
+      const result = await deps.dataStore.rollbackUndo(ref.file, ref.undo, expectedVersion, {
         idempotencyKey,
         ...attribution,
       });
-      return "undone";
+      return { status: "undone", version: result.version };
     }
     if (ref.type === "card") {
-      await deps.cardStore.rollbackUndo(ref.file, ref.undo, ref.version, {
+      const result = await deps.cardStore.rollbackUndo(ref.file, ref.undo, expectedVersion, {
         idempotencyKey,
         ...attribution,
       });
-      return "undone";
+      return { status: "undone", version: result.version };
     }
-    return "skipped";
+    return { status: "skipped" };
   } catch (err) {
-    if (err instanceof VersionConflictError || /version conflict/.test((err as Error).message)) return "skipped";
-    return "failed";
+    if (err instanceof VersionConflictError || /version conflict/.test((err as Error).message)) return { status: "skipped" };
+    return { status: "failed" };
   }
 }

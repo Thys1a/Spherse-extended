@@ -89,8 +89,21 @@ export class TriggerExecutor extends EventEmitter {
       this.deferred.set(sessionId, queue);
     }
     if (queue.length >= MAX_DEFERRED_PER_SESSION) {
-      queue.shift();
+      const dropped = queue.shift();
       this.logger.warn({ agentId, triggerId: entry.id, sessionId }, "trigger deferred queue full, dropped oldest");
+      if (dropped) {
+        this.deps.getTriggerStore(dropped.agentId)?.appendLog({
+          triggerId: dropped.entry.id,
+          triggerName: dropped.entry.name || dropped.entry.id,
+          agentName: dropped.agentName,
+          eventName: dropped.eventName,
+          sessionId,
+          triggeredAt: Date.now(),
+          completedAt: Date.now(),
+          status: "failed",
+          error: "deferred queue full, dropped before retry",
+        });
+      }
     }
     queue.push({ entry, agentId, agentName, payload, eventName, opts: opts ?? {} });
     this.logger.warn({ agentId, triggerId: entry.id, sessionId }, "trigger deferred: target session busy, will retry at turn end");

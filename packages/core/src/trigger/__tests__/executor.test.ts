@@ -353,7 +353,7 @@ describe("TriggerExecutor", () => {
   });
 
   it("drops a deferred fire that is still busy after retry", async () => {
-    const { executor, session } = makeDeps({
+    const { executor, session, store } = makeDeps({
       sessionExists: vi.fn(() => true) as unknown as SessionPort["sessionExists"],
       sendMessage: vi.fn(async () => {
         throw new ValidationError("Session \"s1\" already has a turn in progress");
@@ -365,6 +365,9 @@ describe("TriggerExecutor", () => {
     await vi.waitFor(() => {
       expect(session.sendMessage).toHaveBeenCalledTimes(2);
     });
+    expect(store.appendLog).toHaveBeenLastCalledWith(
+      expect.objectContaining({ status: "failed", error: expect.stringContaining("skipped") }),
+    );
     expect(session.sendMessage).toHaveBeenCalledTimes(2);
   });
 

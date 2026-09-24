@@ -7,7 +7,7 @@ import { createCardStore } from "../capabilities/card/card-store.js";
 import { createRollbackTurnTool } from "../capabilities/rollback/tools.js";
 import { FileWriteMutex } from "../utils/file-write-mutex.js";
 import { createSilentLogger } from "../logger.js";
-import { TURN_SIDE_EFFECTS_STORE_KEY, type SideEffectRef, type UndoRecord } from "../tool-attribution.js";
+import { TURN_SIDE_EFFECTS_STORE_KEY, deriveSideEffects, type SideEffectRef, type UndoRecord } from "../tool-attribution.js";
 import { createStoreRegistry } from "../kernel/ports.js";
 import { permissivePolicy } from "./helpers.js";
 
@@ -20,6 +20,7 @@ const DATA_MANIFEST = {
       fields: {
         name: { type: "string", required: true },
         stats: { type: "object", required: true, properties: { hp: { type: "integer", required: true } } },
+        tags: { type: "array", items: { type: "string" } },
       },
       auto: { id: "uuid" },
     },
@@ -115,11 +116,31 @@ describe("data rollbackUndo", () => {
     expect((await readDoc()).note).toBe("again");
   });
 
+  it("drops undo mirrors over the size cap without blocking the write", async () => {
+    const big = "x".repeat(300 * 1024);
+    const w = await store.rawSet(DATA_FILE, "big", big);
+    expect((await readDoc()).big).toBe(big);
+    expect(w.undo).toBeUndefined();
+
+    const small = await store.rawSet(DATA_FILE, "small", "v");
+    expect(small.undo).toMatchObject({ op: "rawSet", path: "small" });
+  });
+
   it("refuses on version conflict", async () => {
     const w = await store.mutate(DATA_FILE, "addMember", { name: "ash", stats: { hp: 80 } });
     await store.rawSet(DATA_FILE, "note", "interleaved");
     await expect(store.rollbackUndo(DATA_FILE, w.undo as UndoRecord, w.version)).rejects.toThrow(/version conflict/);
     expect((await readDoc()).party).toHaveLength(1);
+  });
+
+  it("drops mutate undo mirrors over the size cap", async () => {
+    const w = await store.mutate(DATA_FILE, "addMember", {
+      name: "big",
+      stats: { hp: 1 },
+      tags: ["y".repeat(300 * 1024)],
+    });
+    expect((await readDoc()).party).toHaveLength(1);
+    expect(w.undo).toBeUndefined();
   });
 
   it("returns cached result for a repeated idempotency key", async () => {
@@ -286,6 +307,30 @@ describe("rollback_turn tool", () => {  let dir: string;
     const tool = makeTool([{ type: "write", file: "notes.txt" }]);
     const res = await tool.execute("tc-rb-4", { turnSeq: 4 });
     expect(textOf(res)).toContain("0 undone, 1 skipped");
+  });
+
+  it("rolls back multiple writes to the same file newest-first", async () => {
+    const w1 = await dataStore.mutate(DATA_FILE, "addMember", { name: "a", stats: { hp: 1 } });
+    const w2 = await dataStore.mutate(DATA_FILE, "setHp", { name: "a", stats: { hp: 2 } });
+    const tool = makeTool([
+      { type: "data", file: DATA_FILE, version: w1.version, undo: w1.undo },
+      { type: "data", file: DATA_FILE, version: w2.version, undo: w2.undo },
+    ]);
+    const res = await tool.execute("tc-multi-1", { turnSeq: 4 });
+    expect(textOf(res)).toContain("2 undone");
+    expect(await readDoc().then((d) => d.party)).toEqual([]);
+  });
+
+  it("rolls back a card write discovered through deriveSideEffects", async () => {
+    await fs.mkdir(path.join(dir, "game"), { recursive: true });
+    await fs.writeFile(path.join(dir, CARD_FILE), cardJson());
+    const w = await cardStore.updateEntry(CARD_FILE, 0, { comment: "changed" });
+    const [ref] = deriveSideEffects("edit_card", { path: CARD_FILE, version: w.version, undo: w.undo });
+    expect(ref.undo?.op).toBe("cardUpdate");
+    const tool = makeTool([ref]);
+    const res = await tool.execute("tc-card-1", { turnSeq: 4 });
+    expect(textOf(res)).toContain("1 undone");
+    expect((await cardStore.entry(CARD_FILE, 0)).comment).toBe("first");
   });
 
   it("fails writes denied by policy", async () => {

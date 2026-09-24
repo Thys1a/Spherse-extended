@@ -4,7 +4,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import type { FileWriteMutex } from "../../utils/file-write-mutex.js";
 import type { Logger } from "../../logger.js";
-import type { ToolAttributionRegistry, UndoOp, UndoRecord } from "../../tool-attribution.js";
+import { overUndoMirrorCap, type ToolAttributionRegistry, type UndoOp, type UndoRecord } from "../../tool-attribution.js";
 import { OutlineCache } from "./outline-cache.js";
 import { buildOutline } from "./outline.js";
 import { checkManifestHealth, readManifestWithDiagnosticsFromDoc } from "./manifest.js";
@@ -185,14 +185,15 @@ export function createDataStore(opts: CreateDataStoreOptions): DataStore {
       const before = key in loaded.doc ? structuredClone(loaded.doc[key]) : undefined;
       const changed = apply(loaded.doc);
       if (!changed) return { version: loaded.version };
+      const after = undoMeta?.after !== undefined ? structuredClone(undoMeta.after) : undefined;
       const undo: UndoRecord | undefined =
-        undoMeta === undefined
+        undoMeta === undefined || overUndoMirrorCap(before) || overUndoMirrorCap(after)
           ? undefined
           : {
               op: undoMeta.op,
               path: key,
               ...(before !== undefined ? { before } : {}),
-              ...(undoMeta.after !== undefined ? { after: structuredClone(undoMeta.after) } : {}),
+              ...(after !== undefined ? { after } : {}),
             };
       const version = await persistLocked(
         absPath,
@@ -351,13 +352,17 @@ export function createDataStore(opts: CreateDataStoreOptions): DataStore {
       const applied = applyMutation(loaded.doc, mutation, args, name, Object.keys(manifest.mutations));
       const result = applied.result;
       const before = mutation.op === "update" || mutation.op === "remove" ? applied.previous ?? result : pathBefore;
-      const undo: UndoRecord = {
-        op: mutation.op,
-        path: mutation.path,
-        ...(mutation.op === "append" ? {} : before !== undefined ? { before } : {}),
-        after: structuredClone(result),
-        ...(applied.index !== undefined ? { index: applied.index } : {}),
-      };
+      const after = structuredClone(result);
+      const undo: UndoRecord | undefined =
+        overUndoMirrorCap(before) || overUndoMirrorCap(after)
+          ? undefined
+          : {
+              op: mutation.op,
+              path: mutation.path,
+              ...(mutation.op === "append" ? {} : before !== undefined ? { before } : {}),
+              after,
+              ...(applied.index !== undefined ? { index: applied.index } : {}),
+            };
       const version = await persistLocked(
         absPath,
         loaded.doc,

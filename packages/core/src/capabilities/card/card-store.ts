@@ -27,7 +27,7 @@ import {
   type CardWriteOptions,
   type EntryPatch,
 } from "./types.js";
-import type { ToolAttributionRegistry, UndoRecord } from "../../tool-attribution.js";
+import { overUndoMirrorCap, type ToolAttributionRegistry, type UndoRecord } from "../../tool-attribution.js";
 
 export const MAX_CARD_FILE_SIZE = 20 * 1024 * 1024;
 
@@ -394,10 +394,15 @@ export function createCardStore(opts: CreateCardStoreOptions): CardStore {
         });
         return { id, changed, previous, version };
       });
-      if (result.changed.length === 0 || result.previous === undefined) return { id: result.id, changed: result.changed, version: result.version };
-      const undo: UndoRecord = { op: "cardUpdate", path: `entry:${id}`, before: result.previous };
+      if (result.changed.length === 0) return { id: result.id, changed: result.changed, version: result.version };
+      const undo: UndoRecord | undefined =
+        result.previous === undefined || overUndoMirrorCap(result.previous)
+          ? undefined
+          : { op: "cardUpdate", path: `entry:${id}`, before: result.previous };
       emitChange(rel, `updateEntry#${id}`, result.version, undo, opts?.toolCallId, opts?.sessionId);
-      return { id: result.id, changed: result.changed, version: result.version, undo };
+      return undo === undefined
+        ? { id: result.id, changed: result.changed, version: result.version }
+        : { id: result.id, changed: result.changed, version: result.version, undo };
     },
 
     async bulkUpdate(
@@ -411,8 +416,8 @@ export function createCardStore(opts: CreateCardStoreOptions): CardStore {
       const absPath = resolveCardFile(root, file);
       const rel = toPosixRelative(root, absPath);
       if (ids.length === 0) {
-        const buf = await fs.readFile(absPath).catch(() => null);
-        return { count: 0, version: buf ? sha256(buf) : sha256(Buffer.alloc(0)) };
+        const version = await mutex.run(absPath, async () => withLockedDoc(absPath, rel, () => {}));
+        return { count: 0, version };
       }
       const result = await mutex.run(absPath, async () => {
         const previous: Array<{ id: number; entry: Record<string, unknown> }> = [];
@@ -428,9 +433,13 @@ export function createCardStore(opts: CreateCardStoreOptions): CardStore {
         });
         return { count: ids.length, previous, version };
       });
-      const undo: UndoRecord = { op: "cardBulk", path: `entries:${ids.join(",")}`, before: result.previous };
+      const undo: UndoRecord | undefined = overUndoMirrorCap(result.previous)
+        ? undefined
+        : { op: "cardBulk", path: `entries:${ids.join(",")}`, before: result.previous };
       emitChange(rel, `bulkUpdate#${ids.length}`, result.version, undo, opts?.toolCallId, opts?.sessionId);
-      return { count: result.count, version: result.version, undo };
+      return undo === undefined
+        ? { count: result.count, version: result.version }
+        : { count: result.count, version: result.version, undo };
     },
 
     async addEntry(
@@ -475,9 +484,13 @@ export function createCardStore(opts: CreateCardStoreOptions): CardStore {
         return { ok: true as const, removed, index, version };
       });
       if (result.removed === undefined) return { ok: true as const, version: result.version };
-      const undo: UndoRecord = { op: "cardRemove", path: `entry:${id}`, before: result.removed, index: result.index };
+      const undo: UndoRecord | undefined = overUndoMirrorCap(result.removed)
+        ? undefined
+        : { op: "cardRemove", path: `entry:${id}`, before: result.removed, index: result.index };
       emitChange(rel, `removeEntry#${id}`, result.version, undo, opts?.toolCallId, opts?.sessionId);
-      return { ok: true as const, version: result.version, undo };
+      return undo === undefined
+        ? { ok: true as const, version: result.version }
+        : { ok: true as const, version: result.version, undo };
     },
 
     async rollbackUndo(

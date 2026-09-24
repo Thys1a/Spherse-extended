@@ -37,6 +37,17 @@ export interface TurnSideEffectSource {
 
 export const TURN_SIDE_EFFECTS_STORE_KEY = "turnSideEffects";
 
+export const MAX_UNDO_MIRROR_BYTES = 256 * 1024;
+
+export function overUndoMirrorCap(value: unknown): boolean {
+  if (value === undefined) return false;
+  try {
+    return (JSON.stringify(value)?.length ?? 0) > MAX_UNDO_MIRROR_BYTES;
+  } catch {
+    return true;
+  }
+}
+
 const REGISTRY_CAPACITY = 1024;
 
 export class ToolAttributionRegistry {
@@ -96,6 +107,7 @@ function undoOf(details: unknown): UndoRecord | undefined {
     path: envelope.path,
     ...(envelope.before !== undefined ? { before: envelope.before } : {}),
     ...(envelope.after !== undefined ? { after: envelope.after } : {}),
+    ...(typeof envelope.index === "number" ? { index: envelope.index } : {}),
   };
 }
 
@@ -112,8 +124,17 @@ export function deriveSideEffects(toolName: string, details: unknown): SideEffec
     case "edit_card": {
       const file = pathOf(details);
       if (!file) return [];
+      const record = detailsRecord(details);
+      const version = record && typeof record.version === "string" ? record.version : undefined;
       const undo = undoOf(details);
-      return [{ type: "card", file, ...(undo !== undefined ? { undo } : {}) }];
+      return [
+        {
+          type: "card",
+          file,
+          ...(version !== undefined ? { version } : {}),
+          ...(undo !== undefined ? { undo } : {}),
+        },
+      ];
     }
     case "write_file": {
       const file = pathOf(details);

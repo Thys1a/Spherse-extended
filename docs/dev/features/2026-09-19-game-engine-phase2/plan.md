@@ -203,7 +203,7 @@ import { FindBar } from "../../components/find-bar/FindBar";   // content-browse
 
 ---
 
-## Task 10: doc-sync + verify 全量 [ ]
+## Task 10: doc-sync + verify 全量 [x]
 
 **依赖**：T1–T9 全部完成。
 

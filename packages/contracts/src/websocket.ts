@@ -42,7 +42,18 @@ const agentMessage = Type.Unsafe<AgentMessage>(Type.Unknown());
 const assistantMessage = Type.Unsafe<AssistantMessage>(Type.Unknown());
 const toolResultMessage = Type.Unsafe<ToolResultMessage>(Type.Unknown());
 const undoRecord = Type.Object({
-  op: Type.String(),
+  op: Type.Union([
+    Type.Literal("append"),
+    Type.Literal("update"),
+    Type.Literal("remove"),
+    Type.Literal("set"),
+    Type.Literal("rawSet"),
+    Type.Literal("rawDelete"),
+    Type.Literal("cardUpdate"),
+    Type.Literal("cardBulk"),
+    Type.Literal("cardAdd"),
+    Type.Literal("cardRemove"),
+  ]),
   path: Type.String(),
   before: Type.Optional(Type.Unknown()),
   after: Type.Optional(Type.Unknown()),
