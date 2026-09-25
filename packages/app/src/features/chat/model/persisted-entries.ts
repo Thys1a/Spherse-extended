@@ -94,6 +94,8 @@ function applyPersistedUserMessage(
       ...(event.data.source === "triggered" && event.data.triggerName !== undefined
         ? { triggerName: event.data.triggerName }
         : {}),
+      ...(event.data.slash !== undefined ? { slash: event.data.slash } : {}),
+      ...(event.data.summon !== undefined ? { summon: event.data.summon } : {}),
     },
     { text },
   );

@@ -192,6 +192,7 @@ export class AgentRunner {
             ...(meta?.source !== undefined ? { source: meta.source } : {}),
             ...(meta?.triggerName !== undefined ? { triggerName: meta.triggerName } : {}),
             ...(slash !== null ? { slash: slash.slash } : {}),
+            ...(meta?.summon !== undefined ? { summon: meta.summon } : {}),
           },
         },
         { type: "turn/start", data: {} },

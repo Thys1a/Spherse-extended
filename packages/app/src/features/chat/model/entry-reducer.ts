@@ -157,6 +157,8 @@ function applyUserMessage(
       ...(event.source === "triggered" && event.triggerName !== undefined
         ? { triggerName: event.triggerName }
         : {}),
+      ...(event.slash !== undefined ? { slash: event.slash } : {}),
+      ...(event.summon !== undefined ? { summon: event.summon } : {}),
     },
     event.clientId !== undefined ? { clientId: event.clientId } : {},
   );

@@ -6,6 +6,8 @@ import {
   type EntryId,
   type ToolCallRef,
   type UserEntry,
+  type UserSlash,
+  type UserSummon,
 } from "./entry";
 
 export interface ChatEntryState {
@@ -107,6 +109,8 @@ export function settleUserEntry(
     clientId?: string;
     source?: "triggered";
     triggerName?: string;
+    slash?: UserSlash;
+    summon?: UserSummon;
   },
   match: { clientId?: string; text?: string },
 ): ChatEntry[] {
@@ -123,6 +127,8 @@ export function settleUserEntry(
       ...(settlement.source === "triggered" && settlement.triggerName !== undefined
         ? { triggerName: settlement.triggerName }
         : {}),
+      ...(settlement.slash !== undefined ? { slash: settlement.slash } : {}),
+      ...(settlement.summon !== undefined ? { summon: settlement.summon } : {}),
       ...(settlement.time !== undefined ? { time: settlement.time } : {}),
     };
     return replaceAt(entries, optimisticIndex, updated);
@@ -137,6 +143,8 @@ export function settleUserEntry(
     ...(settlement.source === "triggered" && settlement.triggerName !== undefined
       ? { triggerName: settlement.triggerName }
       : {}),
+    ...(settlement.slash !== undefined ? { slash: settlement.slash } : {}),
+    ...(settlement.summon !== undefined ? { summon: settlement.summon } : {}),
     ...(settlement.time !== undefined ? { time: settlement.time } : {}),
   };
   return [...entries, entry];

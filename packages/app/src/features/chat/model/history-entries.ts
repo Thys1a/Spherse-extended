@@ -40,6 +40,8 @@ export function parseHistoryEntries(pageEntries: HistoryPageEntry[]): ChatEntry[
         ...(entry.source === "triggered" && entry.triggerName !== undefined
           ? { triggerName: entry.triggerName }
           : {}),
+        ...(entry.slash !== undefined ? { slash: entry.slash } : {}),
+        ...(entry.summon !== undefined ? { summon: entry.summon } : {}),
         ...(message.timestamp !== undefined ? { time: message.timestamp } : {}),
       };
       parsed.push(user);

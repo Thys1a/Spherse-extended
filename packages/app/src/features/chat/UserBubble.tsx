@@ -1,5 +1,8 @@
 import { useCallback } from "react";
+import { useI18n } from "@spherse/i18n/react";
+import { ChevronRightIcon } from "lucide-react";
 import type { ChatAttachment } from "./types";
+import type { UserSlash, UserSummon } from "./model/entry";
 import { MarkdownContent } from "../../components/markdown-content/MarkdownContent";
 import { CopyButton } from "./CopyButton";
 import { MessageAttachments } from "./MessageAttachments";
@@ -16,8 +19,11 @@ interface UserBubbleProps {
   sendFailed?: boolean;
   timestamp?: number;
   showTime?: boolean;
+  slash?: UserSlash;
+  summon?: UserSummon;
   onWithdraw?: () => void;
   onRetry?: () => void;
+  onOpenSession?: (sessionId: string) => void;
 }
 
 export function UserBubble({
@@ -26,9 +32,13 @@ export function UserBubble({
   sendFailed,
   timestamp,
   showTime,
+  slash,
+  summon,
   onWithdraw,
   onRetry,
+  onOpenSession,
 }: UserBubbleProps) {
+  const { t } = useI18n();
   const openLink = useOpenExternalLink();
   const {
     bubbleRef,
@@ -69,10 +79,26 @@ export function UserBubble({
           className="max-w-full min-w-0 overflow-hidden rounded-lg px-3.5 py-2.5 leading-7 break-words bg-primary text-primary-foreground"
         >
           <div className="text-sm">
+            {slash && (
+              <span className="mb-1 inline-flex rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
+                /{slash.type}:{slash.name}
+              </span>
+            )}
             <MarkdownContent variant="chat" plain linkClassName="text-inherit" onLinkClick={handleLinkClick}>{text}</MarkdownContent>
           </div>
           {attachments && attachments.length > 0 && (
             <MessageAttachments attachments={attachments} />
+          )}
+          {summon?.sessionId && onOpenSession && (
+            <button
+              type="button"
+              onClick={() => onOpenSession(summon.sessionId)}
+              title={t("chat.summonCard", { name: summon.agentName ?? summon.agentId })}
+              className="mt-2 flex items-center gap-1.5 self-start rounded-md border border-border px-2.5 py-1.5 text-xs hover:bg-muted"
+            >
+              <span>{t("chat.summonCard", { name: summon.agentName ?? summon.agentId })}</span>
+              <ChevronRightIcon className="size-3.5 text-muted-foreground" />
+            </button>
           )}
         </div>
         {sendFailed && <SendFailedBar onRetry={onRetry} />}

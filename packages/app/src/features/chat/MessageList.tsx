@@ -28,6 +28,7 @@ interface MessageListProps {
   onRetry?: () => void;
   onWithdraw?: () => void;
   allowInlineHtml?: boolean;
+  onOpenSession?: (sessionId: string) => void;
   hasMore?: boolean;
   loadingMore?: boolean;
   onLoadMore?: () => void;
@@ -51,6 +52,7 @@ export function MessageList({
   onRetry,
   onWithdraw,
   allowInlineHtml,
+  onOpenSession,
   hasMore,
   loadingMore,
   onLoadMore,
@@ -85,8 +87,11 @@ export function MessageList({
       sendFailed={user.sendFailed}
       timestamp={user.time}
       showTime
+      slash={user.slash}
+      summon={user.summon}
       onWithdraw={user.id === withdrawableUserId ? onWithdraw : undefined}
       onRetry={user.id === retryTargetUserId ? onRetry : undefined}
+      onOpenSession={onOpenSession}
     />
   );
 

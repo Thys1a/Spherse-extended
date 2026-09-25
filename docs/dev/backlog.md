@@ -73,11 +73,12 @@
 - [ ] **Presets i18n**：为 `@spherse/presets` 内置模板和预置内容增加多语言支持，作为 i18n 基础设施完成后的独立任务
 - [ ] **消息编辑重发（edit-resend, upstream merge 遗留）**：旧 `streaming-store.editAndResend` 随旧 chat 模型删除，新 `session-store` 无等价物（ADR-0014 P5-4）。方向：在 Entry 模型上实现用户消息原地编辑 + 撤回重发（复用 `withdrawLastTurn` + 带 clientId 的重发），Composer 需支持编辑态（`editDraft` + `EDIT_MIN_HEIGHT/MAX_HEIGHT` 参照 dev 版 MessageItem），并补单测。
 - [ ] **moveEntry 路径判断改用 isPathInside（upstream merge review C1）**：`packages/core/src/project-manager.ts:396` 用 `dest.startsWith(src + path.sep)` 做子路径判断，违反路径安全红线。方向：改 `isPathInside(dest, src)` 并补单测。pre-existing（`ba9d342`），merge 未动。
-- [ ] **readPersistedSessionEvents 按 agent 精确读取（upstream merge review I1）**：`session-manager.ts` 无 `agentId` 参数跨 agent 全表扫描，sessionId 碰撞则越权读。方向：参数加 `agentId` 只读对应 store。pre-existing（`f7c85f3`）。
+- [ ] **readPersistedSessionEvents 按 agent 精确读取（upstream merge review I1，已降级）**：`session-manager.ts` 无 `agentId` 参数跨 agent 全表扫描。sessionId 系 `crypto.randomUUID` 全局唯一，越权读实际不可达；真问题是 O(agents) 开销 + 签名不诚实。方向：参数加 `agentId` 只读对应 store。pre-existing（`f7c85f3`）。
 - [ ] **appendUserMessage 补齐 triggerDepth/triggerChainId（upstream merge review I2）**：`SendMessageMeta` 有字段但落库 spread 丢失。方向：补透传（含 contracts schema 与 fold）。pre-existing（`69f9e06`）。
 - [ ] **summon 悬挂引用补偿（upstream merge review I4）**：`startDetachedRun` 失败时目标已删但源 note 保留，跳转 404 无法自愈。方向：`sessions-summon.test.ts` 加断言钉住行为；长期 tombstone 或延迟写源 note。
-- [ ] **内联 HTML 沙箱加固（upstream merge review I6）**：fence 合成卡片与 tool 卡片共用 `HtmlCardRenderer`（`sandbox="allow-scripts allow-same-origin"` + srcDoc 同源），LLM 正文 fence 可达同等权限。方向：holistic sandbox review，并补测试钉住 `<script>`/外链行为。
+- [ ] **内联 HTML 沙箱加固（upstream merge review I6/U1）**：fence 合成卡片与 tool 卡片共用 `HtmlCardRenderer`（`sandbox="allow-scripts allow-same-origin"` + srcDoc 同源），LLM 正文 fence 可达同等权限；核验确认未扩大既有暴露面（tool 卡片本就同权限，均为 LLM 产出 HTML）。方向：holistic sandbox review，并补测试钉住 `<script>`/外链行为。
 - [ ] **summon 目标预校验 + 跳转恢复（upstream merge review M3/C4）**：`>> ghost` 到服务端 404 才报错；`>>` 开头普通文本无法发出；`onOpenSession` 跳转链已移除。方向：客户端 agents 列表预校验、`>>` 转义规则进 i18n、恢复 summon 卡片点击跳转。
+- [ ] **TTS 跨会话串音窄竞态（upstream merge review U4，低优先）**：`tts-controller` 为模块级单例；turn complete 恰落在会话切换 cleanup/重订阅之间时可能朗读旧会话文本；主窗 + 浮窗两实例共享单 synth 互打断。方向：朗读前用 store 当前 sessionId 二次校验，或判定下沉到 controller。
 
 ## 基础设施
 

@@ -104,6 +104,16 @@ export const chatReplayEvent = Type.Union([
       message: agentMessage,
       source: Type.Optional(Type.Literal("triggered")),
       triggerName: Type.Optional(Type.String()),
+      slash: Type.Optional(Type.Object({
+        type: Type.Union([Type.Literal("skill"), Type.Literal("command")]),
+        name: Type.String(),
+        rawArgs: Type.String(),
+      })),
+      summon: Type.Optional(Type.Object({
+        agentId: Type.String(),
+        sessionId: Type.String(),
+        agentName: Type.String(),
+      })),
     }),
   }),
   Type.Object({

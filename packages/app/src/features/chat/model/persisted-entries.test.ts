@@ -100,6 +100,37 @@ describe("persisted entries", () => {
     expect(state.cursor).toBe(4);
   });
 
+  it("preserves slash and summon meta on replayed user messages", () => {
+    let state = createEntryState();
+    state = applyPersistedEvents(state, [
+      replayEvent({
+        type: "user/message",
+        seq: 1,
+        time: 100,
+        data: {
+          message: { role: "user", content: "/skill:review x", timestamp: 100 },
+          slash: { type: "skill", name: "review", rawArgs: "x" },
+        },
+      }),
+      replayEvent({
+        type: "user/message",
+        seq: 2,
+        time: 101,
+        data: {
+          message: { role: "user", content: ">>builder hi", timestamp: 101 },
+          summon: { agentId: "a2", sessionId: "s2", agentName: "Builder" },
+        },
+      }),
+    ], 0);
+
+    expect(state.entries[0]).toMatchObject({
+      slash: { type: "skill", name: "review", rawArgs: "x" },
+    });
+    expect(state.entries[1]).toMatchObject({
+      summon: { agentId: "a2", sessionId: "s2", agentName: "Builder" },
+    });
+  });
+
   it("merges a persisted tool result into the transient tool entry by toolCallId", () => {
     let state = createEntryState();
     state = reduceLiveEvents(state, [

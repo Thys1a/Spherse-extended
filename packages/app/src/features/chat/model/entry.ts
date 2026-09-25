@@ -10,6 +10,18 @@ interface EntryBase {
   time?: number;
 }
 
+export interface UserSlash {
+  type: "skill" | "command";
+  name: string;
+  rawArgs: string;
+}
+
+export interface UserSummon {
+  agentId: string;
+  sessionId: string;
+  agentName: string;
+}
+
 export interface UserEntry extends EntryBase {
   kind: "user";
   text: string;
@@ -17,6 +29,8 @@ export interface UserEntry extends EntryBase {
   attachments?: ChatAttachment[];
   triggered?: true;
   triggerName?: string;
+  slash?: UserSlash;
+  summon?: UserSummon;
   optimistic?: boolean;
   sendFailed?: boolean;
 }
