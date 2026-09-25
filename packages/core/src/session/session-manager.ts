@@ -70,11 +70,38 @@ export class SessionManager {
   }
 
   private async restoreSessionInner(agentId: string, sessionId: string): Promise<string> {
+    this.assertRestorable(agentId, sessionId);
     this.ensureMigrated(agentId, sessionId);
-    const session = await AgentRunner.initForRestore(this.deps, agentId, sessionId);
+    let session: AgentRunner;
+    try {
+      session = await AgentRunner.initForRestore(this.deps, agentId, sessionId);
+    } catch (err) {
+      if (isStoreClosedError(err)) {
+        throw new NotFoundError(`Session "${sessionId}" is not available`);
+      }
+      throw err;
+    }
+    this.assertRestorable(agentId, sessionId);
     this.sessions.set(sessionId, session);
     this.deps.logger.info({ sessionId }, "session restored");
     return sessionId;
+  }
+
+  private assertRestorable(agentId: string, sessionId: string): void {
+    try {
+      const agentStore = this.deps.projectStore.getAgent(agentId);
+      if (!agentStore) throw new NotFoundError(`Agent "${agentId}" not found`);
+      const session = agentStore.sessions.getSession(sessionId);
+      if (!session || session.status !== "active") {
+        throw new NotFoundError(`Session "${sessionId}" is not active`);
+      }
+    } catch (err) {
+      if (err instanceof NotFoundError) throw err;
+      if (isStoreClosedError(err)) {
+        throw new NotFoundError(`Session "${sessionId}" is not available`);
+      }
+      throw err;
+    }
   }
 
   private ensureMigrated(agentId: string, sessionId: string): void {
@@ -258,6 +285,13 @@ export class SessionManager {
     this.sessions.delete(sessionId);
   }
 
+  releaseSession(sessionId: string): boolean {
+    const session = this.sessions.get(sessionId);
+    if (!session || session.isBusy()) return false;
+    this.sessions.delete(sessionId);
+    return true;
+  }
+
   hasActiveSession(sessionId: string): boolean {
     return this.sessions.has(sessionId);
   }
@@ -319,4 +353,8 @@ export class SessionManager {
       session.applyThinkingLevel(thinkingLevel);
     }
   }
+}
+
+function isStoreClosedError(err: unknown): boolean {
+  return err instanceof Error && /database connection is not open/i.test(err.message);
 }

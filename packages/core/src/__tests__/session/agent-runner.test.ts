@@ -644,6 +644,28 @@ Agent with time perception.`,
     expect(agent.state.tools).toEqual([]);
   });
 
+  it("applyReload re-applies model and thinkingLevel from fresh profile", async () => {
+    const agentStore = getAgentStore(runtime, agentId);
+    runConfig.update({ defaultModel: "provider/global-default", thinkingLevel: "low" });
+    const sessionId = agentStore.sessions.createSession();
+    const runner = await AgentRunner.init(deps, agentId, sessionId);
+    const agent = agentOf(runner);
+    expect(agent.state.model?.id).toBe("global-default");
+    expect(agent.state.thinkingLevel).toBe("low");
+
+    agentStore._profile = {
+      ...agentStore._profile,
+      model: "provider/agent-own",
+      thinkingLevel: "high",
+    };
+
+    await runnerOf(runner).applyReload();
+
+    expect(agent.state.model?.id).toBe("agent-own");
+    expect(agent.state.model?.provider).toBe("provider");
+    expect(agent.state.thinkingLevel).toBe("high");
+  });
+
   it("retryLastTurn also consumes a pending reload before continuing (M5)", async () => {
     const agentStore = getAgentStore(runtime, agentId);
     const sessionId = agentStore.sessions.createSession();
@@ -1141,6 +1163,30 @@ describe("AgentRunner in-flight ownership", () => {
 
     agentOf(runner).prompt = vi.fn().mockResolvedValue(undefined) as never;
     await expect(runner.sendMessage("ok", [], () => {})).resolves.toBeUndefined();
+  });
+
+  it("isBusy reflects in-flight ownership across a gated run", async () => {
+    let releaseFirst!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    deps.createTurnHooks = () => ({
+      beforeTurn: async () => {
+        await gate;
+      },
+    });
+    const agentStore = getAgentStore(runtime, agentId);
+    const sessionId = agentStore.sessions.createSession();
+    const runner = await AgentRunner.init(deps, agentId, sessionId);
+    stubAgentLoop(runner);
+
+    expect(runner.isBusy()).toBe(false);
+    const run = runner.sendMessage("first", [], () => {});
+    expect(runner.isBusy()).toBe(true);
+
+    releaseFirst();
+    await run;
+    expect(runner.isBusy()).toBe(false);
   });
 
   it("rejects retryLastTurn while a send owns preflight, without abandoning the failed turn", async () => {

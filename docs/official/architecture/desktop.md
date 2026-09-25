@@ -12,7 +12,7 @@
 - `app.whenReady` 顺序：`fixPath` → `restoreEnvFromSettings` → `ensureServer()`（恒带 server token）→ 创建窗口与右键菜单 → 注册全部 IPC → quick 模式启动 tunnel；更新检查另以 `setTimeout` 5s 调度，与 tunnel 无先后依赖
 - BrowserWindow：1200×800、`contextIsolation: true`、`nodeIntegration: false`、preload 白名单桥
 - `fixPath` 仅 packaged + darwin/linux：spawn 登录 shell 取 `$PATH` 去重合并，保证 GUI 启动拿到 CLI 环境
-- 优雅退出：`window-all-closed` / `before-quit`（幂等标记）→ tunnel stop → `stopServer()` → quit
+- 优雅退出：`window-all-closed` / `before-quit`（幂等标记）→ tunnel stop → `stopServer()` → quit；`stopServer` / `restartServer` 委托 `MultiProjectServer.close()`（注入 10s 阶段超时与日志回调），不再手工编排 registry/fastify 顺序
 
 ## IPC 面
 
@@ -47,13 +47,13 @@
 ## 模型与采样配置传播
 
 - save-settings 链：`if (defaultModel)` 才 `updateDefaultModel()`；`updateSampling()` / `updateThinkingLevel()` 无条件（undefined 即「恢复默认」需要传播）→ registry fan-out 各项目并缓存供后续 register → `SessionManager`
-- 热替换：`setDefaultModel` 遍历活跃会话，仅在解析结果变化时重赋 `agent.state.model`（下一轮生效）；未配置的 agent 跳过不抛错；profile 显式指定 `model` 者不受全局默认影响
-- `setThinkingLevel` 重赋各 agent 的 `state.thinkingLevel`（下一轮生效）；`off` 即关闭思考，实际档位由 pi-ai 按模型 `clampThinkingLevel` 就近取档（不支持推理的模型忽略）
+- 热替换：`setDefaultModel` 遍历活跃会话，仅在解析结果变化时重赋 `agent.state.model`（下一轮生效）；未配置的 agent 跳过不抛错；profile 显式指定 `model` 者优先，但所选模型已不可解析（过期）时回退全局默认（`model-resolver` 按候选序尝试）
+- `setThinkingLevel` 重赋各 agent 的 `state.thinkingLevel`（下一轮生效），profile `thinkingLevel` 覆盖全局值（见 [`../data-conventions.md`](../data-conventions.md)「Agent 定义」）；`off` 即关闭思考，实际档位由 pi-ai 按模型 `clampThinkingLevel` 就近取档（不支持推理的模型忽略）
 - `setSampling` 重赋各 agent 的 `streamFn`；注入点 `getChatStreamFn`：
   - `temperature` 走 pi-ai typed 字段直接进 options
   - `topP` 经 `onPayload` 按 `model.api` 分支——openai 系 / anthropic 根级 `top_p`，google 走 `config.topP`，未知 no-op
 - 模型解析延迟到 send 路径：无模型时可打开会话存活，`sendMessage` 前 `ensureModel` 抛 `ModelNotConfiguredError`
-  - 转为 `MODEL_NOT_CONFIGURED` error 事件，不关连接；`resolveEffectiveModelId` 用 `||` 语义（空串视为未配置）
+  - 转为 `MODEL_NOT_CONFIGURED` error 事件，不关连接；空串 model 在 profile 解析层即归一为未配置
 - 已知边界：清空 defaultModel 后运行时旧默认保留至重启（`if` 守卫 + registry 缓存）
 - **provider catalog**：core `ModelCatalog` 类实例由 desktop `getAppModelCatalog()` 持有单例，经 `CreateServerOptions` 注入 server；文本 17 个内置 provider，图片 3 家（openrouter / zhipu / openai）
 
@@ -72,13 +72,13 @@
 
 ## App 更新机制
 
-- **检测源统一为 OSS 清单**（mac/win 同路径）：`latest.json` 的 `compareVersions` 版本比较，downloadUrl 随事件下发、经 `openExternal` 引导浏览器下载；release notes 恒空由 UI 隐藏
+- **检测源统一为 OSS 清单**（mac/win/linux 同路径）：`latest.json` 的 `compareVersions` 版本比较，downloadUrl 随事件下发、经 `openExternal` 引导浏览器下载；release notes 恒空由 UI 隐藏
 - `autoDownload` / `autoInstallOnAppQuit` 均关闭，全程用户主动；`startAutoUpdateChecks` 调度自动检测：启动 5s 后首查，之后每小时 tick、距上次 ≥24h 且系统空闲 <5min（用户活动期间）才静默检测；silent 检测不改写主进程交互状态（不污染 settings 挂载恢复），`update-available` 事件携带 `silent` 标志且不被抑制，`update-not-available` / `error` 静默吞掉
-- in-app 下载/安装仅 Windows 保留（CancellationToken 完整流程），darwin 直接 no-op；dev 模式直接 upToDate
+- in-app 下载/安装仅 Windows 保留（CancellationToken 完整流程），darwin / linux 直接 no-op（更新引导走 `openExternal` 下载页）；dev 模式直接 upToDate
 - IPC 契约以事件流为唯一真相源：invoke 返回 void / state，`webContents.send` 推 5 个事件
   - renderer `useUpdateChecker` 用 `useReducer` 状态机：idle / checking / upToDate / available / downloading / downloaded / error（`errorPhase` 区分检查与下载失败）；挂载恢复只保留 available/downloading/downloaded，终态归位 idle（重开 settings 按钮恢复可点击）；忽略 silent `update-available`（避免与 toast 双弹）
   - 全局 `UpdateNoticeBridge`（App 根挂载）消费 silent `update-available`：右下角 toast「去更新」→ `openExternal` 平台下载链接（缺失回退官网），至多每天一条
-- CI：git tag 触发，mac（arm64/x64）与 win（x64/arm64 交叉）并行 `--publish never` 构建，`gh release upload` 后 `publish-oss` 汇总上传并生成 `latest.json`，随后 `publish-changelog`（`scripts/build-changelog.mjs`）全量重建 `changelog.json` 上传 OSS（串行在 `publish-oss` 之后，避免与 `latest.json` 版本不一致窗口；landing `/download` 页消费），末尾联动部署 web 版
+- CI：git tag 触发，mac（arm64/x64）、win（x64/arm64 交叉）与 linux（x64，AppImage + deb；smoke test 需 xvfb 虚拟显示 + `--no-sandbox`）并行 `--publish never` 构建。三平台可执行文件名统一 `executableName: Spherse`（Linux 默认取 scoped 包名 `@spherse/desktop`，产生 `@` 开头的非法二进制名；顶层配置须与 productName 一致，否则连带改变 mac .app / win exe 名）。`gh release upload` 后 `publish-oss` 汇总上传并生成 `latest.json`（`win.arm64` / `linux.x64` 为可选键，旧 release 缺失时省略，读取端回退），随后 `publish-changelog`（`scripts/build-changelog.mjs`）全量重建 `changelog.json` 上传 OSS（串行在 `publish-oss` 之后，避免与 `latest.json` 版本不一致窗口；landing `/download` 页消费），末尾联动部署 web 版
 
 ## debug 工具
 

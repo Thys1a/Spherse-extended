@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { useI18n } from "@spherse/i18n/react";
 import { useProjectCtx } from "../../../context/project-context";
 import { useApiClient } from "../../../lib/use-connection";
-import { useStreamingStore } from "../runtime/streaming-store";
+import { useChatSessionStore } from "../runtime/session-store";
 import { parseSummonMessage } from "./slash-menu";
 
 export function useSummonSend(sessionId: string, agentId: string) {
@@ -22,7 +22,7 @@ export function useSummonSend(sessionId: string, agentId: string) {
       }
       try {
         await client.summonToAgent(agentId, sessionId, summon);
-        useStreamingStore.getState().refreshHistory(client, agentId, sessionId);
+        useChatSessionStore.getState().refreshHistory(client, agentId, sessionId);
       } catch (err) {
         toast.error(t("chat.summonFailed", { message: (err as Error).message }));
       }

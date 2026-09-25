@@ -8,15 +8,15 @@
 
 ```
 Composer.send
-  → streaming-store.sendMessage          乐观插入 user 消息（断线时标 _sendFailed）
-  → ChatSessionRuntime                   WS { type:"message", content, attachments }
-  → ChatSessionHub.startRun              channel 置 running，广播 run_status
-  → AgentRunner.sendMessage              guard → 先落库 user/message + turn/start → agent.prompt
-  → pi agent loop                        emit 生命周期事件流
-  → EventPipeline                        log → capability middlewares → 附件 sanitizer → persist
-  → hub publish                          广播到 channel 的订阅者（WS attachments）
-  → renderer rAF 批量归约                 eventQueue → requestAnimationFrame flush → reducer
-  → streaming-store / MessageList        view state 与渲染
+  → session-store.sendMessage              乐观插入 user entry（clientId；断线时标 sendFailed）
+  → session-link                            WS { type:"message", content, clientId, attachments }
+  → ChatSessionHub.startRun                 channel 置 running，广播 run_status
+  → AgentRunner.sendMessage                 guard → 先落库 user/message + turn/start → agent.prompt
+  → pi agent loop                           emit 生命周期事件流
+  → EventPipeline                           log → capability middlewares → 附件 sanitizer → persist
+  → hub publish                             广播到 channel 的订阅者（WS attachments）
+  → renderer rAF 批量归约                    event-queue → flush → entry-reducer（entry state）
+  → assembleGroups → MessageGroup           渲染单元（无孤儿 log、稳定 key）
 ```
 
 两个横切不变量：
@@ -29,9 +29,9 @@ Composer.send
 - **client → server**：`message`（content + 可选 `clientId`（乐观消息结算标识）+ attachments 路径引用）、`abort`、`ping`、`retry`、`withdraw`、`resolve_control_request`（kind approval：approved / reason；kind question：answer）
 - **server → client**：
   - pi 生命周期族：`agent_start` / `agent_end`（可带 `seq`） / `turn_start` / `turn_end` / `message_start` / `message_update` / `message_end`（可带 `messageId` + `seq`） / `tool_execution_start` / `tool_execution_update` / `tool_execution_end`
-  - session 级：`run_status`（active）、`control_request` / `control_resolved`、`turn_withdrawn`（seq）、`turn_retried`（seq + abandonedSeqs）、`user_message`（seq + clientId? + source? + triggerName?，user 消息回显/ack）、`error`（message + code）、`pong`
-  - 重放族：`session_ready`（lastSeq + replay，attach 后恒为首个事件）、`replay_events`（原始 SessionEvent 信封分批，每批 ≤200）、`replay_done`
-- **身份与游标**（[ADR-0011](../../dev/decisions/0011-chat-wire-cursor-replay.md)）：持久事件按 `seq` 幂等；流式 wire 消息按 hub 生成的 `messageId` stitch（pi message payload 运行时无 id 字段），`message_end.seq` 经落库实例引用配对（persist-before-callback）；connect query `?since=`（≥ -1）触发游标重放，游标为客户端 per-connection 状态
+  - session 级：`run_status`（active，log 派生）、`control_request` / `control_resolved`（落库，可带 `seq`；abort 路径 `resolved` 带 `aborted: true`）、`turn_withdrawn`（seq）、`turn_retried`（seq + abandonedSeqs）、`user_message`（seq + clientId? + source? + triggerName?，user 消息回显/ack）、`error`（message + code）、`pong`
+  - 重放族：`session_ready`（lastSeq + replay，attach 后恒为首个事件）、`replay_events`（原始 SessionEvent 信封分批，每批 ≤200，含 `control/requested`/`control/resolved`）、`replay_done`
+- **身份与游标**（[ADR-0011](../../dev/decisions/0011-chat-wire-cursor-replay.md)）：持久事件按 `seq` 幂等；流式 wire 消息按 hub 生成的 `messageId` stitch（pi message payload 运行时无 id 字段；`messageId` 为 **run 级身份**，每个 run 从 `m1` 重新计数），`message_end.seq` 经落库实例引用配对（persist-before-callback）；connect query `?since=`（≥ -1）触发游标重放，游标为客户端 per-connection 状态——`cursor = max(cursor, seq)` 永不回退，live 推进集合为 `user_message` / `message_end` / `agent_end` / `turn_retried` / `turn_withdrawn`，重放的每条事件都推进
 - **error code**（`classify-run-error.ts`）：`MODEL_NOT_CONFIGURED`、`AUTH_ERROR`、`PERMANENT`、`TRANSIENT`。规则：
   - 401/403 → AUTH；429/5xx/网络错误 → TRANSIENT
   - 其余 4xx 及 `ConflictError` / `ValidationError` → PERMANENT
@@ -41,12 +41,14 @@ Composer.send
 
 ## Server：hub / channel / projector（`server/src/chat/`，对外仅经 `chat/index.ts` 导出）
 
-- **`ChatSessionHub`（注册表）**：`Map<projectId:sessionId, ChatChannel>` + getOrCreate + 身份守卫删除回调；hub 实例由 `server/index.ts` 创建，WS 与 sessions 路由共享
-- **`ChatChannel`（单 session 生命周期）**：restore→ready、事件日志订阅、attach（连接级生命周期为闭包）、run 序列化（`startRun` 在 running 时抛 `ConflictError`，HTTP 映射 409，WS 路径表现为 error 事件 code=PERMANENT）、快照压缩（run 期间 `message_update` 同一消息窗口只留最后一条、`tool_execution_update` 同 toolCallId 只留最后一条）、握手重放、fanout、空闲销毁（`cleanupIfIdle`）
-- **`ChatWireProjector`（persist→wire 翻译纯状态机）**：经 `SessionEventLog.subscribe` 消费落库事件——`user/message` → `user_message` echo（clientId + trigger meta）、`turn/retried` → `turn_retried` 广播、落库实例引用→seq 配对、run 级 `messageId` 序列；对 pi wire 事件做富化。pending echo 与 run 状态在 run 边界重置
-- **attach 握手顺序**：ready 后同步块内 session_ready（lastSeq）→ since 游标重放（`readSessionEventsAfter` 原始事件分批，每批 200）→ replay_done → 当前 run 压缩快照 → run_status 当前值 → 加入订阅（无 await，切片与订阅同 tick 原子）
+- **`ChatSessionHub`（注册表 + admission）**：`Map<SessionManager, Map<sessionId, ChatChannel>>` + `closedRuntimes` + hub 级 closed latch + 身份守卫删除回调；hub 实例由 `server/index.ts` 创建，WS 与 sessions 路由共享。`closeRuntime`（project 级）/ `close`（server 级）同步收口并阻止迟到 attach（`RuntimeClosedError`，HTTP 404 / WS 1000）；key 用 runtime 对象身份，重新 register 的新 runtime 不会命中旧 channel（见 [ADR-0012](../../dev/decisions/0012-chat-hub-lifecycle-ownership.md)）
+- **`ChatChannel`（单 session 生命周期）**：`opening → open → closed` 状态机；restore 延迟到首个 attach / detached run 由 `ensureReady()` 单飞执行（不在构造期发 I/O）；lease 计数（attach 与 detached run 各持一个）；run 序列化（`startRun` 在 running 时抛 `ConflictError`，HTTP 映射 409）；终态后命令确定性 reject `ChannelClosedError`（HTTP 409 / WS `PERMANENT`），abort / 控制响应为 no-op
+- **channel 内部模块与空闲收口**：快照压缩收敛在 `RunSnapshot`（`chat-run-snapshot.ts`：同消息窗口只留最后一条 `message_update`、同 toolCallId 只留最后一条 `tool_execution_update`、落库 `message_end` 到达后移除完成项——已完成内容由游标重放覆盖，控制事件保留双通道）；open-turn 反向扫描与握手顺序收敛在 `chat-replay.ts` 纯函数；`cleanupIfIdle` 在 `state === open` + lease 归零 + 无自有 run + 无 log 派生 open turn 时请求 `runtime.releaseSession` 并 close（直连 run 如 trigger 进行中不释放——close 不释放、release 不关闭）
+- **run_status 从 event log 派生**（`ChatWireProjector.isRunActive`，open turn 跟踪）：所有 run（WS / HTTP 静默 / trigger 直连）的 turn 边界都写入 log，log 订阅路径统一发布 `run_status` 翻转；channel 不再在 startRun 手动发布——trigger 等直连 run 因此天然对订阅者可见（echo + 边界 + 完成内容；流式 partial 除外）。channel 建立订阅时从 log 尾部反向扫描初始化 open turn（mid-run attach 握手即得 active，且直连 run 进行中不释放 runner）。wire 顺序：`user_message` echo → `run_status(true)` → 流式 → `run_status(false)` → `agent_end`
+- **`ChatWireProjector`（persist→wire 翻译纯状态机）**：经 `SessionEventLog.subscribe` 消费落库事件——`user/message` → `user_message` echo（clientId + trigger meta）、`turn/retried` → `turn_retried` 广播、turn 边界 → `run_status` 翻转、`assistant/message`/`tool/result` 在**非 channel 发起的 run** 中翻译为 `message_end`（带 seq，内容对订阅者可见）、落库实例引用→seq 配对、run 级 `messageId` 序列；对 pi wire 事件做富化（自有 run 的内容由 pi 流负责，log 仅配对，避免双发）。pending echo 与 run 状态在 run 边界重置
+- **attach 握手顺序**：ready 后同步块内 session_ready（lastSeq）→ since 游标重放（`readSessionEventsAfter` 原始事件分批，每批 200）→ replay_done → 当前 run 快照（O(in-flight)：在飞消息窗口 + 执行中工具 + 控制事件）→ run_status 当前值 → 加入订阅（无 await，切片与订阅同 tick 原子）
 - **HTTP 静默发送**：`POST .../sessions/:id/messages`，目标会话未 attach WS 时 UI SDK 走此路径（`open:false` 只控制不跳转导航）：
-  - `startDetachedRun` 只递增 attachment 计数保持 channel 存活、不注册订阅者——调用方只拿 `{ok:true}`，run 失败经 error 事件到达 WS 订阅者（echo 无 clientId，仅推进其他端）
+  - `startDetachedRun` 只递增 lease 保持 channel 存活、不注册订阅者——调用方只拿 `{ok:true}`，run 失败经 error 事件到达 WS 订阅者（echo 无 clientId，仅推进其他端）；runtime 已收口时抛 `RuntimeClosedError` → 404
   - 与 WS 共享 run 序列化（running 时 409）
 
 ## Core：一次 sendMessage（`agent-runner.ts`）
@@ -58,17 +60,15 @@ Composer.send
 5. `retryLastTurn`：要求末条为失败 assistant；追加 `turn/retried`（abandonedSeqs）+ `turn/start`，`agent.continue()`
 6. `withdrawLastTurn`：定位最后 `user/message`，已被 abandoned/compaction 覆盖则拒绝；追加 `turn/withdrawn`
 
-## Renderer：runtime / store / reducer 三层
+## Renderer：Entry → MessageGroup → 组件
 
-- **`ChatSessionRuntime`（非响应式）**：持有 WS、心跳、重连 timer、连接期事件缓冲、历史对账；经 `ChatRuntimeRegistry` 管理生命周期，transport 不进 Zustand
-- **`streaming-store`（Zustand）**：只持 UI 可观察状态与 actions；`connectionStatus`（disconnected/connecting/open）与 `historyStatus`（pending/syncing/ready）是正交维度
-- **`chat-session-reducer`（纯函数）**：事件 → view state 归约；历史解析与稳定 ID 合并在 `chat-history.ts`，tool/card 投影在 `chat-tool-projection.ts`
-- 事件按 **animation frame 批量归约**：单次 `set()` 内 flush 整个 eventQueue，避免高频 token update 触发过多 render
-- `ChatMessage` 的 `_` 前缀字段是 view 投影：
-  - 身份与状态：`_messageId`（= seq，历史对账去重键）、`_optimistic` / `_streaming` / `_sendFailed`
-  - 内容投影：`_toolCalls`（含其上的 `_card`）、`_error` / `_errorCode` / `_turnError` / `_withdrawError`、`_runChanges` / `_attachments`
-  - 来源投影：`_triggered` / `_triggerName`（trigger 发送的 user message，来自分页 entry 的 `source`/`triggerName`；`turn-groups.ts` 据此把该轮派生为折叠组，摘要条见 `TriggerTurnGroup`）
-- `useChatSession` 只做 attach/detach 与状态选择——切换页面不中断后台流式；正常断线保留 streaming 与未完成消息，`agent_end` / `error` 事件或服务端 `run_status: inactive` 结束运行态（正常完成即经 `agent_end`）
+- **`ChatEntry`（canonical state，`features/chat/model/entry.ts`）**：事件日志的前端 1:1 投影，按身份寻址——`seq`（持久事件身份；旧协议来自 HTTP entry id，v2 = `SessionEvent.seq`）、`streamId`（流式消息身份；旧协议客户端生成，v2 = server run 级 `messageId`）、`clientId`（乐观 user 消息结算）；分 user / assistant / tool-result / error 四类，tool result 独立成条
+  - 归约分三模块：`entry-state.ts`（`ChatEntryState` 形状与共享身份操作：游标推进、`seqByMessageId` 绑定清理、按 seq 移除、乐观 user 结算）；`entry-reducer.ts`（live 入口 `reduceLiveEvents`：pi 事件、`openStreamId` 流式窗口 + `ownerAssistantId` owner 跟踪、run 级 `messageId` 绑定与清理、`message_end(toolResult)` 兜底建条目——直连 run 无 tool 事件时的内容来源）；`persisted-entries.ts`（重放入口 `applyPersistedEvents`：按 `seq` 幂等 upsert、tool owner 配对、`turn/withdrawn` 区间/`turn/retried` 移除、`compaction/applied` 仅推进游标、`control/requested|resolved` pending 投影按 requestId 幂等且 `turn/end` 清 pending；`dropTransientProjections` 在重放结束时清空无 `seq` 的运行中投影，由快照重建）
+  - `history-entries.ts`：HTTP 分页 entry → entries；`latest` 模式按 `seq` upsert 并丢弃未持久化窗口（由重连缓冲事件重建），`loadMore` 保留本地尾部；乐观 user 结算收敛为 `findOptimisticUserIndex`——live echo 只按 `clientId` 精确匹配，HTTP 首页 / 重放按 unique text 兜底
+- **`MessageGroup`（渲染单元，`message-group.ts`）**：`assembleGroups(entries)` 纯函数分区出 `turn` / `trigger-turn` 组与 `assistant` / `tool-result` / `error` 气泡；每个 entry 恰好归入一个渲染单元，tool call 与 result 按 `toolCallId` 合并，配不上宿主的结果降级为独立气泡——不丢孤儿 log；渲染 key 一律取 entry/group 身份
+  - `tool-card.ts` 投影卡片（优先级：pending control > result > partial > resolved control）；`run-changes.ts` 聚合每轮 write_file/edit_file；`group-derivations.ts` 派生 superseded 卡片、撤回/重试目标、待批控制、thinking
+- **runtime 模块（`features/chat/runtime/`）**：`session-link`（每 session 一个 `WsConnection`：url（含 `?since=`）/ 心跳 / fatal / probe / 出站）、`session-recovery`（首帧判定：`session_ready` → 游标重放，否则 HTTP 冷对账；事件缓冲 + 退避）、`event-queue`（rAF 批处理 + `setTimeout(200ms)` 兜底后台冻结）、`session-lifecycle`（引用计数、TTL 定时器、级联断开、link/recovery 生命周期）、`history-loader`（首页 / loadMore / refresh）、`outbound-actions`（发送 / 重试 / 撤回 / 中断 / 控制响应）、`decode`（wire → 帧分类：live event / session-ready / replay-events / replay-done，`replay_events` 逐条解析跳过未知事件）、`session-store`（Zustand 壳 + actions）、`selectors`（对外窄 selector）；transport 不进 Zustand
+- `useChatGroups` 组装视图模型（groups / superseded / thinking / 可撤回目标）；`useChatSession` 只做 attach/detach 与状态选择——切换页面不中断后台流式；正常断线保留 streaming 与未完成消息，`agent_end` / `error` 事件或服务端 `run_status: inactive` 结束运行态；fatal close 立即清运行态且不重连
 
 ## 错误与重试
 
@@ -76,29 +76,32 @@ Composer.send
 |---|---|---|
 | 来源 | `sendMessage` 在 `agent.prompt` 前抛错 | pi `handleRunFailure` 合成 `message_end`（stopReason error） |
 | 用户消息落库 | 否（appendBatch 前抛出） | 是 |
-| reducer 表现 | 追加裸错误气泡（无 `_turnError`） | 末条 assistant 置 `_error` + `_turnError` |
-| `_errorCode` 来源 | error 事件携带的服务端 code | renderer 从错误文本正则重分类（`classify-error.ts`，规则集与服务端不同） |
+| Entry 表现 | 追加独立 `ErrorEntry`（resend 路径） | 当前 assistant entry 置 `error`（retry-last 路径） |
+| `EntryError.code` 来源 | error 事件携带的服务端 code | renderer 从错误文本正则重分类（`classify-error.ts`，规则集与服务端不同） |
 | 重试路径 | resend（重发 user 消息） | retry-last（WS `retry` → `retryLastTurn`） |
 
-- **重试决策是纯函数** `retry-plan.ts`：`planRetry` 返回 `none` / `retry-last` / `resend`（含 dropCount）；store 的 `executeRetry` 只执行 plan
-- **无自动重试**：错误一律落错误气泡 + 手动按钮触发（`_errorCode` 仅用于错误展示分类）；为什么见 [ADR-0008](../../dev/decisions/0008-no-frontend-auto-retry.md)
-- **撤回**：非 streaming 时最新未失败 user 消息可 withdraw；hub 不经 startRun（运行中返回 ConflictError）；成功广播 `turn_withdrawn`，reducer 从该 user 消息处截断；失败给错误气泡打 `_withdrawError`（隐藏 retry）
+- **重试决策是纯函数** `group-derivations.ts` 的 `planRetry`：返回 `none` / `retry-last` / `resend`（含 dropCount）；store 的 `retry` action 只执行 plan
+- **无自动重试**：错误一律落错误气泡 + 手动按钮触发（`code` 仅用于错误展示分类）；为什么见 [ADR-0008](../../dev/decisions/0008-no-frontend-auto-retry.md)
+- **撤回**：非 streaming 时最新未失败 user entry 可 withdraw；hub 不经 startRun（运行中返回 ConflictError）；成功经 log 订阅广播 `turn_withdrawn`（`withdrawLastTurn` 不再手动 publish），reducer 从该 user entry 处截断；失败给 error 打 `retrySuppressed`（隐藏 retry）
 
-## 重连与历史对账
-
-> 现状为过渡态：server 已发协议 v2（session_ready / 游标重放 / echo），renderer 尚未消费（`agent-event-parse.ts` 对 v2 事件返回 undefined 静默丢弃），仍走下述 HTTP 对账；chat 重构 PR3 起切换为游标重放（设计见 `docs/dev/features/2026-09-05-chat-refactor/design.md`）。
+## 重连与游标重放
 
 - **心跳**：每 30s ping，连续 60s 无 pong 才关闭；suspend 导致 timer 大幅跳跃时重置探测窗口防误杀；web 壳 hidden ≥30s / bfcache 恢复时主动 probe（5s 短超时）强测死链
-- **重连退避**：`[1, 2, 5, 10, 30]s`，上限 10 次（超限 `reconnectFailed` + 手动重连）；fatal 4401 不重连
-- **对账流程**：onopen → `historyStatus: syncing` → 拉最新一页历史 → 期间入站事件缓冲 → 对账完成后与历史合并一次性 reduce
-  - `mergeHistoryMessages` 按 `_messageId` 去重：未持久化的 transient 消息被丢弃、乐观 user 消息由持久化行替换
-  - 进行中回合由缓冲的 run 快照重放从零重建——重放因此无需事件级幂等
-- 对账失败按 `[1, 2, 5]s` 退避重试；全失败时仅「从未 ready 过」的会话置 `historyError`（曾 ready 的保持 ready，缓冲事件仍会被应用）
+- **重连退避**：`[1, 2, 5, 10, 30]s`，上限 10 次（超限状态机 `failed` → banner 手动重连）；fatal `4400/4401/4402` 不重连并立即清运行态；detach 后由 `WsConnection.shouldRetry` 阻断重连
+- **v2 游标重放**（`history.status` 已 ready 时 connect 带 `?since=cursor`；否则不带并回落冷对账）：
+  - attach 后首帧恒为 `session_ready`：进入重放态，`replay_events` 分批（每批 ≤200）经 `applyPersistedEvents` 归约，期间普通事件缓冲；`replay_done` 时清空无 `seq` 的本地运行中投影（由随后的 run 快照重建），再放行缓冲帧
+  - 重放语义：按 `seq` 幂等 upsert 并推进游标；`user/message` 结算 clientId 未命中的乐观 entry（unique text 兜底）；`turn/withdrawn` 按 `[data.seq, event.seq)` 移除、`turn/retried` 按 `abandonedSeqs` 移除；`compaction/applied` 只推进游标不改 entries（与 HTTP 历史投影一致）
+  - 重放与快照重叠去重（[ADR-0011](../../dev/decisions/0011-chat-wire-cursor-replay.md)）：`messageId` 为 run 级身份，`agent_start` 清空上一 run 的绑定与 `streamId`；wire `message_end` 的 `seq` 已在本地（重放在先）→ 丢弃 wire 侧窗口、以持久事件为准；`messageId` 已绑定 seq 的 `message_start` / `message_update` 直接跳过
+- **legacy 冷对账**（首帧不是 `session_ready` 的旧 server，或首页从未加载成功：新 app + 旧 server 兼容层）：
+  - onopen → `history.status: syncing` → 拉最新一页历史 → 期间入站事件缓冲 → `applyHistoryPage("latest")` 按 `seq` upsert
+  - 未持久化的本地流式窗口被丢弃，由缓冲的 run 快照重放重建；已结束的 run 由页内持久行接管
+  - 乐观 user 消息按 unique text 与持久行结算；配不上时保留为本地尾部
+  - 对账失败按 `[1, 2, 5]s` 退避重试；全失败时仅「从未 ready 过」的会话置 `history.error`（曾 ready 的保持 ready，缓冲事件仍会被应用），后续重连继续对账而非切游标重放
 - **分页**：`GET .../sessions/:id/messages?limit=&before=`，默认 20、clamp [1, 200]；shape `{ entries, hasMore, oldestId }`
   - `id` / `oldestId` 在 events 投影路径为事件 seq，legacy 路径为 messages 表行 id——两者都是单调 cursor，前端无需区分
   - entry 可携带可选 `source: "triggered"` + `triggerName`（trigger 发送标记，仅 events 投影路径；legacy 路径无此字段）
 - **页原子性**：events 投影与 legacy 两条路径都在页首遇孤儿 toolResult 时向后扩展页边界，保证单页内 toolCall/toolResult 配对自洽——前端按页解析、跨页不重新配对
-- 上翻加载 `loadMore` 以 `oldestLoadedId` 为 cursor，守卫 `hasMore && !loadingMore`；游标写入经 `resolvePageCursor`：空会话取新页、新页接上已加载区间取新页、空页采纳服务端 `hasMore` 但保留旧游标、其余（对账最新页）保留旧游标与旧 `hasMore`——对账不再把游标倒退回最新页
+- 上翻加载 `loadMore` 以 `history.oldestSeq` 为 cursor，守卫 `hasMore && !loadingMore`；迟到响应按 session generation 丢弃
 
 ## 滚动（column-reverse 方案）
 
@@ -111,5 +114,5 @@ Composer.send
 
 ## 类型归属
 
-- `ChatMessage`、`ToolCallInfo`、`HtmlCard` 等 chat 内部类型集中在 `features/chat/types.ts`；`lib/types.ts` 只保留 contract re-export 与应用级类型
-- `lib/` 原则上不反向 import feature——`lib/web-resume-probe.ts` 是已知例外（bridge 性质，订阅 chat runtime 与 bus store）
+- `ChatEntry` / `MessageGroup` / `ToolItem` 等会话模型类型在 `features/chat/model/`；`features/chat/types.ts` 只保留卡片与附件类型（`HtmlCard`、`ChatAttachment` 等）；`lib/types.ts` 只保留 contract re-export 与应用级类型
+- `lib/` 原则上不反向 import feature——`lib/web-resume-probe.ts` 是已知例外（bridge 性质，订阅 chat session store 与 bus store）

@@ -4,21 +4,34 @@ import { describe, expect, it, vi } from "vitest";
 import { createTestQueryClient, renderWithProviders } from "../../test/render";
 import { createMockHostBridge } from "../../test/host-bridge";
 import { Chat } from "./index";
-import type { ChatMessage } from "./types";
+import type { MessageGroup } from "./model/message-group";
 
-const MESSAGES: ChatMessage[] = [
-  { role: "user", content: "hello", _messageId: 1 },
-  { role: "assistant", content: "apple pie with apple", _messageId: 2 },
+const GROUPS: MessageGroup[] = [
+  {
+    id: "g1",
+    kind: "turn",
+    user: { kind: "user", id: "u1", text: "hello" },
+    hasError: false,
+    bubbles: [
+      { kind: "assistant", id: "b1", entryId: "a1", text: "apple pie with apple", tools: [] },
+    ],
+  },
 ];
 
 vi.mock("./hooks/useChatSession", () => ({
   useChatSession: () => ({
-    messages: MESSAGES,
+    entries: [],
+    groups: GROUPS,
+    supersededToolCallIds: new Set<string>(),
+    thinking: false,
+    runningGroupId: null,
+    withdrawableUserId: null,
     streaming: false,
     loading: false,
-    connectionStatus: "open",
+    connection: { state: "open", attempt: 0, delayMs: 0 },
     historyError: false,
-    reconnectFailed: false,
+    hasMore: false,
+    loadingMore: false,
     sendMessage: vi.fn(() => true),
     retry: vi.fn(),
     withdrawLastTurn: vi.fn(),
@@ -27,6 +40,7 @@ vi.mock("./hooks/useChatSession", () => ({
     retryHistory: vi.fn(),
     respondApproval: vi.fn(() => true),
     respondQuestion: vi.fn(() => true),
+    loadMore: vi.fn(),
   }),
 }));
 
@@ -138,10 +152,12 @@ describe("Chat find bar", () => {
       await sleep(170);
     });
     expect(countText()).toBe("1/2");
-    MESSAGES.push({ role: "assistant", content: "more apple here", _messageId: 3 });
+    GROUPS[0].bubbles.push(
+      { kind: "assistant", id: "b2", entryId: "a2", text: "more apple here", tools: [] },
+    );
     rerender(<Chat sessionId="s1" agent={agent} />);
     expect(findBar()).not.toBeNull();
     expect(countText()).toBe("1/2");
-    MESSAGES.pop();
+    GROUPS[0].bubbles.pop();
   });
 });

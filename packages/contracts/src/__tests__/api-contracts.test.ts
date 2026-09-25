@@ -125,6 +125,10 @@ describe("api contracts", () => {
     expect(
       parseApiResponse(schemas.agentProfile, { ...profile, allowInlineHtml: true }),
     ).toMatchObject({ allowInlineHtml: true });
+    expect(parseApiResponse(schemas.agentProfile, { ...profile, quickLinks: ["notes/world.md"] })).toMatchObject({
+      quickLinks: ["notes/world.md"],
+    });
+    expect(() => parseApiResponse(schemas.agentProfile, { ...profile, quickLinks: ["a", 1] })).toThrow(/Invalid payload/);
     expect(() => parseApiResponse(schemas.agentProfile, { id: "a1" })).toThrow(/Invalid payload/);
 
     const summary = { id: "a1", name: "Agent", slug: "agent", createdAt: 1 };

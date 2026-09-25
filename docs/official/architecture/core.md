@@ -51,6 +51,8 @@ ProjectRuntime           对外协调层，聚合以上全部
 ## 会话运行时
 
 - **SessionManager** 是纯 session 池：session map 生命周期、legacy 迁移、hot-reload 标记、`setDefaultModel` / `setSampling` 经 `RunConfigHolder` 单点派发。构造只收成品 `RuntimeDeps`，不自带默认装配；对外提供事件读取门面（`readSessionEventsAfter` / `getSessionLastSeq` / `subscribeSessionEvents`，内存日志优先、store 回落），server 侧 chat 重放经此消费、不触达 runner 内部
+  - `restoreSession` 带 admission 重检：session 不存在 / 已归档 / store 已关闭（含 init 中途关闭）→ `NotFoundError`，`initForRestore` 完成后与 `sessions.set` 同同步块再检一次，archived session 不可被并发 restore 复活
+  - `releaseSession` 是空闲释放入口（busy runner 拒绝并返回 false），server hub 空闲收口经此请求，不直接销毁 runner；`AgentRunner.isBusy()` 是 in-flight 只读视图
 - **AgentRunner** 直接作为会话对象并执行 turn；事件经 `EventPipeline`（log → capability middleware → sanitizer → 持久化翻译）对外直播
 - **SessionEventLog 是消息唯一真相**：user / assistant / tool result / turn 边界追加到 per-agent SQLite events 表，`deriveMessages(events)` fold 结果单向同步给 pi 的内存数组，内存可随时丢弃重建（为什么见 [ADR-0001](../../dev/decisions/0001-event-log-fold.md)）
   - 不变量：`seq` 在单个 session log 内从 0 连续，`open` 校验损坏即抛；`appendBatch` 落库失败回滚内存追加
@@ -60,7 +62,8 @@ ProjectRuntime           对外协调层，聚合以上全部
   - compaction：阈值触发时经 agent 自身 streamFn 生成 LLM 摘要——精确复刻请求前缀（systemPrompt + tools + fold 视图 + 追加摘要指令）命中 provider prompt cache；失败且 tokens ≤ 90% window 跳过本轮，> 90% 回退机械拼接
     摘要长度预算按压缩时 context tokens 的 5% 动态给定（clamp 1500–16000），同时约束摘要指令文本与 stream `maxTokens`（再与模型输出上限取 min）
     摘要来源以 `digestSource: "llm" | "mechanical"` 标记
-- 触发器 ⇄ 会话的循环依赖经 `SessionPort` 消解：factory 先构造 SessionManager，port 是普通对象，capability 在 `init` 中拿到它
+- 触发器 ⇄ 会话的循环依赖经 `SessionPort` 消解：factory 先构造 SessionManager，port 是普通对象，capability 在 `init` 中拿到它；trigger 经 port 直连发送，可见性由 server 侧 event log 订阅派生（见 chat.md），core 不引入路由钩子
+- **control 事件落库**：审批/问答 gate 的 `control/requested` / `control/resolved` 经 runner 的 control sink 包装层 persist → emit（wire 附 seq）；abort 的 `rejectAll` 对每个 pending 补发 `resolved {aborted}`；`derivePendingControls(events)` 投影 pending（requested 未配对 resolved 且其后无 `turn/end`，repair 合成的 turn/end 自动排除崩溃悬空）
 
 ## ProjectRuntime（对外协调层）
 

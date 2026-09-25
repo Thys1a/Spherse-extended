@@ -4,22 +4,24 @@ import {
   type SessionManager,
 } from "@spherse/core";
 import type { FastifyBaseLogger } from "fastify";
+import { ChannelClosedError } from "../errors.js";
 import { classifyRunError } from "./classify-run-error.js";
+import { detectOpenTurn, replayHandshake } from "./chat-replay.js";
+import { RunSnapshot } from "./chat-run-snapshot.js";
 import { ChatWireProjector } from "./chat-wire-projector.js";
 
 type CoreEventHandler = Parameters<SessionManager["sendMessage"]>[3];
-type CoreEvent = Parameters<CoreEventHandler>[0];
 type Subscriber = (event: unknown) => void;
 
-const REPLAY_BATCH_SIZE = 200;
-const REPLAY_READ_LIMIT = Number.MAX_SAFE_INTEGER;
+type ChannelState = "opening" | "open" | "closed";
+export type ChannelCloseReason = "idle" | "runtime-closed" | "server-closed" | "restore-failed";
 
 export type ControlRequestDecision =
   | { approved: boolean; reason?: string }
   | { answer?: string; timedOut: boolean };
 
 export interface ChatSessionAttachment {
-  ready: Promise<boolean>;
+  ready: Promise<void>;
   sendMessage(content: string, attachments?: Attachment[], clientId?: string): Promise<void>;
   retryLastTurn(): Promise<void>;
   withdrawLastTurn(): Promise<void>;
@@ -32,12 +34,12 @@ export interface ChatSessionAttachment {
 }
 
 export class ChatChannel {
-  readonly ready: Promise<void>;
-  private initialized = false;
-  private attachments = 0;
+  private state: ChannelState = "opening";
+  private readyPromise?: Promise<void>;
+  private leases = 0;
   private readonly subscribers = new Set<Subscriber>();
   private running = false;
-  private runEvents: CoreEvent[] = [];
+  private readonly snapshot = new RunSnapshot();
   private readonly projector = new ChatWireProjector();
   private logUnsubscribe?: () => void;
 
@@ -47,20 +49,7 @@ export class ChatChannel {
     readonly agentId: string,
     readonly sessionId: string,
     private readonly dispose: () => void,
-  ) {
-    this.ready = runtime.restoreSession(agentId, sessionId)
-      .then(() => {
-        this.initialized = true;
-        this.logUnsubscribe = this.subscribeLog() ?? undefined;
-      })
-      .catch((err) => {
-        this.release();
-        throw err;
-      })
-      .finally(() => {
-        this.cleanupIfIdle();
-      });
-  }
+  ) {}
 
   static open(
     runtime: SessionManager,
@@ -73,22 +62,43 @@ export class ChatChannel {
   }
 
   attach(subscriber: Subscriber, since?: number): ChatSessionAttachment {
-    this.attachments += 1;
+    if (this.state === "closed") {
+      throw new ChannelClosedError(`Chat channel for session "${this.sessionId}" is closed`);
+    }
+    this.leases += 1;
     let active = true;
     let subscribed = false;
 
-    const ready = this.ready.then(() => {
+    const ready = this.ensureReady().then(
+      () => {
+        if (!active) return;
+        if (this.state !== "open") {
+          throw new ChannelClosedError(`Chat channel for session "${this.sessionId}" is closed`);
+        }
+        this.handshake(subscriber, since);
+        this.subscribers.add(subscriber);
+        subscribed = true;
+      },
+      (err) => {
+        if (!active) return;
+        throw err;
+      },
+    );
+    void ready.catch(() => {});
+
+    const ensureUsable = async (): Promise<boolean> => {
+      await ready;
       if (!active) return false;
-      this.handshake(subscriber, since);
-      this.subscribers.add(subscriber);
-      subscribed = true;
+      if (this.state !== "open") {
+        throw new ChannelClosedError(`Chat channel for session "${this.sessionId}" is closed`);
+      }
       return true;
-    });
+    };
 
     return {
       ready,
       sendMessage: async (content, attachments, clientId) => {
-        if (!(await ready) || !active) return;
+        if (!(await ensureUsable())) return;
         try {
           await this.startRun((onEvent) => {
             if (clientId !== undefined) this.projector.markPendingEcho(clientId);
@@ -107,31 +117,30 @@ export class ChatChannel {
         }
       },
       retryLastTurn: async () => {
-        if (!(await ready) || !active) return;
+        if (!(await ensureUsable())) return;
         await this.startRun((onEvent) =>
           this.runtime.retryLastTurn(this.sessionId, onEvent),
         );
       },
       withdrawLastTurn: async () => {
-        if (!(await ready) || !active) return;
+        if (!(await ensureUsable())) return;
         if (this.running) {
           throw new ConflictError(`Session "${this.sessionId}" is already running`);
         }
-        const seq = await this.runtime.withdrawLastTurn(this.sessionId);
-        this.publish({ type: "turn_withdrawn", seq });
+        await this.runtime.withdrawLastTurn(this.sessionId);
       },
       abort: () => {
-        if (active) this.runtime.abortSession(this.sessionId);
+        if (active && this.state !== "closed") this.runtime.abortSession(this.sessionId);
       },
       resolveControlRequest: (requestId, decision) => {
-        if (active) {
+        if (active && this.state !== "closed") {
           this.runtime.resolveControlRequest(this.sessionId, requestId, decision);
         }
       },
       close: () => {
         if (!active) return;
         active = false;
-        this.attachments = Math.max(0, this.attachments - 1);
+        this.leases = Math.max(0, this.leases - 1);
         if (subscribed) this.subscribers.delete(subscriber);
         this.cleanupIfIdle();
       },
@@ -139,14 +148,20 @@ export class ChatChannel {
   }
 
   async startDetachedRun(content: string): Promise<void> {
-    this.attachments += 1;
+    if (this.state === "closed") {
+      throw new ChannelClosedError(`Chat channel for session "${this.sessionId}" is closed`);
+    }
+    this.leases += 1;
     try {
-      await this.ready;
+      await this.ensureReady();
+      if (this.state !== "open") {
+        throw new ChannelClosedError(`Chat channel for session "${this.sessionId}" is closed`);
+      }
       if (this.running) {
         throw new ConflictError(`Session "${this.sessionId}" is already running`);
       }
     } catch (err) {
-      this.attachments -= 1;
+      this.leases -= 1;
       this.cleanupIfIdle();
       throw err;
     }
@@ -162,54 +177,103 @@ export class ChatChannel {
         });
       })
       .finally(() => {
-        this.attachments -= 1;
+        this.leases -= 1;
         this.cleanupIfIdle();
       });
   }
 
-  private release(): void {
-    this.logUnsubscribe?.();
-    this.logUnsubscribe = undefined;
+  close(reason: ChannelCloseReason): void {
+    if (this.state === "closed") return;
+    this.state = "closed";
+    this.releaseSubscription();
+    this.subscribers.clear();
+    this.snapshot.reset();
     this.dispose();
+    this.logger.info(
+      {
+        sessionId: this.sessionId,
+        reason,
+        leases: this.leases,
+        running: this.running,
+        runActive: this.projector.isRunActive(),
+      },
+      "chat channel closed",
+    );
   }
 
-  private subscribeLog(): (() => void) | null {
-    return this.runtime.subscribeSessionEvents(this.sessionId, (event) => {
+  private cleanupIfIdle(): void {
+    if (
+      this.state !== "open" ||
+      this.leases > 0 ||
+      this.running ||
+      this.projector.isRunActive()
+    ) {
+      return;
+    }
+    const released = this.runtime.releaseSession(this.sessionId);
+    this.logger.debug({ sessionId: this.sessionId, released }, "chat channel released session");
+    this.close("idle");
+  }
+
+  private ensureReady(): Promise<void> {
+    if (this.state === "closed") {
+      return Promise.reject(
+        new ChannelClosedError(`Chat channel for session "${this.sessionId}" is closed`),
+      );
+    }
+    this.readyPromise ??= this.start();
+    return this.readyPromise;
+  }
+
+  private async start(): Promise<void> {
+    try {
+      await this.runtime.restoreSession(this.agentId, this.sessionId);
+    } catch (err) {
+      this.close("restore-failed");
+      this.logger.warn({ err, sessionId: this.sessionId }, "chat channel restore failed");
+      throw err;
+    }
+    if (this.state === "closed") return;
+    this.state = "open";
+    this.subscribeLog();
+    this.logger.debug(
+      { sessionId: this.sessionId, leases: this.leases, running: this.running },
+      "chat channel opened",
+    );
+    this.cleanupIfIdle();
+  }
+
+  private releaseSubscription(): void {
+    this.logUnsubscribe?.();
+    this.logUnsubscribe = undefined;
+  }
+
+  private subscribeLog(): void {
+    if (detectOpenTurn(this.runtime, this.agentId, this.sessionId)) {
+      this.projector.markRunActive();
+    }
+    this.logUnsubscribe = this.runtime.subscribeSessionEvents(this.sessionId, (event) => {
+      if (this.state !== "open") return;
       const wireEvent = this.projector.consumeLogEvent(event);
       if (wireEvent !== undefined) {
         this.publish(wireEvent);
       }
-    });
+      if (wireEvent?.type === "run_status" && wireEvent.active === false) {
+        this.cleanupIfIdle();
+      }
+    }) ?? undefined;
   }
 
   private handshake(subscriber: Subscriber, since: number | undefined): void {
-    const lastSeq = this.runtime.getSessionLastSeq(this.agentId, this.sessionId);
-    this.notify(subscriber, {
-      type: "session_ready",
-      lastSeq,
-      replay: true,
-    });
-    if (since !== undefined) {
-      const events = this.runtime.readSessionEventsAfter(
-        this.agentId,
-        this.sessionId,
-        since,
-        REPLAY_READ_LIMIT,
-      );
-      for (let i = 0; i < events.length; i += REPLAY_BATCH_SIZE) {
-        this.notify(subscriber, {
-          type: "replay_events",
-          events: events.slice(i, i + REPLAY_BATCH_SIZE),
-        });
-      }
-      this.notify(subscriber, { type: "replay_done" });
-    }
-    for (const event of this.runEvents) {
-      this.notify(subscriber, event);
-    }
-    this.notify(subscriber, {
-      type: "run_status",
-      active: this.running,
+    if (this.state !== "open") return;
+    replayHandshake({
+      source: this.runtime,
+      agentId: this.agentId,
+      sessionId: this.sessionId,
+      since,
+      snapshot: this.snapshot.inFlight,
+      runActive: this.projector.isRunActive(),
+      notify: (event) => this.notify(subscriber, event),
     });
   }
 
@@ -220,61 +284,27 @@ export class ChatChannel {
       throw new ConflictError(`Session "${this.sessionId}" is already running`);
     }
     this.running = true;
-    this.runEvents = [];
+    this.snapshot.reset();
     this.projector.resetRun();
-    this.publish({ type: "run_status", active: true });
+    this.projector.setOwnRun(true);
     try {
       await executor((event) => {
+        if (this.state !== "open") return;
         const enriched = this.projector.enrich(event);
-        this.recordRunEvent(enriched);
+        this.snapshot.record(enriched);
         this.publish(enriched);
       });
     } finally {
       this.running = false;
-      this.runEvents = [];
+      this.snapshot.reset();
+      this.projector.setOwnRun(false);
       this.projector.clearPendingEcho();
-      this.publish({ type: "run_status", active: false });
       this.cleanupIfIdle();
     }
   }
 
-  private recordRunEvent(event: CoreEvent): void {
-    if (event.type === "message_update") {
-      for (let i = this.runEvents.length - 1; i >= 0; i--) {
-        if (
-          this.runEvents[i].type === "message_start" ||
-          this.runEvents[i].type === "message_end"
-        ) {
-          break;
-        }
-        if (this.runEvents[i].type === "message_update") {
-          this.runEvents[i] = event;
-          return;
-        }
-      }
-    }
-    if (event.type === "tool_execution_update") {
-      for (let i = this.runEvents.length - 1; i >= 0; i--) {
-        const previous = this.runEvents[i];
-        if (
-          previous.type === "tool_execution_update" &&
-          previous.toolCallId === event.toolCallId
-        ) {
-          this.runEvents[i] = event;
-          return;
-        }
-        if (
-          previous.type === "tool_execution_start" &&
-          previous.toolCallId === event.toolCallId
-        ) {
-          break;
-        }
-      }
-    }
-    this.runEvents.push(event);
-  }
-
   private publish(event: unknown): void {
+    if (this.state !== "open") return;
     for (const subscriber of this.subscribers) {
       this.notify(subscriber, event);
     }
@@ -289,13 +319,5 @@ export class ChatChannel {
         "chat session subscriber failed",
       );
     }
-  }
-
-  private cleanupIfIdle(): void {
-    if (!this.initialized || this.running || this.attachments > 0) {
-      return;
-    }
-    this.runtime.destroySession(this.sessionId);
-    this.release();
   }
 }

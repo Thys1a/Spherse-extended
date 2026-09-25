@@ -384,6 +384,14 @@ export const zhCN = {
   "agent-dialog.greetingLabel": "开场白",
   // 开场白输入框占位提示
   "agent-dialog.greetingPlaceholder": "留空则不显示，如“你好，我是小助手，有什么可以帮你？”",
+  // 智能体模型配置字段标签：为智能体单独指定模型与思考强度
+  "agent-dialog.modelLabel": "模型",
+  // 智能体模型字段 tooltip：留空或所选模型已下线时回退到全局默认模型
+  "agent-dialog.modelHint": "为该智能体单独指定模型；留空或所选模型已不可用时，使用全局默认模型。",
+  // 智能体思考强度字段 tooltip：说明可按智能体覆盖全局思考强度
+  "agent-dialog.thinkingLevelHint": "为该智能体单独指定思考强度；选择「跟随全局」时使用全局设置。",
+  // 思考强度下拉的「跟随全局」选项文案
+  "agent-dialog.thinkingLevelFollowGlobal": "跟随全局",
   // Agent 提示词字段标签
   "agent-dialog.promptLabel": "提示词",
   // Agent 提示词字段 tooltip：说明提示词的作用（智能体的设定，智能体始终记住）
@@ -414,8 +422,14 @@ export const zhCN = {
   "agent-dialog.loadFailed": "读取失败",
   // Agent dialog "基本" 标签页标题
   "agent-dialog.tabBasic": "基本",
-  // Agent dialog "主题" 标签页标题
-  "agent-dialog.tabTheme": "主题",
+  // Agent dialog "个性化" 标签页标题（收入主题与快捷链接）
+  "agent-dialog.tabPersonalization": "个性化",
+  // Agent 快捷链接字段标签
+  "agent-dialog.quickLinksLabel": "快捷链接",
+  // Agent 快捷链接字段 tooltip：说明快捷链接的展示位置与作用
+  "agent-dialog.quickLinksHint": "显示为聊天窗口顶部的按钮，点击可快速打开该文件",
+  // Agent 快捷链接路径输入框占位提示
+  "agent-dialog.quickLinksPlaceholder": "添加文件…",
   // Agent dialog 提示词模板行标签（预留，当前 UI 未强制展示）
   "agent-dialog.templateLabel": "模板",
   // 提示词下方预设模板按钮组的前缀文案
@@ -432,7 +446,9 @@ export const zhCN = {
   "agent-dialog.templateConfirmApply": "应用",
   // 确认弹窗「取消」按钮
   "agent-dialog.templateConfirmCancel": "取消",
-  // Agent dialog 主题 tab：textarea 上方说明，告知主题 CSS 的作用范围（仅当前智能体的聊天窗口）
+  // Agent dialog 个性化 tab：主题区块标签
+  "agent-dialog.themeLabel": "主题",
+  // Agent dialog 个性化 tab：主题区块 tooltip，告知主题 CSS 的作用范围（仅当前智能体的聊天窗口）
   "agent-dialog.themeScopeHint": "仅作用于该智能体的聊天窗口（气泡、输入框、Markdown 等）。",
   // Agent dialog 主题 tab：textarea 占位提示，引导用户与智能体对话来生成主题
   "agent-dialog.themePlaceholder": "与智能体对话来生成主题，或将主题 CSS 粘贴到这里",
@@ -707,6 +723,8 @@ export const zhCN = {
   "chat.triggerTurnSummaryFallback": "触发器触发的对话轮",
   // trigger 轮运行失败时，折叠摘要条上的错误徽标文案
   "chat.triggerTurnErrorBadge": "运行失败",
+  // trigger 轮正在运行时，折叠摘要条上的状态徽标文案
+  "chat.triggerTurnRunningBadge": "运行中",
   // HtmlCard 通过 file_path 渲染时，前端拉取文件内容期间的占位提示
   "chat.loading": "加载中...",
   // 聊天保存成功提示

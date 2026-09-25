@@ -9,12 +9,26 @@ export interface SessionStatus {
   contextWindowLimit: number | null;
 }
 
-export function resolveEffectiveModelId(
+export function resolveModelWithFallback<T>(
   profile: AgentProfile,
+  resolveModelById: (modelId: string) => T,
   defaultModel?: string,
   sessionModel?: string,
-): string | undefined {
-  return sessionModel || profile.model || defaultModel || undefined;
+): T | undefined {
+  const candidates = sessionModel
+    ? [sessionModel, profile.model, defaultModel]
+    : profile.model
+      ? [profile.model, defaultModel]
+      : [defaultModel];
+  for (const modelId of candidates) {
+    if (!modelId) continue;
+    try {
+      return resolveModelById(modelId);
+    } catch {
+      continue;
+    }
+  }
+  return undefined;
 }
 
 export function resolveContextWindow(
@@ -23,13 +37,10 @@ export function resolveContextWindow(
   defaultModel?: string,
   sessionModel?: string,
 ): number | null {
-  const modelId = resolveEffectiveModelId(profile, defaultModel, sessionModel);
-  if (!modelId) return null;
-  try {
-    return (resolveModelById(modelId) as { contextWindow?: number })?.contextWindow ?? null;
-  } catch {
-    return null;
-  }
+  const model = resolveModelWithFallback(profile, resolveModelById, defaultModel, sessionModel) as
+    | { contextWindow?: number }
+    | undefined;
+  return model?.contextWindow ?? null;
 }
 
 export function computeSessionStatus(

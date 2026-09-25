@@ -89,9 +89,11 @@ frontmatter 字段：
 | `alias` | 否 | 设定后代替 `name` 显示在助手消息气泡；未设或留空回退 `name` |
 | `id` | 自动 | UUID；读取缺失时自动生成并回写 |
 | `createdAt` | 自动 | epoch ms；创建时生成后不变 |
-| `model` | 否 | 覆盖全局默认模型 |
+| `model` | 否 | 覆盖全局默认模型；所选模型已不在模型列表（过期）时回退全局默认 |
+| `thinkingLevel` | 否 | 覆盖全局思考强度，取值 `off` / `low` / `medium` / `high`；非法值忽略、未设回退全局设置 |
 | `tools` | 否 | 允许的工具名列表；缺省不分配任何工具 |
 | `context` | 否 | 项目根内相对路径列表，构建 system prompt 时预读注入；access policy 不可读的路径静默跳过 |
+| `quickLinks` | 否 | 项目根内相对路径列表，渲染为聊天窗口 header 快捷链接按钮（桌面开文件浮窗、移动端 header 下方滑出面板）；`manage_agent` 全量替换（语义同 `context`），Agent Dialog 亦可改 |
 | `yolo` | 否 | 自动放行：true 时危险工具跳过审批门，文件访问策略不受影响；仅 Agent Dialog 可改，`manage_agent` 不管理 |
 | `timePerception` | 否 | 时间感知配置，见下 |
 | `output` | 否 | 预留字段，当前无消费方 |
@@ -103,7 +105,7 @@ frontmatter 字段：
 - `manage_agent` 只切换 `enabled`：首次开启固化 `epochMs = startMs = 写入时刻, flowRate = 1` 的默认配置（防锚点漂移），关闭即删除整个 key
 - 锚点、起点、流速、时区仅 Agent Dialog 可调
 
-`theme.css`（同目录，可选）：Agent Dialog「主题」页编辑，新建初始为空白，presets 模板仅作参考物料；缺失读取为空串、聊天窗口用全局默认样式。
+`theme.css`（同目录，可选）：Agent Dialog「个性化」页编辑，新建初始为空白，presets 模板仅作参考物料；缺失读取为空串、聊天窗口用全局默认样式。
 
 ### mcp.json
 
@@ -154,12 +156,13 @@ frontmatter 字段：
   - `user/message`（data 可选 `source: "triggered"` + `triggerName`，trigger 发送标记；absent = 手动发送）、`assistant/message`、`tool/result`
   - `compaction/applied`（anchorSeq、digestContent、digestSource、excludedSeqs）
   - `turn/retried`（abandonedSeqs）、`turn/withdrawn`（seq）
+  - `control/requested`（requestId、kind、toolCallId、toolName、args）与 `control/resolved`（requestId、kind、approval 的 approved/reason / question 的 answer/timedOut、可选 aborted）——审批/问答 gate 事件；abort 路径的 `rejectAll` 补发 `resolved {aborted}`；fold 白名单不含它们（消息投影忽略），pending 投影 = requested 未配对 resolved 且其后无 turn/end
 
 存储不变量（fold 投影与控制事件语义见 `architecture/core.md`「会话运行时」）：
 
 - **append-only**：消息与控制事件只追加；compaction、retry、withdraw 均以重启点事件表达，不修改或删除历史
 - **seq 连续**：session log 内从 0 连续，`open` 校验损坏即抛；`appendBatch` 落库失败回滚内存追加
-- **可重建**：运行时消息数组是 fold 投影缓存，可随时丢弃重建
+- **可重建**：运行时消息数组是 fold 投影缓存，可随时丢弃重建；分页读取（`getRecentSessionHistory`）另有 project-manager 层的 fold-on-write 缓存（按 session 键控、事件数版本号失效、LRU 上限，覆盖未激活 session），缓存条目视为不可变
 - **正向兼容**：未知事件类型被 fold 白名单过滤跳过；additive 事件不升 schema version
 - **崩溃恢复幂等**：restore 为未闭合 turn 持久化补写合成 error toolResult 与 aborted `turn/end`，二次恢复不再追加
 

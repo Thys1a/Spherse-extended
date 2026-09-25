@@ -214,7 +214,7 @@ export class AgentRunner {
         onEvent,
       );
 
-      const previousSink = this.controlBus.swapEventSink(onEvent);
+      const previousSink = this.controlBus.swapEventSink(this.persistingControlSink(onEvent));
       restoreSink = () => this.controlBus.swapEventSink(previousSink);
       unsubscribe = this.agent.subscribe(dispatch);
 
@@ -279,7 +279,7 @@ export class AgentRunner {
         onEvent,
       );
 
-      const previousSink = this.controlBus.swapEventSink(onEvent);
+      const previousSink = this.controlBus.swapEventSink(this.persistingControlSink(onEvent));
       restoreSink = () => this.controlBus.swapEventSink(previousSink);
       unsubscribe = this.agent.subscribe(dispatch);
 
@@ -389,6 +389,10 @@ export class AgentRunner {
     };
   }
 
+  isBusy(): boolean {
+    return this.inFlight;
+  }
+
   getStatus(): SessionStatus {
     return {
       currentTokens: readCurrentTokens(this.agent.state.messages, this.agent.state.systemPrompt),
@@ -438,7 +442,8 @@ export class AgentRunner {
   }
 
   applyThinkingLevel(thinkingLevel: ThinkingLevel | undefined): void {
-    const next = thinkingLevel ?? "medium";
+    const profile = this.deps.projectStore.getAgent(this.agentId)?.getProfile();
+    const next = profile?.thinkingLevel ?? thinkingLevel ?? "medium";
     if (this.agent.state.thinkingLevel !== next) {
       this.agent.state.thinkingLevel = next;
     }
@@ -467,6 +472,8 @@ export class AgentRunner {
       );
       this.agent.state.systemPrompt = systemPrompt;
       this.agent.state.tools = tools;
+      this.applyDefaultModel(this.deps.runConfig.current().defaultModel);
+      this.applyThinkingLevel(this.deps.runConfig.current().thinkingLevel);
       this.agent.streamFunction = composeStreamFn(
         this.deps.modelCatalog,
         this.deps.runConfig.current().sampling,
@@ -492,6 +499,41 @@ export class AgentRunner {
     if (this.eventLog.events.length !== eventsBefore) {
       this.syncBufferFromLog();
     }
+  }
+
+  private persistingControlSink(onEvent: RunnerEventHandler): RunnerEventHandler {
+    return (event) => {
+      if (
+        !this.eventLog ||
+        (event.type !== "control_request" && event.type !== "control_resolved")
+      ) {
+        onEvent(event);
+        return;
+      }
+      if (event.type === "control_request") {
+        const persisted = this.eventLog.append("control/requested", {
+          requestId: event.requestId,
+          kind: event.kind,
+          toolCallId: event.toolCallId,
+          toolName: event.toolName,
+          args: event.args,
+        });
+        onEvent({ ...event, seq: persisted.seq });
+        return;
+      }
+      const persisted = this.eventLog.append("control/resolved", {
+        requestId: event.requestId,
+        kind: event.kind,
+        ...(event.kind === "approval"
+          ? { approved: event.approved, ...(event.reason !== undefined ? { reason: event.reason } : {}) }
+          : {}),
+        ...(event.kind === "question"
+          ? { ...(event.answer !== undefined ? { answer: event.answer } : {}), timedOut: event.timedOut }
+          : {}),
+        ...(event.aborted !== undefined ? { aborted: event.aborted } : {}),
+      });
+      onEvent({ ...event, seq: persisted.seq });
+    };
   }
 
   private persistMiddleware(): EventMiddleware<AgentEvent> {

@@ -95,6 +95,21 @@ export interface SendableFile {
   height?: number;
 }
 
+export interface AttachedImage {
+  path: string;
+  mimeType: string;
+  width?: number;
+  height?: number;
+  previewUrl: string;
+}
+
+export interface SendableImage {
+  path: string;
+  mimeType: string;
+  width?: number;
+  height?: number;
+}
+
 export interface ChatMessage {
   role: "user" | "assistant";
   content: string;

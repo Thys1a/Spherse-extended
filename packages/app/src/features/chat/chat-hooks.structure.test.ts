@@ -14,8 +14,8 @@ describe("chat theme hooks (R4.1)", () => {
     expect(sourceOf("MessageList.tsx")).toContain("data-chat-welcome");
   });
 
-  it("ToolCallSection exposes a tool-call row hook", () => {
-    expect(sourceOf("ToolCallSection.tsx")).toContain("data-chat-tool-call");
+  it("ToolItemView exposes a tool-call row hook", () => {
+    expect(sourceOf("ToolItemView.tsx")).toContain("data-chat-tool-call");
   });
 
   it("HtmlCard exposes an html-card container hook", () => {

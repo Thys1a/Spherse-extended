@@ -1,7 +1,12 @@
 import { useMemo, useEffect, useRef, useState } from "react";
 import type { AgentSummary } from "../../lib/types";
+import { useNavigate } from "react-router";
 import { useProjectCtx } from "../../context/project-context";
 import { useApiClient, useConnection } from "../../lib/use-connection";
+import { useFeature } from "../../lib/use-feature";
+import { useIsMobile } from "../../hooks/use-mobile";
+import { useProjectAgentProfile } from "../../queries/project";
+import { useFloatingContentBrowserStore } from "../floating-content-browser/store";
 import { toast } from "sonner";
 import { useI18n } from "@spherse/i18n/react";
 import { stopIfSession } from "./tts/tts-controller";
@@ -13,14 +18,13 @@ import { Composer } from "./Composer";
 import { Header } from "./Header";
 import { MessageList } from "./MessageList";
 import { ConnectionBanner } from "./ConnectionBanner";
-import { ChatRuntimeProvider } from "./runtime-context";
-import { useAgentTheme, prepareAgentThemeCss } from "./hooks/useAgentTheme";
+import { QuickLinkPanel, resolveQuickLinkAction } from "./QuickLinkPanel";
+import { ChatAgentProvider } from "./chat-agent-context";
+import { useAgentTheme } from "./hooks/useAgentTheme";
 import { useChatScroll } from "./hooks/useChatScroll";
 import { useChatSession } from "./hooks/useChatSession";
-import { useStreamingStore } from "./runtime/streaming-store";
 import type { AttachedFile } from "./types";
 import { useSummonSend } from "./lib/use-summon-send";
-import { useAgentProfile } from "../../queries/project/agents";
 import { FindBar } from "../../components/find-bar/FindBar";
 
 export interface ChatProps {
@@ -40,13 +44,26 @@ export function Chat({ sessionId, agent, onNavigateToPath, onOpenSession, initia
   const { t, locale } = useI18n();
   const bridge = useHostBridge();
   const autoRead = useSettingsStore((s) => s.tts.autoRead ?? false);
+  const navigate = useNavigate();
+  const isMobile = useIsMobile();
+  const floatEnabled = useFeature("floating-content-browser");
+  const openFloat = useFloatingContentBrowserStore((s) => s.openFloat);
+  const profileQuery = useProjectAgentProfile(projectId, client, agent.id, !hideHeader);
+  const quickLinks = useMemo(() => profileQuery.data?.quickLinks ?? [], [profileQuery.data?.quickLinks]);
+  const [activeQuickLink, setActiveQuickLink] = useState<string | null>(null);
   const {
-    messages,
+    entries,
+    groups,
+    supersededToolCallIds,
+    thinking,
+    runningGroupId,
+    withdrawableUserId,
     streaming,
     loading,
-    connectionStatus,
+    connection,
     historyError,
-    reconnectFailed,
+    hasMore,
+    loadingMore,
     sendMessage,
     retry,
     withdrawLastTurn,
@@ -55,6 +72,7 @@ export function Chat({ sessionId, agent, onNavigateToPath, onOpenSession, initia
     retryHistory,
     respondApproval,
     respondQuestion,
+    loadMore,
   } = useChatSession({
     client,
     sessionId,
@@ -64,11 +82,8 @@ export function Chat({ sessionId, agent, onNavigateToPath, onOpenSession, initia
     initialMessage,
     accessToken,
   });
-  const hasMore = useStreamingStore((s) => s.sessions[sessionId]?.hasMore ?? false);
-  const loadingMore = useStreamingStore((s) => s.sessions[sessionId]?.loadingMore ?? false);
-  const { containerRef, isAtBottom, scrollToBottom } = useChatScroll(messages, sessionId, loadingMore);
-  const sendSummon = useSummonSend(sessionId, agent.id);
-  const { profile } = useAgentProfile(projectId, client, agent.id);
+  const { containerRef, isAtBottom, scrollToBottom } = useChatScroll(entries, sessionId, loadingMore);
+  const themeHref = useAgentTheme(client, agent.id, agent.slug, projectId);
   const [findOpen, setFindOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
 
@@ -84,17 +99,6 @@ export function Chat({ sessionId, agent, onNavigateToPath, onOpenSession, initia
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, []);
-  const themeCss = useAgentTheme(client, agent.id, agent.slug, projectId);
-  const scopedThemeCss = useMemo(
-    () =>
-      prepareAgentThemeCss(
-        themeCss,
-        sessionId,
-        client && agent.slug ? `.spherse/agents/${agent.slug}` : undefined,
-        client ? (path: string) => client.getPreviewUrl(path) : undefined,
-      ),
-    [themeCss, sessionId, client, agent.slug],
-  );
 
   const handleClose = () => {
     onClose?.();
@@ -111,9 +115,7 @@ export function Chat({ sessionId, agent, onNavigateToPath, onOpenSession, initia
     return delivered;
   };
 
-  const handleDeleteTurn = () => {
-    useStreamingStore.getState().deleteAiTurn(sessionId);
-  };
+  const sendSummon = useSummonSend(sessionId, agent.id);
 
   const handleSend = (text: string, attachments?: AttachedFile[]) => {
     if (text.trim().startsWith(">>")) {
@@ -124,10 +126,41 @@ export function Chat({ sessionId, agent, onNavigateToPath, onOpenSession, initia
       void sendSummon(text);
       return true;
     }
-    return sendMessage(text, attachments);
+    const image = attachments?.find((a) => a.kind === "image");
+    return sendMessage(
+      text,
+      image
+        ? {
+            path: image.path,
+            mimeType: image.mimeType,
+            width: image.width,
+            height: image.height,
+            previewUrl: image.previewUrl,
+          }
+        : undefined,
+    );
   };
 
-  const runtime = useMemo(() => ({ sessionId, agentId: agent.id }), [sessionId, agent.id]);
+  const agentScope = useMemo(() => ({ sessionId, agentId: agent.id }), [sessionId, agent.id]);
+
+  useEffect(() => {
+    if (activeQuickLink !== null && !quickLinks.includes(activeQuickLink)) {
+      setActiveQuickLink(null);
+    }
+  }, [quickLinks, activeQuickLink]);
+
+  const handleQuickLink = (path: string) => {
+    const action = resolveQuickLinkAction(isMobile, floatEnabled);
+    if (action === "panel") {
+      setActiveQuickLink((current) => (current === path ? null : path));
+      return;
+    }
+    if (action === "float") {
+      openFloat(projectId, path);
+      return;
+    }
+    navigate(`/project/${projectId}/content?path=${encodeURIComponent(path)}`);
+  };
 
   useEffect(() => {
     stopIfSession(sessionId);
@@ -149,13 +182,25 @@ export function Chat({ sessionId, agent, onNavigateToPath, onOpenSession, initia
   }, [autoRead, sessionId, bridge, locale]);
 
   return (
-    <ChatRuntimeProvider runtime={runtime}>
-      <div ref={rootRef} className="flex flex-col h-full" data-chat-root data-chat-instance={sessionId}>
-        {scopedThemeCss && <style data-agent-theme={sessionId}>{scopedThemeCss}</style>}
-        {!hideHeader && <Header agent={agent} onClose={onClose ? handleClose : undefined} />}
+    <ChatAgentProvider agent={agentScope}>
+      <div ref={rootRef} className="flex flex-col h-full" data-chat-root>
+        {themeHref && <link rel="stylesheet" href={themeHref} />}
+        {!hideHeader && (
+          <div className="relative shrink-0">
+            <Header
+              agent={agent}
+              quickLinks={quickLinks.length > 0 ? quickLinks : undefined}
+              activeQuickLink={isMobile ? activeQuickLink : null}
+              onQuickLink={handleQuickLink}
+              onClose={onClose ? handleClose : undefined}
+            />
+            {isMobile && activeQuickLink !== null && (
+              <QuickLinkPanel projectId={projectId} path={activeQuickLink} />
+            )}
+          </div>
+        )}
         <ConnectionBanner
-          connectionStatus={connectionStatus}
-          reconnectFailed={reconnectFailed}
+          state={connection.state}
           historyError={historyError}
           onReconnect={reconnect}
           onRetryHistory={retryHistory}
@@ -168,11 +213,13 @@ export function Chat({ sessionId, agent, onNavigateToPath, onOpenSession, initia
           />
         )}
         <MessageList
-          messages={messages}
+          groups={groups}
           agent={agent}
-          greeting={profile?.greeting}
-          sessionId={sessionId}
-          streaming={streaming}
+          thinking={thinking}
+          runningGroupId={runningGroupId}
+          withdrawableUserId={withdrawableUserId}
+          supersededToolCallIds={supersededToolCallIds}
+          greeting={profileQuery.data?.greeting}
           loading={loading}
           containerRef={containerRef}
           isAtBottom={isAtBottom}
@@ -182,23 +229,22 @@ export function Chat({ sessionId, agent, onNavigateToPath, onOpenSession, initia
           onRespondQuestion={handleRespondQuestion}
           onRetry={retry}
           onWithdraw={withdrawLastTurn}
-          onDelete={handleDeleteTurn}
-          allowInlineHtml={profile?.allowInlineHtml}
+          allowInlineHtml={profileQuery.data?.allowInlineHtml}
           onOpenSession={onOpenSession}
           hasMore={hasMore}
           loadingMore={loadingMore}
-          onLoadMore={() => useStreamingStore.getState().loadMore(client, sessionId, agent.id)}
+          onLoadMore={loadMore}
         />
         <Composer
           streaming={streaming}
           loading={loading}
-          panicLocked={reconnectFailed}
+          panicLocked={false}
           sessionId={sessionId}
-          placeholder={profile?.placeholder}
+          placeholder={profileQuery.data?.placeholder}
           onSend={handleSend}
           onAbort={abort}
         />
       </div>
-    </ChatRuntimeProvider>
+    </ChatAgentProvider>
   );
 }
