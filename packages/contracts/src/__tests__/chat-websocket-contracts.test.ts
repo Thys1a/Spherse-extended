@@ -226,6 +226,111 @@ describe("chat websocket control contract", () => {
       parseChatServerEvent({ type: "turn_withdrawn", seq: "3" }),
     ).toThrow(/Invalid payload/);
   });
+
+  it("accepts control events with persisted seq and aborted marker", () => {
+    const request = {
+      type: "control_request",
+      requestId: "req9",
+      kind: "approval",
+      toolCallId: "call9",
+      toolName: "run_command",
+      args: {},
+      seq: 12,
+    };
+    expect(parseChatServerEvent(request)).toEqual(request);
+    const aborted = {
+      type: "control_resolved",
+      requestId: "req9",
+      kind: "approval",
+      approved: false,
+      aborted: true,
+      seq: 13,
+    };
+    expect(parseChatServerEvent(aborted)).toEqual(aborted);
+    const questionAborted = {
+      type: "control_resolved",
+      requestId: "req10",
+      kind: "question",
+      timedOut: false,
+      aborted: true,
+      seq: 14,
+    };
+    expect(parseChatServerEvent(questionAborted)).toEqual(questionAborted);
+  });
+
+  it("accepts control events in the replay envelope after persistence", () => {
+    expect(
+      parseChatReplayEvent({
+        type: "control/requested",
+        seq: 5,
+        time: 1000,
+        data: {
+          requestId: "req1",
+          kind: "approval",
+          toolCallId: "tc1",
+          toolName: "run_command",
+          args: { command: "ls" },
+        },
+      }),
+    ).toEqual({
+      type: "control/requested",
+      seq: 5,
+      time: 1000,
+      data: {
+        requestId: "req1",
+        kind: "approval",
+        toolCallId: "tc1",
+        toolName: "run_command",
+        args: { command: "ls" },
+      },
+    });
+    expect(
+      parseChatReplayEvent({
+        type: "control/resolved",
+        seq: 6,
+        time: 1001,
+        data: { requestId: "req1", kind: "question", timedOut: true },
+      }),
+    ).toEqual({
+      type: "control/resolved",
+      seq: 6,
+      time: 1001,
+      data: { requestId: "req1", kind: "question", timedOut: true },
+    });
+    expect(() =>
+      parseChatReplayEvent({ type: "control/requested", seq: 5, time: 1 }),
+    ).toThrow(/Invalid payload/);
+  });
+
+  it("accepts slash/summon on replayed user messages and rejects bogus kinds", () => {
+    const base = {
+      type: "user/message",
+      seq: 1,
+      time: 100,
+      data: { message: { role: "user", content: "hi", timestamp: 100 } },
+    };
+    expect(
+      parseChatReplayEvent({
+        ...base,
+        data: {
+          ...base.data,
+          slash: { type: "skill", name: "review", rawArgs: "x" },
+          summon: { agentId: "a2", sessionId: "s2", agentName: "Builder" },
+        },
+      }),
+    ).toMatchObject({
+      data: {
+        slash: { type: "skill", name: "review", rawArgs: "x" },
+        summon: { agentId: "a2", sessionId: "s2", agentName: "Builder" },
+      },
+    });
+    expect(() =>
+      parseChatReplayEvent({
+        ...base,
+        data: { ...base.data, slash: { type: "bogus", name: "x", rawArgs: "" } },
+      }),
+    ).toThrow(/Invalid payload/);
+  });
 });
 
 describe("chat replay tool/result sideEffects (R2.5a)", () => {

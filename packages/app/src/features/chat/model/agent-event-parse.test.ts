@@ -145,10 +145,9 @@ describe("parseAgentEvent", () => {
       seq: 3,
     });
   });
-  it("drops protocol v2 events until the new runtime consumes them", () => {
+  it("maps protocol v2 echo events into live events", () => {
     expect(parseAgentEvent({ type: "session_ready", lastSeq: 3, replay: true })).toBeUndefined();
     expect(parseAgentEvent({ type: "replay_done" })).toBeUndefined();
-    expect(parseAgentEvent({ type: "turn_retried", seq: 5, abandonedSeqs: [3] })).toBeUndefined();
   });
 
   it("passes user_message through with meta fields", () => {
@@ -158,12 +157,21 @@ describe("parseAgentEvent", () => {
         seq: 4,
         message: { role: "user", content: "hi", timestamp: 1 },
         slash: { type: "skill", name: "review", rawArgs: "x" },
+        source: "triggered",
+        triggerName: "cron",
       }),
     ).toEqual({
       type: "user_message",
       seq: 4,
       message: { role: "user", content: "hi", timestamp: 1 },
       slash: { type: "skill", name: "review", rawArgs: "x" },
+      source: "triggered",
+      triggerName: "cron",
+    });
+    expect(parseAgentEvent({ type: "turn_retried", seq: 5, abandonedSeqs: [3] })).toEqual({
+      type: "turn_retried",
+      seq: 5,
+      abandonedSeqs: [3],
     });
   });
   it("passes through tool_execution_* unchanged", () => {
@@ -320,5 +328,37 @@ describe("parseAgentEvent", () => {
       expect(result.toolResults).toHaveLength(1);
       expect(result.toolResults[0].toolCallId).toBe("tc1");
     }
+  });
+
+  it("preserves messageId and seq enrichment fields losslessly", () => {
+    expect(defined(parseAgentEvent({
+      type: "message_start",
+      message: { role: "assistant", content: [] },
+      messageId: "m1",
+    } as unknown as ChatServerEvent))).toMatchObject({ type: "message_start", messageId: "m1" });
+
+    expect(defined(parseAgentEvent({
+      type: "message_update",
+      message: { role: "assistant", content: [] },
+      messageId: "m1",
+      assistantMessageEvent: { type: "text_delta" },
+    } as unknown as ChatServerEvent))).toMatchObject({
+      type: "message_update",
+      messageId: "m1",
+      assistantMessageEvent: { type: "text_delta" },
+    });
+
+    expect(defined(parseAgentEvent({
+      type: "message_end",
+      message: { role: "assistant", content: [] },
+      messageId: "m1",
+      seq: 7,
+    } as unknown as ChatServerEvent))).toMatchObject({ type: "message_end", messageId: "m1", seq: 7 });
+
+    expect(defined(parseAgentEvent({
+      type: "agent_end",
+      messages: [],
+      seq: 9,
+    } as unknown as ChatServerEvent))).toMatchObject({ type: "agent_end", seq: 9 });
   });
 });

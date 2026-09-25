@@ -1,84 +1,165 @@
+import { createRef } from "react";
+import { screen } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { screen } from "@testing-library/react";
+import type { AgentSummary } from "../../lib/types";
 import { createMockHostBridge } from "../../test/host-bridge";
 import { renderWithProviders } from "../../test/render";
 import { MessageList } from "./MessageList";
+import type { MessageGroup } from "./model/message-group";
 
-const agent = { id: "a1", name: "Helper", slug: "helper" };
+vi.mock("../../lib/use-connection", () => ({
+  useApiClient: () => ({
+    getPreviewUrl: (path: string) => `http://localhost:5173/api/projects/p1/preview/${path}`,
+  }),
+  useConnection: () => ({ baseUrl: "http://localhost:5173", accessToken: null }),
+}));
 
-function renderEmptyList(greeting?: string) {
+const agent = { id: "a1", name: "Helper", alias: "" } as unknown as AgentSummary;
+
+function renderList(groups: MessageGroup[], extra: Record<string, unknown> = {}) {
   return renderWithProviders(
     <MessageList
-      messages={[]}
+      groups={groups}
       agent={agent}
-      greeting={greeting}
-      sessionId="s1"
-      streaming={false}
-      containerRef={{ current: null }}
+      thinking={false}
+      withdrawableUserId={null}
+      supersededToolCallIds={new Set()}
+      containerRef={createRef<HTMLDivElement>()}
       isAtBottom
-      onScrollToBottom={vi.fn()}
+      onScrollToBottom={() => {}}
+      {...extra}
     />,
+    { bridge: createMockHostBridge() },
   );
 }
 
-describe("MessageList empty state (R4.2)", () => {
-  it("shows the agent greeting when provided", () => {
-    renderEmptyList("你好，我是小助手");
-    expect(screen.getByText("你好，我是小助手")).not.toBeNull();
-    expect(screen.queryByText("Helper")).not.toBeNull();
+describe("MessageList", () => {
+  it("renders groups newest first with user bubbles inside their turn", () => {
+    renderList([
+      {
+        id: "g1",
+        kind: "turn",
+        user: { kind: "user", id: "u1", text: "first" },
+        hasError: false,
+        bubbles: [{ kind: "assistant", id: "b1", entryId: "a1", text: "one", tools: [] }],
+      },
+      {
+        id: "g2",
+        kind: "turn",
+        user: { kind: "user", id: "u2", text: "second" },
+        hasError: false,
+        bubbles: [],
+      },
+    ]);
+
+    const nodes = [...document.querySelectorAll("[data-chat-message]")];
+    const texts = nodes.map((node) => node.textContent ?? "");
+    expect(texts[0]).toContain("second");
+    expect(texts[1]).toContain("one");
+    expect(texts[2]).toContain("first");
   });
 
-  it("falls back to the generic hint without a greeting", () => {
-    const { container } = renderEmptyList();
-    expect(container.querySelector("[data-chat-welcome]")).not.toBeNull();
+  it("renders an orphan tool result bubble instead of dropping it", () => {
+    renderList([
+      {
+        id: "g1",
+        kind: "turn",
+        hasError: false,
+        bubbles: [{
+          kind: "tool-result",
+          id: "b:t1",
+          entryId: "t1",
+          tool: { toolCallId: "tc1", toolName: "read_file", args: { path: "a.ts" }, status: "completed" },
+        }],
+      },
+    ]);
+    expect(screen.getByText("read_file")).toBeInTheDocument();
   });
-});
 
-describe("MessageList delete rule", () => {
-  function renderDeletable(messages: { role: "user" | "assistant"; content: string }[]) {
-    const onDelete = vi.fn();
-    renderWithProviders(
-      <MessageList
-        messages={messages}
-        agent={agent}
-        sessionId="s1"
-        streaming={false}
-        containerRef={{ current: null }}
-        isAtBottom
-        onScrollToBottom={vi.fn()}
-        onDelete={onDelete}
-      />,
-      { bridge: createMockHostBridge() },
+  it("shows the thinking indicator when waiting for the first token", () => {
+    renderList(
+      [{
+        id: "g1",
+        kind: "turn",
+        user: { kind: "user", id: "u1", text: "hi" },
+        hasError: false,
+        bubbles: [],
+      }],
+      { thinking: true },
     );
-    return { onDelete };
-  }
+    expect(document.querySelector(".animate-bounce")).not.toBeNull();
+  });
 
-  it("shows delete on the last-turn assistant message and calls back", async () => {
+  it("passes the withdraw action only to the withdrawable user bubble", async () => {
     const user = userEvent.setup();
-    const { onDelete } = renderDeletable([
-      { role: "user", content: "q" },
-      { role: "assistant", content: "a" },
-    ]);
-    await user.click(screen.getByRole("button", { name: "删除" }));
-    expect(onDelete).toHaveBeenCalledTimes(1);
+    const onWithdraw = vi.fn();
+    renderList(
+      [
+        {
+          id: "g1",
+          kind: "turn",
+          user: { kind: "user", id: "u1", text: "old" },
+          hasError: false,
+          bubbles: [],
+        },
+        {
+          id: "g2",
+          kind: "turn",
+          user: { kind: "user", id: "u2", text: "new" },
+          hasError: false,
+          bubbles: [],
+        },
+      ],
+      { withdrawableUserId: "u2", onWithdraw },
+    );
+
+    const buttons = screen.getAllByRole("button", { name: "撤回" });
+    expect(buttons).toHaveLength(1);
+    await user.click(buttons[0]);
+    await user.click(screen.getByRole("button", { name: "确认撤回" }));
+    expect(onWithdraw).toHaveBeenCalledTimes(1);
   });
 
-  it("shows delete only on the latest assistant of the last turn", () => {
-    renderDeletable([
-      { role: "user", content: "q" },
-      { role: "assistant", content: "a1" },
-      { role: "assistant", content: "a2" },
-    ]);
-    expect(screen.getAllByRole("button", { name: "删除" })).toHaveLength(1);
+  it("shows the running badge on the trigger turn identified by runningGroupId", () => {
+    const triggerGroup: MessageGroup = {
+      id: "g1",
+      kind: "trigger-turn",
+      triggerName: "daily",
+      hasError: false,
+      bubbles: [],
+    };
+    renderList([triggerGroup], { runningGroupId: "g1" });
+    expect(screen.getByText("运行中")).toBeInTheDocument();
   });
 
-  it("hides delete on older-turn assistant messages", () => {
-    renderDeletable([
-      { role: "user", content: "q1" },
-      { role: "assistant", content: "a1" },
-      { role: "user", content: "q2" },
-    ]);
-    expect(screen.queryByRole("button", { name: "删除" })).not.toBeInTheDocument();
+  it("does not show the running badge on other trigger turns", () => {
+    const triggerGroup: MessageGroup = {
+      id: "g1",
+      kind: "trigger-turn",
+      triggerName: "daily",
+      hasError: false,
+      bubbles: [],
+    };
+    renderList([triggerGroup], { runningGroupId: "other" });
+    expect(screen.queryByText("运行中")).not.toBeInTheDocument();
+  });
+
+  it("loads more history through the load more button", async () => {
+    const user = userEvent.setup();
+    const onLoadMore = vi.fn();
+    renderList(
+      [{
+        id: "g1",
+        kind: "turn",
+        user: { kind: "user", id: "u1", text: "hi" },
+        hasError: false,
+        bubbles: [],
+      }],
+      { hasMore: true, onLoadMore },
+    );
+
+    await user.click(screen.getByRole("button", { name: "加载更多" }));
+    expect(onLoadMore).toHaveBeenCalledTimes(1);
   });
 });

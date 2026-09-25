@@ -104,6 +104,16 @@ export const chatReplayEvent = Type.Union([
       message: agentMessage,
       source: Type.Optional(Type.Literal("triggered")),
       triggerName: Type.Optional(Type.String()),
+      slash: Type.Optional(Type.Object({
+        type: Type.Union([Type.Literal("skill"), Type.Literal("command")]),
+        name: Type.String(),
+        rawArgs: Type.String(),
+      })),
+      summon: Type.Optional(Type.Object({
+        agentId: Type.String(),
+        sessionId: Type.String(),
+        agentName: Type.String(),
+      })),
     }),
   }),
   Type.Object({
@@ -145,6 +155,32 @@ export const chatReplayEvent = Type.Union([
     seq: Type.Integer(),
     time: Type.Integer(),
     data: Type.Object({ seq: Type.Integer() }),
+  }),
+  Type.Object({
+    type: Type.Literal("control/requested"),
+    seq: Type.Integer(),
+    time: Type.Integer(),
+    data: Type.Object({
+      requestId: Type.String(),
+      kind: Type.Union([Type.Literal("approval"), Type.Literal("question")]),
+      toolCallId: Type.String(),
+      toolName: Type.String(),
+      args: Type.Unknown(),
+    }),
+  }),
+  Type.Object({
+    type: Type.Literal("control/resolved"),
+    seq: Type.Integer(),
+    time: Type.Integer(),
+    data: Type.Object({
+      requestId: Type.String(),
+      kind: Type.Union([Type.Literal("approval"), Type.Literal("question")]),
+      approved: Type.Optional(Type.Boolean()),
+      reason: Type.Optional(Type.String()),
+      answer: Type.Optional(Type.String()),
+      timedOut: Type.Optional(Type.Boolean()),
+      aborted: Type.Optional(Type.Boolean()),
+    }),
   }),
 ]);
 
@@ -206,6 +242,7 @@ const chatServerEvent = Type.Union([
     args: Type.Unsafe<
       EventOf<SessionControlEvent, "control_request">["args"]
     >(Type.Unknown()),
+    seq: Type.Optional(Type.Integer()),
   }),
   Type.Object({
     type: Type.Literal("control_request"),
@@ -216,6 +253,7 @@ const chatServerEvent = Type.Union([
     args: Type.Unsafe<
       EventOf<SessionControlEvent, "control_request">["args"]
     >(Type.Unknown()),
+    seq: Type.Optional(Type.Integer()),
   }),
   Type.Object({
     type: Type.Literal("control_resolved"),
@@ -223,6 +261,8 @@ const chatServerEvent = Type.Union([
     kind: Type.Literal("approval"),
     approved: Type.Boolean(),
     reason: Type.Optional(Type.String()),
+    aborted: Type.Optional(Type.Boolean()),
+    seq: Type.Optional(Type.Integer()),
   }),
   Type.Object({
     type: Type.Literal("control_resolved"),
@@ -230,6 +270,8 @@ const chatServerEvent = Type.Union([
     kind: Type.Literal("question"),
     answer: Type.Optional(Type.String()),
     timedOut: Type.Boolean(),
+    aborted: Type.Optional(Type.Boolean()),
+    seq: Type.Optional(Type.Integer()),
   }),
   Type.Object({
     type: Type.Literal("turn_withdrawn"),

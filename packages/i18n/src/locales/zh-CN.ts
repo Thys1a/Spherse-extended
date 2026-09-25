@@ -384,6 +384,14 @@ export const zhCN = {
   "agent-dialog.greetingLabel": "开场白",
   // 开场白输入框占位提示
   "agent-dialog.greetingPlaceholder": "留空则不显示，如“你好，我是小助手，有什么可以帮你？”",
+  // 智能体模型配置字段标签：为智能体单独指定模型与思考强度
+  "agent-dialog.modelLabel": "模型",
+  // 智能体模型字段 tooltip：留空或所选模型已下线时回退到全局默认模型
+  "agent-dialog.modelHint": "为该智能体单独指定模型；留空或所选模型已不可用时，使用全局默认模型。",
+  // 智能体思考强度字段 tooltip：说明可按智能体覆盖全局思考强度
+  "agent-dialog.thinkingLevelHint": "为该智能体单独指定思考强度；选择「跟随全局」时使用全局设置。",
+  // 思考强度下拉的「跟随全局」选项文案
+  "agent-dialog.thinkingLevelFollowGlobal": "跟随全局",
   // Agent 提示词字段标签
   "agent-dialog.promptLabel": "提示词",
   // Agent 提示词字段 tooltip：说明提示词的作用（智能体的设定，智能体始终记住）
@@ -414,8 +422,14 @@ export const zhCN = {
   "agent-dialog.loadFailed": "读取失败",
   // Agent dialog "基本" 标签页标题
   "agent-dialog.tabBasic": "基本",
-  // Agent dialog "主题" 标签页标题
-  "agent-dialog.tabTheme": "主题",
+  // Agent dialog "个性化" 标签页标题（收入主题与快捷链接）
+  "agent-dialog.tabPersonalization": "个性化",
+  // Agent 快捷链接字段标签
+  "agent-dialog.quickLinksLabel": "快捷链接",
+  // Agent 快捷链接字段 tooltip：说明快捷链接的展示位置与作用
+  "agent-dialog.quickLinksHint": "显示为聊天窗口顶部的按钮，点击可快速打开该文件",
+  // Agent 快捷链接路径输入框占位提示
+  "agent-dialog.quickLinksPlaceholder": "添加文件…",
   // Agent dialog 提示词模板行标签（预留，当前 UI 未强制展示）
   "agent-dialog.templateLabel": "模板",
   // 提示词下方预设模板按钮组的前缀文案
@@ -432,7 +446,9 @@ export const zhCN = {
   "agent-dialog.templateConfirmApply": "应用",
   // 确认弹窗「取消」按钮
   "agent-dialog.templateConfirmCancel": "取消",
-  // Agent dialog 主题 tab：textarea 上方说明，告知主题 CSS 的作用范围（仅当前智能体的聊天窗口）
+  // Agent dialog 个性化 tab：主题区块标签
+  "agent-dialog.themeLabel": "主题",
+  // Agent dialog 个性化 tab：主题区块 tooltip，告知主题 CSS 的作用范围（仅当前智能体的聊天窗口）
   "agent-dialog.themeScopeHint": "仅作用于该智能体的聊天窗口（气泡、输入框、Markdown 等）。",
   // Agent dialog 主题 tab：textarea 占位提示，引导用户与智能体对话来生成主题
   "agent-dialog.themePlaceholder": "与智能体对话来生成主题，或将主题 CSS 粘贴到这里",
@@ -470,10 +486,6 @@ export const zhCN = {
   "agent-dialog.allowInlineHtmlLabel": "HTML 内联渲染",
   // HTML 内联渲染开关行提示语，说明渲染为只读卡片且默认源码折叠
   "agent-dialog.allowInlineHtmlHint": "启用后，该 Agent 回复中的 HTML 代码块会渲染为只读卡片。",
-  // Agent 默认模型选择器标签
-  "agent-dialog.modelLabel": "默认模型",
-  // Agent 默认模型选择器提示语
-  "agent-dialog.modelHint": "为该智能体指定默认模型。留空则跟随全局默认。",
   // Agent 默认模型选择器首项（跟随全局默认），{model} 为当前全局默认模型
   "agent-dialog.modelFollowGlobal": "跟随全局默认（当前：{model}）",
   // Agent 默认模型选择器：未配置 API Key 时的提示
@@ -707,6 +719,8 @@ export const zhCN = {
   "chat.triggerTurnSummaryFallback": "触发器触发的对话轮",
   // trigger 轮运行失败时，折叠摘要条上的错误徽标文案
   "chat.triggerTurnErrorBadge": "运行失败",
+  // trigger 轮正在运行时，折叠摘要条上的状态徽标文案
+  "chat.triggerTurnRunningBadge": "运行中",
   // HtmlCard 通过 file_path 渲染时，前端拉取文件内容期间的占位提示
   "chat.loading": "加载中...",
   // 聊天保存成功提示
@@ -824,6 +838,8 @@ export const zhCN = {
   "chat.summonUsage": "用法：>> agent名称 消息内容",
   // 召唤时携带附件被拦截的提示（召唤仅支持纯文本）
   "chat.summonNoAttachments": "召唤不支持附件，请先移除附件",
+  // 非图片文件附件发送被拦截的提示（当前仅支持图片）
+  "chat.fileAttachmentsUnsupported": "暂不支持文件附件，请仅发送图片",
   // 历史消息中召唤记录卡片的文案，{name} 为目标 agent 名称，点击跳转到新会话
   "chat.summonCard": "已召唤 {name}",
   // 某会话的 agent 工具调用等待用户批准、且用户当前未停留在该会话时弹出的 toast 文案（无法解析到 agent 名时的泛化兜底）

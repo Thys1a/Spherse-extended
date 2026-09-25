@@ -1,9 +1,17 @@
 import yaml from "js-yaml";
-import type { TimePerceptionConfig } from "@spherse/core";
+import type { ThinkingLevel, TimePerceptionConfig } from "@spherse/core";
 
 export type TimePerceptionFormData = {
   enabled: boolean;
 } & Partial<Omit<TimePerceptionConfig, "enabled">>;
+
+const THINKING_LEVELS: readonly ThinkingLevel[] = ["off", "low", "medium", "high"];
+
+function parseThinkingLevel(raw: unknown): ThinkingLevel | undefined {
+  return typeof raw === "string" && THINKING_LEVELS.includes(raw as ThinkingLevel)
+    ? (raw as ThinkingLevel)
+    : undefined;
+}
 
 function parseTimePerception(raw: unknown): TimePerceptionFormData | undefined {
   if (raw == null || typeof raw !== "object") return undefined;
@@ -20,13 +28,15 @@ function parseTimePerception(raw: unknown): TimePerceptionFormData | undefined {
 export interface AgentFormData {
   name: string;
   alias?: string;
+  model?: string;
+  thinkingLevel?: ThinkingLevel;
   tools: string[];
   context: string[];
+  quickLinks: string[];
   systemPrompt: string;
   timePerception?: TimePerceptionFormData;
   yolo: boolean;
   allowInlineHtml: boolean;
-  model?: string;
   placeholder?: string;
   greeting?: string;
 }
@@ -43,8 +53,11 @@ export function parseAgentMarkdown(raw: string): ParsedAgent {
       formData: {
         name: "",
         alias: undefined,
+        model: undefined,
+        thinkingLevel: undefined,
         tools: [],
         context: [],
+        quickLinks: [],
         systemPrompt: raw.trim(),
         yolo: false,
         allowInlineHtml: false,
@@ -57,23 +70,27 @@ export function parseAgentMarkdown(raw: string): ParsedAgent {
   const body = raw.slice(match[0].length).trim();
   const frontmatter = yaml.load(frontmatterRaw) as Record<string, unknown>;
 
-  const { name, alias, tools, context, timePerception, yolo, allowInlineHtml, model, placeholder, greeting, ...extra } = frontmatter;
+  const { name, alias, model, thinkingLevel, tools, context, quickLinks, timePerception, yolo, allowInlineHtml, placeholder, greeting, ...extra } = frontmatter;
 
   return {
     formData: {
       name: typeof name === "string" ? name : "",
       alias: typeof alias === "string" && alias.trim() ? alias : undefined,
+      model: typeof model === "string" && model.trim() ? model : undefined,
+      thinkingLevel: parseThinkingLevel(thinkingLevel),
       tools: Array.isArray(tools)
         ? tools.filter((t): t is string => typeof t === "string")
         : [],
       context: Array.isArray(context)
         ? context.filter((c): c is string => typeof c === "string")
         : [],
+      quickLinks: Array.isArray(quickLinks)
+        ? quickLinks.filter((c): c is string => typeof c === "string")
+        : [],
       systemPrompt: body,
       timePerception: parseTimePerception(timePerception),
       yolo: yolo === true,
       allowInlineHtml: allowInlineHtml === true,
-      model: typeof model === "string" && model.trim() ? model : undefined,
       placeholder: typeof placeholder === "string" && placeholder.trim() ? placeholder : undefined,
       greeting: typeof greeting === "string" && greeting.trim() ? greeting : undefined,
     },
@@ -94,8 +111,17 @@ export function buildAgentMarkdown(
   if (formData.alias?.trim()) {
     frontmatter.alias = formData.alias.trim();
   }
+  if (formData.model?.trim()) {
+    frontmatter.model = formData.model.trim();
+  }
+  if (formData.thinkingLevel) {
+    frontmatter.thinkingLevel = formData.thinkingLevel;
+  }
   if (formData.context.length > 0) {
     frontmatter.context = formData.context;
+  }
+  if (formData.quickLinks.length > 0) {
+    frontmatter.quickLinks = formData.quickLinks;
   }
   if (formData.timePerception?.enabled) {
     frontmatter.timePerception = {
@@ -113,9 +139,6 @@ export function buildAgentMarkdown(
   }
   if (formData.allowInlineHtml) {
     frontmatter.allowInlineHtml = true;
-  }
-  if (formData.model?.trim()) {
-    frontmatter.model = formData.model.trim();
   }
   if (formData.placeholder?.trim()) {
     frontmatter.placeholder = formData.placeholder.trim();

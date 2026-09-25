@@ -14,10 +14,10 @@
 | yolo | agent frontmatter 的自动放行开关：true 时危险工具跳过审批门，文件访问策略不受影响 | [architecture/security.md](architecture/security.md) |
 | Session（会话） | agent 的对话单元，存于该 agent 的 `sessions.db`；status 为 active / archived | [data-conventions.md](data-conventions.md) |
 | restore | 会话恢复：事件日志校验 + 未闭合 turn 修复 + legacy 迁移 + fold 重建 | [architecture/core.md](architecture/core.md) |
-| ChatSessionHub | server 侧 channel 注册表：`Map<projectId:sessionId, ChatChannel>` + 身份守卫删除 | [architecture/chat.md](architecture/chat.md) |
-| ChatChannel | 单 session 生命周期对象：restore、run 序列化、快照压缩、握手重放、fanout、空闲销毁；多 WS 连接共享 | [architecture/chat.md](architecture/chat.md) |
+| ChatSessionHub | server 侧 channel 注册表：按 `SessionManager` 身份 + sessionId 索引，提供 closeRuntime / close 收口与 admission（详见 [ADR-0012](../../dev/decisions/0012-chat-hub-lifecycle-ownership.md)） | [architecture/chat.md](architecture/chat.md) |
+| ChatChannel | 单 session 生命周期对象：opening/open/closed 状态机、lazy restore、lease 计数、run 序列化、快照压缩、握手重放、fanout、空闲 release；多 WS 连接共享 | [architecture/chat.md](architecture/chat.md) |
 | ChatWireProjector | persist→wire 翻译纯状态机：echo、seq 引用配对、run 级 messageId | [architecture/chat.md](architecture/chat.md) |
-| 游标重放 | connect 带 `?since=` 时服务端重放 `seq > since` 的原始持久事件，取代 HTTP 对账的增量恢复机制 | [architecture/chat.md](architecture/chat.md) |
+| 游标重放 | connect 带 `?since=` 时服务端重放 `seq > since` 的原始持久事件，renderer 以 `applyPersistedEvents` 归约；旧 server 或首页未加载时回落 HTTP 冷对账 | [architecture/chat.md](architecture/chat.md) |
 
 ## 事件与投影
 
@@ -26,10 +26,13 @@
 | Event Log（events 表） | 消息唯一真相：per-session append-only 事件日志，主键 `(session_id, seq)` | [data-conventions.md](data-conventions.md) |
 | fold（投影） | 从事件日志推导内存消息数组的纯函数过程；内存只是可重建缓存 | [architecture/core.md](architecture/core.md) |
 | 控制事件（重启点） | `turn/retried` / `turn/withdrawn` / `compaction/applied` 三类事件，restore 时按语义重建 | [architecture/core.md](architecture/core.md) |
+| control gate 事件 | `control/requested` / `control/resolved` 审批/问答门事件（区别于上面的重启点控制事件），落库并附 seq；pending = requested 未配对 resolved 且无 turn/end 隔断 | [architecture/core.md](architecture/core.md) |
 | compaction（上下文压缩） | 历史超阈值时生成摘要、以 `compaction/applied` 重启点表达；LLM 双路与机械回退 | [architecture/core.md](architecture/core.md) |
 | withdraw（撤回） | 以 `turn/withdrawn {seq}` 锚定被撤回 user message，fold 推导废弃区间 | [architecture/core.md](architecture/core.md) |
 | rollback（回滚） | `rollback_turn` 按 turn 整轮逆转 data/card 写入（版本冲突转人工）；与 withdraw（仅截断）正交 | [architecture/capabilities.md](architecture/capabilities.md) |
-| 历史对账 | renderer 重连后拉取历史、按 `_messageId` 去重合并的过程 | [architecture/chat.md](architecture/chat.md) |
+| 历史对账 | renderer 重连后拉取历史、按 `seq` upsert 合并的过程 | [architecture/chat.md](architecture/chat.md) |
+| Entry（会话条目） | 事件日志的前端 1:1 投影，按 `seq` / `streamId` / `clientId` 身份寻址，含 user/assistant/tool-result/error 四类 | [architecture/chat.md](architecture/chat.md) |
+| MessageGroup（消息组） | 由 entries 组装出的渲染单元（turn / trigger-turn 组，含 assistant/tool-result/error 气泡），保证每条 entry 有归宿 | [architecture/chat.md](architecture/chat.md) |
 
 ## Capability 架构
 
@@ -97,6 +100,8 @@
 | UI SDK（`@spherse/sdk`） | 注入 iframe 的浏览器运行时，暴露 `window.spherse` API | [architecture/ui-sdk.md](architecture/ui-sdk.md) |
 | HostBridge | renderer 对宿主能力的抽象接口，desktop / web 各有实现 | [architecture/frontend.md](architecture/frontend.md) |
 | HostCapabilities | 宿主能力开关声明，renderer 据此条件渲染宿主专属 UI | [architecture/frontend.md](architecture/frontend.md) |
-| streaming-store | chat 的 Zustand store，只持 UI 可观察状态与 actions | [architecture/chat.md](architecture/chat.md) |
+| chat session store | chat 的 Zustand store（`useChatSessionStore`），持有 Entry 状态、连接投影、分页与 actions | [architecture/chat.md](architecture/chat.md) |
 | timePerception | agent 时间感知配置：感知时间 = 真实时间经锚点 / 流速变换 | [data-conventions.md](data-conventions.md) |
 | memory（memory.jsonl） | per-agent 记忆持久化，`memory_save` / `memory_recall` 读写，`<memory>` block 注入 | [architecture/capabilities.md](architecture/capabilities.md) |
+| slash 命令 | Composer 内 `/skill:`、`/command:` 前缀触发补全，解析为用户消息 meta 随轮发送 | [architecture/chat.md](architecture/chat.md) |
+| summon（召唤） | Composer 内 `>>agent名` 将消息转投目标 agent 会话，源会话留 summon 备注并可跳转 | [architecture/chat.md](architecture/chat.md) |
