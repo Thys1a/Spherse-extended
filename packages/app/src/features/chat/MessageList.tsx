@@ -27,9 +27,7 @@ interface MessageListProps {
   onRespondQuestion?: (requestId: string, answer: string) => boolean | void;
   onRetry?: () => void;
   onWithdraw?: () => void;
-  onDelete?: () => void;
   allowInlineHtml?: boolean;
-  onOpenSession?: (sessionId: string) => void;
   hasMore?: boolean;
   loadingMore?: boolean;
   onLoadMore?: () => void;
@@ -70,7 +68,7 @@ export function MessageList({
     return (
       <div className="flex-1 flex flex-col items-center justify-center gap-2 p-4" data-chat-welcome>
         <div className="text-muted-foreground text-sm font-medium">{agent.name}</div>
-        <div className="text-muted-foreground text-sm">{greeting ?? t("chat.startConversation")}</div>
+        <div className="text-muted-foreground text-sm">{greeting || t("chat.startConversation")}</div>
       </div>
     );
   }

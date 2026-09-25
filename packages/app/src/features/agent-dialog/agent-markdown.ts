@@ -140,9 +140,6 @@ export function buildAgentMarkdown(
   if (formData.allowInlineHtml) {
     frontmatter.allowInlineHtml = true;
   }
-  if (formData.model?.trim()) {
-    frontmatter.model = formData.model.trim();
-  }
   if (formData.placeholder?.trim()) {
     frontmatter.placeholder = formData.placeholder.trim();
   }

@@ -58,14 +58,15 @@ export class SessionManager {
 
   async restoreSession(agentId: string, sessionId: string): Promise<string> {
     if (this.sessions.has(sessionId)) return sessionId;
-    const pending = this.restoreInflight.get(sessionId);
+    const inflightKey = `${agentId}:${sessionId}`;
+    const pending = this.restoreInflight.get(inflightKey);
     if (pending) return pending;
     const task = this.restoreSessionInner(agentId, sessionId);
-    this.restoreInflight.set(sessionId, task);
+    this.restoreInflight.set(inflightKey, task);
     try {
       return await task;
     } finally {
-      if (this.restoreInflight.get(sessionId) === task) this.restoreInflight.delete(sessionId);
+      if (this.restoreInflight.get(inflightKey) === task) this.restoreInflight.delete(inflightKey);
     }
   }
 

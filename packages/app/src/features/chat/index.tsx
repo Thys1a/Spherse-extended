@@ -31,13 +31,12 @@ export interface ChatProps {
   sessionId: string;
   agent: AgentSummary;
   onNavigateToPath?: (path: string) => void;
-  onOpenSession?: (sessionId: string) => void;
   initialMessage?: string;
   onClose?: () => void;
   hideHeader?: boolean;
 }
 
-export function Chat({ sessionId, agent, onNavigateToPath, onOpenSession, initialMessage, onClose, hideHeader }: ChatProps) {
+export function Chat({ sessionId, agent, onNavigateToPath, initialMessage, onClose, hideHeader }: ChatProps) {
   const { projectId } = useProjectCtx();
   const client = useApiClient(projectId);
   const { baseUrl, accessToken } = useConnection();
@@ -125,6 +124,11 @@ export function Chat({ sessionId, agent, onNavigateToPath, onOpenSession, initia
       }
       void sendSummon(text);
       return true;
+    }
+    const files = attachments?.filter((a) => a.kind === "file");
+    if (files && files.length > 0) {
+      toast.error(t("chat.fileAttachmentsUnsupported"));
+      return false;
     }
     const image = attachments?.find((a) => a.kind === "image");
     return sendMessage(
@@ -230,7 +234,6 @@ export function Chat({ sessionId, agent, onNavigateToPath, onOpenSession, initia
           onRetry={retry}
           onWithdraw={withdrawLastTurn}
           allowInlineHtml={profileQuery.data?.allowInlineHtml}
-          onOpenSession={onOpenSession}
           hasMore={hasMore}
           loadingMore={loadingMore}
           onLoadMore={loadMore}
@@ -238,7 +241,7 @@ export function Chat({ sessionId, agent, onNavigateToPath, onOpenSession, initia
         <Composer
           streaming={streaming}
           loading={loading}
-          panicLocked={false}
+          panicLocked={connection.state === "failed" || connection.state === "fatal"}
           sessionId={sessionId}
           placeholder={profileQuery.data?.placeholder}
           onSend={handleSend}

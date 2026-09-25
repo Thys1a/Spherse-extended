@@ -118,9 +118,6 @@ export function FloatingChatContainer({
           onNavigateToPath={(path) => {
             navigate(`/project/${projectId}/content?path=${encodeURIComponent(path)}`);
           }}
-          onOpenSession={(targetSessionId) => {
-            navigate(`/project/${projectId}/chat/${targetSessionId}`);
-          }}
         />
       </FloatingFrame>
     </div>,

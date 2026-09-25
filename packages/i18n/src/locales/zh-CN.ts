@@ -486,10 +486,6 @@ export const zhCN = {
   "agent-dialog.allowInlineHtmlLabel": "HTML 内联渲染",
   // HTML 内联渲染开关行提示语，说明渲染为只读卡片且默认源码折叠
   "agent-dialog.allowInlineHtmlHint": "启用后，该 Agent 回复中的 HTML 代码块会渲染为只读卡片。",
-  // Agent 默认模型选择器标签
-  "agent-dialog.modelLabel": "默认模型",
-  // Agent 默认模型选择器提示语
-  "agent-dialog.modelHint": "为该智能体指定默认模型。留空则跟随全局默认。",
   // Agent 默认模型选择器首项（跟随全局默认），{model} 为当前全局默认模型
   "agent-dialog.modelFollowGlobal": "跟随全局默认（当前：{model}）",
   // Agent 默认模型选择器：未配置 API Key 时的提示
@@ -842,6 +838,8 @@ export const zhCN = {
   "chat.summonUsage": "用法：>> agent名称 消息内容",
   // 召唤时携带附件被拦截的提示（召唤仅支持纯文本）
   "chat.summonNoAttachments": "召唤不支持附件，请先移除附件",
+  // 非图片文件附件发送被拦截的提示（当前仅支持图片）
+  "chat.fileAttachmentsUnsupported": "暂不支持文件附件，请仅发送图片",
   // 历史消息中召唤记录卡片的文案，{name} 为目标 agent 名称，点击跳转到新会话
   "chat.summonCard": "已召唤 {name}",
   // 某会话的 agent 工具调用等待用户批准、且用户当前未停留在该会话时弹出的 toast 文案（无法解析到 agent 名时的泛化兜底）

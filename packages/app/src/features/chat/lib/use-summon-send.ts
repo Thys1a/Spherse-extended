@@ -22,9 +22,10 @@ export function useSummonSend(sessionId: string, agentId: string) {
       }
       try {
         await client.summonToAgent(agentId, sessionId, summon);
-        useChatSessionStore.getState().refreshHistory(client, agentId, sessionId);
+        void useChatSessionStore.getState().refreshHistory(client, agentId, sessionId);
       } catch (err) {
         toast.error(t("chat.summonFailed", { message: (err as Error).message }));
+        return false;
       }
       return true;
     },
