@@ -234,6 +234,31 @@ describe("entry reducer", () => {
     expect(state.cursor).toBe(0);
   });
 
+  it("preserves slash and summon meta from live user echoes", () => {
+    let state = createEntryState();
+    state = reduceLiveEvents(state, [
+      event({
+        type: "user_message",
+        seq: 0,
+        message: { role: "user", content: "/skill:review x" },
+        slash: { type: "skill", name: "review", rawArgs: "x" },
+      }),
+      event({
+        type: "user_message",
+        seq: 1,
+        message: { role: "user", content: ">>builder hi" },
+        summon: { agentId: "a2", sessionId: "s2", agentName: "Builder" },
+      }),
+    ], 2);
+
+    expect(state.entries[0]).toMatchObject({
+      slash: { type: "skill", name: "review", rawArgs: "x" },
+    });
+    expect(state.entries[1]).toMatchObject({
+      summon: { agentId: "a2", sessionId: "s2", agentName: "Builder" },
+    });
+  });
+
   it("is idempotent for repeated user echoes", () => {
     const echo = event({ type: "user_message", seq: 4, message: { role: "user", content: "hi" } });
     let state = reduceLiveEvents(createEntryState(), [echo], 1);

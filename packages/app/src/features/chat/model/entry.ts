@@ -1,4 +1,5 @@
 import type { ErrorEventCode } from "@spherse/contracts";
+import type { SlashMetaContract, SummonMetaContract } from "@spherse/contracts";
 import type { ChatAttachment } from "../types";
 
 export type EntryId = string;
@@ -10,17 +11,8 @@ interface EntryBase {
   time?: number;
 }
 
-export interface UserSlash {
-  type: "skill" | "command";
-  name: string;
-  rawArgs: string;
-}
-
-export interface UserSummon {
-  agentId: string;
-  sessionId: string;
-  agentName: string;
-}
+export type UserSlash = SlashMetaContract;
+export type UserSummon = SummonMetaContract;
 
 export interface UserEntry extends EntryBase {
   kind: "user";

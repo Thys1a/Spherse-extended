@@ -93,10 +93,10 @@ export function UserBubble({
             <button
               type="button"
               onClick={() => onOpenSession(summon.sessionId)}
-              title={t("chat.summonCard", { name: summon.agentName ?? summon.agentId })}
+              title={t("chat.summonCard", { name: summon.agentName })}
               className="mt-2 flex items-center gap-1.5 self-start rounded-md border border-border px-2.5 py-1.5 text-xs hover:bg-muted"
             >
-              <span>{t("chat.summonCard", { name: summon.agentName ?? summon.agentId })}</span>
+              <span>{t("chat.summonCard", { name: summon.agentName })}</span>
               <ChevronRightIcon className="size-3.5 text-muted-foreground" />
             </button>
           )}

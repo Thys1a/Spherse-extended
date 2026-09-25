@@ -301,6 +301,36 @@ describe("chat websocket control contract", () => {
       parseChatReplayEvent({ type: "control/requested", seq: 5, time: 1 }),
     ).toThrow(/Invalid payload/);
   });
+
+  it("accepts slash/summon on replayed user messages and rejects bogus kinds", () => {
+    const base = {
+      type: "user/message",
+      seq: 1,
+      time: 100,
+      data: { message: { role: "user", content: "hi", timestamp: 100 } },
+    };
+    expect(
+      parseChatReplayEvent({
+        ...base,
+        data: {
+          ...base.data,
+          slash: { type: "skill", name: "review", rawArgs: "x" },
+          summon: { agentId: "a2", sessionId: "s2", agentName: "Builder" },
+        },
+      }),
+    ).toMatchObject({
+      data: {
+        slash: { type: "skill", name: "review", rawArgs: "x" },
+        summon: { agentId: "a2", sessionId: "s2", agentName: "Builder" },
+      },
+    });
+    expect(() =>
+      parseChatReplayEvent({
+        ...base,
+        data: { ...base.data, slash: { type: "bogus", name: "x", rawArgs: "" } },
+      }),
+    ).toThrow(/Invalid payload/);
+  });
 });
 
 describe("chat replay tool/result sideEffects (R2.5a)", () => {

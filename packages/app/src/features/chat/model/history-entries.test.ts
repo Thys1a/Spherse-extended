@@ -82,6 +82,28 @@ describe("history entries", () => {
     });
   });
 
+  it("preserves slash and summon meta from history pages", () => {
+    const parsed = parseHistoryEntries([
+      {
+        id: 1,
+        message: { role: "user", content: "/skill:review x", timestamp: 10 },
+        slash: { type: "skill", name: "review", rawArgs: "x" },
+      },
+      {
+        id: 2,
+        message: { role: "user", content: ">>builder hi", timestamp: 11 },
+        summon: { agentId: "a2", sessionId: "s2", agentName: "Builder" },
+      },
+    ]);
+
+    expect(parsed[0]).toMatchObject({
+      slash: { type: "skill", name: "review", rawArgs: "x" },
+    });
+    expect(parsed[1]).toMatchObject({
+      summon: { agentId: "a2", sessionId: "s2", agentName: "Builder" },
+    });
+  });
+
   it("drops the local in-flight window on a latest page merge", () => {
     let state = createEntryState();
     state = reduceLiveEvents(state, [event({ type: "message_start", message: assistantMessage("") })], 1);
