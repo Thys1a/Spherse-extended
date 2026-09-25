@@ -1,4 +1,4 @@
-# ADR-0012：worldbook 以队尾 user 块注入、selective 取 AND、缓存取指纹轮询
+# ADR-0015：worldbook 以队尾 user 块注入、selective 取 AND、缓存取指纹轮询
 
 - 状态：accepted
 - 日期：2026-09-19

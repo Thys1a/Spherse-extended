@@ -103,3 +103,5 @@
 | chat session store | chat 的 Zustand store（`useChatSessionStore`），持有 Entry 状态、连接投影、分页与 actions | [architecture/chat.md](architecture/chat.md) |
 | timePerception | agent 时间感知配置：感知时间 = 真实时间经锚点 / 流速变换 | [data-conventions.md](data-conventions.md) |
 | memory（memory.jsonl） | per-agent 记忆持久化，`memory_save` / `memory_recall` 读写，`<memory>` block 注入 | [architecture/capabilities.md](architecture/capabilities.md) |
+| slash 命令 | Composer 内 `/skill:`、`/command:` 前缀触发补全，解析为用户消息 meta 随轮发送 | [architecture/chat.md](architecture/chat.md) |
+| summon（召唤） | Composer 内 `>>agent名` 将消息转投目标 agent 会话，源会话留 summon 备注并可跳转 | [architecture/chat.md](architecture/chat.md) |

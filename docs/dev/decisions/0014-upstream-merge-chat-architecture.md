@@ -45,3 +45,11 @@ fork 点为 `72ffe06`（09-06 chat 重构 PR2）。此后本地 79 提交（chat
 ## 原始记录
 
 - 本次 merge 分支 `merge/upstream-dev-2026-09-24`（P0–P2 已落地已 stage，P3 起待续）
+
+## 落地记录（2026-09-25）
+
+- P3–P5 已落地并验证：全仓库 typecheck 零错误；lint 0 errors；app chat+agent-dialog 490/490、core 79+67、contracts 85 通过；server registry 2 失败系 Windows 路径语义（CI Linux 不受影响）。
+- code-review（`419b4e0`）后追加 `4a03dd4`：修 C2（文件附件 toast）/C3（panic 按 connection 派生）/C4（删死 props，summon 跳转转 backlog）/I3（失败保草稿）/I7（删 ChatMessage）/M1（restore key 加 agent）/M2（去重）/M4（`||`）；C1/I1/I2/I4/I5/I6/M3 转 backlog（pre-existing 或设计问题）。
+- U1–U5 核验后追加 `99dc03b`：补 slash/summon 渲染链（UserEntry 字段 + 三源透传 + replay wire schema + UserBubble 徽标/卡片 + 跳转恢复 + sendMessage 对齐）+ backlog 定级（I1 降级、I6 补充、U4 新增）。
+- P6 E2E 未在本地执行（无 Playwright browsers + Electron 需显示环境），E2E spec 均不引用已删模块，CI 覆盖；P7 doc-sync 已执行（见本分支 doc-sync commit）。
+- 过程纠正：`419b4e0` 过早 conclude 了 merge（用户只要求 commit 存进度）；本次保持现状，下不为例——今后「commit 存进度」与「conclude merge」分开请示。

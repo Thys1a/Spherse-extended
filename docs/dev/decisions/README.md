@@ -26,3 +26,6 @@
 | [0010](0010-server-auth-model.md) | 本地 server 鉴权模型：always-on token + 认证制 CORS + Host 校验 | accepted |
 | [0011](0011-chat-wire-cursor-replay.md) | chat wire 协议携带 seq，重连恢复以游标重放取代 HTTP 对账 | accepted |
 | [0012](0012-chat-hub-lifecycle-ownership.md) | chat hub 生命周期与所有权收口（runtime 身份索引、channel 状态机、release 权归 core、server 单点关停） | accepted |
+| [0013](0013-turn-rollback-undo-log.md) | turn 级回滚走 undo 日志 + 版本守卫 | accepted |
+| [0014](0014-upstream-merge-chat-architecture.md) | 上游合并接受 chat 新架构，本地功能前移 | accepted |
+| [0015](0015-worldbook-injection.md) | worldbook 注入（原 0012，与上游 chat-hub 碰撞后更名） | accepted |
