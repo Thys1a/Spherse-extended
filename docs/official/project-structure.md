@@ -59,10 +59,10 @@ spherse/
 │   │       │   ├── session.ts        # SQLite session 持久化（events 主写；messages/compactions legacy 只读）
 │   │       │   ├── trigger.ts / skill.ts / mcp-config.ts / memory.ts / agent-profile.ts / agent-slug.ts / project-config.ts
 │   │       ├── tools/                # AgentTool 实现体（capability 的实现层，无注册表）
-│   │       │   ├── read/write/edit/list/search/move/copy-file.ts、run-command.ts、ask-user.ts、manage-agent.ts、manage-trigger.ts、manage-project-config.ts、emit-trigger-event.ts、load-skill.ts、render-card.ts、generate-image.ts、append-changelog.ts、memory-save.ts、memory-recall.ts、with-approval.ts、json-check.ts
+│   │       │   ├── read/write/edit/list/search/move/copy-file.ts、run-command.ts、ask-user.ts、manage-agent.ts、manage-trigger.ts、manage-project-config.ts、emit-trigger-event.ts、load-skill.ts、render-card.ts、generate-image.ts、append-changelog.ts、memory-save.ts、memory-recall.ts、with-approval.ts、json-check.ts、output-limits.ts（工具输出截断共享常量）
 │   │       ├── trigger/              # TriggerManager（门面：CRUD+事件+委派）/ scheduler（时间调度状态）/ executor（fire 执行+日志）/ TimerService / template / validation
 │   │       ├── access/               # path-category（内置 PATH_PATTERNS + PathRule 类型 + 注册规则优先）/ access-policy（llm/server 工厂，裁决优先级 deniedPaths > pathRules > 白名单）/ denied-paths
-│   │       ├── context/              # context window 管理域（跨层共享纯函数）：compaction（planCompaction/sanitizeToolCallPairs）/ token-estimate
+│   │       ├── context/              # context window 管理域（跨层共享纯函数）：compaction（planCompaction/sanitizeToolCallPairs）/ token-estimate / truncated-turn（length 退化轮判定与标 error）
 │   │       ├── attachments/          # 附件域：AttachmentProcessor 端口 + image-processor + sanitizer（base64 卫生不变量）+ strip/sanitize
 │   │       ├── mcp/                  # mcp-client（连接与工具适配）/ mcp-connection-manager / config / types / json-schema-to-typebox
 │   │       ├── model-providers/      # ModelCatalog 类（per-runtime 实例，所有权在组合根）+ zhipu/openai images + index（仅 images 静态目录导出）
@@ -324,6 +324,7 @@ spherse/
 │   │   │   ├── bootstrap.ts          # Electron 入口引导：dev 环境重定向 userData 后加载 main
 │   │   │   ├── main.ts               # Electron 主进程：启动时 fixPath（打包版 PATH 修复）→ restoreEnvFromSettings → 组装窗口、IPC、项目 server 管理、启动延迟静默更新检查
 │   │   │   ├── fix-path.ts           # 打包版 PATH 修复：仅 packaged + darwin/linux，spawn 用户登录 shell（$SHELL -lic 'echo $PATH'，TERM=dumb，3s 超时）拉取登录 shell 的 PATH，剥离 ANSI/控制字节后按去重保序前置合并进 process.env.PATH（dev/test/win32 no-op，失败保留原 PATH 不阻断启动）；修复 GUI 进程不继承 shell PATH 导致 stdio MCP server（uvx/npx/python）找不到可执行文件
+│   │   │   ├── crash-log.ts          # 崩溃取证落盘（userData/logs/crash.jsonl）+ renderer 自愈决策纯函数（reload/recreate/退避）
 │   │   │   ├── preload.ts            # contextBridge，IPC 白名单（含更新检查 main→renderer 事件订阅）
 │   │   │   ├── updater.ts            # 更新检测：OSS latest.json 清单 + compareVersions + 平台 downloadUrl 解析（electron-updater 仅保留 Windows in-app 下载 API，feed 已废弃）、silent 检测不改写交互状态、startAutoUpdateChecks 调度（启动 5s + 每小时 tick，≥24h 且用户活动时静默检测）
 │   │   │   ├── sample-projects.ts    # 内置示例项目资源路径解析（dev/packaged）+ manifest 读取（供 onboarding「打开示例项目」）
