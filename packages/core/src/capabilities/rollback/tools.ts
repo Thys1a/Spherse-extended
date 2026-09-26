@@ -64,7 +64,7 @@ export function createRollbackTurnTool(deps: RollbackTurnDeps): AgentTool<typeof
       if (failed.length > 0) lines.push(`Failed: ${failed.join("; ")}`);
       if (refs.length === 0) {
         lines.push("No recorded side effects for this turn (unknown turn, no writes, or writes without undo records).");
-        const known = source.listTurnSeqsWithSideEffects(deps.sessionId);
+        const known = source.listTurnSeqsWithSideEffects?.(deps.sessionId) ?? [];
         if (known.length > 0) {
           lines.push(`Known turns with side effects in this session: ${known.join(", ")}.`);
         }

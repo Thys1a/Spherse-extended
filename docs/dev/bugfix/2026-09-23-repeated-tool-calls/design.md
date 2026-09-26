@@ -122,8 +122,8 @@ trigger 相关**直接涉案**，prompt 注入相关**基本不涉案**（worldb
 
 `{ block: true, terminate: true }` 不可靠：`shouldTerminateToolBatch`（pi `agent-loop.js:384-386`）要求同批**每个** result 都 `terminate === true`，多 toolCall 一批里有一个未 block 就停不下来，且 block 回灌的 error 文本模型可能照样重试。
 
-- `agent-runner.ts` 现有 `beforeToolCall`（attribution 钩子位）上叠加计数：每 turn `toolCallCount`，同名 + 同参（规范化 stringify）连续计数；`turn/start` 清零。阈值放 `agent-runner.ts` 顶部常量：`MAX_TOOL_CALLS_PER_TURN = 30`、`MAX_SAME_TOOLCALL_REPEAT = 3`（后续可配）；
-- 终止靠 `agent.shouldStopAfterTurn`（pi 可变属性，每次内层迭代后检查，可中途停）：超限返回 true → `agent_end` 干净退出；终止原因（`tool-call-budget` / `tool-call-repeat`）写日志 + tool result 文本，不动 `turn/end` 枚举；
+- `agent-runner.ts` 现有 `beforeToolCall`（attribution 钩子位）上叠加计数：每 turn `toolCallCount`，同名 + 同参（规范化 stringify）连续计数；`turn/start` 清零。阈值放 `agent-runner.ts` 顶部常量：`MAX_TOOL_CALLS_PER_TURN = 30`、`MAX_SAME_TOOLCALL_REPEAT = 3`、`MAX_CONSECUTIVE_TRUNCATED_TURNS = 3`（与连 3 对齐；每次 `length` 都是整窗调用，3 连击即判卡死）。`retry` 开新 run，计数重置（显式用户操作才续跑，不算无限循环；且 P0-3 压缩可能已在两次之间缩小上下文）；
+- 终止靠 `agent.shouldStopAfterTurn`（pi 可变属性，每次内层迭代后检查，可中途停）：超限返回 true → `agent_end` 干净退出；终止原因（`tool-call-budget` / `tool-call-repeat` / `truncated-loop`）写日志 + tool result 文本，不动 `turn/end` 枚举；
 - 计数覆盖截断 fail 路径：在 `shouldStopAfterTurn` 内按 `lastCompletedTurn.toolResults` 累加并统计 `message.stopReason === "length"` 连击（该路径不经过 `beforeToolCall`，只在那边计数会漏）；
 - `beforeToolCall` 的 block 仅作兜底（超限后 error 文本告知模型）。
 

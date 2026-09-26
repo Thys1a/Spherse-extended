@@ -77,6 +77,12 @@ export class TriggerManager extends EventEmitter {
     if (eventName.startsWith("sp:")) return 0;
     const chain =
       source?.sessionId !== undefined ? this.session.getTriggerChain?.(source.sessionId) : undefined;
+    if (source?.sessionId !== undefined && chain === undefined) {
+      this.logger.debug(
+        { eventName, sessionId: source.sessionId },
+        "emit without caller chain: source session has no live turn, starting a new chain",
+      );
+    }
     return this.fireMatching(
       eventName,
       payload,
