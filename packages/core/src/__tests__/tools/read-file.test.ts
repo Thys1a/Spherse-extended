@@ -21,7 +21,7 @@ describe("createReadFileTool", () => {
     const tool = createReadFileTool(projectRoot, permissivePolicy(projectRoot));
     const result = await tool.execute("tc1", { path: "hello.txt" }, undefined as any);
     expect(result.content[0].text).toBe("hello world");
-    expect(result.details).toEqual({ path: "hello.txt", size: 11 });
+    expect(result.details).toEqual({ path: "hello.txt", size: 11, totalLength: 11, returnedLength: 11 });
   });
 
   it("reads a nested file", async () => {
@@ -79,7 +79,7 @@ describe("createReadFileTool", () => {
 
     expect(result.content[0].text).toContain("binary file");
     expect(result.content[0].text).toContain("data/store.db");
-    expect(result.details).toEqual({ path: "data/store.db", binary: true, image: false, size: 10 });
+    expect(result.details).toEqual({ path: "data/store.db", binary: true, image: false, size: 10, totalLength: 10, returnedLength: 0 });
     expect(result.content[0].text).not.toContain("\u0000");
   });
 
@@ -93,7 +93,7 @@ describe("createReadFileTool", () => {
     expect(result.content[0].text).toContain("image file");
     expect(result.content[0].text).toContain("render_card");
     expect(result.content[0].text).toContain("assets/photo.png");
-    expect(result.details).toEqual({ path: "assets/photo.png", binary: true, image: true, size: 10 });
+    expect(result.details).toEqual({ path: "assets/photo.png", binary: true, image: true, size: 10, totalLength: 10, returnedLength: 0 });
   });
 
   it("still reads text files that lack null bytes", async () => {
@@ -103,7 +103,7 @@ describe("createReadFileTool", () => {
     const result = await tool.execute("tc1", { path: "code.ts" }, undefined as any);
 
     expect(result.content[0].text).toBe("export const x = 1;\n");
-    expect(result.details).toEqual({ path: "code.ts", size: 20 });
+    expect(result.details).toEqual({ path: "code.ts", size: 20, totalLength: 20, returnedLength: 20 });
   });
 
   it("treats empty file as text", async () => {
@@ -113,6 +113,6 @@ describe("createReadFileTool", () => {
     const result = await tool.execute("tc1", { path: "empty.txt" }, undefined as any);
 
     expect(result.content[0].text).toBe("");
-    expect(result.details).toEqual({ path: "empty.txt", size: 0 });
+    expect(result.details).toEqual({ path: "empty.txt", size: 0, totalLength: 0, returnedLength: 0 });
   });
 });
