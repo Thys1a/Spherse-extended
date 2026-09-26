@@ -100,6 +100,39 @@ describe("persisted entries", () => {
     expect(state.cursor).toBe(4);
   });
 
+  it("replays thinking and diagnostics for a truncated turn", () => {
+    let state = createEntryState();
+    state = applyPersistedEvents(state, [
+      replayEvent({
+        type: "assistant/message",
+        seq: 2,
+        time: 101,
+        data: {
+          message: {
+            role: "assistant",
+            content: [{ type: "thinking", thinking: "That" }],
+            stopReason: "error",
+            rawStopReason: "length",
+            errorMessage: "truncated",
+            usage: { input: 100, output: 1, cacheRead: 20 },
+            timestamp: 101,
+          },
+        },
+      }),
+    ], 0);
+
+    expect(state.entries[0]).toMatchObject({
+      _thinking: "That",
+      _thinkingTruncated: true,
+      error: { message: "truncated" },
+    });
+    expect((state.entries[0] as AssistantEntry)._diagnostics).toMatchObject({
+      rawStopReason: "length",
+      promptTokens: 120,
+      seq: 2,
+    });
+  });
+
   it("preserves slash and summon meta on replayed user messages", () => {
     let state = createEntryState();
     state = applyPersistedEvents(state, [

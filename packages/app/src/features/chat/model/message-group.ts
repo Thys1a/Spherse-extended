@@ -2,6 +2,7 @@ import type { FileChangeCard } from "../types";
 import type {
   AssistantEntry,
   ChatEntry,
+  EntryDiagnostics,
   EntryError,
   EntryId,
   UserEntry,
@@ -19,6 +20,9 @@ export type AssistantBubble = {
   error?: EntryError;
   timestamp?: number;
   runChanges?: FileChangeCard[];
+  thinking?: string;
+  thinkingTruncated?: boolean;
+  diagnostics?: EntryDiagnostics;
 };
 
 export type Bubble =
@@ -148,6 +152,9 @@ function assistantBubble(entry: AssistantEntry): AssistantBubble {
     ...(entry.streaming ? { streaming: true } : {}),
     ...(entry.error ? { error: entry.error } : {}),
     ...(entry.time !== undefined ? { timestamp: entry.time } : {}),
+    ...(entry._thinking !== undefined ? { thinking: entry._thinking } : {}),
+    ...(entry._thinkingTruncated === true ? { thinkingTruncated: true as const } : {}),
+    ...(entry._diagnostics !== undefined ? { diagnostics: entry._diagnostics } : {}),
   };
 }
 

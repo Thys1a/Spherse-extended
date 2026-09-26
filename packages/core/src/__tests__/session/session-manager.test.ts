@@ -30,6 +30,7 @@ vi.mock("../../model-providers/catalog.js", async (importOriginal) => {
 
 import { createProject } from "../../factory.js";
 import { AgentRunner } from "../../session/agent-runner.js";
+import { SessionEventLog } from "../../session/event-log.js";
 
 const TEST_AGENT_PROFILE = `---
 name: Test Agent
@@ -1260,5 +1261,55 @@ describe("SessionManager concurrent restore", () => {
     }
     await expect(runtime.sessionRuntime.restoreSession(agentId, sessionId)).resolves.toBe(sessionId);
     expect((runtime.sessionRuntime as any).sessions.has(sessionId)).toBe(true);
+  });
+});
+
+describe("SessionManager turn side-effect index", () => {
+  let tmpDir: string;
+  let runtime: RuntimeInternals & Awaited<ReturnType<typeof createProject>>;
+  let agentId: string;
+
+  beforeEach(async () => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "wb-mgr-sidefx-"));
+    getChatStreamFnMock.mockClear();
+    resolveModelByIdMock.mockClear();
+    runtime = (await createProject(tmpDir, {
+      projectName: "Test",
+      logger: createSilentLogger(),
+    })) as RuntimeInternals & Awaited<ReturnType<typeof createProject>>;
+    const projectStore = runtime.projectManager.projectStore;
+    const testAgent = await projectStore.createAgent("test-agent", TEST_AGENT_PROFILE);
+    agentId = testAgent.getProfile().id;
+    runtime.timerService.stop();
+  });
+
+  afterEach(async () => {
+    await runtime.shutdown();
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("lists only turns with side effects from persisted events", () => {
+    const projectStore = runtime.projectManager.projectStore;
+    const agentStore = projectStore.getAgent(agentId);
+    const sessionId = agentStore.sessions.createSession();
+    const log = SessionEventLog.open(agentStore.sessions, sessionId);
+    const first = log.append("turn/start", {});
+    log.append("tool/result", {
+      message: {
+        role: "toolResult",
+        toolCallId: "t1",
+        toolName: "read_file",
+        content: [],
+        isError: false,
+      },
+      sideEffects: [{ type: "data", file: "a.data.json", version: "v1" }],
+    } as never);
+    log.append("turn/start", {});
+    log.append("user/message", {
+      message: { role: "user", content: "hi" },
+    } as never);
+
+    expect(runtime.sessionRuntime.listTurnSeqsWithSideEffects(sessionId)).toEqual([first.seq]);
+    expect(runtime.sessionRuntime.listTurnSeqsWithSideEffects("no-such-session")).toEqual([]);
   });
 });

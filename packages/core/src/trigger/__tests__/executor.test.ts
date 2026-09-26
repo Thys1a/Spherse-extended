@@ -69,6 +69,19 @@ describe("TriggerExecutor", () => {
     );
   });
 
+  it("skips the second fire of the same trigger in one chain", async () => {
+    const { executor, session, store } = makeDeps();
+    const opts = { chainId: "chain-1", depth: 0 };
+
+    await executor.fire(makeEntry(), "a1", "Agent", "first", "evt", opts);
+    await executor.fire(makeEntry(), "a1", "Agent", "second", "evt", opts);
+
+    expect(session.sendMessage).toHaveBeenCalledTimes(1);
+    expect(store.appendLog).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "failed", error: expect.stringContaining("already fired in this chain") }),
+    );
+  });
+
   it("records a failed log and emits trigger_failed when send fails", async () => {
     const { executor, store } = makeDeps({
       sendMessage: vi.fn(async () => {

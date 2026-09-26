@@ -315,6 +315,65 @@ describe("compaction capability", () => {
     }
   });
 
+  it("forces compaction when the last message is a truncated turn even below threshold", async () => {
+    const { deps, stream } = makeDeps({});
+    const capability = compactionCapability(deps);
+    const hooks = capability.turnHooks!(agentId, sessionId);
+
+    const log = seededLog(3);
+    log.append("assistant/message", {
+      message: {
+        role: "assistant",
+        content: [{ type: "thinking", thinking: "That" }],
+        stopReason: "length",
+        usage: { input: 10, output: 1, cacheRead: 0, cacheWrite: 0, totalTokens: 100 },
+        timestamp: Date.now(),
+      } as never,
+    });
+
+    await hooks.afterTurn!(fakeAgent({}, stream), log);
+
+    const compactionEvents = log.events.filter((e) => e.type === "compaction/applied");
+    expect(compactionEvents).toHaveLength(1);
+    expect(compactionEvents[0].data.digestSource).toBe("llm");
+  });
+
+  it("records the observed window so later turns compact earlier", async () => {
+    const { deps, stream } = makeDeps({});
+    const capability = compactionCapability(deps);
+    const hooks = capability.turnHooks!(agentId, sessionId);
+
+    const log = seededLog(3);
+    log.append("assistant/message", {
+      message: {
+        role: "assistant",
+        content: [{ type: "thinking", thinking: "That" }],
+        stopReason: "length",
+        usage: { input: 10, output: 1, cacheRead: 0, cacheWrite: 0, totalTokens: 100 },
+        timestamp: Date.now(),
+      } as never,
+    });
+
+    await hooks.afterTurn!(fakeAgent({}, stream), log);
+    expect(log.events.filter((e) => e.type === "compaction/applied")).toHaveLength(1);
+
+    log.append("user/message", {
+      message: { role: "user", content: "continue", timestamp: Date.now() },
+    });
+    log.append("assistant/message", {
+      message: {
+        role: "assistant",
+        content: [{ type: "text", text: "ok" }],
+        stopReason: "stop",
+        usage: { input: 10, output: 1, cacheRead: 0, cacheWrite: 0, totalTokens: 5_000 },
+        timestamp: Date.now(),
+      } as never,
+    });
+
+    await hooks.afterTurn!(fakeAgent({}, stream), log);
+    expect(log.events.filter((e) => e.type === "compaction/applied")).toHaveLength(2);
+  });
+
   it("contributes to a composed hook chain like any other capability", async () => {
     const order: string[] = [];
     const other = { afterTurn: async () => order.push("other") };

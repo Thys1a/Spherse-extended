@@ -254,8 +254,11 @@ describe("rollback_turn tool", () => {  let dir: string;
     await fs.rm(dir, { recursive: true, force: true });
   });
 
-  function makeTool(refs: SideEffectRef[], denyFile?: string) {
-    const source = { listSideEffectsByTurn: (_sid: string, _seq: number) => refs };
+  function makeTool(refs: SideEffectRef[], denyFile?: string, knownTurns?: number[]) {
+    const source = {
+      listSideEffectsByTurn: (_sid: string, _seq: number) => refs,
+      listTurnSeqsWithSideEffects: (_sid: string) => knownTurns ?? (refs.length > 0 ? [4] : []),
+    };
     const stores = createStoreRegistry(createSilentLogger());
     stores.register(TURN_SIDE_EFFECTS_STORE_KEY, source);
     const getPolicy = denyFile
@@ -291,6 +294,13 @@ describe("rollback_turn tool", () => {  let dir: string;
     const res = await tool.execute("tc-rb-2", { turnSeq: 9 });
     expect(textOf(res)).toContain("No recorded side effects");
     expect(textOf(res)).toContain("0 undone");
+  });
+
+  it("lists known turns with side effects for an unknown turn", async () => {
+    const tool = makeTool([], undefined, [4]);
+    const res = await tool.execute("tc-rb-3", { turnSeq: 9 });
+    expect(textOf(res)).toContain("No recorded side effects");
+    expect(textOf(res)).toContain("Known turns with side effects in this session: 4.");
   });
 
   it("marks conflicted writes for manual handling", async () => {

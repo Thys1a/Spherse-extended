@@ -64,14 +64,14 @@ export function createReadFileTool(
           : `Error: \`${params.path}\` is a binary file (${formatSize(size)}). \`read_file\` only returns text and cannot read binary content.`;
         return {
           content: [{ type: "text" as const, text: hint }],
-          details: { path: params.path, binary: true, image, size },
+          details: { path: params.path, binary: true, image, size, totalLength: size, returnedLength: 0 },
         };
       }
 
       const content = buf.toString("utf-8");
       return {
         content: [{ type: "text" as const, text: content }],
-        details: { path: params.path, size: content.length },
+        details: { path: params.path, size: content.length, totalLength: content.length, returnedLength: content.length },
       };
     },
   };

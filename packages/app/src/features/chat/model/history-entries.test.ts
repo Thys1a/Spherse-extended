@@ -191,4 +191,25 @@ describe("history entries", () => {
     expect(assistant.error?.message).toBe("rate limit exceeded");
     expect(assistant.error?.code).toBe("TRANSIENT");
   });
+
+  it("parses thinking and diagnostics from a truncated turn", () => {
+    const parsed = parseHistoryEntries([
+      {
+        id: 7,
+        message: {
+          role: "assistant",
+          content: [{ type: "thinking", thinking: "That" }],
+          stopReason: "error",
+          rawStopReason: "length",
+          errorMessage: "truncated",
+          usage: { input: 100, output: 1, cacheRead: 20 },
+          promptEstimate: 120,
+        },
+      },
+    ]);
+    const assistant = parsed[0] as AssistantEntry;
+    expect(assistant._thinking).toBe("That");
+    expect(assistant._thinkingTruncated).toBe(true);
+    expect(assistant._diagnostics).toMatchObject({ promptTokens: 120, promptEstimate: 120, seq: 7 });
+  });
 });

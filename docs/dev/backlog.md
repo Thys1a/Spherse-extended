@@ -23,6 +23,10 @@
 - [ ] **desktop 契约测试缺位**：AGENTS.md 红线要求「core 的 PM 写入门面与 `SessionPort` 方法，消费方包（server/desktop）至少各有一条不 mock 被测方法本身的契约测试」；server 侧已有（`write-facade-contract.test.ts`），desktop 侧现有 `electron/ipc/project.test.ts`、`electron/server.test.ts` 均 vi.mock 了 server/门面，不满足红线。需补一条走真实门面（或真实 IPC 边界）的契约测试。
 - [ ] **补齐 dialog/sheet 关闭按钮 sr-only 文案 i18n**：`packages/app/src/components/ui/dialog.tsx:73` 与 `sheet.tsx:73` 的 `<span className="sr-only">Close</span>` 硬编码英文，屏幕阅读器可读的用户可见文案未走 `@spherse/i18n`（违反仓库红线）；替换为已有 `common.close` 键的 `t()` 即可（2026-08-30 关闭按钮尺寸调整 review 顺带发现）。
 - [ ] **chat WS close reason 截断到 123 字节**：`ws-chat.ts` 的 `socket.close(code, message)` 使用任意 core 错误消息；`ws` 对 >123 字节 reason 抛 `RangeError`，且抛出点在 `setCloseTimer` 之前、会派生 unhandled rejection，close 事件可能不触发导致 attachment lease 无法归还、channel 无法收口。方向：reason 截断（或只传 code），补超长错误消息用例。2026-09-15 hub review 发现（pre-existing）。
+- [ ] **提供手动压缩上下文入口**：core 压缩能力已就绪（planCompaction + maybeCompactLog），但 app/server 无触发入口，用户遇到上下文超限只能新开会话。方向：app 加「压缩上下文」按钮或 `/compact` 命令。参见 `docs/dev/bugfix/2026-09-21-empty-turn-on-context-overflow/design.md`（P1-2）
+- [ ] **`search_content` 总量闸下沉到扫描层**：32KB 总量闸现落在结果拼接层（扫满 100 条再丢弃），巨行极少命中时仍遍历全项目。方向：把字节预算传入 `searchDir`/`searchInFile` 做早停。参见 `docs/dev/bugfix/2026-09-22-search-content-oversized-result/design.md`（review 遗留）
+- [ ] **`read_file` 渐进式读取（offset/limit）**：大文件现整份进上下文，32KB 以上合法源文件无续读路径。方向：`read_file` 加 `offset`/`limit` 参数 + `details.totalLength/returnedLength` 已就位，直接可用。参见 `docs/dev/bugfix/2026-09-22-search-content-oversized-result/design.md`（P1-1 配套）
+- [ ] **sp 订阅 defer 行为变化说明**：T7 起同会话 `sp:` 订阅从恒跳过变为恒转一圈必触发 follow-up turn，且失败 turn 的 `turn/end(error)` 也会点燃订阅者。方向：在 trigger 相关用户文档注明该行为变化。参见 `docs/dev/bugfix/2026-09-23-repeated-tool-calls/design.md`
 
 ## 技术债（重构与收敛）
 

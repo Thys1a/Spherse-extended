@@ -1,6 +1,6 @@
 import type { ChatReplayEvent } from "@spherse/contracts";
 import { isUserMessage } from "./agent-event-parse";
-import { extractMessageText, extractToolCalls } from "./chat-tool-projection";
+import { extractMessageText, extractAssistantExtras, extractToolCalls } from "./chat-tool-projection";
 import { classifyErrorMessageString } from "./classify-error";
 import {
   isAssistantEntry,
@@ -136,6 +136,7 @@ function upsertPersistedAssistant(
       time,
       ...(message.stopReason !== undefined ? { stopReason: message.stopReason } : {}),
       ...(error ? { error } : {}),
+      ...extractAssistantExtras(message, seq),
     };
     return { ...state, entries: replaceAt(state.entries, index, updated) };
   }
@@ -149,6 +150,7 @@ function upsertPersistedAssistant(
     time,
     ...(message.stopReason !== undefined ? { stopReason: message.stopReason } : {}),
     ...(error ? { error } : {}),
+    ...extractAssistantExtras(message, seq),
   };
   return { ...state, entries: [...state.entries, entry] };
 }

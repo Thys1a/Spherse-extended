@@ -4,7 +4,7 @@ import {
   isToolResultMessage,
   isUserMessage,
 } from "./agent-event-parse";
-import { extractMessageText, extractToolCalls } from "./chat-tool-projection";
+import { extractMessageText, extractAssistantExtras, extractToolCalls } from "./chat-tool-projection";
 import { classifyErrorMessageString } from "./classify-error";
 import {
   findOptimisticUserIndex,
@@ -66,6 +66,7 @@ export function parseHistoryEntries(pageEntries: HistoryPageEntry[]): ChatEntry[
           ? { error: { message: errorMessage, code: classifyErrorMessageString(errorMessage) } }
           : {}),
         ...(message.timestamp !== undefined ? { time: message.timestamp } : {}),
+        ...extractAssistantExtras(message, id),
       };
       parsed.push(assistant);
       continue;

@@ -22,6 +22,17 @@ export function isTextContent(x: unknown): x is TextContent {
   return isObject(x) && x.type === "text" && typeof x.text === "string";
 }
 
+export interface ThinkingContentLike {
+  type: "thinking";
+  text?: unknown;
+  thinking?: unknown;
+  content?: unknown;
+}
+
+export function isThinkingContent(x: unknown): x is ThinkingContentLike {
+  return isObject(x) && x.type === "thinking";
+}
+
 export function isToolCall(x: unknown): x is ToolCall {
   return (
     isObject(x) &&

@@ -196,6 +196,38 @@ describe("TriggerManager", () => {
     createSessionSpy.mockRestore();
   });
 
+  it("onUserEvent with a source session carries the caller chain", async () => {
+    const entry = makeEventEntry({ eventName: "chain-event", message: "go" });
+    triggerManager.create(agentId, entry);
+    const sourceSession = await sessionRuntime.createSession(agentId);
+    const chain = sessionRuntime.getTriggerChain(sourceSession);
+    expect(chain).toEqual({ depth: 0, chainId: expect.any(String) });
+    expect(sessionRuntime.getTriggerChain("no-such-session")).toBeUndefined();
+
+    const sendMessageSpy = vi.spyOn(sessionRuntime, "sendMessage").mockResolvedValue(undefined);
+    const createSessionSpy = vi.spyOn(sessionRuntime, "createSession").mockResolvedValue("fake-session");
+    try {
+      triggerManager.onUserEvent("chain-event", "", { sessionId: sourceSession });
+      await new Promise((r) => setTimeout(r, 0));
+
+      expect(sendMessageSpy).toHaveBeenCalledWith(
+        "fake-session",
+        "go",
+        [],
+        expect.any(Function),
+        {
+          source: "triggered",
+          triggerName: "chain-event",
+          triggerDepth: 1,
+          triggerChainId: chain.chainId,
+        },
+      );
+    } finally {
+      sendMessageSpy.mockRestore();
+      createSessionSpy.mockRestore();
+    }
+  });
+
   it("onUserEvent does not fire non-matching event triggers", () => {
     const sendMessageSpy = vi.spyOn(sessionRuntime, "sendMessage").mockResolvedValue(undefined);
 

@@ -5,7 +5,6 @@
 
 ## 现象
 
-用户问："`a17679be` 这个的空回是怎么回事，比起其他的任务，这只是个小任务了也是读了一半就卡住"。
 
 任务只有一句话：`将全局快速命令补充到首页+注册为command`。事件流（`assistant-acb0db/sessions.db`，14 条事件、0 条 message）全貌：
 
@@ -124,3 +123,28 @@ results.push({ file: filePath, line: i + 1, text, truncated: raw.length > MAX_LI
 | 调用 | `core/src/session/slash.ts` + 前端 `slash-menu.ts` / `CommandCard.tsx` / `features/command-panel/` |
 
 `packages/presets/skills/` 下 8 个内置 skill 无一涉及 command。建议：① 新增 `spherse-create-command`（或并入 `spherse-guide`）；② 在 `spherse-guide` 补一张"我要做 X → 用什么"的路由表，把 `search_content` 从"第一反应"降为"最后手段"。这能同时消掉本条 bug 的**上游诱因**。
+
+## 代码调研补充（2026-09-26，对照仓库现状）
+
+- 主引证逐行命中：`searchInFile` 50-80、`MAX_RESULTS = 100` 在 127 行、`details.truncated` 在 173 行（`results.length >= MAX_RESULTS`）。确认三点：① 71-79 循环只做子串匹配 + `trimEnd()`，无单条长度上限；② 167-169 拼接同样无总量上限；③ 撞上单条巨行时 `matches < 100` ⇒ `truncated === false`，确为失真信号。P0-1 / P0-2 均为新增闸门、无现状冲突。
+- `binary-detect.ts` 全文件 5 行：`BINARY_SAMPLE_SIZE = 8192` + `subarray(0, 8192).includes(0x00)`，提案引用精确；"文本但超长单行直接放行"的结论成立。
+- 默认扫全项目根属实：135 行 `params.path ? resolveProjectPath(...) : root`，`path` 缺省即全根扫描；`includePatterns` 缺省即全类型（`matchesPattern` 23-29 空 pattern 返回 true）；`.spherse` 默认排除（`shouldSkipInSearch` 39-42 + 139-144 的 `include_meta` 守卫）。裸搜短词打爆的路径成立。
+- `read-file.ts`（全 78 行）：参数仅 `{ path }`（22-24），**无 `offset` / `limit`**；71 行整文件 `buf.toString("utf-8")` 后全量返回，`details` 仅 `{ path, size }`（74 行）或二进制分支的 `{ binary, image, size }`（67 行），无 `totalLength` / `returnedLength`。P1-1 渐进式读取与"让模型知道还有多少没看到"均为新增 API，现状确认。
+- 测试现状：`__tests__/tools/search-content.test.ts` 现有 7 用例（跨文件命中、大小写不敏感、子目录、`includePatterns`、跳过 dotfiles/node_modules、无命中、100 条截断），**无超长单行、无总量上限用例**，提案的三条新增测试无重叠、可直接追加。
+- 关联表复核：`presets/skills/` 下恰好 8 个 skill（`spherse-write-html` / `spherse-build-data-app` / `spherse-guide` / `spherse-use-ui-sdk` / `spherse-create-ui-theme` / `spherse-create-skill` / `spherse-create-agent-chat-theme` / `spherse-embed-chat`），"无一涉及 command"属实；command 存储链 `store/command.ts`（`commandsDir/*.md` + `gray-matter` + frontmatter `description/model` + `template`，128-131 行）确认，`store/project.ts:75` 的行号引用已漂移（现 `project.ts` 的 matter 相关在 198-199 行），实现 P1-2 前建议重对该引用。
+
+## 修复方案（2026-09-26 定稿；不做 skill、不做 `offset/limit` API、不做 `.card.json` 字段级跳过）
+
+截断常量（`MAX_LINE_CHARS` / `MAX_OUTPUT_CHARS` / `READ_FILE_LIMIT`）放一处共享（`packages/core/src/tools/output-limits.ts`），`search_content` 与 `read_file` 共用，避免两处漂移。
+
+改 `search-content.ts`：
+
+- `MAX_LINE_CHARS = 500`：超长 `slice` + `…(该行共 N 字符，已截断)`；
+- `MAX_OUTPUT_CHARS = 32 * 1024`（取 32KB 而非 64KB：500/行 × 100 条 ≈ 52KB，64KB 闸永不触发）：累积超限停扫，文末提示缩小关键词 / 指定 `path`；
+- `details`：`truncated` = 命中数 ≥ 100 **或**触总量闸**或**有截断行；加 `truncatedLines`、`maxLineLength`。
+
+改 `read-file.ts`：正文不截断（>32KB 合法源文件无续读路径，截断即引入新"读一半"；`offset/limit` 另立需求）；仅补 `details: { path, size, totalLength, returnedLength }`，本轮 `returnedLength === totalLength`。`list_files` 只回路径，评估后不改。
+
+测试（`search-content.test.ts` 追加）：单行 1MB JSON 命中 → 无全文、有截断标注、`maxLineLength`；100 × 1KB → 在 32KB 处停、`truncated === true`、总长 ≤ 32KB；小文件回归。`read-file` 加 details 用例。
+
+验证：`npm test --workspace=packages/core`。

@@ -46,6 +46,22 @@ export interface AssistantEntry extends EntryBase {
   streaming?: boolean;
   error?: EntryError;
   stopReason?: string;
+  _thinking?: string;
+  _thinkingTruncated?: boolean;
+  _diagnostics?: EntryDiagnostics;
+}
+
+export interface EntryDiagnostics {
+  provider?: string;
+  model?: string;
+  stopReason?: string;
+  rawStopReason?: string;
+  errorMessage?: string;
+  promptTokens?: number;
+  outputTokens?: number;
+  reasoningTokens?: number;
+  promptEstimate?: number;
+  seq?: number;
 }
 
 export interface ControlProjection {

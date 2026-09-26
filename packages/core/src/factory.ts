@@ -124,6 +124,7 @@ export async function assembleProject(
       sessionRuntime.sendMessage(sessionId, message, [], onEvent as never, meta),
     abortSession: (sessionId) => sessionRuntime.abortSession(sessionId),
     sessionExists: (agentId, sessionId) => sessionRuntime.sessionExists(agentId, sessionId),
+    getTriggerChain: (sessionId) => sessionRuntime.getTriggerChain(sessionId),
   };
 
   for (const capability of capabilities) {

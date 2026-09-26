@@ -2,7 +2,7 @@ import { useCallback, useMemo } from "react";
 import { useI18n } from "@spherse/i18n/react";
 import type { AgentSummary } from "../../lib/types";
 import type { FileChangeCard, HtmlCard } from "./types";
-import type { EntryError } from "./model/entry";
+import type { EntryDiagnostics, EntryError } from "./model/entry";
 import type { ToolItem } from "./model/tool-item";
 import { MarkdownContent } from "../../components/markdown-content/MarkdownContent";
 import { CopyButton } from "./CopyButton";
@@ -31,6 +31,9 @@ interface AssistantBubbleProps {
   error?: EntryError;
   timestamp?: number;
   runChanges?: FileChangeCard[];
+  thinking?: string;
+  thinkingTruncated?: boolean;
+  diagnostics?: EntryDiagnostics;
   showTime?: boolean;
   supersededToolCallIds?: Set<string>;
   onNavigateToPath?: (path: string) => void;
@@ -49,6 +52,9 @@ export function AssistantBubble({
   error,
   timestamp,
   runChanges,
+  thinking,
+  thinkingTruncated,
+  diagnostics,
   showTime,
   supersededToolCallIds,
   onNavigateToPath,
@@ -113,6 +119,19 @@ export function AssistantBubble({
           <div className="text-[11px] font-semibold mb-1 opacity-70">
             {agent.alias || agent.name}
           </div>
+          {thinking && (
+            <details className="mb-2 overflow-hidden rounded-lg border border-border" data-chat-thinking>
+              <summary className="cursor-pointer bg-muted px-3 py-1.5 text-xs text-muted-foreground">
+                {thinkingTruncated
+                  ? t("chat.thinking.titleTruncated", { count: thinking.length })
+                  : t("chat.thinking.title", { count: thinking.length })}
+              </summary>
+              <div className="flex items-start gap-1 p-3">
+                <div className="min-w-0 flex-1 whitespace-pre-wrap break-words font-mono text-xs">{thinking}</div>
+                <CopyButton text={thinking} />
+              </div>
+            </details>
+          )}
           <div className="text-sm">
             {streaming && text === "" ? (
               <ThinkingIndicator />
@@ -154,6 +173,7 @@ export function AssistantBubble({
             <ErrorMessageSection
               error={error.message}
               errorCode={error.code}
+              diagnostics={diagnostics}
               onRetry={error.retrySuppressed ? undefined : onRetry}
             />
           )}

@@ -7,6 +7,7 @@ import type { AccessPolicy, AccessPolicyProvider } from "../access/access-policy
 import { shouldSkipDirEntry } from "../utils/fs-walk.js";
 import { resolveProjectPath, isProjectMetaPath } from "../utils/path-safety.js";
 import { isBinaryBuffer } from "../utils/binary-detect.js";
+import { MAX_OUTPUT_CHARS, outputLimitNotice, truncateLine } from "./output-limits.js";
 import { PROJECT_META_DIR } from "../types.js";
 
 const SearchContentParams = Type.Object({
@@ -45,6 +46,8 @@ interface SearchResult {
   file: string;
   line: number;
   text: string;
+  truncated: boolean;
+  rawLength: number;
 }
 
 async function searchInFile(
@@ -70,10 +73,14 @@ async function searchInFile(
 
   for (let i = 0; i < lines.length && results.length < maxResults; i++) {
     if (lines[i].toLowerCase().includes(lowerQuery)) {
+      const raw = lines[i].trimEnd();
+      const { text, truncated } = truncateLine(raw);
       results.push({
         file: filePath,
         line: i + 1,
-        text: lines[i].trimEnd(),
+        text,
+        truncated,
+        rawLength: raw.length,
       });
     }
   }
@@ -129,7 +136,7 @@ export function createSearchContentTool(
   return {
     name: "search_content",
     label: "Search Content",
-    description: "Search file contents in the project for a query string. Returns matching file:line:text. Skips dotfiles, node_modules, and binary files. The .spherse metadata directory is excluded by default; set include_meta=true to search it.",
+    description: "Search file contents in the project for a query string. Returns matching file:line:text. Skips dotfiles, node_modules, and binary files. Long matching lines are truncated at 500 chars and total output is capped at 32KB; check details.truncated. The .spherse metadata directory is excluded by default; set include_meta=true to search it.",
     parameters: SearchContentParams,
     async execute(_toolCallId, params, _signal) {
       const searchPath = params.path ? resolveProjectPath(root, params.path) : root;
@@ -164,13 +171,40 @@ export function createSearchContentTool(
       const results: SearchResult[] = [];
       await searchDir(searchPath, params.query, params.includePatterns, results, MAX_RESULTS, root, policy, includeMeta);
 
-      const text = results.length > 0
-        ? results.map((r) => `${r.file}:${r.line}: ${r.text}`).join("\n")
-        : `No matches found for "${params.query}"`;
+      const truncatedLines = results.filter((r) => r.truncated).length;
+      const maxLineLength = results.reduce((max, r) => Math.max(max, r.rawLength), 0);
+      const hitLimit = results.length >= MAX_RESULTS;
+      let text: string;
+      let outputLimitHit = false;
+      const kept: string[] = [];
+      if (results.length === 0) {
+        text = `No matches found for "${params.query}"`;
+      } else {
+        let used = 0;
+        for (const r of results) {
+          const line = `${r.file}:${r.line}: ${r.text}`;
+          const add = kept.length === 0 ? line.length : line.length + 1;
+          if (used + add > MAX_OUTPUT_CHARS) {
+            outputLimitHit = true;
+            break;
+          }
+          kept.push(line);
+          used += add;
+        }
+        text = kept.join("\n");
+        if (outputLimitHit) text += `\n${outputLimitNotice()}`;
+      }
 
       return {
         content: [{ type: "text" as const, text }],
-        details: { query: params.query, matches: results.length, truncated: results.length >= MAX_RESULTS },
+        details: {
+          query: params.query,
+          matches: results.length,
+          returnedMatches: kept.length,
+          truncated: hitLimit || outputLimitHit || truncatedLines > 0,
+          truncatedLines,
+          maxLineLength,
+        },
       };
     },
   };

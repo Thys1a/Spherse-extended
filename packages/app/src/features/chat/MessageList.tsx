@@ -136,6 +136,9 @@ export function MessageList({
         error={bubble.error}
         timestamp={bubble.timestamp}
         runChanges={bubble.runChanges}
+        thinking={bubble.thinking}
+        thinkingTruncated={bubble.thinkingTruncated}
+        diagnostics={bubble.diagnostics}
         showTime={showTime}
         messageId={bubble.id}
         supersededToolCallIds={supersededToolCallIds}

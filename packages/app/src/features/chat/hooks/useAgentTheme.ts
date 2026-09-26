@@ -72,8 +72,16 @@ function splitSelectors(selectorText: string): string[] {
   let depth = 0;
   let start = 0;
   let inString: string | null = null;
+  let inComment = false;
   for (let i = 0; i < selectorText.length; i++) {
     const ch = selectorText[i];
+    if (inComment) {
+      if (ch === "*" && selectorText[i + 1] === "/") {
+        inComment = false;
+        i++;
+      }
+      continue;
+    }
     if (inString) {
       if (ch === "\\") {
         i++;
@@ -84,6 +92,11 @@ function splitSelectors(selectorText: string): string[] {
     }
     if (ch === '"' || ch === "'") {
       inString = ch;
+      continue;
+    }
+    if (ch === "/" && selectorText[i + 1] === "*") {
+      inComment = true;
+      i++;
       continue;
     }
     if (ch === "(" || ch === "[") depth++;
@@ -97,31 +110,80 @@ function splitSelectors(selectorText: string): string[] {
   return out;
 }
 
+const LEADING_COMMENTS = /^(?:\s*\/\*[\s\S]*?\*\/)+/;
+
+function stripLeadingComments(text: string): { lead: string; rest: string } {
+  const lead = LEADING_COMMENTS.exec(text)?.[0] ?? "";
+  return { lead, rest: text.slice(lead.length) };
+}
+
 function scopeSelector(selector: string, scope: string): string {
-  const trimmed = selector.trim();
-  if (!trimmed) return trimmed;
-  if (trimmed.startsWith("&")) return scope + trimmed.slice(1);
-  if (trimmed.startsWith("[data-chat-root]")) {
-    return `[data-chat-root]${scope}${trimmed.slice("[data-chat-root]".length)}`;
+  const { lead, rest } = stripLeadingComments(selector);
+  const trimmed = rest.trim();
+  if (!trimmed) return lead ? "" : trimmed;
+  let scoped: string;
+  if (trimmed.startsWith("&")) {
+    scoped = scope + trimmed.slice(1);
+  } else if (trimmed.startsWith("[data-chat-root]")) {
+    scoped = `[data-chat-root]${scope}${trimmed.slice("[data-chat-root]".length)}`;
+  } else if (trimmed.startsWith("[data-chat-float-root]")) {
+    scoped = trimmed;
+  } else {
+    const rootMatch = /^(:(root)|html|body)(?=[\s:.,[#>+~]|$)/.exec(trimmed);
+    scoped = rootMatch ? scope + trimmed.slice(rootMatch[0].length) : `${scope} ${trimmed}`;
   }
-  if (trimmed.startsWith("[data-chat-float-root]")) {
-    return trimmed;
+  return lead ? `${lead.trimStart()} ${scoped}` : scoped;
+}
+
+function indexOfRuleBodyStart(block: string): number {
+  let inComment = false;
+  let inString: string | null = null;
+  for (let i = 0; i < block.length; i++) {
+    const ch = block[i];
+    const next = block[i + 1];
+    if (inComment) {
+      if (ch === "*" && next === "/") {
+        inComment = false;
+        i++;
+      }
+      continue;
+    }
+    if (inString) {
+      if (ch === "\\") {
+        i++;
+        continue;
+      }
+      if (ch === inString) inString = null;
+      continue;
+    }
+    if (ch === "/" && next === "*") {
+      inComment = true;
+      i++;
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      inString = ch;
+      continue;
+    }
+    if (ch === "{") return i;
   }
-  const rootMatch = /^(:(root)|html|body)(?=[\s:.,[#>+~]|$)/.exec(trimmed);
-  if (rootMatch) return scope + trimmed.slice(rootMatch[0].length);
-  return `${scope} ${trimmed}`;
+  return -1;
 }
 
 function scopeRuleBlock(block: string, scope: string): string {
-  const brace = block.indexOf("{");
+  const brace = indexOfRuleBodyStart(block);
   if (brace === -1) return block;
-  const selectorText = block.slice(0, brace).trim();
+  const { lead, rest } = stripLeadingComments(block.slice(0, brace));
+  const selectorText = rest.trim();
   const body = block.slice(brace);
+  if (!selectorText) return block;
   if (!selectorText.startsWith("@")) {
-    const scoped = splitSelectors(selectorText)
+    const parts = splitSelectors(selectorText);
+    const scoped = parts
       .map((s) => scopeSelector(s, scope))
+      .filter((s, i) => s !== "" || !parts[i].includes("/*"))
       .join(", ");
-    return `${scoped} ${body}`;
+    return lead ? `${lead} ${scoped} ${body}` : `${scoped} ${body}`;
   }
   const nameMatch = /^@([a-z-]+)/i.exec(selectorText);
   const name = nameMatch?.[1].toLowerCase() ?? "";
@@ -132,7 +194,7 @@ function scopeRuleBlock(block: string, scope: string): string {
   const scopedInner = splitTopLevel(inner)
     .map((part) => scopeRuleBlock(part, scope))
     .join("\n");
-  return `${selectorText} {\n${scopedInner}\n}`;
+  return lead ? `${lead} ${selectorText} {\n${scopedInner}\n}` : `${selectorText} {\n${scopedInner}\n}`;
 }
 
 export function scopeAgentThemeCss(css: string, instanceId: string): string {

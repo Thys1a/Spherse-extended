@@ -22,7 +22,10 @@ export class SessionManager {
 
   constructor(deps: RuntimeDeps, options?: { initialRunConfig?: RunConfigHolder }) {
     this.deps = deps;
-    const source: TurnSideEffectSource = { listSideEffectsByTurn: this.listSideEffectsByTurn.bind(this) };
+    const source: TurnSideEffectSource = {
+      listSideEffectsByTurn: this.listSideEffectsByTurn.bind(this),
+      listTurnSeqsWithSideEffects: this.listTurnSeqsWithSideEffects.bind(this),
+    };
     deps.stores.register(TURN_SIDE_EFFECTS_STORE_KEY, source);
     this.runConfigHolder = options?.initialRunConfig ?? new RunConfigHolder();
     deps.projectStore.on("agent_updated", (payload: AgentChangePayload) => {
@@ -272,6 +275,18 @@ export class SessionManager {
       if (event.type === "tool/result") refs.push(...(event.data.sideEffects ?? []));
     }
     return refs;
+  }
+
+  listTurnSeqsWithSideEffects(sessionId: string): number[] {
+    const live = this.sessions.get(sessionId);
+    const events =
+      live !== undefined ? [...live.currentEvents] : this.readPersistedSessionEvents(sessionId);
+    const starts = events.filter((event) => event.type === "turn/start").map((event) => event.seq);
+    return starts.filter((turnSeq) => this.listSideEffectsByTurn(sessionId, turnSeq).length > 0);
+  }
+
+  getTriggerChain(sessionId: string): { depth: number; chainId: string } | undefined {
+    return this.sessions.get(sessionId)?.getTriggerChain();
   }
 
   private readPersistedSessionEvents(sessionId: string): SessionEvent[] {

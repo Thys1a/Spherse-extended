@@ -783,6 +783,10 @@ export const zhCN = {
   "chat.error.openSettings": "打开设置",
   // 失败的助手回复或发送失败的用户消息上的「重试」按钮文案
   "chat.retry": "重试",
+  "chat.thinking.title": "思考 · {count} 字",
+  "chat.thinking.titleTruncated": "思考 · {count} 字 · 已截断",
+  "chat.error.detail.title": "诊断信息",
+  "chat.error.detail.copy": "复制诊断信息",
   "chat.sendFailed": "发送失败",
   // 会话历史加载失败时，ConnectionBanner 中显示的提示文案
   "chat.historyLoadFailed": "会话历史加载失败",

@@ -13,14 +13,93 @@ import {
   isRenderCardDetails,
   isRenderCardResultDetails,
   isTextContent,
+  isThinkingContent,
   isToolCall,
 } from "./agent-event-parse";
 import type { ChatCard, CommandCard, ToolCallInfo } from "../types";
+import type { AssistantEntry, EntryDiagnostics } from "./entry";
 
 export function extractMessageText(content: Message["content"]): string {
   if (typeof content === "string") return content;
   if (!Array.isArray(content)) return "";
   return content.filter(isTextContent).map((item) => item.text).join("");
+}
+
+export function extractMessageThinking(content: Message["content"]): string {
+  if (typeof content === "string" || !Array.isArray(content)) return "";
+  const out: string[] = [];
+  for (const item of content) {
+    if (!isThinkingContent(item)) continue;
+    if (typeof item.text === "string" && item.text !== "") out.push(item.text);
+    else if (typeof item.thinking === "string") out.push(item.thinking);
+    else if (typeof item.content === "string") out.push(item.content);
+  }
+  return out.join("");
+}
+
+export function extractMessageDiagnostics(message: {
+  provider?: unknown;
+  model?: unknown;
+  stopReason?: unknown;
+  rawStopReason?: unknown;
+  errorMessage?: unknown;
+  usage?: { input?: unknown; output?: unknown; cacheRead?: unknown; reasoning?: unknown } | null;
+  promptEstimate?: unknown;
+}): EntryDiagnostics {
+  const usage = message.usage;
+  const diagnostics: EntryDiagnostics = {
+    ...(typeof message.provider === "string" ? { provider: message.provider } : {}),
+    ...(typeof message.model === "string" ? { model: message.model } : {}),
+    ...(typeof message.stopReason === "string" ? { stopReason: message.stopReason } : {}),
+    ...(typeof message.rawStopReason === "string" ? { rawStopReason: message.rawStopReason } : {}),
+    ...(typeof message.errorMessage === "string" ? { errorMessage: message.errorMessage } : {}),
+    ...(typeof message.promptEstimate === "number" ? { promptEstimate: message.promptEstimate } : {}),
+  };
+  if (usage !== undefined && usage !== null && typeof usage === "object") {
+    const { input, output, cacheRead, reasoning } = usage as Record<string, unknown>;
+    if (typeof input === "number" && typeof cacheRead === "number") {
+      diagnostics.promptTokens = input + cacheRead;
+    } else if (typeof input === "number") {
+      diagnostics.promptTokens = input;
+    }
+    if (typeof output === "number") diagnostics.outputTokens = output;
+    if (typeof reasoning === "number") diagnostics.reasoningTokens = reasoning;
+  }
+  return diagnostics;
+}
+
+export interface AssistantExtrasSource {
+  content: Message["content"];
+  stopReason?: unknown;
+  rawStopReason?: unknown;
+  errorMessage?: unknown;
+  provider?: unknown;
+  model?: unknown;
+  usage?: {
+    input?: unknown;
+    output?: unknown;
+    cacheRead?: unknown;
+    reasoning?: unknown;
+  } | null;
+  promptEstimate?: unknown;
+}
+
+export function extractAssistantExtras(
+  message: AssistantExtrasSource,
+  seq?: number,
+): Pick<AssistantEntry, "_thinking" | "_thinkingTruncated" | "_diagnostics"> {
+  const extras: Pick<AssistantEntry, "_thinking" | "_thinkingTruncated" | "_diagnostics"> = {};
+  const thinking = extractMessageThinking(message.content);
+  if (thinking !== "") extras._thinking = thinking;
+  const truncated = message.stopReason === "length" || message.rawStopReason === "length";
+  if (truncated) extras._thinkingTruncated = true;
+  if (message.stopReason === "error" || truncated) {
+    extras._diagnostics = {
+      ...extractMessageDiagnostics(message),
+      ...(seq !== undefined ? { seq } : {}),
+    };
+  }
+  return extras;
 }
 
 export function extractToolCalls(
