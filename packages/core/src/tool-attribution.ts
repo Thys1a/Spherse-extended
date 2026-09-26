@@ -33,6 +33,7 @@ export interface SideEffectRef {
 
 export interface TurnSideEffectSource {
   listSideEffectsByTurn(sessionId: string, turnSeq: number): SideEffectRef[];
+  listTurnSeqsWithSideEffects(sessionId: string): number[];
 }
 
 export const TURN_SIDE_EFFECTS_STORE_KEY = "turnSideEffects";

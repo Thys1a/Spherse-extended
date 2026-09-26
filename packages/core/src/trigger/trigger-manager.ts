@@ -24,6 +24,7 @@ export class TriggerManager extends EventEmitter {
   private readonly logger: Logger;
   private readonly scheduler: TriggerScheduler;
   private readonly executor: TriggerExecutor;
+  private readonly session: SessionPort;
 
   constructor(deps: {
     sessionRuntime: SessionPort;
@@ -31,6 +32,7 @@ export class TriggerManager extends EventEmitter {
     logger?: Logger;
   }) {
     super();
+    this.session = deps.sessionRuntime;
     this.projectStore = deps.projectStore;
     this.logger = deps.logger ?? createSilentLogger();
     this.executor = new TriggerExecutor({
@@ -71,9 +73,15 @@ export class TriggerManager extends EventEmitter {
     this.scheduler.onTimeTick();
   }
 
-  onUserEvent(eventName: string, payload: string): number {
+  onUserEvent(eventName: string, payload: string, source?: { sessionId?: string }): number {
     if (eventName.startsWith("sp:")) return 0;
-    return this.fireMatching(eventName, payload);
+    const chain =
+      source?.sessionId !== undefined ? this.session.getTriggerChain?.(source.sessionId) : undefined;
+    return this.fireMatching(
+      eventName,
+      payload,
+      chain !== undefined ? { depth: chain.depth, chainId: chain.chainId } : undefined,
+    );
   }
 
   onInternalEvent(eventName: string, payload: TurnEventPayload): number {

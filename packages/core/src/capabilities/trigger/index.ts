@@ -43,7 +43,7 @@ export function createTriggerCapability(deps: TriggerCapabilityDeps): TriggerCap
     tools: (host) => {
       if (!manager) throw new Error("trigger capability used before init");
       return [
-        createEmitTriggerEventTool(manager),
+        createEmitTriggerEventTool(manager, host.sessionId),
         withApproval(
           createManageTriggerTool(manager, deps.projectStore, host.agentId),
           host.approvalGate,

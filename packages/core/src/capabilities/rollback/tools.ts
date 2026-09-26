@@ -62,7 +62,13 @@ export function createRollbackTurnTool(deps: RollbackTurnDeps): AgentTool<typeof
       const lines = [`rollback turn ${params.turnSeq}: ${undone.length} undone, ${skipped.length} skipped, ${failed.length} failed.`];
       if (skipped.length > 0) lines.push(`Needs manual handling: ${skipped.join("; ")}`);
       if (failed.length > 0) lines.push(`Failed: ${failed.join("; ")}`);
-      if (refs.length === 0) lines.push("No recorded side effects for this turn (unknown turn, no writes, or writes without undo records).");
+      if (refs.length === 0) {
+        lines.push("No recorded side effects for this turn (unknown turn, no writes, or writes without undo records).");
+        const known = source.listTurnSeqsWithSideEffects(deps.sessionId);
+        if (known.length > 0) {
+          lines.push(`Known turns with side effects in this session: ${known.join(", ")}.`);
+        }
+      }
       return {
         content: [{ type: "text" as const, text: lines.join(" ") }],
         details: { sessionId: deps.sessionId, turnSeq: params.turnSeq, undone, skipped, failed },

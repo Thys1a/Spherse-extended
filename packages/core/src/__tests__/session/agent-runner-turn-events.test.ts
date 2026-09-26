@@ -277,6 +277,73 @@ describe("AgentRunner turn events (R2.1)", () => {
     }
   });
 
+  it("blocks the third consecutive identical tool call", async () => {
+    const agentStore = (runtime.projectManager as any).projectStore.getAgent(agentId);
+    const sessionId = agentStore.sessions.createSession();
+    const runner = await AgentRunner.init(deps, agentId, sessionId);
+    const agent = runner.agentRef as any;
+    const call = (id: string, args: unknown) => ({
+      toolCall: { id, name: "read_file", arguments: args },
+      args,
+    });
+
+    expect(await agent.beforeToolCall(call("t1", { path: "a.md" }))).toBeUndefined();
+    expect(await agent.beforeToolCall(call("t2", { path: "a.md" }))).toBeUndefined();
+    const blocked = await agent.beforeToolCall(call("t3", { path: "a.md" }));
+    expect(blocked).toMatchObject({ block: true, terminate: true });
+    expect(blocked.reason).toContain("loop guard");
+  });
+
+  it("resets the repeat streak on different arguments", async () => {
+    const agentStore = (runtime.projectManager as any).projectStore.getAgent(agentId);
+    const sessionId = agentStore.sessions.createSession();
+    const runner = await AgentRunner.init(deps, agentId, sessionId);
+    const agent = runner.agentRef as any;
+    const call = (id: string, args: unknown) => ({
+      toolCall: { id, name: "read_file", arguments: args },
+      args,
+    });
+
+    expect(await agent.beforeToolCall(call("t1", { path: "a.md" }))).toBeUndefined();
+    expect(await agent.beforeToolCall(call("t2", { path: "a.md" }))).toBeUndefined();
+    expect(await agent.beforeToolCall(call("t3", { path: "b.md" }))).toBeUndefined();
+    expect(await agent.beforeToolCall(call("t4", { path: "b.md" }))).toBeUndefined();
+  });
+
+  it("stops the turn after exceeding the per-turn tool call budget", async () => {
+    const agentStore = (runtime.projectManager as any).projectStore.getAgent(agentId);
+    const sessionId = agentStore.sessions.createSession();
+    const runner = await AgentRunner.init(deps, agentId, sessionId);
+    const stop = (runner.agentRef as any).shouldStopAfterTurn;
+    const message = { stopReason: "stop" };
+
+    expect(await stop({ message, toolResults: [] })).toBe(false);
+    const results = Array.from({ length: 31 }, (_, i) => ({ toolCallId: `t${i}` }));
+    expect(await stop({ message, toolResults: results })).toBe(true);
+  });
+
+  it("stops the turn after consecutive truncated turns and resets on progress", async () => {
+    const agentStore = (runtime.projectManager as any).projectStore.getAgent(agentId);
+    const sessionId = agentStore.sessions.createSession();
+    const runner = await AgentRunner.init(deps, agentId, sessionId);
+    const stop = (runner.agentRef as any).shouldStopAfterTurn;
+    const truncated = { stopReason: "length" };
+    const normal = { stopReason: "stop" };
+
+    expect(await stop({ message: truncated, toolResults: [] })).toBe(false);
+    expect(await stop({ message: normal, toolResults: [] })).toBe(false);
+    expect(await stop({ message: truncated, toolResults: [] })).toBe(false);
+    expect(await stop({ message: truncated, toolResults: [] })).toBe(false);
+    expect(await stop({ message: truncated, toolResults: [] })).toBe(true);
+  });
+
+  it("exposes the current trigger chain", async () => {
+    const agentStore = (runtime.projectManager as any).projectStore.getAgent(agentId);
+    const sessionId = agentStore.sessions.createSession();
+    const runner = await AgentRunner.init(deps, agentId, sessionId);
+    expect(runner.getTriggerChain()).toEqual({ depth: 0, chainId: expect.any(String) });
+  });
+
   it("retry never emits sp:user-message (the retried turn still reports its own messages)", async () => {
     runConfig.update({ defaultModel: "provider/model" });
     const agentStore = (runtime.projectManager as any).projectStore.getAgent(agentId);

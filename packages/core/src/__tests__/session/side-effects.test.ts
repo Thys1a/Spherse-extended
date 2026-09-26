@@ -118,6 +118,7 @@ describe("turn side effects end to end (R2.5a)", () => {
         toolResults[0].data.sideEffects,
       );
       expect(runtime.sessionRuntime.listSideEffectsByTurn(sessionId, 999)).toEqual([]);
+      expect(runtime.sessionRuntime.listTurnSeqsWithSideEffects(sessionId)).toEqual([turnStart.seq]);
     } finally {
       getChatStreamFnMock.mockImplementation(() => vi.fn() as never);
     }

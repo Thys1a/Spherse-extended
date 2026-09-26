@@ -33,6 +33,37 @@ import {
 
 export type RunnerEventHandler = (event: AgentEvent | SessionControlEvent) => void;
 
+export const MAX_TOOL_CALLS_PER_TURN = 30;
+export const MAX_SAME_TOOLCALL_REPEAT = 3;
+export const MAX_CONSECUTIVE_TRUNCATED_TURNS = 3;
+
+export type ToolLoopStopReason = "tool-call-budget" | "tool-call-repeat" | "truncated-loop";
+
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  if (value !== null && typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([key, entry]) => `${JSON.stringify(key)}:${canonicalJson(entry)}`);
+    return `{${entries.join(",")}}`;
+  }
+  try {
+    return JSON.stringify(value) ?? "null";
+  } catch {
+    return "unknown";
+  }
+}
+
+function loopStopReasonText(reason: ToolLoopStopReason, toolName?: string): string {
+  if (reason === "tool-call-repeat") {
+    return `Tool call loop guard: "${toolName ?? "unknown tool"}" with identical arguments was blocked ${MAX_SAME_TOOLCALL_REPEAT} times in a row; stopping this turn to avoid an infinite loop.`;
+  }
+  if (reason === "truncated-loop") {
+    return `Tool call loop guard: ${MAX_CONSECUTIVE_TRUNCATED_TURNS} consecutive responses were cut off by the output limit; stopping this turn to avoid an infinite loop.`;
+  }
+  return `Tool call loop guard: exceeded ${MAX_TOOL_CALLS_PER_TURN} tool calls in a single turn; stopping to avoid an infinite loop.`;
+}
+
 export class AgentRunner {
   private eventLog: SessionEventLog | null = null;
   private inFlight = false;
@@ -42,6 +73,11 @@ export class AgentRunner {
   private capabilityMiddlewares: ReadonlyArray<EventMiddleware<AgentEvent>> = [];
   private pendingReload = false;
   private pendingPromptEstimate: number | null = null;
+  private toolCallTotal = 0;
+  private lastToolKey: string | null = null;
+  private sameToolRepeat = 0;
+  private lengthStreak = 0;
+  private toolLoopStop: ToolLoopStopReason | null = null;
 
   private constructor(
     private readonly agent: Agent,
@@ -74,8 +110,10 @@ export class AgentRunner {
       deps.attribution?.begin(sessionId, context.toolCall.id, {
         turnSeq: runner.currentTurnSeq(),
       });
-      return undefined;
+      return runner.guardToolCall(context.toolCall.name, context.args);
     };
+    agent.shouldStopAfterTurn = async ({ message, toolResults }) =>
+      runner.checkToolLoopStop(message, toolResults.length);
     runner.turnHooks = composeTurnHooks(
       deps.createTurnHooks ? [deps.createTurnHooks(agentId, sessionId)] : [],
     );
@@ -153,6 +191,7 @@ export class AgentRunner {
     this.inFlight = true;
     this.turnDepth = meta?.triggerDepth ?? 0;
     this.turnChainId = meta?.triggerChainId ?? randomUUID();
+    this.resetToolLoopGuard();
     let sanitizer: AttachmentSanitizer | null = null;
     let unsubscribe: (() => void) | undefined;
     let restoreSink: (() => void) | undefined;
@@ -282,6 +321,7 @@ export class AgentRunner {
         { type: "turn/start", data: {} },
       ]);
       this.syncBufferFromLog();
+      this.resetToolLoopGuard();
       this.pendingPromptEstimate = readCurrentTokens(
         this.agent.state.messages,
         this.agent.state.systemPrompt,
@@ -596,6 +636,65 @@ export class AgentRunner {
       if (events[i].type === "turn/start") return events[i].seq;
     }
     return 0;
+  }
+
+  getTriggerChain(): { depth: number; chainId: string } {
+    return { depth: this.turnDepth, chainId: this.turnChainId };
+  }
+
+  private resetToolLoopGuard(): void {
+    this.toolCallTotal = 0;
+    this.lastToolKey = null;
+    this.sameToolRepeat = 0;
+    this.lengthStreak = 0;
+    this.toolLoopStop = null;
+  }
+
+  private guardToolCall(
+    toolName: string,
+    args: unknown,
+  ): { block: true; terminate: true; reason: string } | undefined {
+    if (this.toolLoopStop !== null) {
+      return { block: true, terminate: true, reason: loopStopReasonText(this.toolLoopStop, toolName) };
+    }
+    const key = `${toolName}\n${canonicalJson(args)}`;
+    if (key === this.lastToolKey) {
+      this.sameToolRepeat += 1;
+    } else {
+      this.lastToolKey = key;
+      this.sameToolRepeat = 1;
+    }
+    if (this.sameToolRepeat >= MAX_SAME_TOOLCALL_REPEAT) {
+      this.toolLoopStop = "tool-call-repeat";
+      this.deps.logger.warn(
+        { sessionId: this.sessionId, toolName },
+        "tool call loop guard stopped turn: same tool and arguments repeated",
+      );
+      return { block: true, terminate: true, reason: loopStopReasonText(this.toolLoopStop, toolName) };
+    }
+    return undefined;
+  }
+
+  private checkToolLoopStop(message: { stopReason?: string }, resultCount: number): boolean {
+    this.toolCallTotal += resultCount;
+    if (message.stopReason === "length") {
+      this.lengthStreak += 1;
+    } else {
+      this.lengthStreak = 0;
+    }
+    if (this.toolLoopStop !== null) return true;
+    if (this.toolCallTotal > MAX_TOOL_CALLS_PER_TURN) {
+      this.toolLoopStop = "tool-call-budget";
+    } else if (this.lengthStreak >= MAX_CONSECUTIVE_TRUNCATED_TURNS) {
+      this.toolLoopStop = "truncated-loop";
+    } else {
+      return false;
+    }
+    this.deps.logger.warn(
+      { sessionId: this.sessionId, reason: this.toolLoopStop },
+      "tool call loop guard stopped turn",
+    );
+    return true;
   }
 
   private appendMessageEvent(message: unknown): void {

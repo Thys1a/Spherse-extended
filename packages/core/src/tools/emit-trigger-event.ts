@@ -17,6 +17,7 @@ const EmitTriggerEventParams = Type.Object({
 
 export function createEmitTriggerEventTool(
   triggerManager: TriggerManager,
+  sessionId: string,
 ): AgentTool<typeof EmitTriggerEventParams> {
   return {
     name: "emit_trigger_event",
@@ -50,7 +51,7 @@ export function createEmitTriggerEventTool(
       }
 
       const payload = params.payload ?? "";
-      const firedCount = triggerManager.onUserEvent(eventName, payload);
+      const firedCount = triggerManager.onUserEvent(eventName, payload, { sessionId });
 
       if (firedCount === 0) {
         return {
