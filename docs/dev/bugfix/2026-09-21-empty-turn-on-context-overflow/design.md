@@ -1,12 +1,11 @@
 # 聊天「空回」：上游截断被记为 completed + 压缩闸门失效
 
 调研时间：2026-09-21
-现场：项目 `D:\note\AINovelGame\games\spherse框架`，agent `assistant-acb0db`，会话库 `.spherse/agents/assistant-acb0db/sessions.db`
 状态：**修复草案（未实施）**
 
 ## 一、现象
 
-助手连续多轮回复为空气泡：没有报错、没有重试入口，点「继续」依旧空回，只有新开会话才恢复。集中在「导入酒馆角色卡 / 酒馆卡适配 / 主题修复」这类**工具输出极重的长会话**。
+助手连续多轮回复为空气泡：没有报错、没有重试入口，点「继续」依旧空回，只有新开会话才恢复。集中在**工具输出极重的长会话**。
 
 ## 二、证据（来自 events 表）
 
@@ -14,10 +13,10 @@
 
 | 会话 | 用户消息 | 助手轮 | compaction | 失败时 prompt | output |
 |---|---|---|---|---|---|
-| 导入酒馆角色卡 `86e0d903` | 2 | 33 | 0 | 126,719 | 1（正文就一个「用户」） |
-| 导入酒馆角色卡爱豆 `8a98ebef` | 3 | 33 | 0 | 135,880 | 1 |
-| 主题修复 `4924b298` | 2 | 20 | 0 | 125,161 | 1 |
-| 酒馆卡适配 `00a5fa81` | 59 | 320 | 25 | 184,606 | 1 × 6 |
+|  `86e0d903` | 2 | 33 | 0 | 126,719 | 1（正文就一个「用户」） |
+|  `8a98ebef` | 3 | 33 | 0 | 135,880 | 1 |
+|  `4924b298` | 2 | 20 | 0 | 125,161 | 1 |
+|  `00a5fa81` | 59 | 320 | 25 | 184,606 | 1 × 6 |
 
 时间线（同一模型 `custom-go/deepseek-v4.1-flash`）：
 
@@ -345,5 +344,53 @@ app 侧加「压缩上下文」按钮或 `/compact` 命令 —— 目前 core �
 - 大文件的首次 `read_file` 只回前 N KB + 行数/结构摘要，让 agent 显式续读（`offset` / `limit`）。当前 `read_file` 对 40 KB 的 `index.html` 是整份进入上下文的。
 
 **与既有方案的关系**：P0-1（不静默）与 P0-3（溢出即强制压缩 + 记实测窗口）依旧必要 —— 它们负责"发生时被看见 / 能自愈"；**P0-5/6/7 负责"别让一次工具返回就把窗口打爆"**，是从源头减少发生频率。两者不冲突，都要做。
+
+## 九、代码调研补充（2026-09-26，对照仓库现状）
+
+- `agent-runner.ts`：提案记的 `:498` 已漂移，`persistMiddleware` 现位于 540-570，逻辑与提案一致——551-556 仅 `error` / `aborted` 判失败，其余（含 `length`）一律 `completed`；`appendMessageEvent`（580-583）原样落盘，无 `markTruncated`。`retryLastTurn` 现位于 240-264（提案记 253，门限在 259 行 `stopReason !== "error"` 即抛 `ValidationError`），`withdrawLastTurn` 在 301-323。P0-1 的切入点（`appendMessageEvent` + `persistMiddleware`）准确。
+- `context/compaction.ts`：`planCompaction` 93-128，113 行闸门 `if (promptCount <= keepRecentPrompts && turnCount <= maxTurns)` 与提案引用逐字一致；默认值 `thresholdRatio 0.75`（97）、`keepRecentPrompts 20` / `maxTurns 40`（98-99）确认。`CompactionOptions`（12-18）确实无 `hardRatio` / `targetRatio`，P0-2 为新增字段。`estimateTokens` 在同包 `token-estimate.ts` 已存在，可直接 import。
+- `capabilities/compaction/transform.ts`（全 80 行）：26 行 `planCompaction(messages, { currentTokens, contextWindow })` 未传任何阈值覆盖，P0-3"阈值降 0 强制压"无现状钩子，需新增。另注意 24 行兜底 `?? 32768`：当模型元数据缺 `contextWindow` 时压缩按 32k 触发，比提案讨论的 131k 更激进，P1-1 改默认值时需同时审这一路，避免双重阈值打架。49-55 行已有"LLM 摘要失败 → `digestSource: mechanical` 兜底"路径，与 8.7 的观察一致。
+- `model-providers/catalog.ts`：`CUSTOM_PROVIDER_DEFAULTS` 正在 99-102（`contextWindow: 131072, maxTokens: 131072`），引用精确；133-146 显示自定义模型无显式值时双双取该默认，P1-1 口径（A 保守默认 / B 显式必填）切入点准确。
+- 前端引用需更正：`chat-session-reducer.ts:127` 已不存在，现逻辑在 `model/entry-reducer.ts:266`（`stopReason === "error"` 才记错）；`chat-tool-projection.ts:20` 命中精确——`extractMessageText`（20-24）只收 `isTextContent`，`thinking` 块确实被丢弃，P0-4a 前提成立。另附一条：`entry-reducer.ts:334` 对"无文本、无错误、无 toolCall"的消息直接丢弃/合并，空回在 UI 层的"空气泡"有这一层参与，P0-4a 联调时需覆盖。
+- `ErrorMessageSection.tsx`（全 75 行）：现有折叠只渲染 `detail` 文本 + 可选 auth 设置入口/重试按钮（ props 仅 `error / errorCode / onRetry`），无诊断字段、无复制按钮，P0-4b 为纯新增。`entry.ts:48` 的 `stopReason?: string` 与 contracts `websocket.ts:88-98` 的 `turn/end.reason ∈ {completed, aborted, error}` 确认"不新增 `truncated`"的取舍成立——新 reason 要动 schema + WS 校验 + reducer + i18n。
+- 上游机制部分成立：pi-ai `simple-options.js` 确有共享预算机制（`MIN_ANSWER_TOKENS = 1024`、`clampThinkingBudgetToAnswerRoom`、`adjustMaxTokensForThinking`），`openai-completions.js:390` 保留 `rawStopReason`；但提案记的 `openai-completions.js:737-740` 为旧版本行号，现文件仅 400 余行，对应逻辑已迁移到 `simple-options.js`，实现前按现版本重对一遍行号。
+- `token-estimate.ts:85-90`：`readCurrentTokens` 优先取最近 `usage.totalTokens`，否则本地估算（CJK 按 1.5 字符/token、英文按 4 字符/token）。错误轮 `usage` 缺失时只能走估算——这正是 P1-4（发送前估算落盘）要补的缺口，现状确认无该字段。
+- 未完全复核：P1-5"正常发送路径无悬空 toolCall 清理"——`sanitizeToolCallPairs`（`compaction.ts:179-211`）现状仅被压缩路径（`transform.ts:33`）调用，`agent-assembly` 侧是否调用本次未展开，实现 P1-5 前需先 grep 确认调用点，避免重复清洗。
+
+## 九、修复方案（2026-09-26 定稿；工具结果上限归 09-22 篇，不在这里做）
+
+范围：P0-1 / P0-2 / P0-3 / P0-4 + P1-4（发送前 prompt 估算落盘）。不做：改 `CUSTOM_PROVIDER_DEFAULTS`、手动 `/compact`、悬空 toolCall 清理、contracts 新 reason。
+
+### P0-1 退化轮记失败
+
+- 新文件 `packages/core/src/context/truncated-turn.ts`：`isTruncatedTurn` / `markTruncated`（`stopReason → error`，保留 `rawStopReason`，写 `errorMessage`，判据以 §8.7 为准：`length` 且既无 text 也无 toolCall）；
+- `agent-runner.ts` `appendMessageEvent`：落盘前 `markTruncated`；顺带写入发送前 `promptEstimate`（turn 开始时 `readCurrentTokens` 快照，stamp 在 message 上；`assistantMessage` 是 `Type.Unknown()`，contracts 不用改）；
+- `persistMiddleware`：对最后一条 assistant 先 `markTruncated` 再判 reason；
+- `retryLastTurn` 改为从 eventLog 末条 assistant 判 reason（现读内存缓冲末条仍是 `length`，点重试会抛 `ValidationError`，P0-1「可重试」否则不成立）；
+- `length` 且带 toolCall 的轮次判据不变，归 09-23 A 类计数覆盖（截断 fail 路径不经过 `beforeToolCall`，只在那边计数才不漏），本篇不重复实现。
+
+### P0-2 `planCompaction`
+
+- `CompactionOptions` 加 `hardRatio`（默认 0.9）、`targetRatio`（默认 0.5）；
+- `overHard`（`currentTokens > contextWindow * hardRatio`）时绕过 `promptCount <= keep && turnCount <= maxTurns` 闸门，从 `keep` 递减直到 `estimateTokens(tail) <= window * targetRatio`，否则 `keep = 1`；
+- P0-3 依赖本节先落地（`thresholdRatio: 0, hardRatio: 0` 要靠硬阈值分支绕过 keep 窗口）。
+
+### P0-3 `maybeCompactLog`
+
+- 末条 `isTruncatedTurn` → `thresholdRatio: 0, hardRatio: 0` 强制压一次；
+- 实测窗口：有 usage 时取 `min(配置值, last.usage.totalTokens * 0.9)` 记为本会话可用窗口，存 runner 内 `observedWindow` 字段（单 runner 即单会话；restore 时从最后截断轮 usage 重算）；优先级高于 `agent.state.model.contextWindow`（含 `?? 32768` 兜底）；
+- 压完若 `postEstimate > observed * targetRatio`，再 plan 一次 `keep = 1`；接受 mechanical digest（`digestSource: mechanical`）。
+
+### P0-4 前端（design 原记的 `ChatMessage` / `MessageItem` 已不存在，以现状为准）
+
+- `AssistantEntry` 加 `_thinking?` / `_thinkingTruncated?` / `_diagnostics?`；
+- 新增 `extractMessageThinking`；`entry-reducer`（live）与 `history-entries` / `persisted-entries`（历史恢复）两路都写入，重开页面诊断不消失；
+- `entry-reducer.ts:334`「空消息丢弃」：有 thinking 的截断轮显式豁免，否则仍渲染空气泡；
+- `AssistantBubble` 折叠思考块；`ErrorMessageSection` 补诊断字段 + 复制按钮；
+- i18n：`chat.thinking.*` / `chat.error.detail.*`（加载 i18n skill）。
+
+测试：`agent-runner*.test.ts`（`length` + 空 content → `turn/end error` + 可 retry；`length` + 有 text 不改）；`compaction.test.ts`（短会话 + tokens > 0.9w → `shouldCompact`）；`capabilities/compaction.test.ts`（末条空回即使 tokens < 0.75w 也 applied）；app 侧 thinking 投影、截断标、诊断可复制。
+
+验证：`npm test --workspace=packages/core`；`npm test --workspace=packages/app`；P0-4 后 `npm run typecheck --workspace=packages/app`。
 
 

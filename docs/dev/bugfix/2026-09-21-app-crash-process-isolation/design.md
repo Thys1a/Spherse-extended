@@ -1,7 +1,6 @@
 # 应用闪退：进程隔离 + 输入上限 + 崩溃自愈
 
 调研时间：2026-09-21
-现场：项目 `D:\note\AINovelGame\games\spherse框架`，agent `assistant-acb0db`，会话库 `.spherse/agents/assistant-acb0db/sessions.db`；应用 `D:\note\Spherse\Spherse.exe`（Electron，用户数据 `%APPDATA%\Spherse`）
 状态：**修复草案（未实施）**
 
 ## 一、现象
@@ -20,7 +19,7 @@
 |---|---|---|---|
 | `58719d8e` | 16:21–17:45 | aborted / error | 多次 `turn/retried` |
 | `bf2f7359` | 17:46–18:12 | error | |
-| `38b4d16c` | 18:13–19:03 | aborted / error×2 | 用户「又闪退了，继续执行」 |
+| `38b4d16c` | 18:13–19:03 | aborted / error×2 |  |
 | `107d618e` | 19:04–19:09 | aborted | 读完 5 份 HTML 后中断 |
 
 单次读取体量只有 10–50 KB，所以「单次读得太多」不成立；`turn/end=aborted|error` 是重启后补记，指认不了进程类型。
@@ -135,6 +134,32 @@ process.on("unhandledRejection", (r) => {
 | P2 | 原生 / GPU 兜底（阶段五）| 2.1 |
 
 核心原则：main 只留窗口与 IPC，渲染和 agent 循环都进子进程，再叠输入上限与崩溃自愈。优先级由阶段一的 reason 决定。
+
+## 代码调研补充（2026-09-26，对照仓库现状）
+
+- 取证缺口属实（`packages/desktop/electron/main.ts` 全文件 68 行）：无 `crashReporter`、无 `render-process-gone` / `child-process-gone` / `gpu-process-crashed` 监听、无 `uncaughtException` / `unhandledRejection` 处理。仅有的退出路径是 `window-all-closed → gracefulShutdown` 与 `before-quit`，阶段一的代码在仓库中**零现状、可直接新增**。
+- 单窗口 + 服务同进程属实：`window.ts` 只建一个 `BrowserWindow`（`contextIsolation: true`、`nodeIntegration: false`，**无 `sandbox: true`、无独立 `session`、无 `WebContentsView`**）；`server.ts` 的 `createMultiProjectServer` 由 `main.ts:21` 的 `ensureServer()` 在 main 进程内启动。Agent 运行时、HTTP 服务、窗口同生共死，2.1 / 2.2 的隔离方向成立。
+- 一个强化论据：当前 `window-all-closed` 会触发 `gracefulShutdown → app.quit()`（`main.ts:56`），且 `gracefulShutdown` 超时走 `app.exit(1)`（46 行）。单窗口应用里 renderer 崩溃导致窗口关闭**会直接升级为整应用退出**，提案"renderer 单独崩一般只是白屏"的假设在本仓库偏乐观，隔离优先级应更高。
+- `utilityProcess` 在 `packages/desktop/electron` 内零引用，无内存上限配置（无 `app.commandLine` 开关、无 session 配额），阶段二/三均为新增工作，无历史包袱。
+- 关联项 `2026-08-29-e2e-app-close-hang` 与 `server.ts` 的分阶段关闭（`SERVER_STAGE_TIMEOUT_MS = 10_000`、tunnel 5s）相关：加崩溃自愈/重启逻辑时需复用同一套关闭语义，避免与现有优雅停机打架。
+- 未能复核项：§2.1 的 `sessions.db` 体量、`818,768 B` 单条、`app.asar 95 MB` 均为用户本机取证，仓库内无对应工件；阶段一落地后建议把"崩溃日志字段（时间/进程/reason/exitCode）"直接对齐本文判定表，便于回填验证。
+
+## 修复方案（2026-09-26 定稿：P0 取证 + renderer 自愈，不做沙箱窗口/utilityProcess）
+
+目标：知道死的是谁；renderer 崩只 reload/重建，不 `app.quit()`。本方案不解决根因（若真凶是 main 内存，崩溃日志回填给 empty-turn / search-content 的输入上限项联调验收）。
+
+- 抽出 `packages/desktop/electron/crash-log.ts`：`logCrash(dir, rec)` 追加 JSONL 到 `{userData}/logs/crash.jsonl`（时间、proc、reason、exitCode、url/name、stack）；`userData` 路径在 `bootstrap.ts` 的 `setPath` 之后解析，`crashReporter.start` 尽早（`app.whenReady` 前）调用；
+- `main.ts`：`crashReporter.start({ submitURL: "", uploadToServer: false })`；
+  - `render-process-gone`：先落盘；`details.reason === "clean-exit"` 不处理；主窗口 `webContents.reload()` 带退避（60s 内超 3 次停建，展示错误页）；若窗口已毁且 `quitting !== true` → `createWindow()`；
+  - `child-process-gone`：只落盘（含 `type === "GPU"`，不再单独挂已弃用的 `gpu-process-crashed`）；
+  - `uncaughtException` / `unhandledRejection`：落盘后 continue（已知风险：main 可能处于不一致状态；靠 crash 日志回填排查，不静默吞）；
+- `window.ts`：`closed` 时把 `mainWindow` 置 null，导出重建；
+- `window-all-closed`：仅当 `quitting === true` 或非崩溃关闭才走现有 `gracefulShutdown`；崩溃重建路径不 quit；
+- 禁止在 gone 回调里 `app.quit()`。
+
+测试：`crash-log.test.ts`（序列化/追加）；自愈用可注入的 `onRendererGone({ destroyed, quitting })` 纯函数测：destroyed + !quitting → recreate，quitting → 不 recreate。不写 E2E 崩溃注入。
+
+验证：`npm test --workspace=packages/desktop`。
 
 ## 关联
 

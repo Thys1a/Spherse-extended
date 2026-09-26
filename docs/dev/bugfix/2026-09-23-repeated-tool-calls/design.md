@@ -116,3 +116,31 @@ trigger 相关**直接涉案**，prompt 注入相关**基本不涉案**（worldb
 | defer 重放一次 | drain + `deferredAttempts` | 同会话订阅可用性（顺带把 skip 变 guaranteed turn） |
 | **缺口：新鲜链重置** | `onUserEvent` / scheduler / `runNow` 调 `fire` 不带 opts | 每次 depth 0 + 新 chainId，depth 与去重永不生效——模型每轮 `emit_trigger_event` 同名事件即无限 turn |
 
+## 修复方案（2026-09-26 定稿：A 类 + B 类）
+
+### A：turn 级工具调用上限（主机制 `shouldStopAfterTurn`，`beforeToolCall` 只计数+兜底）
+
+`{ block: true, terminate: true }` 不可靠：`shouldTerminateToolBatch`（pi `agent-loop.js:384-386`）要求同批**每个** result 都 `terminate === true`，多 toolCall 一批里有一个未 block 就停不下来，且 block 回灌的 error 文本模型可能照样重试。
+
+- `agent-runner.ts` 现有 `beforeToolCall`（attribution 钩子位）上叠加计数：每 turn `toolCallCount`，同名 + 同参（规范化 stringify）连续计数；`turn/start` 清零。阈值放 `agent-runner.ts` 顶部常量：`MAX_TOOL_CALLS_PER_TURN = 30`、`MAX_SAME_TOOLCALL_REPEAT = 3`（后续可配）；
+- 终止靠 `agent.shouldStopAfterTurn`（pi 可变属性，每次内层迭代后检查，可中途停）：超限返回 true → `agent_end` 干净退出；终止原因（`tool-call-budget` / `tool-call-repeat`）写日志 + tool result 文本，不动 `turn/end` 枚举；
+- 计数覆盖截断 fail 路径：在 `shouldStopAfterTurn` 内按 `lastCompletedTurn.toolResults` 累加并统计 `message.stopReason === "length"` 连击（该路径不经过 `beforeToolCall`，只在那边计数会漏）；
+- `beforeToolCall` 的 block 仅作兜底（超限后 error 文本告知模型）。
+
+### A：`rollback_turn` 可发现 turnSeq
+
+- `refs.length === 0` 时列出本会话**有 side effect 的** `turn/start` seq（`session-manager` 抽 `listTurnSeqsWithSideEffects`，复用 `listSideEffectsByTurn` 的 turn 边界逻辑，按 `refs > 0` 过滤，否则混入无写入 turn）；
+- 错误文案带 `known turnSeqs: 12, 24, 36`，不再只说 No recorded side effects。
+
+### B：`emit_trigger_event` 透传调用方链
+
+- `AgentRunner` 暴露 `getTriggerChain(): { depth, chainId }`（现状已有 `turnDepth` / `turnChainId` 字段）；
+- `SessionPort` 加 `getTriggerChain(sessionId)`（`SessionManager` 转调；会话不存在返回 undefined → 新链）；
+- `onUserEvent` 签名改为 `(eventName, payload, source?: { sessionId?: string })`，由 manager 内部经 `SessionPort.getTriggerChain` 取 opts 后 `fireMatching(..., opts)`，emit 工具不直接依赖 port；
+- **ws-bus / scheduler / `runNow` 不传 source**，仍为新链；
+- 同 chain 同 trigger 走现有去重，depth 走现有 ≤ 5。
+
+测试：runner 侧第 31 次 tool / 连续 3 次同参 / length 连击 → `shouldStopAfterTurn` 停 turn 且 `agent_end`；rollback 未知 seq → 文案含已知列表（无写入 turn 不在列）；emit-trigger + trigger-manager：同一 session 第二次同名 emit 且 chain 相同 → 不新 fire，无 session 链（模拟 bus）→ 仍 fire。
+
+验证：`npm test --workspace=packages/core`。
+
