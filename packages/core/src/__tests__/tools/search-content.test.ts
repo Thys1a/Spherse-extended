@@ -108,6 +108,7 @@ describe("createSearchContentTool", () => {
     expect(text.length).toBeLessThanOrEqual(32 * 1024 + 200);
     expect(text).toContain("已达输出上限");
     expect(result.details?.truncated).toBe(true);
+    expect(result.details?.returnedMatches).toBeLessThan(result.details?.matches);
   });
 
   it("returns error for non-existent path", async () => {

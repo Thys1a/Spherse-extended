@@ -176,10 +176,10 @@ export function createSearchContentTool(
       const hitLimit = results.length >= MAX_RESULTS;
       let text: string;
       let outputLimitHit = false;
+      const kept: string[] = [];
       if (results.length === 0) {
         text = `No matches found for "${params.query}"`;
       } else {
-        const kept: string[] = [];
         let used = 0;
         for (const r of results) {
           const line = `${r.file}:${r.line}: ${r.text}`;
@@ -200,6 +200,7 @@ export function createSearchContentTool(
         details: {
           query: params.query,
           matches: results.length,
+          returnedMatches: kept.length,
           truncated: hitLimit || outputLimitHit || truncatedLines > 0,
           truncatedLines,
           maxLineLength,
