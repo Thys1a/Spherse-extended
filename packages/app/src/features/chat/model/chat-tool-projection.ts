@@ -91,7 +91,7 @@ export function extractAssistantExtras(
   const extras: Pick<AssistantEntry, "_thinking" | "_thinkingTruncated" | "_diagnostics"> = {};
   const thinking = extractMessageThinking(message.content);
   if (thinking !== "") extras._thinking = thinking;
-  const truncated = message.stopReason === "length";
+  const truncated = message.stopReason === "length" || message.rawStopReason === "length";
   if (truncated) extras._thinkingTruncated = true;
   if (message.stopReason === "error" || truncated) {
     extras._diagnostics = {

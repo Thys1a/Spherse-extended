@@ -209,7 +209,7 @@ describe("history entries", () => {
     ]);
     const assistant = parsed[0] as AssistantEntry;
     expect(assistant._thinking).toBe("That");
-    expect(assistant._thinkingTruncated).toBeUndefined();
+    expect(assistant._thinkingTruncated).toBe(true);
     expect(assistant._diagnostics).toMatchObject({ promptTokens: 120, promptEstimate: 120, seq: 7 });
   });
 });

@@ -123,6 +123,7 @@ describe("persisted entries", () => {
 
     expect(state.entries[0]).toMatchObject({
       _thinking: "That",
+      _thinkingTruncated: true,
       error: { message: "truncated" },
     });
     expect((state.entries[0] as AssistantEntry)._diagnostics).toMatchObject({
