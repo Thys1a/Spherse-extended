@@ -15,6 +15,15 @@ export interface ObservedWindowStore {
   set(window: number): void;
 }
 
+function lastTruncatedUsage(messages: Message[]): number | undefined {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (!isTruncatedTurn(messages[i] as unknown)) continue;
+    const usage = readUsageTotal(messages[i] as unknown);
+    if (usage !== undefined) return usage;
+  }
+  return undefined;
+}
+
 export type MaybeCompactDeps = SummarizeDeps;
 export async function maybeCompactLog(
   eventLog: TurnEventAppender,
@@ -34,6 +43,13 @@ export async function maybeCompactLog(
   const overflowed = isTruncatedTurn(lastMessage);
   const lastUsage = readUsageTotal(lastMessage);
   let contextWindow = windowStore?.get() ?? configWindow;
+  if (windowStore && windowStore.get() === undefined) {
+    const restored = lastTruncatedUsage(messages);
+    if (restored !== undefined) {
+      contextWindow = Math.min(contextWindow, Math.floor(restored * 0.9));
+      windowStore.set(contextWindow);
+    }
+  }
   if (overflowed && lastUsage !== undefined) {
     contextWindow = Math.min(contextWindow, Math.floor(lastUsage * 0.9));
     windowStore?.set(contextWindow);
@@ -69,7 +85,7 @@ export async function maybeCompactLog(
       maxTurns: 1,
       ...overrides,
     });
-    if (tighter.shouldCompact && tighter.anchorIndex >= plan.anchorIndex) {
+    if (tighter.shouldCompact) {
       const rebuilt = build(tighter);
       if (rebuilt) {
         finalPlan = tighter;

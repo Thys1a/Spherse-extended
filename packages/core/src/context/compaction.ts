@@ -123,7 +123,8 @@ export function planCompaction(
   if (overHard) {
     const budget = options.contextWindow * targetRatio;
     for (let keep = Math.min(keepRecentPrompts, promptCount - 1); keep >= 1; keep--) {
-      const split = Math.max(findPromptSplit(messages, keep), findTurnSplit(messages, maxTurns));
+      const turnLimit = Math.max(1, Math.min(maxTurns, keep));
+      const split = Math.max(findPromptSplit(messages, keep), findTurnSplit(messages, turnLimit));
       if (split <= 0) continue;
       if (estimateTokens(messages.slice(split)) <= budget) {
         return { shouldCompact: true, anchorIndex: split - 1, tail: messages.slice(split) };

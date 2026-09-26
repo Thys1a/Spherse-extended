@@ -233,6 +233,7 @@ export class AgentRunner {
         throw err;
       }
     } finally {
+      this.pendingPromptEstimate = null;
       if (sanitizer) {
         const result = sanitizer.finalize(this.agent.state.messages);
         this.agent.state.messages = result.messages;
@@ -308,6 +309,7 @@ export class AgentRunner {
         throw err;
       }
     } finally {
+      this.pendingPromptEstimate = null;
       unsubscribe?.();
       restoreSink?.();
       this.inFlight = false;

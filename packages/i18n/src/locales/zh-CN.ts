@@ -783,13 +783,9 @@ export const zhCN = {
   "chat.error.openSettings": "打开设置",
   // 失败的助手回复或发送失败的用户消息上的「重试」按钮文案
   "chat.retry": "重试",
-  // 助手气泡思考块折叠标题，{count} 为思考文本字符数
   "chat.thinking.title": "思考 · {count} 字",
-  // 思考被上游截断时的折叠标题
   "chat.thinking.titleTruncated": "思考 · {count} 字 · 已截断",
-  // 错误气泡诊断信息块标题
   "chat.error.detail.title": "诊断信息",
-  // 错误气泡「复制诊断信息」按钮文案
   "chat.error.detail.copy": "复制诊断信息",
   "chat.sendFailed": "发送失败",
   // 会话历史加载失败时，ConnectionBanner 中显示的提示文案
