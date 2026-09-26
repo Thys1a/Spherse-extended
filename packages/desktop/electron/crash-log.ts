@@ -49,10 +49,10 @@ export function decideRendererRecovery(opts: {
   crashTimes: number[];
   now: number;
 }): { action: RecoveryAction; crashTimes: number[] } {
-  if (opts.cleanExit || opts.quitting) {
-    return { action: "none", crashTimes: opts.crashTimes };
-  }
   const recent = pruneCrashTimes(opts.crashTimes, opts.now);
+  if (opts.cleanExit || opts.quitting) {
+    return { action: "none", crashTimes: recent };
+  }
   if (recent.length >= MAX_RELOADS_PER_WINDOW) {
     return { action: "none", crashTimes: recent };
   }
@@ -60,4 +60,28 @@ export function decideRendererRecovery(opts: {
     action: opts.windowDestroyed ? "recreate" : "reload",
     crashTimes: [...recent, opts.now],
   };
+}
+
+export interface WindowsClosedDecision {
+  recreate: boolean;
+  showErrorPage: boolean;
+}
+
+export function decideWindowsClosed(opts: {
+  quitting: boolean;
+  lastCrashAt: number | null;
+  backoffExhausted: boolean;
+  hasLiveWindow: boolean;
+  now: number;
+}): WindowsClosedDecision {
+  if (opts.quitting || opts.hasLiveWindow) {
+    return { recreate: false, showErrorPage: false };
+  }
+  if (opts.backoffExhausted) {
+    return { recreate: true, showErrorPage: true };
+  }
+  if (opts.lastCrashAt !== null && opts.now - opts.lastCrashAt < RELOAD_BACKOFF_WINDOW_MS) {
+    return { recreate: true, showErrorPage: false };
+  }
+  return { recreate: false, showErrorPage: false };
 }

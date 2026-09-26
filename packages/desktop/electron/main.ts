@@ -1,4 +1,4 @@
-import { app, crashReporter } from "electron";
+import { app, crashReporter, type BrowserWindow } from "electron";
 import { setGlobalDispatcher, EnvHttpProxyAgent } from "undici";
 import { createWindow, getMainWindow } from "./window.js";
 import { restoreEnvFromSettings, getMobileAccess } from "./settings.js";
@@ -11,6 +11,7 @@ import { getTunnelManager } from "./tunnel/manager.js";
 import { settleWithin } from "@spherse/core";
 import {
   decideRendererRecovery,
+  decideWindowsClosed,
   resolveCrashLogDir,
   safeAppendCrashLog,
 } from "./crash-log.js";
@@ -30,7 +31,8 @@ function nowIso(): string {
 }
 
 let rendererCrashTimes: number[] = [];
-let rendererCrashed = false;
+let lastCrashAt: number | null = null;
+let backoffExhausted = false;
 
 function readWebContentsUrl(wc: { getURL?: () => string } | null | undefined): string | undefined {
   try {
@@ -49,29 +51,34 @@ app.on("render-process-gone", (_event, webContents, details) => {
     url: readWebContentsUrl(webContents),
   });
   const main = getMainWindow();
-  if (!main || webContents !== main.webContents) return;
+  if (main && webContents !== main.webContents) return;
   const cleanExit = details.reason === "clean-exit";
+  const destroyed = !main || main.isDestroyed();
+  const now = Date.now();
   const decision = decideRendererRecovery({
     cleanExit,
     quitting,
-    windowDestroyed: main.isDestroyed(),
+    windowDestroyed: destroyed,
     crashTimes: rendererCrashTimes,
-    now: Date.now(),
+    now,
   });
   rendererCrashTimes = decision.crashTimes;
   if (decision.action === "none") {
-    if (!cleanExit && !quitting && !main.isDestroyed()) {
+    if (cleanExit || quitting) return;
+    if (!destroyed && main) {
       showCrashErrorPage(main);
+    } else {
+      backoffExhausted = true;
     }
     return;
   }
-  rendererCrashed = decision.action === "recreate";
-  if (decision.action === "reload" && !main.isDestroyed()) {
+  lastCrashAt = now;
+  if (decision.action === "reload" && main && !main.isDestroyed()) {
     main.webContents.reload();
   }
 });
 
-function showCrashErrorPage(win: { loadURL: (url: string) => Promise<void> }): void {
+function showCrashErrorPage(win: BrowserWindow): void {
   const html = "<body style='font-family:sans-serif;padding:40px'><h1>Spherse 渲染进程多次崩溃，已停止自动恢复</h1><p>崩溃记录见日志目录 crash.jsonl。重启应用可继续使用。</p></body>";
   try {
     void win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
@@ -151,13 +158,20 @@ async function gracefulShutdown(): Promise<void> {
 }
 
 app.on("window-all-closed", () => {
-  if (rendererCrashed && !quitting) {
-    rendererCrashed = false;
-    const main = getMainWindow();
-    if (!main || main.isDestroyed()) {
-      createWindow();
-      return;
-    }
+  const main = getMainWindow();
+  const decision = decideWindowsClosed({
+    quitting,
+    lastCrashAt,
+    backoffExhausted,
+    hasLiveWindow: !!main && !main.isDestroyed(),
+    now: Date.now(),
+  });
+  backoffExhausted = false;
+  lastCrashAt = null;
+  if (decision.recreate) {
+    const win = createWindow();
+    if (decision.showErrorPage) showCrashErrorPage(win);
+    return;
   }
   void gracefulShutdown();
 });

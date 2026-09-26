@@ -6,6 +6,7 @@ import {
   appendCrashLog,
   crashLogFileName,
   decideRendererRecovery,
+  decideWindowsClosed,
   pruneCrashTimes,
   resolveCrashLogDir,
   MAX_RELOADS_PER_WINDOW,
@@ -61,6 +62,15 @@ describe("decideRendererRecovery", () => {
     expect(decideRendererRecovery({ ...base, cleanExit: true }).action).toBe("none");
   });
 
+  it("prunes stale entries even on clean exit", () => {
+    const out = decideRendererRecovery({
+      ...base,
+      cleanExit: true,
+      crashTimes: [base.now - RELOAD_BACKOFF_WINDOW_MS - 1, base.now],
+    });
+    expect(out.crashTimes).toEqual([base.now]);
+  });
+
   it("does nothing while quitting", () => {
     expect(decideRendererRecovery({ ...base, cleanExit: false, quitting: true }).action).toBe("none");
   });
@@ -81,5 +91,50 @@ describe("decideRendererRecovery", () => {
     const out = decideRendererRecovery({ ...base, cleanExit: false, crashTimes });
     expect(out.action).toBe("none");
     expect(out.crashTimes).toHaveLength(MAX_RELOADS_PER_WINDOW);
+  });
+});
+
+describe("decideWindowsClosed", () => {
+  const base = {
+    quitting: false,
+    lastCrashAt: null as number | null,
+    backoffExhausted: false,
+    hasLiveWindow: false,
+    now: 1_000_000,
+  };
+
+  it("shuts down while quitting even after a crash", () => {
+    expect(
+      decideWindowsClosed({ ...base, quitting: true, lastCrashAt: base.now - 1_000 }).recreate,
+    ).toBe(false);
+  });
+
+  it("shuts down when a live window remains", () => {
+    expect(
+      decideWindowsClosed({ ...base, hasLiveWindow: true, lastCrashAt: base.now - 1_000 }).recreate,
+    ).toBe(false);
+  });
+
+  it("recreates after a recent crash", () => {
+    expect(
+      decideWindowsClosed({ ...base, lastCrashAt: base.now - 1_000 }),
+    ).toEqual({ recreate: true, showErrorPage: false });
+  });
+
+  it("recreates with error page when backoff is exhausted", () => {
+    expect(decideWindowsClosed({ ...base, backoffExhausted: true })).toEqual({
+      recreate: true,
+      showErrorPage: true,
+    });
+  });
+
+  it("shuts down when the last crash is stale", () => {
+    expect(
+      decideWindowsClosed({ ...base, lastCrashAt: base.now - RELOAD_BACKOFF_WINDOW_MS - 1 }).recreate,
+    ).toBe(false);
+  });
+
+  it("shuts down with no crash history", () => {
+    expect(decideWindowsClosed(base).recreate).toBe(false);
   });
 });
