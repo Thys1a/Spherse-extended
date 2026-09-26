@@ -72,8 +72,16 @@ function splitSelectors(selectorText: string): string[] {
   let depth = 0;
   let start = 0;
   let inString: string | null = null;
+  let inComment = false;
   for (let i = 0; i < selectorText.length; i++) {
     const ch = selectorText[i];
+    if (inComment) {
+      if (ch === "*" && selectorText[i + 1] === "/") {
+        inComment = false;
+        i++;
+      }
+      continue;
+    }
     if (inString) {
       if (ch === "\\") {
         i++;
@@ -84,6 +92,11 @@ function splitSelectors(selectorText: string): string[] {
     }
     if (ch === '"' || ch === "'") {
       inString = ch;
+      continue;
+    }
+    if (ch === "/" && selectorText[i + 1] === "*") {
+      inComment = true;
+      i++;
       continue;
     }
     if (ch === "(" || ch === "[") depth++;
@@ -119,7 +132,7 @@ function scopeSelector(selector: string, scope: string): string {
     const rootMatch = /^(:(root)|html|body)(?=[\s:.,[#>+~]|$)/.exec(trimmed);
     scoped = rootMatch ? scope + trimmed.slice(rootMatch[0].length) : `${scope} ${trimmed}`;
   }
-  return lead ? `${lead} ${scoped}` : scoped;
+  return lead ? `${lead.trimStart()} ${scoped}` : scoped;
 }
 
 function indexOfRuleBodyStart(block: string): number {
@@ -165,11 +178,12 @@ function scopeRuleBlock(block: string, scope: string): string {
   const body = block.slice(brace);
   if (!selectorText) return block;
   if (!selectorText.startsWith("@")) {
-    const scoped = splitSelectors(selectorText)
+    const parts = splitSelectors(selectorText);
+    const scoped = parts
       .map((s) => scopeSelector(s, scope))
-      .filter((s) => s !== "")
+      .filter((s, i) => s !== "" || !parts[i].includes("/*"))
       .join(", ");
-    return `${lead}${scoped} ${body}`;
+    return lead ? `${lead} ${scoped} ${body}` : `${scoped} ${body}`;
   }
   const nameMatch = /^@([a-z-]+)/i.exec(selectorText);
   const name = nameMatch?.[1].toLowerCase() ?? "";
@@ -180,7 +194,7 @@ function scopeRuleBlock(block: string, scope: string): string {
   const scopedInner = splitTopLevel(inner)
     .map((part) => scopeRuleBlock(part, scope))
     .join("\n");
-  return `${lead}${selectorText} {\n${scopedInner}\n}`;
+  return lead ? `${lead} ${selectorText} {\n${scopedInner}\n}` : `${selectorText} {\n${scopedInner}\n}`;
 }
 
 export function scopeAgentThemeCss(css: string, instanceId: string): string {

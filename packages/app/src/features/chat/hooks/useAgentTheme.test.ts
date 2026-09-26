@@ -102,7 +102,12 @@ describe("scopeAgentThemeCss", () => {
 
   it("scopes each comma-list selector with its own leading comment", () => {
     const out = scopeAgentThemeCss(`.a, /*x*/ .b { color: red; }`, "s1");
-    expect(out).toContain(`${SCOPE} .a,  /*x*/ ${SCOPE} .b`);
+    expect(out).toContain(`${SCOPE} .a, /*x*/ ${SCOPE} .b`);
+  });
+
+  it("does not split on commas inside comments", () => {
+    const out = scopeAgentThemeCss(`.a /*,*/ , .b { color: red; }`, "s1");
+    expect(out).toContain(`${SCOPE} .a /*,*/, ${SCOPE} .b`);
   });
 
   it("drops a comment-only selector from a comma list", () => {
@@ -112,9 +117,16 @@ describe("scopeAgentThemeCss", () => {
   });
 
   it("scopes :root, html, body and & with a leading comment", () => {
-    expect(scopeAgentThemeCss(`/*c*/ :root { --x: 1; }`, "s1")).toContain(`/*c*/${SCOPE}`);
-    expect(scopeAgentThemeCss(`/*c*/ body { margin: 0; }`, "s1")).toContain(`/*c*/${SCOPE}`);
-    expect(scopeAgentThemeCss(`/*c*/ &.open { color: red; }`, "s1")).toContain(`/*c*/${SCOPE}.open`);
+    expect(scopeAgentThemeCss(`/*c*/ :root { --x: 1; }`, "s1")).toContain(`/*c*/ ${SCOPE}`);
+    expect(scopeAgentThemeCss(`/*c*/ html { padding: 0; }`, "s1")).toContain(`/*c*/ ${SCOPE}`);
+    expect(scopeAgentThemeCss(`/*c*/ body { margin: 0; }`, "s1")).toContain(`/*c*/ ${SCOPE}`);
+    expect(scopeAgentThemeCss(`/*c*/ &.open { color: red; }`, "s1")).toContain(`/*c*/ ${SCOPE}.open`);
+  });
+
+  it("passes global at-rules with leading comments through untouched", () => {
+    expect(scopeAgentThemeCss(`/*c*/ @font-face { font-family: x; }`, "s1")).toBe(
+      `/*c*/ @font-face { font-family: x; }`,
+    );
   });
 
   it("finds the rule brace after a comment containing braces", () => {

@@ -147,7 +147,7 @@ function scopeRuleBlock(block: string, scope: string): string {
 
 ## 修复方案（2026-09-26 定稿，按本节执行）
 
-目标：判定选择器/`@` 前先剥前导注释，再原样吐回。无注释输入逐字节不变。
+目标：判定选择器/`@` 前先剥前导注释，再原样吐回。无注释输入逐字节不变（例外：无注释的退化逗号列表如 `, .a` 保持原样含空元素；有注释输入允许空白归一化，语义等价）。
 
 改 `packages/app/src/features/chat/hooks/useAgentTheme.ts`：
 
