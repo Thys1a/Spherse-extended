@@ -14,6 +14,7 @@ import {
   sanitizeDigestContent,
   isDegenerateDigest,
 } from "../../context/compaction.js";
+import { estimateTokens } from "../../context/token-estimate.js";
 
 function makeUsage(): Usage {
   return {
@@ -128,7 +129,7 @@ describe("planCompaction", () => {
       assistantMsg({ text: "2" }),
     ];
     const plan = planCompaction(messages, {
-      currentTokens: 100000,
+      currentTokens: 26000,
       contextWindow: 32768,
       keepRecentPrompts: 6,
       maxTurns: 100,
@@ -145,7 +146,7 @@ describe("planCompaction", () => {
       messages.push(assistantMsg({ text: `reply ${i}` }));
     }
     const plan = planCompaction(messages, {
-      currentTokens: 100000,
+      currentTokens: 26000,
       contextWindow: 32768,
     });
     expect(plan.shouldCompact).toBe(false);
@@ -185,12 +186,12 @@ describe("planCompaction", () => {
       return messages;
     };
     const at40 = planCompaction(build(40), {
-      currentTokens: 100000,
+      currentTokens: 26000,
       contextWindow: 32768,
     });
     expect(at40.shouldCompact).toBe(false);
     const at41 = planCompaction(build(41), {
-      currentTokens: 100000,
+      currentTokens: 26000,
       contextWindow: 32768,
     });
     expect(at41.shouldCompact).toBe(true);
@@ -250,12 +251,43 @@ describe("planCompaction", () => {
       messages.push(assistantMsg({ text: `reply ${i}` }));
     }
     const plan = planCompaction(messages, {
-      currentTokens: 100000,
+      currentTokens: 26000,
       contextWindow: 32768,
       keepRecentPrompts: 5,
       maxTurns: 100,
     });
     expect(plan.shouldCompact).toBe(false);
+  });
+
+  it("compacts a short session once tokens cross the hard threshold", () => {
+    const messages: Message[] = [
+      userMsg("a"),
+      assistantMsg({ text: "1" }),
+      userMsg("b"),
+      assistantMsg({ text: "2" }),
+    ];
+    const contextWindow = 1000;
+    const plan = planCompaction(messages, { currentTokens: 950, contextWindow });
+    expect(plan.shouldCompact).toBe(true);
+    expect(plan.anchorIndex).toBeGreaterThanOrEqual(0);
+    expect(estimateTokens(plan.tail)).toBeLessThanOrEqual(contextWindow * 0.5);
+  });
+
+  it("falls back to keep=1 when the tail cannot fit the target budget", () => {
+    const messages: Message[] = [userMsg("solo")];
+    for (let i = 1; i <= 3; i++) {
+      messages.push(assistantMsg({ text: `step ${i}` }));
+    }
+    const contextWindow = 1000;
+    const plan = planCompaction(messages, {
+      currentTokens: 950,
+      contextWindow,
+      keepRecentPrompts: 20,
+      maxTurns: 100,
+    });
+    expect(plan.shouldCompact).toBe(true);
+    expect(plan.anchorIndex).toBe(3);
+    expect(estimateTokens(plan.tail)).toBeLessThanOrEqual(contextWindow * 0.5);
   });
 
   it("tail preserves message references", () => {

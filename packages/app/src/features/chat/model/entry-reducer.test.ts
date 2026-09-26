@@ -106,6 +106,51 @@ describe("entry reducer", () => {
     expect(assistant.streaming).toBe(false);
   });
 
+  it("projects thinking blocks and flags a truncated length turn", () => {
+    let state = createEntryState();
+    state = reduceLiveEvents(state, [
+      event({
+        type: "message_end",
+        message: {
+          role: "assistant",
+          content: [{ type: "thinking", thinking: "That" }],
+          stopReason: "length",
+          rawStopReason: "length",
+          provider: "custom-go",
+          model: "m",
+          usage: { input: 100, output: 1, cacheRead: 20 },
+        },
+        seq: 12,
+      }),
+    ], 2);
+    const assistant = state.entries[0] as AssistantEntry;
+    expect(assistant._thinking).toBe("That");
+    expect(assistant._thinkingTruncated).toBe(true);
+    expect(assistant._diagnostics).toMatchObject({
+      provider: "custom-go",
+      stopReason: "length",
+      promptTokens: 120,
+      outputTokens: 1,
+      seq: 12,
+    });
+  });
+
+  it("keeps a thinking-only message instead of dropping it as empty", () => {
+    let state = stateWith([assistantEntry({ id: "a0" })]);
+    state = reduceLiveEvents(state, [
+      event({
+        type: "message_end",
+        message: {
+          role: "assistant",
+          content: [{ type: "thinking", thinking: "That" }],
+          stopReason: "length",
+        },
+      }),
+    ], 2);
+    const last = state.entries[state.entries.length - 1] as AssistantEntry;
+    expect(last._thinking).toBe("That");
+  });
+
   it("attaches error events to an open assistant window", () => {
     let state = createEntryState();
     state = reduceLiveEvents(state, [event({ type: "message_start", message: assistantMessage("") })], 1);

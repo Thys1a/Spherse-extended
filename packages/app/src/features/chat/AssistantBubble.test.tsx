@@ -80,4 +80,20 @@ describe("AssistantBubble", () => {
     });
     expect(screen.queryByRole("button", { name: "重试" })).not.toBeInTheDocument();
   });
+
+  it("renders a collapsed thinking block with truncated marker when provided", () => {
+    renderBubble({ text: "", thinking: "That", thinkingTruncated: true });
+
+    const details = document.querySelector("[data-chat-thinking]");
+    expect(details).not.toBeNull();
+    expect(details).not.toHaveAttribute("open");
+    const summary = details?.querySelector("summary");
+    expect(summary?.textContent).toContain("思考");
+    expect(summary?.textContent).toContain("已截断");
+  });
+
+  it("hides the thinking block without thinking content", () => {
+    renderBubble({ text: "hello" });
+    expect(document.querySelector("[data-chat-thinking]")).toBeNull();
+  });
 });

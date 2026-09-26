@@ -211,6 +211,72 @@ describe("AgentRunner turn events (R2.1)", () => {
     expect(onTurnEvent.mock.calls[0][0].name).toBe("sp:assistant-message");
   });
 
+  it("truncated length turn persists as error with promptEstimate and stays retryable", async () => {
+    const truncated = {
+      role: "assistant",
+      content: [{ type: "thinking", thinking: "That" }],
+      stopReason: "length",
+      usage: { input: 100, output: 1, cacheRead: 0, cacheWrite: 0, totalTokens: 101 },
+      timestamp: Date.now(),
+    };
+    getChatStreamFnMock.mockImplementation(
+      () =>
+        (async () => ({
+          async *[Symbol.asyncIterator]() {},
+          result: async () => truncated,
+        })) as never,
+    );
+    try {
+      const agentStore = (runtime.projectManager as any).projectStore.getAgent(agentId);
+      const sessionId = agentStore.sessions.createSession();
+      const runner = await AgentRunner.init(deps, agentId, sessionId);
+
+      await runner.sendMessage("hello", [], () => {});
+
+      const events = (runner as any).eventLog.events;
+      const persisted = events.find((e: any) => e.type === "assistant/message");
+      expect(persisted.data.message.stopReason).toBe("error");
+      expect(persisted.data.message.rawStopReason).toBe("length");
+      expect(typeof persisted.data.message.errorMessage).toBe("string");
+      expect(typeof persisted.data.message.promptEstimate).toBe("number");
+      expect(events.find((e: any) => e.type === "turn/end").data.reason).toBe("error");
+
+      const agent = runner.agentRef as any;
+      agent.continue = vi.fn().mockResolvedValue(undefined);
+      await runner.retryLastTurn(() => {});
+      expect(agent.continue).toHaveBeenCalledTimes(1);
+    } finally {
+      getChatStreamFnMock.mockImplementation(() => vi.fn() as never);
+    }
+  });
+
+  it("length turn with text is not marked as failure", async () => {
+    const partial = assistantMessage("half-written", "length");
+    getChatStreamFnMock.mockImplementation(
+      () =>
+        (async () => ({
+          async *[Symbol.asyncIterator]() {},
+          result: async () => partial,
+        })) as never,
+    );
+    try {
+      const agentStore = (runtime.projectManager as any).projectStore.getAgent(agentId);
+      const sessionId = agentStore.sessions.createSession();
+      const runner = await AgentRunner.init(deps, agentId, sessionId);
+
+      await runner.sendMessage("hello", [], () => {});
+
+      const events = (runner as any).eventLog.events;
+      expect(events.find((e: any) => e.type === "assistant/message").data.message.stopReason).toBe(
+        "length",
+      );
+      expect(events.find((e: any) => e.type === "turn/end").data.reason).toBe("completed");
+      await expect(runner.retryLastTurn(() => {})).rejects.toThrow(/no failed assistant turn/);
+    } finally {
+      getChatStreamFnMock.mockImplementation(() => vi.fn() as never);
+    }
+  });
+
   it("retry never emits sp:user-message (the retried turn still reports its own messages)", async () => {
     runConfig.update({ defaultModel: "provider/model" });
     const agentStore = (runtime.projectManager as any).projectStore.getAgent(agentId);

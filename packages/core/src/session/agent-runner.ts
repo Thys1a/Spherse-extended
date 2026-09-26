@@ -22,6 +22,7 @@ import { expandSlashMessage } from "./slash.js";
 import { SessionEventLog } from "./event-log.js";
 import type { SessionEvent, SendMessageMeta } from "./events.js";
 import { readCurrentTokens } from "../context/token-estimate.js";
+import { markTruncated } from "../context/truncated-turn.js";
 import {
   buildAgent,
   buildPromptAndTools,
@@ -40,6 +41,7 @@ export class AgentRunner {
   private turnHooks: TurnHooks;
   private capabilityMiddlewares: ReadonlyArray<EventMiddleware<AgentEvent>> = [];
   private pendingReload = false;
+  private pendingPromptEstimate: number | null = null;
 
   private constructor(
     private readonly agent: Agent,
@@ -220,6 +222,10 @@ export class AgentRunner {
       unsubscribe = this.agent.subscribe(dispatch);
 
       try {
+        this.pendingPromptEstimate = readCurrentTokens(
+          [...this.agent.state.messages, sanitizedUserMessage as never],
+          this.agent.state.systemPrompt,
+        );
         await this.agent.prompt(userMessage);
         await this.applyAfterTurnHooks();
       } catch (err) {
@@ -251,12 +257,18 @@ export class AgentRunner {
         .reverse()
         .find((event) => event.type === "assistant/message");
       const lastBuffered = this.agent.state.messages[this.agent.state.messages.length - 1];
+      const lastPersisted =
+        lastEvent && lastEvent.type === "assistant/message"
+          ? (markTruncated(
+              (lastEvent as { data: { message: unknown } }).data.message,
+            ) as { stopReason?: string })
+          : undefined;
       if (
         !lastEvent ||
         lastEvent.type !== "assistant/message" ||
         !lastBuffered ||
         lastBuffered.role !== "assistant" ||
-        (lastBuffered as { stopReason?: string }).stopReason !== "error"
+        lastPersisted?.stopReason !== "error"
       ) {
         throw new ValidationError(
           `Session "${this.sessionId}" has no failed assistant turn to retry`,
@@ -269,6 +281,10 @@ export class AgentRunner {
         { type: "turn/start", data: {} },
       ]);
       this.syncBufferFromLog();
+      this.pendingPromptEstimate = readCurrentTokens(
+        this.agent.state.messages,
+        this.agent.state.systemPrompt,
+      );
 
       const sessionLogger = this.deps.logger.child({ sessionId: this.sessionId });
       const dispatch = createEventPipeline(
@@ -548,10 +564,13 @@ export class AgentRunner {
             .find((message) => message.role === "assistant") as
             | { stopReason?: string }
             | undefined;
+          const marked = (
+            lastMessage === undefined ? undefined : markTruncated(lastMessage)
+          ) as { stopReason?: string } | undefined;
           const reason =
-            lastMessage?.stopReason === "error"
+            marked?.stopReason === "error"
               ? "error"
-              : lastMessage?.stopReason === "aborted"
+              : marked?.stopReason === "aborted"
                 ? "aborted"
                 : "completed";
           const turnEnd = this.eventLog.append("turn/end", { reason });
@@ -580,7 +599,12 @@ export class AgentRunner {
   private appendMessageEvent(message: unknown): void {
     const role = (message as { role?: string }).role;
     if (role === "assistant") {
-      const appended = this.eventLog!.append("assistant/message", { message: message as never });
+      const marked = markTruncated(message) as Record<string, unknown>;
+      const stamped =
+        this.pendingPromptEstimate === null
+          ? marked
+          : { ...marked, promptEstimate: this.pendingPromptEstimate };
+      const appended = this.eventLog!.append("assistant/message", { message: stamped as never });
       this.emitTurnEvent("sp:assistant-message", {
         sessionId: this.sessionId,
         agentId: this.agentId,

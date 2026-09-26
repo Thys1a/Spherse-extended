@@ -5,7 +5,7 @@ import {
   isUserMessage,
   type AgentEvent,
 } from "./agent-event-parse";
-import { extractMessageText, extractToolCalls } from "./chat-tool-projection";
+import { extractMessageText, extractAssistantExtras, extractMessageThinking, extractToolCalls } from "./chat-tool-projection";
 import { classifyErrorMessageString } from "./classify-error";
 import {
   isAssistantEntry,
@@ -209,12 +209,18 @@ function applyMessageStart(state: ChatEntryState, event: Extract<AgentEvent, { t
 function applyMessageUpdate(state: ChatEntryState, event: Extract<AgentEvent, { type: "message_update" }>, now: number): ChatEntryState {
   if (!isAssistantMessage(event.message)) return state;
   const text = extractMessageText(event.message.content);
+  const thinking = extractMessageThinking(event.message.content);
   const targetIndex = findStreamTargetIndex(state, event.messageId);
   if (targetIndex >= 0) {
     const entry = state.entries[targetIndex];
     if (!isAssistantEntry(entry)) return state;
     if (entry.text === text && entry.streaming === true && state.openStreamId === entry.id) return state;
-    const updated: AssistantEntry = { ...entry, text, streaming: true };
+    const updated: AssistantEntry = {
+      ...entry,
+      text,
+      streaming: true,
+      ...(thinking !== "" ? { _thinking: thinking } : {}),
+    };
     return {
       ...state,
       entries: replaceAt(state.entries, targetIndex, updated),
@@ -234,6 +240,7 @@ function applyMessageUpdate(state: ChatEntryState, event: Extract<AgentEvent, { 
     toolCalls: [],
     streaming: true,
     time: now,
+    ...(thinking !== "" ? { _thinking: thinking } : {}),
   };
   return {
     ...state,
@@ -258,6 +265,7 @@ function applyMessageEnd(state: ChatEntryState, event: Extract<AgentEvent, { typ
     return { ...state, cursor, seqByMessageId };
   }
   const text = extractMessageText(event.message.content);
+  const extras = extractAssistantExtras(event.message, seq);
   const contentToolCalls = (extractToolCalls(event.message) ?? []).map((toolCall) => ({
     toolCallId: toolCall.toolCallId,
     toolName: toolCall.toolName,
@@ -288,6 +296,7 @@ function applyMessageEnd(state: ChatEntryState, event: Extract<AgentEvent, { typ
         ...(messageId !== undefined ? { streamId: messageId } : {}),
         ...(event.message.stopReason !== undefined ? { stopReason: event.message.stopReason } : {}),
         ...(error ? { error } : {}),
+        ...extras,
       };
       return {
         ...state,
@@ -320,6 +329,7 @@ function applyMessageEnd(state: ChatEntryState, event: Extract<AgentEvent, { typ
       ...(seq !== undefined ? { seq } : {}),
       ...(event.message.stopReason !== undefined ? { stopReason: event.message.stopReason } : {}),
       ...(error ? { error } : {}),
+      ...extras,
     };
     return {
       ...state,
@@ -331,7 +341,7 @@ function applyMessageEnd(state: ChatEntryState, event: Extract<AgentEvent, { typ
     };
   }
   const last = state.entries[state.entries.length - 1];
-  if (!text && !error && contentToolCalls.length === 0 && last?.kind === "assistant") {
+  if (!text && !error && contentToolCalls.length === 0 && extras._thinking === undefined && last?.kind === "assistant") {
     return { ...state, cursor, seqByMessageId };
   }
   const streamId = messageId ?? nextTransientId("s");
@@ -346,6 +356,7 @@ function applyMessageEnd(state: ChatEntryState, event: Extract<AgentEvent, { typ
     ...(seq !== undefined ? { seq } : {}),
     ...(event.message.stopReason !== undefined ? { stopReason: event.message.stopReason } : {}),
     ...(error ? { error } : {}),
+    ...extras,
   };
   return {
     ...state,
