@@ -46,6 +46,8 @@ project-root/
 
 Agent 创建界面可配置 Prompt、工具、上下文文件、时间感知、聊天主题和 YOLO 模式。工具必须显式启用；未启用的工具不会交给模型。
 
+想给 Agent 加自动生效的背景设定（人物、世界观、术语），见下文「世界书自动注入」——把 `.card.json` 放进该 Agent 目录即可，无需写进 Prompt。
+
 新建项目会自带一个预设 Agent「小助手」：通用型助手，默认开启除 `run_command` 外的全部工具，可随时在界面中修改或删除。
 
 ### 会话
@@ -195,6 +197,16 @@ HTML 可以：
 - Agent 用 `read_card` / `search_card` / `edit_card`
 - 先 `search` 定位条目，再 `entry` 取全文；不要用 `search_content` 扫卡文件（会把整条几千字倒进上下文，还看不到条目边界）
 - `search` 默认只返回启用的条目；在编辑台里关掉的条目不会再被当作设定依据。
+
+### 世界书自动注入（给 Agent 加设定）
+
+想让某个 Agent 每一轮自动带上特定设定（人物小传、世界观、术语表），把 `*.card.json` 文件放进 `.spherse/agents/{agent名}/` 目录顶层即可，无需手动检索：
+
+- 条目写法：`keys` 写触发关键词，`content` 写正文；对话中出现关键词时自动注入 prompt
+- 每轮都带的常识（如文风要求）用 `constant: true`，不需要写 `keys`
+- 需要"两个条件同时满足"才注入时（如人名 + 地名），把第二组词放进 `secondary_keys` 并打开 `selective: true`
+- 关掉的条目（`enabled: false`）不会注入
+- 每轮最多注入 8 条、共 2000 tokens，按 `insertion_order` 排序截断；只扫描目录顶层，不递归子目录；改完文件下一轮自动生效
 
 ### 主题
 
