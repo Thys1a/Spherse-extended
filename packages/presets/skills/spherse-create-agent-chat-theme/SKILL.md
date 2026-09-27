@@ -9,7 +9,7 @@ Agent chat themes live in the agent directory as `theme.css` (`.spherse/agents/{
 
 ## 写法：原生 CSS Nesting
 
-用**原生 CSS nesting** 编写，最外层包裹 `[data-chat-root] { ... }`，所有规则嵌套其中。Electron 渲染进程跑在现代 Chromium 上（Chrome 112+ 起原生支持 CSS nesting）。主题以 `<link rel="stylesheet">` 从项目 preview 路由载入（与项目级主题一致），**不做任何转换**。
+用**原生 CSS nesting** 编写，最外层包裹 `[data-chat-root] { ... }`，所有规则嵌套其中。Electron 渲染进程跑在现代 Chromium 上（Chrome 112+ 起原生支持 CSS nesting）。主题以内联 `<style data-agent-theme>` 注入到 chat 容器内，注入前全部规则按当前会话的 `[data-chat-instance]` 改写隔离，`url()` 相对路径改写为 preview 绝对地址。
 
 ```css
 [data-chat-root] {
@@ -30,9 +30,9 @@ Agent chat themes live in the agent directory as `theme.css` (`.spherse/agents/{
 
 1. **App defaults**（`styles.css`）— 内置 `:root` / `--sp-*` 变量
 2. **Project theme**（`.spherse/theme.css`，通过 `document.head` 的 `<link>` 注入）— 可覆盖 UI 变量，也可写 `[data-chat-root] { ... }` 块，作为**所有** chat 窗口的全局默认样式
-3. **Agent theme**（本文件，chat 容器内后载入的 `<link>`）— 相同特异性下覆盖 project theme 的 chat 规则
+3. **Agent theme**（本文件，以内联 `<style data-agent-theme>` 注入到 chat 容器内，全部规则按当前会话的 `[data-chat-instance]` 改写隔离）— 相同特异性下覆盖 project theme 的 chat 规则
 
-优先级原理：agent theme 的 `<link>` 渲染在 chat 容器内，DOM 顺序上比 project theme 的 `<link>`（位于 `document.head`）更靠后。CSS 层叠规则下，相同特异性的规则后者胜出，因此 agent theme 自然覆盖 project theme 的 chat 规则。
+优先级原理：agent theme 的 `<style>` 渲染在 chat 容器内，DOM 顺序上比 project theme 的 `<link>`（位于 `document.head`）更靠后，且规则都带上了本会话的 `[data-chat-instance]` 限定。CSS 层叠规则下，相同特异性的规则后者胜出，因此 agent theme 自然覆盖 project theme 的 chat 规则，且不泄漏到其它会话的聊天窗口。
 
 > 想给所有 agent 设统一聊天默认样式，优先写进项目级 `.spherse/theme.css` 的 `[data-chat-root] { ... }` 块；单个 agent 覆盖默认值，写在本文件里。
 
@@ -60,7 +60,7 @@ Agent chat themes live in the agent directory as `theme.css` (`.spherse/agents/{
 | 行内代码 | `[data-md-code-inline]` |
 | 引用块 | `[data-md-quote]` |
 
-> **滚动条**：在 `[data-chat-root] { ... }` 内覆盖 `--sp-scrollbar-*` 变量（`--sp-scrollbar-thumb` / `--sp-scrollbar-thumb-hover` / `--sp-scrollbar-size` / `--sp-scrollbar-track`）即可只改变聊天窗口的滚动条外观；变量与默认值详见 `spherse-create-ui-theme` skill 的「滚动条」一节。agent theme 的 `<link>` 在 DOM 中比 project theme 更靠后，相同特异性下自然覆盖项目级滚动条设置。
+> **滚动条**：在 `[data-chat-root] { ... }` 内覆盖 `--sp-scrollbar-*` 变量（`--sp-scrollbar-thumb` / `--sp-scrollbar-thumb-hover` / `--sp-scrollbar-size` / `--sp-scrollbar-track`）即可只改变聊天窗口的滚动条外观；变量与默认值详见 `spherse-create-ui-theme` skill 的「滚动条」一节。agent theme 的内联 `<style>` 在 DOM 中比 project theme 的 `<link>` 更靠后，相同特异性下自然覆盖项目级滚动条设置。
 
 ## 完整选择器参考
 
