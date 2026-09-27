@@ -77,6 +77,9 @@
 |---|---|---|
 | Trigger | 自动化触发器：time 型（cron）/ event 型（用户事件），存 `triggers/index.yml` | [data-conventions.md](data-conventions.md) |
 | TimerService | time 型触发的调度器：10 分钟墙钟对齐轮询，磁盘为唯一真相源 | [data-conventions.md](data-conventions.md) |
+| sp: 回合事件 | 仅内部可发的订阅事件：`sp:user-message` / `sp:assistant-message` / `sp:turn-end`，外部 bus 拒收 `sp:` 前缀 | [architecture/capabilities.md](architecture/capabilities.md) |
+| chain / depth | 跨 turn 触发链：同 chainId + 同 trigger 去重，depth 上限 5；调用方链经 `SessionPort.getTriggerChain` 透传 | [architecture/capabilities.md](architecture/capabilities.md) |
+| sideEffects | 挂在 `tool/result` 上的写入归因（`{type, file, version?, undo?}`），`rollback_turn` 按 turn 逆序恢复的依据 | [data-conventions.md](data-conventions.md) |
 | MCP 连接器（mcp.json） | per-agent 的 MCP server 列表（stdio / http / sse），对 LLM 不可读写 | [data-conventions.md](data-conventions.md) |
 | MCP 工具命名 | `mcp__{server}_{shortid}__{tool}`，首 turn 懒合并进 agent 工具集 | [architecture/capabilities.md](architecture/capabilities.md) |
 
@@ -91,6 +94,8 @@
 | Image Card | `generate_image` 渲染的图片卡片，三态 generating / done / error | [data-conventions.md](data-conventions.md) |
 | worldbook | agent 级世界书：`.spherse/agents/{slug}/` 下顶层 `*.card.json` 的条目集合，逐轮按 keys 扫描命中后以 `<worldbook>` user 块注入（constant 恒注入） | [architecture/capabilities.md](architecture/capabilities.md) |
 | selective | 世界书条目开关：为 true 时 primary（keys）与 secondary（secondary_keys）必须同时命中才注入（ST AND 语义） | [architecture/capabilities.md](architecture/capabilities.md) |
+| CardStore | `*.card.json` 的读写单例：解析缓存 + 原子落盘 + 回读校验，SDK / agent / server 共用 | [data-conventions.md](data-conventions.md) |
+| card tools | agent 侧世界书工具：`read_card` / `search_card` / `edit_card`（读）与 `card.entry.add/remove`（增删），对应 `card.*` 10 op | [architecture/server.md](architecture/server.md) |
 | preview URL | `/api/projects/:id/preview/` 静态资源代理，HTML 卡 base 注入的基准 | [architecture/server.md](architecture/server.md) |
 
 ## UI SDK 与前端

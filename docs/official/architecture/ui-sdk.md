@@ -21,7 +21,7 @@ SDK 由两半组成，仅以 postMessage 协议耦合：
   - 触发型：openFile / openExternalLink / openSession / floatSession / unfloatSession / floatContent / unfloatContent / emitAgentTriggerEvent / undockChat / toast
   - 请求型：createSession（resolve `{sessionId}`）/ sendMessage / dockChat（占位元素位置叠加聊天面板）
   - 数据：`data.get / set / delete / keys / entries / mutate`
-  - 卡文件：`card.list / meta / entries / search / entry / entry.many / entry.update / entry.bulk`
+  - 卡文件：`card.list / meta / entries / search / entry / entry.many / entry.update / entry.bulk / entry.add / entry.remove`
   - 只读 HTTP bridge：`api.call(op, args)` 及 agents / sessions / content / fileTree 快捷方法
   - 订阅：`events.on("file:update", { path }, handler)` 返回取消函数
   - 上下文：`runtime` 同步 getter 与 `getRuntime()` Promise
@@ -49,7 +49,7 @@ SDK 由两半组成，仅以 postMessage 协议耦合：
 | 会话 | createSession、sendMessage、openSession（仅打开不发消息）、floatSession / unfloatSession |
 | 聊天嵌入 | chat.dock（校验会话 + source→iframe 映射后登记 dock）、chat.rect（占位 rect 上报，白名单豁免）、chat.undock |
 | 数据 | data.get / set / delete / keys / entries / mutate（见下节） |
-| 卡文件 | card.list / meta / entries / search / entry / entry.many / entry.update / entry.bulk（`.card.json` 世界书读写，错误码透传） |
+| 卡文件 | card.list / meta / entries / search / entry / entry.many / entry.update / entry.bulk / entry.add / entry.remove（`.card.json` 世界书读写，错误码透传） |
 | 其它 | showToast（sonner variant 分派）、api.call（只读白名单）、emitAgentTriggerEvent（经 bus WS） |
 
 - 请求-响应：`respond` 仅在 ctx 带 requestId 与 source 时回 `spherse:response`；触发型 action 无 requestId，respond 短路为 no-op

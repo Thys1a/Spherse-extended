@@ -52,7 +52,7 @@
 | sessions | 项目级批量会话目录、agent 级列表、创建、详情、messages GET/POST、status、rename、删除 |
 | content | stat、文件/目录的读写删建 |
 | data | `/data/read` `/mutate` `/raw-set` `/raw-delete` |
-| card | `/card/list` `/meta` `/entries` `/search` `/entry` `/entry/many` `/entry/update` `/entry/bulk`（`.card.json` 世界书读写） |
+| card | `/card/list` `/meta` `/entries` `/search` `/entry` `/entry/many` `/entry/update` `/entry/bulk` `/entry/add` `/entry/remove`（`.card.json` 世界书读写） |
 | settings | 全局：文本与图片 provider 目录；项目级：ai-access / welcome-page / theme |
 | preview | 预览文件服务（见下节） |
 | skills / marketplace | skill 列表/详情/创建/zip 安装；市场 manifest 代理与远程安装 |
@@ -105,7 +105,7 @@
 
 ## card 路由
 
-- 8 个 POST 端点（list/meta/entries/search/entry/entry/many/entry/update/entry/bulk）同样双重绑定，委派 `runtime.cardStore`（`factory.ts` 建单例）
+- 10 个 POST 端点（list/meta/entries/search/entry/entry/many/entry/update/entry/bulk/entry/add/entry/remove）同样双重绑定，委派 `runtime.cardStore`（`factory.ts` 建单例）
 - 读过 `serverAccessPolicy.assertRead`、写过 `assertWrite`；`list` 结果再按 `canRead` 过滤 denied 目录
 - 写路径：白名单 + 类型/值域校验 → `JSON.stringify(doc, null, 2)`（与真实卡逐字节兼容）→ 字节等价短路 → tmp（`.spcard.tmp`）+ rename → 回读校验，失败回滚；全程持 FileWriteMutex
 

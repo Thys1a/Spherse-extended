@@ -94,7 +94,9 @@ spherse/
 │   │   │   │   └── SKILL.md
 │   │   │   ├── spherse-write-html/    # HTML 页面数据读写与 App 能力调用指南（charset、数据外置、window.spherse 调用）
 │   │   │   │   └── SKILL.md
-│   │   │   └── spherse-create-skill/ # 自定义 skill 创建指南（两层 skill 体系与 SKILL.md 格式）
+│   │   │   ├── spherse-create-skill/ # 自定义 skill 创建指南（两层 skill 体系与 SKILL.md 格式）
+│   │   │   │   └── SKILL.md
+│   │   │   └── spherse-create-command/ # 全局快速命令（command）创建指南（存储/格式/参数/调用）
 │   │   │       └── SKILL.md
 │   │   ├── scripts/
 │   │   │   └── sync-templates.mjs    # 模板与预置内容同步脚本（.md → .ts 常量 + presets.json → 预置常量 + skills/ → skill 源码常量）
@@ -139,7 +141,7 @@ spherse/
 │   │       │   ├── actions.ts        # 触发型便捷方法（openFile/createSession/float* 等）
 │   │       │   ├── dock.ts           # 聊天面板嵌入：占位元素（spherse-chat）扫描、auto-dock（getRuntime 兜底）、rect leading-edge 节流上报、pagehide/占位移除 undock
 │   │       │   ├── data.ts           # data.get/set/delete 键值存储
-│   │       │   ├── card.ts           # card.* 世界书读写（list/meta/entries/search/entry/many/update/bulk）
+│   │       │   ├── card.ts           # card.* 世界书读写（list/meta/entries/search/entry/many/update/bulk/add/remove）
 │   │       │   ├── api.ts            # api.* 只读 HTTP bridge（api.call + agents/sessions/content/... 子命名空间）
 │   │       │   └── events.ts         # events.on 订阅 API + spherse:event 消息分发与 pagehide 清理
 │   │       └── __tests__/
@@ -155,7 +157,7 @@ spherse/
 │   │       ├── agents.ts             # AgentProfile、AgentCreate/Update、MCP（mcpServerConfig/AgentMcpResponse/AgentMcpUpdateRequest）Request/Response
 │   │       ├── sessions.ts           # SessionInfo、SessionList/Messages Response、SessionMessagesPage（分页信封）、rename 请求
 │   │       ├── content.ts            # FileEntry、ContentResponse、create/save 请求
-│   │       ├── card.ts               # card.* 8 组 Request/Response + CardErrorCode（card_not_found/…/too_large）
+│   │       ├── card.ts               # card.* 10 组 Request/Response + CardErrorCode（card_not_found/…/too_large）
 │   │       ├── file-tree.ts          # FileTreeResponse
 │   │       ├── settings.ts           # ProviderCatalog、AiAccess/WelcomePage/Theme Request/Response
 │   │       ├── trigger.ts            # TriggerEntry、TriggerCreate/Update 请求、List/Log Response
@@ -182,7 +184,7 @@ spherse/
     │   │       │   ├── agent-mcp.ts      # Agent MCP 连接器配置读写（GET/PUT /api/projects/:projectId/agents/:id/mcp）
 │       │       │   ├── sessions.ts       # Session 创建/查询/重命名/删除与消息读取
 │   │       │   ├── content.ts        # 内容浏览、读取、保存、删除、新建文件/目录
-│   │       │   ├── card.ts           # .card.json 世界书 8 路由（读过 assertRead、写过 assertWrite，错误码透传）
+│   │       │   ├── card.ts           # .card.json 世界书 10 路由（读过 assertRead、写过 assertWrite，错误码透传）
 │   │       │   ├── file-tree.ts      # 面向 agent context 选择的项目文件列表
 │   │       │   ├── preview.ts        # HTML 文件预览服务
 │   │       │   ├── skills.ts         # Skill 列表、详情与创建/安装路由

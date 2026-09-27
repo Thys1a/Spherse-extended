@@ -63,6 +63,7 @@ renderer 单份代码、宿主差异经此接口抽象的决策见 [ADR-0006](..
 | TriggerEventBridge | trigger | updated / completed / failed 失效 triggers 并增删 running；completed 通知 + 刷新会话历史 |
 | useAgentBusRefresh（hook） | agent | agent_updated 刷 agents；created / deleted 加刷 sessions |
 | UiSdkBridge（event 桥） | fs-watch | 变更事件 debounce 后定向转发给订阅的 iframe（见 [ui-sdk.md](ui-sdk.md)） |
+| useDataLinkedRefresh（hook） | fs-watch | 只订阅自身文件 + HTML 内联 data 引用（`extractDataFileRefs`），防抖后 bump revision 触发重取；`HtmlCard` 与浮窗内容容器同构复用 |
 
 - 项目级桥统一挂 `ProjectRuntimeBridges`（ProjectScope 内的纯挂载 fragment：3 个 FeatureGate manager + 5 个 bridge）；带运行态的域（trigger）用专属桥；跨会话 toast（ApprovalNoticeBridge，订阅 chat session store）与自动更新 toast（UpdateNoticeBridge，订阅 host-bridge updater 事件）挂 App 级
 - **重连补偿**：bus 重连置 `resumedAt`，各桥经 `useReconnectedSync` 批量失效缓存——错过的事件不重放，靠失效重拉对齐

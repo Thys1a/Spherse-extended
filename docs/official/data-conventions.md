@@ -94,6 +94,9 @@ frontmatter 字段：
 | `tools` | 否 | 允许的工具名列表；缺省不分配任何工具 |
 | `context` | 否 | 项目根内相对路径列表，构建 system prompt 时预读注入；access policy 不可读的路径静默跳过 |
 | `quickLinks` | 否 | 项目根内相对路径列表，渲染为聊天窗口 header 快捷链接按钮（桌面开文件浮窗、移动端 header 下方滑出面板）；`manage_agent` 全量替换（语义同 `context`），Agent Dialog 亦可改 |
+| `placeholder` | 否 | 聊天输入框占位文案；空串视为未设 |
+| `greeting` | 否 | 新会话欢迎区文案；空串视为未设 |
+| `allowInlineHtml` | 否 | 允许该 agent 聊天里的 HTML 围栏块渲染为可交互卡片；未设默认关闭（仅渲染代码文本） |
 | `yolo` | 否 | 自动放行：true 时危险工具跳过审批门，文件访问策略不受影响；仅 Agent Dialog 可改，`manage_agent` 不管理 |
 | `timePerception` | 否 | 时间感知配置，见下 |
 | `output` | 否 | 预留字段，当前无消费方 |
@@ -240,6 +243,7 @@ Full skill instructions in Markdown...
 - 命名约定 `{页面名}.data.json`、与 HTML 同级（约定，代码不强制）；不得位于 `.spherse/` 下——例外前缀 `.spherse/data/cards/` 仅对 agent 工具与 server 路由开放，SDK host 侧一律拒绝，当前无生产写入方
 - 顶层 `$` 前缀键为平台保留（如 `$manifest`）：SDK 写入拒绝、`data.keys` / `data.entries` 不返回、dot-path 寻址不可达、core `writeRaw` 抛 `ForbiddenKeyError`
 - 写入不变量：tmp + rename 原子落盘、`FileWriteMutex` 锁内读-改-写、sha256 内容哈希 version + `ifVersion` 乐观锁、`idempotencyKey` 幂等（LRU 1024）、单文件 20MB 上限、变更事件携带 `origin`（sdk / agent）
+- **turn 归因与回滚记录**：data / card / 文件写入经归因挂到 `tool/result` 的 `sideEffects`（`{type, file, version?, undo?}`），按 `turnSeq` 索引供 `rollback_turn` 按 turn 逆序恢复；undo 存写入前值（镜像超 256KB 拒绝），文件自记录版本后被动过即转人工（`skipped`，不强写），同 turn 同文件链以后写版本为准，`rollback:{toolCallId}:{refIndex}` 幂等
 - **写入粒度约定**：集合的结构性增删改走 `data.mutate`（SDK）/ `mutate_data`（agent）同一套 manifest 入口（锁内 item 级原子，并发互不覆盖）；`data.set` 仅适合单值 / 低冲突数据，整值覆盖并发写入
 - agent 首次接触文件用 `read_data`（不带 path）获取 outline：结构大纲 + `$manifest` 入口签名（`name!` / `name?` 标注必填 / 可选，嵌套标量带类型如 `stats!: {hp!: integer}`，超 4096 字符截断）
   - 无 manifest 的存量文件降级为 outline + dot-path 局部读（数组默认 20 条分页、上限 100）+ `edit_file` / `write_file` 整文件改
@@ -248,6 +252,17 @@ Full skill instructions in Markdown...
   - `version: 2` 起支持嵌套 fields（`object` + `properties` / `array` + `items`，仅一层嵌套 L1；`version: 1` 含嵌套的条目被跳过）；非法条目静默跳过但附诊断（`parseManifestWithDiagnostics`），outline 以 `! name: reason` 行展示，`unknown_entry` 错误附 `invalid entries`
   - 执行时锁内现场校验 manifest 健康，失配报 `manifest_stale` / `unknown_entry`（附 valid names），不信任缓存健康度
 - 损坏（撕裂 JSON）报 `file_corrupted`，不自动修复；server 路由错误映射——version_conflict 409、unknown_entry 404、manifest_stale 409、validation_failed 400、forbidden_key 400、file_corrupted 422
+
+## 世界书卡片文件（`*.card.json`）
+
+酒馆角色卡（`chara_card_v3` 兼容）的条目级读写载体：agent 经 `read_card` / `search_card` / `edit_card` 等工具、UI SDK 经 `card.*` action、server 经 `/card/*` 路由共同读写，汇入 core `CardStore` 单例（工具 10 op 见 `architecture/server.md`）。
+
+- 路径守卫：必须 `.card.json` 后缀，不得位于 `.spherse/` 下
+- 条目字段以 `packages/contracts/src/card.ts` 的 schema 为准；`position`（如 `after_char`）与插入序在条目**顶层**，`extensions.position`（酒馆 depth 位）是另一个只读数字字段——`extensions` 整体只读（缺省 `{}`），编辑台不提供改分类入口
+- `words` 定义为 `content.length`（UTF-16 码元数，解析时计算；含空白标点，中文条目偏大约 15–45%）
+- 世界书条目匹配：`keys` / `secondary_keys`（selective 为 true 时主副 key 须同时命中）/ `constant`（恒注入）/ `enabled` / `order` / `position`，命中后以 `<worldbook>` user 块注入；注入预算每轮最多 8 条、共 2000 tokens（`WORLDBOOK_MAX_ENTRIES/TOKENS`，可配）
+- 写入不变量：整份 `JSON.stringify(doc, null, 2)` reserialize（**无尾随换行**）、字节等价短路跳过写盘、单文件 20MB 上限、tmp（同目录 `.{name}.spcard.tmp`）+ rename、回读校验失败则恢复原字节；全程持 FileWriteMutex；`update`/`bulk` 保留可选 `idempotencyKey`
+- 解析缓存 key 含内容哈希；损坏报 `invalid_json`（422），不自动修复；错误码见 `architecture/server.md` card 域映射
 
 ## HTML Card
 
