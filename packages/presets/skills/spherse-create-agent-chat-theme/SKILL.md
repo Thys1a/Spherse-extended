@@ -9,7 +9,7 @@ Agent chat themes live in the agent directory as `theme.css` (`.spherse/agents/{
 
 ## 写法：原生 CSS Nesting
 
-用**原生 CSS nesting** 编写，最外层包裹 `[data-chat-root] { ... }`，所有规则嵌套其中。Electron 渲染进程跑在现代 Chromium 上（Chrome 112+ 起原生支持 CSS nesting）。主题以 `<link rel="stylesheet">` 从项目 preview 路由载入（与项目级主题一致），**不做任何转换**。
+用**原生 CSS nesting** 编写，最外层包裹 `[data-chat-root] { ... }`，所有规则嵌套其中。Electron 渲染进程跑在现代 Chromium 上（Chrome 112+ 起原生支持 CSS nesting）。主题以内联 `<style data-agent-theme>` 注入到 chat 容器内，注入前全部规则按当前会话的 `[data-chat-instance]` 改写隔离，`url()` 相对路径改写为 preview 绝对地址。
 
 ```css
 [data-chat-root] {
