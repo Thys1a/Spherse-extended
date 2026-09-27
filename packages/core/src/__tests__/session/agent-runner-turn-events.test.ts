@@ -21,6 +21,7 @@ const stubCatalog = {
 
 import { createProject } from "../../factory.js";
 import { AgentRunner } from "../../session/agent-runner.js";
+import { deriveMessages } from "../../session/fold.js";
 import { RunConfigHolder, type RuntimeDeps } from "../../session/runtime.js";
 import { createModelResolver } from "../../session/model-resolver.js";
 import { builtinToolCapabilities } from "../../capabilities/builtin.js";
@@ -342,6 +343,32 @@ describe("AgentRunner turn events (R2.1)", () => {
     const sessionId = agentStore.sessions.createSession();
     const runner = await AgentRunner.init(deps, agentId, sessionId);
     expect(runner.getTriggerChain()).toEqual({ depth: 0, chainId: expect.any(String) });
+  });
+
+  it("withdrawLastTurn skips withdrawn turns and withdraws the previous user message", async () => {
+    const agentStore = (runtime.projectManager as any).projectStore.getAgent(agentId);
+    const sessionId = agentStore.sessions.createSession();
+    const runner = await AgentRunner.init(deps, agentId, sessionId);
+    const log = (runner as any).eventLog;
+    const first = log.append("user/message", {
+      message: { role: "user", content: "one", timestamp: 1 },
+    });
+    log.append("assistant/message", {
+      message: { role: "assistant", content: [], stopReason: "stop", timestamp: 2 },
+    });
+    const second = log.append("user/message", {
+      message: { role: "user", content: "two", timestamp: 3 },
+    });
+    log.append("assistant/message", {
+      message: { role: "assistant", content: [], stopReason: "stop", timestamp: 4 },
+    });
+
+    await expect(runner.withdrawLastTurn()).resolves.toBe(second.seq);
+    await expect(runner.withdrawLastTurn()).resolves.toBe(first.seq);
+    await expect(runner.withdrawLastTurn()).rejects.toThrow(/no user message to withdraw/);
+
+    expect(deriveMessages(agentStore.sessions.readEvents(sessionId))).toEqual([]);
+    expect((runner.agentRef as any).state.messages).toEqual([]);
   });
 
   it("retry never emits sp:user-message (the retried turn still reports its own messages)", async () => {

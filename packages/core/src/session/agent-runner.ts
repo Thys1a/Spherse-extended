@@ -359,10 +359,11 @@ export class AgentRunner {
   async withdrawLastTurn(): Promise<number> {
     this.ensureNotBusy();
     const events = this.eventLog!.events;
+    const abandoned = collectAbandonedSeqs(events);
     const lastUserEvent = [...events]
       .reverse()
-      .find((event) => event.type === "user/message");
-    if (!lastUserEvent || collectAbandonedSeqs(events).has(lastUserEvent.seq)) {
+      .find((event) => event.type === "user/message" && !abandoned.has(event.seq));
+    if (!lastUserEvent) {
       throw new ValidationError(
         `Session "${this.sessionId}" has no user message to withdraw`,
       );
