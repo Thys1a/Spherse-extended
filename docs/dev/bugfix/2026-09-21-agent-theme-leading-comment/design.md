@@ -159,3 +159,49 @@ function scopeRuleBlock(block: string, scope: string): string {
 测试（`useAgentTheme.test.ts` 追加）：现有用例不动；`/*c*/[data-chat-root]{…}` → 含 `[data-chat-root][data-chat-instance="s1"]` 且不含后代选择器；`/*c*/ @media …` → `@media` 保留、内层正确；连续/多行前导注释；`a, /*x*/ b`；前导注释 + `:root` / `html` / `body` / `&`。
 
 验证：`npm test --workspace=packages/app`；前导注释内含 `{`（如 `/* 主题 { banner */ [data-chat-root] { … }`）正确作用域。
+
+## 追加调研（2026-09-26）：注入链路断裂——本篇修的选择器 bug 当前打在死代码上
+
+用户反馈：agent 主题完全无显示，`style[data-agent-theme]` 数量为 0，root 无 `data-chat-instance`，只有项目主题生效。逐项核对用户给的三个排查方向，结论如下。
+
+### 1. 现象与定位：不是"没命中"，是"没注入"
+
+- `style[data-agent-theme]` 全仓零命中：`packages/` 下无任何源码（含 desktop preload、web、landing）创建该元素；`data-chat-instance` 仅出现在 `useAgentTheme.test.ts` 的期望字符串里。用户探针（数量 0、无 instance 属性）与现状代码完全一致。
+- `scopeAgentThemeCss` / `prepareAgentThemeCss`（`[data-chat-instance]` 整套作用域机制，含本篇的前导注释修复）**零生产调用者**，仅测试 import。本篇已合入的修复当前是 inert 的，恢复注入后才会生效。
+
+### 2. 断裂点：`Chat` 把 CSS 文本当 URL 喂给 `<link>`
+
+`packages/app/src/features/chat/index.tsx:86,191-192`：
+
+```tsx
+const themeHref = useAgentTheme(client, agent.id, agent.slug, projectId);
+// ...
+<div ref={rootRef} className="flex flex-col h-full" data-chat-root>
+  {themeHref && <link rel="stylesheet" href={themeHref} />}
+```
+
+但 `useAgentTheme`（`hooks/useAgentTheme.ts:277-337`）返回的是 **CSS 文本**（`client.getAgentTheme(id)` 即 `GET /api/projects/:id/agents/:agentId/theme` 的 `res.text()`，服务端 `server/src/routes/agents.ts` 以 `text/css` 直吐文件内容）。于是实际渲染的是 `<link rel="stylesheet" href=":root { --sp-… } …">`——浏览器请求非法 URL 静默失败；主题为空时 `themeHref === ""`，link 根本不渲染。两种情况都是零样式，与上报症状逐字相符。
+
+逐条回复排查方向：
+
+- **读取路径无辜**：`getAgentTheme → projectManager.getAgentTheme → .spherse/agents/{slug}/theme.css` 文本链完好，hook 内 fs-watch 订阅（`agents/${slug}/theme.css` 后缀匹配）、250ms 防抖、断线重连补偿都在。问题不在读取。
+- **注入方式是断裂处**：有效的注入应是 `<style data-agent-theme>`（见下节历史），`style[data-agent-theme]` 全仓零命中证实新机制从未挂载。
+- **会话-agent 映射无辜**：`Chat` 直接收 `agent` prop（`agent.id` / `agent.slug`），`useAgentTheme(client, agent.id, agent.slug, projectId)` 直连，不存在"映射失败静默跳过"环节。
+
+### 3. 历史：上游合并把两个时代的半边拼在了一起
+
+- merge 前（`d1b2c2d` 之前）：`useAgentTheme` 返回**预览 URL**（`client.getPreviewUrl('.spherse/agents/{slug}/theme.css')`），`<link href={url}>` 能加载但**无作用域隔离**（全局泄漏）。
+- `d1b2c2d`（09-12）：hook 改返回 CSS 文本，注入改为 `<style data-agent-theme={sessionId}>{scopedThemeCss}</style>` + root `data-chat-instance={sessionId}`；09-13（`9f48073`）再补 asset 改写。即"文本 + 内联 style + 会话隔离"时代。
+- `419b4e0`（09-25，上游合并）：用上游版 `Chat` 覆盖，把 `<link href={themeHref}>` 的 JSX 捡了回来，但 hook 保留在文本时代——变量名相同、类型相反，merge 解决时未发现。`git log -S data-agent-theme -- index.tsx` 只能看到 d1b2c2d 的引入，删除发生在 merge 的整文件重写里。
+
+### 4. Skill 口径对照
+
+- `spherse-create-agent-chat-theme` 层叠章写的"chat 容器内后载入的 `<link>`"描述的是 merge 前时代（URL + link），在当前代码下不成立；`spherse-use-ui-sdk` 的表述同理。待注入恢复后，这两处应按实际机制回写（内联 `<style>` + 会话隔离），否则继续误导。
+- 项目主题（`.spherse/theme.css` 经 `document.head` 的 `<link>`，`useCustomTheme` 组 preview URL）链路独立且完好——这正是"只有项目主题生效"的原因。
+
+### 5. 修复方向（已按 A 实施：Chat 恢复内联 `<style>` 注入 + `data-chat-instance`，见本分支后续 commit）
+
+- **推荐 A**：在 `Chat` 恢复内联注入（按新组件签名改写 d1b2c2d 的 hunk）：root 加回 `data-chat-instance={sessionId}`，`{scoped && <style data-agent-theme={sessionId}>{scoped}</style>}`，其中 `scoped = prepareAgentThemeCss(css, sessionId, '.spherse/agents/${slug}', previewUrl)`。恢复后本篇的前导注释修复自动生效；保留会话隔离的初衷。
+- **不采纳 B**：把 hook 改回返 URL + link——开倒车回全局泄漏，与 d1b2c2d 的隔离设计冲突。
+- 复核点：`document.querySelector('[data-chat-root] link')` 的 href 在 devtools 里直接可见（将是一整段 CSS 文本），一分钟可证实；浮窗聊天若走同一 `Chat` 组件则同修，否则另查入口（当前 `useAgentTheme` 仅 `features/chat/index.tsx` 一处调用）。
+- 本篇原"验证链"（postcss/真机读 `--sp-primary`）以注入恢复为前提，在此之前跑真机只能复现 0 注入。

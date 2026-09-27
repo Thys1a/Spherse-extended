@@ -20,7 +20,7 @@ import { MessageList } from "./MessageList";
 import { ConnectionBanner } from "./ConnectionBanner";
 import { QuickLinkPanel, resolveQuickLinkAction } from "./QuickLinkPanel";
 import { ChatAgentProvider } from "./chat-agent-context";
-import { useAgentTheme } from "./hooks/useAgentTheme";
+import { useAgentTheme, prepareAgentThemeCss } from "./hooks/useAgentTheme";
 import { useChatScroll } from "./hooks/useChatScroll";
 import { useChatSession } from "./hooks/useChatSession";
 import type { AttachedFile } from "./types";
@@ -83,7 +83,17 @@ export function Chat({ sessionId, agent, onNavigateToPath, onOpenSession, initia
     accessToken,
   });
   const { containerRef, isAtBottom, scrollToBottom } = useChatScroll(entries, sessionId, loadingMore);
-  const themeHref = useAgentTheme(client, agent.id, agent.slug, projectId);
+  const themeCss = useAgentTheme(client, agent.id, agent.slug, projectId);
+  const scopedThemeCss = useMemo(
+    () =>
+      prepareAgentThemeCss(
+        themeCss,
+        sessionId,
+        agent.slug ? `.spherse/agents/${agent.slug}` : undefined,
+        client ? (projectPath) => client.getPreviewUrl(projectPath) : undefined,
+      ),
+    [themeCss, sessionId, client, agent.slug],
+  );
   const [findOpen, setFindOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
 
@@ -188,8 +198,8 @@ export function Chat({ sessionId, agent, onNavigateToPath, onOpenSession, initia
 
   return (
     <ChatAgentProvider agent={agentScope}>
-      <div ref={rootRef} className="flex flex-col h-full" data-chat-root>
-        {themeHref && <link rel="stylesheet" href={themeHref} />}
+      <div ref={rootRef} className="flex flex-col h-full" data-chat-root data-chat-instance={sessionId}>
+        {scopedThemeCss && <style data-agent-theme={sessionId}>{scopedThemeCss}</style>}
         {!hideHeader && (
           <div className="relative shrink-0">
             <Header
