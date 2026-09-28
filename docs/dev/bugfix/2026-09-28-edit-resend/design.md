@@ -1,7 +1,8 @@
 # 消息编辑重发（edit-resend）重建方案
 
 - 日期：2026-09-28
-- 状态：方案（未实施）
+- 状态：已实施
+- 落点分支：`fix/withdraw-second-last-turn`（与二次撤回修复同分支）
 - 类型：功能回归恢复（`2b507c0` chat 前端重构 PR3 误删，未重建）
 - 关联：`docs/dev/backlog.md:79`（完成后删除该条）
 

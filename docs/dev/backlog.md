@@ -75,7 +75,6 @@
 - [ ] **Chat Debug 模式**：在对话界面提供 debug 模式，展示 agent 的 tool call 请求、响应、system prompt 等原始数据，方便开发和调试
 - [ ] **思考强度 composer 会话级覆盖（二期）**：全局默认已落地（settings → RunConfig 传播链）；二期在聊天输入框加快捷档位切换，仅当前会话生效。要点：chat WS `message` payload 加 `thinkingLevel?` 字段（contracts + 契约测试）、`AgentRunner.sendMessage` turn 前一次性覆盖 `agent.state.thinkingLevel`、composer 按 sessionId sticky 状态（同 draft 键控模式）、档位按当前生效模型 `getSupportedThinkingLevels` 动态显示。参见 `docs/dev/features/2026-08-28-model-thinking-intensity/design.md` 二期草图
 - [ ] **Presets i18n**：为 `@spherse/presets` 内置模板和预置内容增加多语言支持，作为 i18n 基础设施完成后的独立任务
-- [ ] **消息编辑重发（edit-resend, upstream merge 遗留）**：旧 `streaming-store.editAndResend` 随旧 chat 模型删除，新 `session-store` 无等价物（ADR-0014 P5-4）。方向：在 Entry 模型上实现用户消息原地编辑 + 撤回重发（复用 `withdrawLastTurn` + 带 clientId 的重发），Composer 需支持编辑态（`editDraft` + `EDIT_MIN_HEIGHT/MAX_HEIGHT` 参照 dev 版 MessageItem），并补单测。
 - [ ] **moveEntry 路径判断改用 isPathInside（upstream merge review C1）**：`packages/core/src/project-manager.ts:396` 用 `dest.startsWith(src + path.sep)` 做子路径判断，违反路径安全红线。方向：改 `isPathInside(dest, src)` 并补单测。pre-existing（`ba9d342`），merge 未动。
 - [ ] **readPersistedSessionEvents 按 agent 精确读取（upstream merge review I1，已降级）**：`session-manager.ts` 无 `agentId` 参数跨 agent 全表扫描。sessionId 系 `crypto.randomUUID` 全局唯一，越权读实际不可达；真问题是 O(agents) 开销 + 签名不诚实。方向：参数加 `agentId` 只读对应 store。pre-existing（`f7c85f3`）。
 - [ ] **appendUserMessage 补齐 triggerDepth/triggerChainId（upstream merge review I2）**：`SendMessageMeta` 有字段但落库 spread 丢失。方向：补透传（含 contracts schema 与 fold）。pre-existing（`69f9e06`）。
