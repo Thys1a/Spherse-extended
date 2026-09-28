@@ -34,7 +34,7 @@ spherse/
 │   │       │   ├── compaction/       # maybeCompactLog 纯变换（transform.ts）+ capability
 │   │       │   ├── time-perception/ # streamDecorators 贡献（<time> 前缀注入）+ previewTransforms（debug snapshot 重放）+ 提示 block；感知时间数学在 time-perception.ts
 │   │       │   ├── memory/           # memory capability（memory_save/recall 工具接线 + <memory> block；MemoryStore 在 store/memory.ts）
-│   │       │   ├── card/             # CardStore（.card.json 世界书读写：解析/检索/原子写；经 factory 挂 runtime.cardStore，server card 路由消费）+ worldbook.ts（matchWorldbook 世界书命中 + contextProjector 逐轮注入 + token/条目预算）
+  │   │       │   ├── card/             # CardStore（.card.json 世界书读写：解析/检索/原子写；经 factory 挂 runtime.cardStore，server card 路由消费）+ worldbook.ts（matchWorldbook 世界书命中 + contextProjector 逐轮注入 + token/条目预算 + agent 外链增删查）
 │   │       │   ├── rollback/           # rollback_turn 工具（turn 级 undo：读 SessionManager 自注册的 side-effect 源，经 stores registry 桥接）
 │   │       │   ├── shared/           # llmPolicyOf 等跨能力共享工具
 │   │       │   └── builtin.ts        # builtinToolCapabilities()：纯工具类 capability 集合

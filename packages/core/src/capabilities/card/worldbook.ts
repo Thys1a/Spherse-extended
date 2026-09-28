@@ -3,6 +3,9 @@ import path from "node:path";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { ContextProjector } from "../../kernel/capability.js";
 import type { SessionView } from "../../kernel/ports.js";
+import { AccessDeniedError, ConflictError, NotFoundError, ValidationError } from "../../errors.js";
+import { assertSafeSlug } from "../../store/agent-profile.js";
+import { isPathInside, resolveProjectPath } from "../../utils/path-safety.js";
 import { estimateTokens } from "../../context/token-estimate.js";
 import { toParsedCard } from "./parser.js";
 import { matchKeys } from "./search.js";
@@ -140,7 +143,20 @@ export function invalidateWorldbookCache(projectRoot?: string, slug?: string): v
   }
 }
 
-function loadAgentCards(dir: string): CardEntry[] {
+function agentCardsDir(projectRoot: string, slug: string): string {
+  assertSafeSlug(slug);
+  return path.join(path.resolve(projectRoot), ".spherse", "agents", slug);
+}
+
+function linkTargetRealpath(linkPath: string): string | null {
+  try {
+    return fs.realpathSync(linkPath);
+  } catch {
+    return null;
+  }
+}
+
+function loadAgentCards(projectRoot: string, dir: string): CardEntry[] {
   let names: string[];
   try {
     names = fs.readdirSync(dir);
@@ -150,8 +166,15 @@ function loadAgentCards(dir: string): CardEntry[] {
   const entries: CardEntry[] = [];
   for (const name of names) {
     if (!name.endsWith(".card.json")) continue;
+    const full = path.join(dir, name);
     try {
-      const parsed = toParsedCard(fs.readFileSync(path.join(dir, name)));
+      if (fs.lstatSync(full).isSymbolicLink()) {
+        const real = linkTargetRealpath(full);
+        if (real === null || !isPathInside(projectRoot, real)) continue;
+        const targetStat = fs.statSync(full);
+        if (!targetStat.isFile()) continue;
+      }
+      const parsed = toParsedCard(fs.readFileSync(full));
       if (parsed) entries.push(...parsed.entries);
     } catch {
       continue;
@@ -188,7 +211,7 @@ function fingerprintDir(dir: string): string | null {
 
 export function readAgentWorldbook(projectRoot: string, slug: string): CardEntry[] {
   const key = cacheKey(projectRoot, slug);
-  const dir = path.join(projectRoot, ".spherse", "agents", slug);
+  const dir = agentCardsDir(projectRoot, slug);
   const fingerprint = fingerprintDir(dir);
   if (fingerprint === null) {
     bookCache.delete(key);
@@ -196,9 +219,118 @@ export function readAgentWorldbook(projectRoot: string, slug: string): CardEntry
   }
   const cached = bookCache.get(key);
   if (cached && cached.fingerprint === fingerprint) return cached.entries;
-  const entries = loadAgentCards(dir);
+  const entries = loadAgentCards(path.resolve(projectRoot), dir);
   bookCache.set(key, { fingerprint, entries });
   return entries;
+}
+
+export interface AgentCardLink {
+  name: string;
+  target: string;
+  dangling: boolean;
+}
+
+function assertLinkName(name: string): void {
+  if (!name.endsWith(".card.json") || name.includes("/") || name.includes("\\") || name.includes("..")) {
+    throw new ValidationError("link name must be a plain *.card.json file name");
+  }
+}
+
+export function listAgentCardLinks(projectRoot: string, slug: string): AgentCardLink[] {
+  const dir = agentCardsDir(projectRoot, slug);
+  let names: string[];
+  try {
+    names = fs.readdirSync(dir);
+  } catch {
+    return [];
+  }
+  const root = path.resolve(projectRoot);
+  const out: AgentCardLink[] = [];
+  for (const name of names) {
+    if (!name.endsWith(".card.json")) continue;
+    const full = path.join(dir, name);
+    try {
+      if (!fs.lstatSync(full).isSymbolicLink()) continue;
+    } catch {
+      continue;
+    }
+    const real = linkTargetRealpath(full);
+    const outside = real !== null && !isPathInside(root, real);
+    out.push({
+      name,
+      target: real === null ? "" : path.relative(root, real),
+      dangling: real === null || outside,
+    });
+  }
+  return out;
+}
+
+export function addAgentCardLink(projectRoot: string, slug: string, targetRelPath: string): AgentCardLink {
+  const root = path.resolve(projectRoot);
+  const targetAbs = resolveProjectPath(root, targetRelPath);
+  let targetStat: fs.Stats;
+  try {
+    targetStat = fs.statSync(targetAbs);
+  } catch {
+    throw new NotFoundError(`card file not found: ${targetRelPath}`);
+  }
+  if (!targetStat.isFile()) throw new ValidationError("link target must be a file");
+  let targetReal: string;
+  try {
+    targetReal = fs.realpathSync(targetAbs);
+  } catch {
+    throw new NotFoundError(`card file not found: ${targetRelPath}`);
+  }
+  if (!isPathInside(root, targetReal)) {
+    throw new AccessDeniedError(`link target escapes project: ${targetRelPath}`);
+  }
+  const name = path.basename(targetAbs);
+  assertLinkName(name);
+  const dir = agentCardsDir(root, slug);
+  fs.mkdirSync(dir, { recursive: true });
+  const linkPath = path.join(dir, name);
+  try {
+    if (fs.lstatSync(linkPath).isSymbolicLink()) {
+      const existing = linkTargetRealpath(linkPath);
+      if (existing === targetAbs) {
+        invalidateWorldbookCache(root, slug);
+        return { name, target: path.relative(root, targetAbs), dangling: false };
+      }
+      throw new ConflictError(`card link already exists: ${name}`);
+    }
+    throw new ConflictError(`card file already exists: ${name}`);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException)?.code !== "ENOENT") throw err;
+  }
+  try {
+    fs.symlinkSync(path.relative(dir, targetAbs), linkPath, "file");
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException)?.code;
+    if (code === "EPERM" || code === "EACCES") {
+      throw new ValidationError("creating symlinks requires privileges on Windows (admin or Developer Mode)");
+    }
+    if (code === "EEXIST") {
+      throw new ConflictError(`card link already exists: ${name}`);
+    }
+    throw err;
+  }
+  invalidateWorldbookCache(root, slug);
+  return { name, target: path.relative(root, targetAbs), dangling: false };
+}
+
+export function removeAgentCardLink(projectRoot: string, slug: string, name: string): void {
+  assertLinkName(name);
+  const linkPath = path.join(agentCardsDir(projectRoot, slug), name);
+  try {
+    if (!fs.lstatSync(linkPath).isSymbolicLink()) {
+      throw new ValidationError("not a card link, refusing to delete");
+    }
+  } catch (err) {
+    if (err instanceof ValidationError) throw err;
+    throw new NotFoundError(`card link not found: ${name}`);
+  }
+  fs.unlinkSync(linkPath);
+  invalidateWorldbookCache(path.resolve(projectRoot), slug);
 }
 
 export function renderWorldbook(entries: CardEntry[]): string {

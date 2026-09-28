@@ -84,6 +84,12 @@ const agentSummary = Type.Object(
   { additionalProperties: false },
 );
 
+const cardLink = Type.Object({
+  name: Type.String(),
+  target: Type.String(),
+  dangling: Type.Boolean(),
+});
+
 export const schemas = {
   agentProfile,
   agentSummary,
@@ -107,6 +113,12 @@ export const schemas = {
   agentMcpUpdateRequest: Type.Object({
     servers: Type.Array(mcpServerConfig),
   }),
+  cardLink,
+  cardLinkListResponse: Type.Array(cardLink),
+  cardLinkAddRequest: Type.Object({
+    path: Type.String({ minLength: 1 }),
+  }),
+  cardLinkAddResponse: cardLink,
 } as const;
 
 export type AgentProfileContract = Static<typeof agentProfile>;
@@ -120,3 +132,7 @@ export type AgentUpdateResponse = Static<typeof schemas.agentUpdateResponse>;
 export type McpServerConfigContract = Static<typeof schemas.mcpServerConfig>;
 export type AgentMcpResponse = Static<typeof schemas.agentMcpResponse>;
 export type AgentMcpUpdateRequest = Static<typeof schemas.agentMcpUpdateRequest>;
+export type CardLinkContract = Static<typeof schemas.cardLink>;
+export type CardLinkListResponse = Static<typeof schemas.cardLinkListResponse>;
+export type CardLinkAddRequest = Static<typeof schemas.cardLinkAddRequest>;
+export type CardLinkAddResponse = Static<typeof schemas.cardLinkAddResponse>;

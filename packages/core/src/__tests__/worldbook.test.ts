@@ -3,11 +3,14 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import {
+  addAgentCardLink,
   applyWorldbookBudget,
   invalidateWorldbookCache,
+  listAgentCardLinks,
   matchWorldbook,
   readAgentWorldbook,
   recentTextOf,
+  removeAgentCardLink,
   renderWorldbook,
   WORLDBOOK_MAX_ENTRIES,
   worldbookProjector,
@@ -256,5 +259,144 @@ describe("worldbookProjector", () => {
     } finally {
       invalidateWorldbookCache();
     }
+  });
+});
+
+function canCreateSymlinks(): boolean {
+  const probe = fs.mkdtempSync(path.join(os.tmpdir(), "wb-link-probe-"));
+  try {
+    fs.symlinkSync(path.join(probe, "t"), path.join(probe, "l"), "file");
+    return true;
+  } catch {
+    return false;
+  } finally {
+    fs.rmSync(probe, { recursive: true, force: true });
+  }
+}
+
+describe("agent card link validation (no symlinks needed)", () => {
+  let root: string;
+  let slugDir: string;
+
+  beforeEach(() => {
+    root = fs.mkdtempSync(path.join(os.tmpdir(), "wb-card-links-"));
+    slugDir = path.join(root, ".spherse", "agents", "hero");
+    fs.mkdirSync(path.join(root, "lore"), { recursive: true });
+    fs.mkdirSync(slugDir, { recursive: true });
+    invalidateWorldbookCache();
+  });
+
+  afterEach(() => {
+    invalidateWorldbookCache();
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  it("rejects traversal and non-card targets", () => {
+    expect(() => addAgentCardLink(root, "hero", "../outside.card.json")).toThrow();
+    fs.writeFileSync(path.join(root, "lore", "notes.txt"), "plain");
+    expect(() => addAgentCardLink(root, "hero", "lore/notes.txt")).toThrow();
+    expect(() => addAgentCardLink(root, "hero", "lore/missing.card.json")).toThrow();
+  });
+
+  it("remove refuses real files and missing links", () => {
+    fs.writeFileSync(path.join(slugDir, "real.card.json"), cardFile([]));
+    expect(() => removeAgentCardLink(root, "hero", "real.card.json")).toThrow();
+    expect(() => removeAgentCardLink(root, "hero", "ghost.card.json")).toThrow();
+    expect(fs.existsSync(path.join(slugDir, "real.card.json"))).toBe(true);
+  });
+
+  it("rejects unsafe link names", () => {
+    expect(() => removeAgentCardLink(root, "hero", "../x.card.json")).toThrow();
+    expect(() => removeAgentCardLink(root, "hero", "sub/x.card.json")).toThrow();
+    expect(() => removeAgentCardLink(root, "hero", "x.txt")).toThrow();
+  });
+});
+
+describe.runIf(canCreateSymlinks())("agent card links", () => {
+  let root: string;
+
+  beforeEach(() => {
+    root = fs.mkdtempSync(path.join(os.tmpdir(), "wb-card-links-"));
+    fs.mkdirSync(path.join(root, "lore"), { recursive: true });
+    invalidateWorldbookCache();
+  });
+
+  afterEach(() => {
+    invalidateWorldbookCache();
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  function outsideCard(name: string, entries: Partial<CardEntry>[]): string {
+    const rel = path.join("lore", name);
+    fs.writeFileSync(path.join(root, rel), cardFile(entries));
+    return rel;
+  }
+
+  it("add/list/remove round-trip", () => {
+    const rel = outsideCard("kings.card.json", [{ keys: ["Winterfell"], content: "The castle." }]);
+    const added = addAgentCardLink(root, "hero", rel);
+    expect(added).toMatchObject({ name: "kings.card.json", dangling: false });
+    expect(listAgentCardLinks(root, "hero")).toHaveLength(1);
+    expect(readAgentWorldbook(root, "hero").map((e) => e.content)).toEqual(["The castle."]);
+    removeAgentCardLink(root, "hero", "kings.card.json");
+    expect(listAgentCardLinks(root, "hero")).toHaveLength(0);
+    expect(readAgentWorldbook(root, "hero")).toHaveLength(0);
+  });
+
+  it("add is idempotent for the same target", () => {
+    const rel = outsideCard("kings.card.json", [{ keys: ["x"], content: "v" }]);
+    addAgentCardLink(root, "hero", rel);
+    expect(addAgentCardLink(root, "hero", rel)).toMatchObject({ name: "kings.card.json" });
+    expect(listAgentCardLinks(root, "hero")).toHaveLength(1);
+  });
+
+  it("reader follows links and sees target edits without invalidation", () => {
+    const rel = outsideCard("kings.card.json", [{ keys: ["x"], content: "v1" }]);
+    addAgentCardLink(root, "hero", rel);
+    expect(readAgentWorldbook(root, "hero").map((e) => e.content)).toEqual(["v1"]);
+    fs.writeFileSync(path.join(root, rel), cardFile([{ keys: ["x"], content: "v2" }]));
+    expect(readAgentWorldbook(root, "hero").map((e) => e.content)).toEqual(["v2"]);
+  });
+
+  it("reader skips dangling and outside-project links", () => {
+    const rel = outsideCard("kings.card.json", [{ keys: ["x"], content: "v" }]);
+    addAgentCardLink(root, "hero", rel);
+    fs.unlinkSync(path.join(root, rel));
+    expect(readAgentWorldbook(root, "hero")).toHaveLength(0);
+    expect(listAgentCardLinks(root, "hero")[0]).toMatchObject({ dangling: true });
+  });
+
+  it("add rejects symlink-hop targets escaping the project", () => {
+    const hop = path.join("lore", "hop.card.json");
+    const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), "wb-card-outside-"));
+    try {
+      fs.writeFileSync(path.join(outsideDir, "evil.card.json"), cardFile([{ keys: ["x"], content: "evil" }]));
+      fs.symlinkSync(path.join(outsideDir, "evil.card.json"), path.join(root, hop), "file");
+      expect(() => addAgentCardLink(root, "hero", hop)).toThrow(/escapes project/);
+    } finally {
+      fs.rmSync(outsideDir, { recursive: true, force: true });
+    }
+  });
+
+  it("list marks manually created outside-project links as dangling", () => {
+    const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), "wb-card-outside-"));
+    try {
+      fs.writeFileSync(path.join(outsideDir, "evil.card.json"), cardFile([{ keys: ["x"], content: "evil" }]));
+      const dir = path.join(root, ".spherse", "agents", "hero");
+      fs.mkdirSync(dir, { recursive: true });
+      fs.symlinkSync(path.join(outsideDir, "evil.card.json"), path.join(dir, "evil.card.json"), "file");
+      expect(listAgentCardLinks(root, "hero")).toMatchObject([{ name: "evil.card.json", dangling: true }]);
+      expect(readAgentWorldbook(root, "hero")).toHaveLength(0);
+    } finally {
+      fs.rmSync(outsideDir, { recursive: true, force: true });
+    }
+  });
+
+  it("add conflicts on same name with different target", () => {
+    const rel1 = outsideCard("a.card.json", [{ keys: ["x"], content: "v1" }]);
+    fs.mkdirSync(path.join(root, "lore2"), { recursive: true });
+    fs.writeFileSync(path.join(root, "lore2", "a.card.json"), cardFile([{ keys: ["x"], content: "v2" }]));
+    addAgentCardLink(root, "hero", rel1);
+    expect(() => addAgentCardLink(root, "hero", path.join("lore2", "a.card.json"))).toThrow(/already exists/);
   });
 });

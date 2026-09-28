@@ -430,6 +430,10 @@ export const zhCN = {
   "agent-dialog.quickLinksHint": "显示为聊天窗口顶部的按钮，点击可快速打开该文件",
   // Agent 快捷链接路径输入框占位提示
   "agent-dialog.quickLinksPlaceholder": "添加文件…",
+  "agent-dialog.cardLinksLabel": "世界书外链",
+  "agent-dialog.cardLinksHint": "把项目内 .card.json 文件链入该 Agent，命中条目每轮自动注入其 prompt",
+  "agent-dialog.cardLinksPlaceholder": "添加 .card.json 文件…",
+  "agent-dialog.cardLinksDangling": "{name}（已丢失）",
   // Agent dialog 提示词模板行标签（预留，当前 UI 未强制展示）
   "agent-dialog.templateLabel": "模板",
   // 提示词下方预设模板按钮组的前缀文案

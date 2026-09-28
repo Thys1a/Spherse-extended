@@ -42,6 +42,8 @@ import type {
   CardEntryAddResponse,
   CardEntryRemoveResponse,
   EntryPatchContract,
+  CardLinkListResponse,
+  CardLinkAddResponse,
 } from "@spherse/contracts";
 import { parseApiResponse, schemas } from "@spherse/contracts";
 import { Type } from "@sinclair/typebox";
@@ -620,6 +622,31 @@ export function createApiClient(baseUrl: string, projectId: string, accessToken?
       const res = await authedFetch(`${apiBase}/agents/${encodeURIComponent(id)}`, {
         method: "DELETE",
       });
+      await assertOk(res);
+      return parseJsonResponse<{ ok: boolean }>(res, schemas.okResponse);
+    },
+
+    async listAgentCardLinks(id: string): Promise<CardLinkListResponse> {
+      const res = await authedFetch(`${apiBase}/agents/${encodeURIComponent(id)}/card-links`);
+      await assertOk(res);
+      return parseJsonResponse<CardLinkListResponse>(res, schemas.cardLinkListResponse);
+    },
+
+    async addAgentCardLink(id: string, path: string): Promise<CardLinkAddResponse> {
+      const res = await authedFetch(`${apiBase}/agents/${encodeURIComponent(id)}/card-links`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path }),
+      });
+      await assertOk(res);
+      return parseJsonResponse<CardLinkAddResponse>(res, schemas.cardLinkAddResponse);
+    },
+
+    async removeAgentCardLink(id: string, name: string): Promise<{ ok: boolean }> {
+      const res = await authedFetch(
+        `${apiBase}/agents/${encodeURIComponent(id)}/card-links/${encodeURIComponent(name)}`,
+        { method: "DELETE" },
+      );
       await assertOk(res);
       return parseJsonResponse<{ ok: boolean }>(res, schemas.okResponse);
     },

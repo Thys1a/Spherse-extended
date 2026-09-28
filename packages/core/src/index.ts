@@ -53,6 +53,10 @@ export {
   CardFileCorruptedError,
   CardTooLargeError,
   CardWriteFailedError,
+  listAgentCardLinks,
+  addAgentCardLink,
+  removeAgentCardLink,
+  type AgentCardLink,
 } from "./capabilities/card/index.js";
 export { FileWriteMutex } from "./utils/file-write-mutex.js";
 export {

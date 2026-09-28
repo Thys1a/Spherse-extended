@@ -29,6 +29,7 @@ import { ToolPicker } from "./ToolPicker";
 import { ADVANCED_TOOL_IDS } from "./tool-registry";
 import { ModelConfigField, modelExistsInCatalog } from "./ModelConfigField";
 import { PathListField } from "./PathListField";
+import { AgentCardLinksField } from "./AgentCardLinksField";
 import { TimePerceptionField } from "./TimePerceptionField";
 import { HintLabel } from "./HintLabel";
 import { PromptTemplatePicker, type PromptTemplate } from "./PromptTemplatePicker";
@@ -41,11 +42,12 @@ function getErrorMessage(err: unknown, t: (key: TranslationKey) => string): stri
 interface AgentDialogFormProps {
   initial: LoadedAgentData;
   mode: "create" | "edit";
+  agentId?: string;
   onSubmit: (slugBase: string, content: string, themeContent: string) => Promise<void>;
   onCancel: () => void;
 }
 
-export function AgentDialogForm({ initial, mode, onSubmit, onCancel }: AgentDialogFormProps) {
+export function AgentDialogForm({ initial, mode, agentId, onSubmit, onCancel }: AgentDialogFormProps) {
   const { t } = useI18n();
   const { projectId } = useProjectCtx();
   const client = useApiClient(projectId);
@@ -264,6 +266,9 @@ export function AgentDialogForm({ initial, mode, onSubmit, onCancel }: AgentDial
               hint={t("agent-dialog.quickLinksHint")}
               placeholder={t("agent-dialog.quickLinksPlaceholder")}
             />
+            {mode === "edit" && agentId && client && (
+              <AgentCardLinksField agentId={agentId} client={client} />
+            )}
             <Field className="min-h-0 flex-1">
               <HintLabel hint={t("agent-dialog.themeScopeHint")}>{t("agent-dialog.themeLabel")}</HintLabel>
               <Textarea

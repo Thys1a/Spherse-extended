@@ -49,6 +49,10 @@ export type {
   McpServerConfigContract,
   AgentMcpResponse,
   AgentMcpUpdateRequest,
+  CardLinkContract,
+  CardLinkListResponse,
+  CardLinkAddRequest,
+  CardLinkAddResponse,
 } from "./agents.js";
 
 export type {

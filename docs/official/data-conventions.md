@@ -261,6 +261,7 @@ Full skill instructions in Markdown...
 - 条目字段以 `packages/contracts/src/card.ts` 的 schema 为准；`position`（如 `after_char`）与插入序在条目**顶层**，`extensions.position`（酒馆 depth 位）是另一个只读数字字段——`extensions` 整体只读（缺省 `{}`），编辑台不提供改分类入口
 - `words` 定义为 `content.length`（UTF-16 码元数，解析时计算；含空白标点，中文条目偏大约 15–45%）
 - 世界书条目匹配：`keys` / `secondary_keys`（selective 为 true 时主副 key 须同时命中）/ `constant`（恒注入）/ `enabled` / `order` / `position`，命中后以 `<worldbook>` user 块注入；注入预算每轮最多 8 条、共 2000 tokens（`WORLDBOOK_MAX_ENTRIES/TOKENS`，可配）
+- Agent 目录外链：`.spherse/agents/{slug}/` 下的 `*.card.json` 软链接会被跟随读取；链接名须为纯文件名且目标须在项目内（越界/悬空读取时跳过，列表标悬空）；建链经 agent 对话框或 `manage_agent` 的 `link_card` / `unlink_card`，删链只删本体不动源文件
 - 写入不变量：整份 `JSON.stringify(doc, null, 2)` reserialize（**无尾随换行**）、字节等价短路跳过写盘、单文件 20MB 上限、tmp（同目录 `.{name}.spcard.tmp`）+ rename、回读校验失败则恢复原字节；全程持 FileWriteMutex；`update`/`bulk` 保留可选 `idempotencyKey`
 - 解析缓存 key 含内容哈希；损坏报 `invalid_json`（422），不自动修复；错误码见 `architecture/server.md` card 域映射
 
