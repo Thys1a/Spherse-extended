@@ -133,6 +133,23 @@ describe("persisted entries", () => {
     });
   });
 
+  it("drops a pending edit intent on replay without resending", () => {
+    let state = {
+      ...createEntryState(),
+      pendingEditResend: { content: "stale" },
+    };
+    state = applyPersistedEvents(state, [
+      replayEvent({
+        type: "turn/withdrawn",
+        seq: 3,
+        time: 102,
+        data: { seq: 1 },
+      }),
+    ], 0);
+
+    expect(state.pendingEditResend).toBeNull();
+  });
+
   it("preserves slash and summon meta on replayed user messages", () => {
     let state = createEntryState();
     state = applyPersistedEvents(state, [

@@ -17,6 +17,7 @@ export interface OutboundActions {
   sendInitialMessage(sessionId: string): void;
   retry(sessionId: string): void;
   withdrawLastTurn(sessionId: string): void;
+  editAndResend(sessionId: string, text: string, image?: SendableImage): boolean;
   abort(sessionId: string): void;
   respondApproval(sessionId: string, requestId: string, approved: boolean): boolean;
   respondQuestion(sessionId: string, requestId: string, answer: string): boolean;
@@ -60,6 +61,7 @@ export function createOutboundActions(host: OutboundHost): OutboundActions {
       ...current,
       entries: [...current.entries, entry],
       ...(canSend ? { streaming: true } : {}),
+      pendingEditResend: null,
     }));
 
     if (!canSend) return true;
@@ -122,11 +124,30 @@ export function createOutboundActions(host: OutboundHost): OutboundActions {
     withdrawLastTurn(sessionId) {
       const session = host.getSession(sessionId);
       if (!session || session.streaming) return;
+      if (session.pendingWithdraw || session.pendingEditResend) return;
       if (!lastWithdrawableUserEntry(session.entries)) return;
       const link = host.getLink(sessionId);
       if (!link?.isOpen()) return;
       host.updateSession(sessionId, (current) => ({ ...current, pendingWithdraw: true }));
       link.send({ type: "withdraw" });
+    },
+
+    editAndResend(sessionId, text, image?) {
+      const session = host.getSession(sessionId);
+      if (!session || session.streaming) return false;
+      if (session.pendingWithdraw || session.pendingEditResend) return false;
+      const content = text.trim();
+      if (!content) return false;
+      if (!lastWithdrawableUserEntry(session.entries)) return false;
+      const link = host.getLink(sessionId);
+      if (!link?.isOpen()) return false;
+      host.updateSession(sessionId, (current) => ({
+        ...current,
+        pendingWithdraw: true,
+        pendingEditResend: { content, ...(image !== undefined ? { image } : {}) },
+      }));
+      link.send({ type: "withdraw" });
+      return true;
     },
 
     abort(sessionId) {

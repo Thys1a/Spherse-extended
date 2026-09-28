@@ -27,6 +27,7 @@ interface MessageListProps {
   onRespondQuestion?: (requestId: string, answer: string) => boolean | void;
   onRetry?: () => void;
   onWithdraw?: () => void;
+  onEditUserMessage?: (entry: UserEntry, text: string) => void;
   allowInlineHtml?: boolean;
   onOpenSession?: (sessionId: string) => void;
   hasMore?: boolean;
@@ -51,6 +52,7 @@ export function MessageList({
   onRespondQuestion,
   onRetry,
   onWithdraw,
+  onEditUserMessage,
   allowInlineHtml,
   onOpenSession,
   hasMore,
@@ -91,7 +93,12 @@ export function MessageList({
       summon={user.summon}
       onWithdraw={user.id === withdrawableUserId ? onWithdraw : undefined}
       onRetry={user.id === retryTargetUserId ? onRetry : undefined}
-      onOpenSession={onOpenSession}
+    onEdit={
+      user.id === withdrawableUserId && onEditUserMessage
+        ? (text: string) => onEditUserMessage(user, text)
+        : undefined
+    }
+    onOpenSession={onOpenSession}
     />
   );
 

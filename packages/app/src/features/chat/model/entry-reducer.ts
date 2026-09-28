@@ -543,6 +543,7 @@ function applyError(state: ChatEntryState, message: string, code: ErrorEntry["co
       ownerAssistantId: entry.id,
       streaming: false,
       pendingWithdraw: false,
+      pendingEditResend: null,
     };
   }
   const entry: ErrorEntry = {
@@ -558,6 +559,7 @@ function applyError(state: ChatEntryState, message: string, code: ErrorEntry["co
     entries: [...state.entries, entry],
     streaming: false,
     pendingWithdraw: false,
+    pendingEditResend: null,
   };
 }
 

@@ -121,6 +121,40 @@ describe("MessageList", () => {
     expect(onWithdraw).toHaveBeenCalledTimes(1);
   });
 
+  it("passes the edit action only to the withdrawable user bubble", async () => {
+    const user = userEvent.setup();
+    const onEditUserMessage = vi.fn();
+    renderList(
+      [
+        {
+          id: "g1",
+          kind: "turn",
+          user: { kind: "user", id: "u1", text: "old" },
+          hasError: false,
+          bubbles: [],
+        },
+        {
+          id: "g2",
+          kind: "turn",
+          user: { kind: "user", id: "u2", text: "new" },
+          hasError: false,
+          bubbles: [],
+        },
+      ],
+      { withdrawableUserId: "u2", onEditUserMessage },
+    );
+
+    const buttons = screen.getAllByTitle("编辑");
+    expect(buttons).toHaveLength(1);
+    await user.click(buttons[0]);
+    const box = screen.getByDisplayValue("new");
+    await user.clear(box);
+    await user.type(box, "new edited");
+    await user.click(screen.getByRole("button", { name: "重新发送" }));
+    expect(onEditUserMessage).toHaveBeenCalledTimes(1);
+    expect(onEditUserMessage.mock.calls[0][1]).toBe("new edited");
+  });
+
   it("shows the running badge on the trigger turn identified by runningGroupId", () => {
     const triggerGroup: MessageGroup = {
       id: "g1",

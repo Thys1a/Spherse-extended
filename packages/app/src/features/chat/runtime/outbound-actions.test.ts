@@ -91,6 +91,22 @@ describe("outbound actions", () => {
     expect(sent[0]).toEqual({ type: "withdraw" });
   });
 
+  it("skips withdraw while another withdraw or edit intent is armed", () => {
+    const { actions, sessions, sent } = harness();
+    sessions.s1 = {
+      ...sessions.s1,
+      entries: [{ kind: "user", id: "u1", text: "hi" }],
+      pendingEditResend: { content: "draft" },
+    };
+
+    actions.withdrawLastTurn("s1");
+    expect(sent).toHaveLength(0);
+
+    sessions.s1 = { ...sessions.s1, pendingEditResend: null, pendingWithdraw: true };
+    actions.withdrawLastTurn("s1");
+    expect(sent).toHaveLength(0);
+  });
+
   it("skips withdraw while streaming or without a user entry", () => {
     const { actions, sessions, sent } = harness();
     sessions.s1 = { ...sessions.s1, entries: [{ kind: "user", id: "u1", text: "hi" }], streaming: true };
@@ -100,6 +116,59 @@ describe("outbound actions", () => {
     sessions.s1 = { ...sessions.s1, streaming: false, entries: [] };
     actions.withdrawLastTurn("s1");
     expect(sent).toHaveLength(0);
+  });
+
+  it("editAndResend arms the intent and sends withdraw", () => {
+    const { actions, sessions, sent } = harness();
+    sessions.s1 = { ...sessions.s1, entries: [{ kind: "user", id: "u1", text: "hi" }] };
+
+    expect(actions.editAndResend("s1", "hi edited")).toBe(true);
+    expect(sessions.s1.pendingWithdraw).toBe(true);
+    expect(sessions.s1.pendingEditResend).toEqual({ content: "hi edited" });
+    expect(sent[0]).toEqual({ type: "withdraw" });
+  });
+
+  it("editAndResend rejects streaming, closed link, missing user and empty text", () => {
+    const streaming = harness();
+    streaming.sessions.s1 = {
+      ...streaming.sessions.s1,
+      entries: [{ kind: "user", id: "u1", text: "hi" }],
+      streaming: true,
+    };
+    expect(streaming.actions.editAndResend("s1", "x")).toBe(false);
+
+    const closed = harness({ open: false });
+    closed.sessions.s1 = { ...closed.sessions.s1, entries: [{ kind: "user", id: "u1", text: "hi" }] };
+    expect(closed.actions.editAndResend("s1", "x")).toBe(false);
+
+    const empty = harness();
+    expect(empty.actions.editAndResend("s1", "x")).toBe(false);
+
+    const blank = harness();
+    blank.sessions.s1 = { ...blank.sessions.s1, entries: [{ kind: "user", id: "u1", text: "hi" }] };
+    expect(blank.actions.editAndResend("s1", "   ")).toBe(false);
+  });
+
+  it("editAndResend is a no-op while an intent is already armed", () => {
+    const { actions, sessions, sent } = harness();
+    sessions.s1 = { ...sessions.s1, entries: [{ kind: "user", id: "u1", text: "hi" }] };
+
+    expect(actions.editAndResend("s1", "first")).toBe(true);
+    expect(actions.editAndResend("s1", "second")).toBe(false);
+    expect(sent).toHaveLength(1);
+    expect(sessions.s1.pendingEditResend).toEqual({ content: "first" });
+  });
+
+  it("sendMessage clears a pending edit intent", () => {
+    const { actions, sessions } = harness();
+    sessions.s1 = {
+      ...sessions.s1,
+      entries: [{ kind: "user", id: "u1", text: "hi" }],
+      pendingEditResend: { content: "stale" },
+    };
+
+    actions.sendMessage("s1", "something new");
+    expect(sessions.s1.pendingEditResend).toBeNull();
   });
 
   it("responds false to control requests when the link is closed", () => {

@@ -17,6 +17,7 @@ import { useSettingsStore } from "../../stores/settings-store";
 import { Composer } from "./Composer";
 import { Header } from "./Header";
 import { MessageList } from "./MessageList";
+import { toSendable } from "./model/group-derivations";
 import { ConnectionBanner } from "./ConnectionBanner";
 import { QuickLinkPanel, resolveQuickLinkAction } from "./QuickLinkPanel";
 import { ChatAgentProvider } from "./chat-agent-context";
@@ -67,6 +68,7 @@ export function Chat({ sessionId, agent, onNavigateToPath, onOpenSession, initia
     sendMessage,
     retry,
     withdrawLastTurn,
+    editAndResend,
     abort,
     reconnect,
     retryHistory,
@@ -244,6 +246,7 @@ export function Chat({ sessionId, agent, onNavigateToPath, onOpenSession, initia
           onRespondQuestion={handleRespondQuestion}
           onRetry={retry}
           onWithdraw={withdrawLastTurn}
+          onEditUserMessage={(entry, text) => editAndResend(text, toSendable(entry))}
           allowInlineHtml={profileQuery.data?.allowInlineHtml}
           onOpenSession={onOpenSession}
           hasMore={hasMore}

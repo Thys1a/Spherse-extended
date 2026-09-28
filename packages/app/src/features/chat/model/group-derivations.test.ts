@@ -6,6 +6,7 @@ import {
   planRetry,
   runningTriggerGroupId,
   shouldShowThinking,
+  toSendable,
 } from "./group-derivations";
 import type { MessageGroup } from "./message-group";
 import type { ToolItem } from "./tool-item";
@@ -58,6 +59,16 @@ describe("group derivations", () => {
     expect(lastWithdrawableUserEntry([user({ id: "u1" }), assistant()])?.id).toBe("u1");
     expect(lastWithdrawableUserEntry([user({ id: "u1", sendFailed: true })])).toBeUndefined();
     expect(lastWithdrawableUserEntry([assistant()])).toBeUndefined();
+  });
+
+  it("toSendable carries image attachments and drops anything else", () => {
+    expect(
+      toSendable(user({ attachments: [{ type: "image", path: "p.png", mimeType: "image/png" }] })),
+    ).toEqual({ path: "p.png", mimeType: "image/png" });
+    expect(
+      toSendable(user({ attachments: [{ type: "file", path: "a.txt", mimeType: "text/plain" }] })),
+    ).toBeUndefined();
+    expect(toSendable(user())).toBeUndefined();
   });
 
   it("plans retry-last for turn errors and resend for standalone errors", () => {

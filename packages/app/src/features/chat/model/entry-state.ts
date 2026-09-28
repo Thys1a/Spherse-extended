@@ -9,6 +9,12 @@ import {
   type UserSlash,
   type UserSummon,
 } from "./entry";
+import type { SendableImage } from "../types";
+
+export interface PendingEditResend {
+  content: string;
+  image?: SendableImage;
+}
 
 export interface ChatEntryState {
   entries: ChatEntry[];
@@ -16,6 +22,7 @@ export interface ChatEntryState {
   ownerAssistantId: EntryId | null;
   streaming: boolean;
   pendingWithdraw: boolean;
+  pendingEditResend: PendingEditResend | null;
   cursor: number;
   seqByMessageId: Record<string, number>;
 }
@@ -27,6 +34,7 @@ export function createEntryState(): ChatEntryState {
     ownerAssistantId: null,
     streaming: false,
     pendingWithdraw: false,
+    pendingEditResend: null,
     cursor: -1,
     seqByMessageId: {},
   };

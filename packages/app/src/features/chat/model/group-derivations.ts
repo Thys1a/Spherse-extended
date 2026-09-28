@@ -127,9 +127,9 @@ function findLastUserIndex(entries: ChatEntry[]): number {
   return -1;
 }
 
-function toSendable(entry: UserEntry): SendableImage | undefined {
+export function toSendable(entry: UserEntry): SendableImage | undefined {
   const attachment: ChatAttachment | undefined = entry.attachments?.[0];
-  if (!attachment) return undefined;
+  if (!attachment || attachment.type !== "image") return undefined;
   return {
     path: attachment.path,
     mimeType: attachment.mimeType,

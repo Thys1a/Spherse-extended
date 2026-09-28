@@ -257,6 +257,68 @@ describe("chat session store", () => {
     expect(session().pendingWithdraw).toBe(false);
   });
 
+  it("resends edited content after turn_withdrawn and clears the intent", async () => {
+    const socket = await attachAndOpen();
+    useChatSessionStore.getState().sendMessage("s1", "q2");
+    socket.onmessage?.({ data: JSON.stringify({ type: "agent_end", messages: [] }) } as MessageEvent);
+    await flush();
+
+    expect(useChatSessionStore.getState().editAndResend("s1", "q2 edited")).toBe(true);
+    socket.onmessage?.({ data: JSON.stringify({ type: "turn_withdrawn", seq: 1 }) } as MessageEvent);
+    await flush();
+
+    expect(session().pendingEditResend).toBeNull();
+    expect(JSON.parse(socket.sent.at(-1)!)).toMatchObject({ type: "message", content: "q2 edited" });
+    expect(session().entries.at(-1)).toMatchObject({ kind: "user", text: "q2 edited" });
+  });
+
+  it("drops the edit intent on error without resending", async () => {
+    const socket = await attachAndOpen();
+    useChatSessionStore.getState().sendMessage("s1", "q2");
+    socket.onmessage?.({ data: JSON.stringify({ type: "agent_end", messages: [] }) } as MessageEvent);
+    await flush();
+
+    expect(useChatSessionStore.getState().editAndResend("s1", "q2 edited")).toBe(true);
+    const sentCount = socket.sent.length;
+    socket.onmessage?.({ data: JSON.stringify({ type: "error", message: "boom" }) } as MessageEvent);
+    await flush();
+
+    expect(session().pendingEditResend).toBeNull();
+    expect(socket.sent).toHaveLength(sentCount);
+  });
+
+  it("drops the edit intent when error and turn_withdrawn arrive in one batch", async () => {
+    const socket = await attachAndOpen();
+    useChatSessionStore.getState().sendMessage("s1", "q2");
+    socket.onmessage?.({ data: JSON.stringify({ type: "agent_end", messages: [] }) } as MessageEvent);
+    await flush();
+
+    expect(useChatSessionStore.getState().editAndResend("s1", "q2 edited")).toBe(true);
+    const sentCount = socket.sent.length;
+    socket.onmessage?.({ data: JSON.stringify({ type: "error", message: "boom" }) } as MessageEvent);
+    socket.onmessage?.({ data: JSON.stringify({ type: "turn_withdrawn", seq: 1 }) } as MessageEvent);
+    await flush();
+
+    expect(session().pendingEditResend).toBeNull();
+    expect(socket.sent).toHaveLength(sentCount);
+  });
+
+  it("drops the edit intent when turn_withdrawn arrives before error in one batch", async () => {
+    const socket = await attachAndOpen();
+    useChatSessionStore.getState().sendMessage("s1", "q2");
+    socket.onmessage?.({ data: JSON.stringify({ type: "agent_end", messages: [] }) } as MessageEvent);
+    await flush();
+
+    expect(useChatSessionStore.getState().editAndResend("s1", "q2 edited")).toBe(true);
+    const sentCount = socket.sent.length;
+    socket.onmessage?.({ data: JSON.stringify({ type: "turn_withdrawn", seq: 1 }) } as MessageEvent);
+    socket.onmessage?.({ data: JSON.stringify({ type: "error", message: "boom" }) } as MessageEvent);
+    await flush();
+
+    expect(session().pendingEditResend).toBeNull();
+    expect(socket.sent).toHaveLength(sentCount);
+  });
+
   it("retries a turn error with the retry payload and clears the error", async () => {
     const socket = await attachAndOpen();
     useChatSessionStore.getState().sendMessage("s1", "hi");

@@ -170,6 +170,18 @@ describe("entry reducer", () => {
     expect(error.message).toBe("nope");
   });
 
+  it("clears a pending edit intent on error", () => {
+    let state = { ...createEntryState(), pendingEditResend: { content: "x" } };
+    state = reduceLiveEvents(state, [event({ type: "error", message: "boom" })], 1);
+    expect(state.pendingEditResend).toBeNull();
+  });
+
+  it("keeps a pending edit intent across turn_withdrawn for the drain to consume", () => {
+    let state = { ...createEntryState(), pendingEditResend: { content: "x" } };
+    state = reduceLiveEvents(state, [event({ type: "turn_withdrawn", seq: 0 })], 1);
+    expect(state.pendingEditResend).toEqual({ content: "x" });
+  });
+
   it("settles a pending withdraw with the next error event", () => {
     let state = stateWith([assistantEntry({ id: "a1", error: { message: "old" } })]);
     state = { ...state, pendingWithdraw: true };

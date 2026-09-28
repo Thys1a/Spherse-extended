@@ -1,6 +1,7 @@
-import { useCallback } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useI18n } from "@spherse/i18n/react";
-import { ChevronRightIcon } from "lucide-react";
+import { ChevronRightIcon, PencilIcon } from "lucide-react";
+import { Button } from "../../components/ui/button";
 import type { ChatAttachment } from "./types";
 import type { UserSlash, UserSummon } from "./model/entry";
 import { MarkdownContent } from "../../components/markdown-content/MarkdownContent";
@@ -13,6 +14,9 @@ import { useOpenExternalLink } from "../browser/open-external-url";
 import { SelectionMenu } from "./SelectionMenu";
 import { useSelectionMenu } from "./hooks/useSelectionMenu";
 
+const EDIT_MIN_HEIGHT = 2 * 20 + 16;
+const EDIT_MAX_HEIGHT = 10 * 20 + 16;
+
 interface UserBubbleProps {
   text: string;
   attachments?: ChatAttachment[];
@@ -23,6 +27,7 @@ interface UserBubbleProps {
   summon?: UserSummon;
   onWithdraw?: () => void;
   onRetry?: () => void;
+  onEdit?: (text: string) => void;
   onOpenSession?: (sessionId: string) => void;
 }
 
@@ -36,6 +41,7 @@ export function UserBubble({
   summon,
   onWithdraw,
   onRetry,
+  onEdit,
   onOpenSession,
 }: UserBubbleProps) {
   const { t } = useI18n();
@@ -65,6 +71,38 @@ export function UserBubble({
     [openLink],
   );
 
+  const [editing, setEditing] = useState(false);
+  const [editDraft, setEditDraft] = useState("");
+  const editRef = useRef<HTMLTextAreaElement | null>(null);
+  const canEdit = onEdit !== undefined;
+  useEffect(() => {
+    if (!canEdit) setEditing(false);
+  }, [canEdit]);
+
+  useLayoutEffect(() => {
+    if (!editing) return;
+    const textarea = editRef.current;
+    if (!textarea) return;
+    textarea.style.height = "auto";
+    const target = Math.max(EDIT_MIN_HEIGHT, Math.min(textarea.scrollHeight, EDIT_MAX_HEIGHT));
+    textarea.style.height = `${target}px`;
+    textarea.style.overflowY = textarea.scrollHeight > EDIT_MAX_HEIGHT ? "auto" : "hidden";
+  }, [editing, editDraft]);
+
+  const handleStartEdit = useCallback(() => {
+    setEditDraft(text);
+    setEditing(true);
+  }, [text]);
+
+  const handleConfirmEdit = useCallback(() => {
+    if (editDraft.trim() === "" || editDraft.trim() === text.trim()) {
+      setEditing(false);
+      return;
+    }
+    onEdit?.(editDraft);
+    setEditing(false);
+  }, [editDraft, text, onEdit]);
+
   return (
     <div
       className="group max-w-[90%] min-w-0 flex items-start gap-1.5 self-end flex-row-reverse"
@@ -84,7 +122,38 @@ export function UserBubble({
                 /{slash.type}:{slash.name}
               </span>
             )}
-            <MarkdownContent variant="chat" plain linkClassName="text-inherit" onLinkClick={handleLinkClick}>{text}</MarkdownContent>
+            {editing ? (
+              <div className="flex min-w-0 flex-col gap-1.5">
+                <textarea
+                  ref={editRef}
+                  value={editDraft}
+                  onChange={(event) => setEditDraft(event.target.value)}
+                  className="min-w-0 rounded-md border border-border bg-background px-2 py-1.5 text-sm text-foreground"
+                  data-chat-edit-draft
+                />
+                <div className="flex items-center justify-end gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-xs"
+                    onClick={() => setEditing(false)}
+                  >
+                    {t("chat.editCancel")}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-xs"
+                    onClick={handleConfirmEdit}
+                    data-chat-edit-confirm
+                  >
+                    {t("chat.editConfirm")}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <MarkdownContent variant="chat" plain linkClassName="text-inherit" onLinkClick={handleLinkClick}>{text}</MarkdownContent>
+            )}
           </div>
           {attachments && attachments.length > 0 && (
             <MessageAttachments attachments={attachments} />
@@ -104,6 +173,18 @@ export function UserBubble({
         {sendFailed && <SendFailedBar onRetry={onRetry} />}
         <div className="flex items-center gap-1 pb-1 opacity-100 md:opacity-0 md:transition-opacity md:group-hover:opacity-100 md:flex-row-reverse">
           {onWithdraw && <WithdrawButton onWithdraw={onWithdraw} />}
+          {onEdit && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="text-muted-foreground"
+              onClick={handleStartEdit}
+              title={t("chat.editTooltip")}
+              data-chat-edit
+            >
+              <PencilIcon />
+            </Button>
+          )}
           <CopyButton text={text} />
           {showTime && timestamp && (
             <time className="text-[11px] text-muted-foreground whitespace-nowrap">

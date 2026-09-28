@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import type { ApiClient } from "../../../lib/api";
-import type { AttachedImage } from "../types";
+import type { AttachedImage, SendableImage } from "../types";
 import { useChatSessionStore } from "../runtime/session-store";
 import type { ChatConnectionState } from "../runtime/session-state";
 import { useChatGroups } from "./useChatGroups";
@@ -70,6 +70,8 @@ export function useChatSession({
       useChatSessionStore.getState().sendMessage(sessionId, text, image),
     retry: () => useChatSessionStore.getState().retry(sessionId),
     withdrawLastTurn: () => useChatSessionStore.getState().withdrawLastTurn(sessionId),
+    editAndResend: (text: string, image?: SendableImage) =>
+      useChatSessionStore.getState().editAndResend(sessionId, text, image),
     abort: () => useChatSessionStore.getState().abort(sessionId),
     reconnect: () => useChatSessionStore.getState().reconnect(sessionId),
     retryHistory: () => useChatSessionStore.getState().retryHistory(client, agentId, sessionId),

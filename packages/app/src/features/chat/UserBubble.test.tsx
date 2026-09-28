@@ -31,6 +31,75 @@ describe("UserBubble", () => {
     expect(screen.queryByRole("button", { name: "撤回" })).not.toBeInTheDocument();
   });
 
+  it("edits text inline and confirms with the draft", async () => {
+    const user = userEvent.setup();
+    const onEdit = vi.fn();
+    renderWithProviders(
+      <UserBubble text="hello" onEdit={onEdit} />,
+      { bridge: createMockHostBridge() },
+    );
+
+    await user.click(screen.getByTitle("编辑"));
+    const box = screen.getByDisplayValue("hello");
+    await user.clear(box);
+    await user.type(box, "hello edited");
+    await user.click(screen.getByRole("button", { name: "重新发送" }));
+    expect(onEdit).toHaveBeenCalledWith("hello edited");
+  });
+
+  it("cancels editing without calling onEdit", async () => {
+    const user = userEvent.setup();
+    const onEdit = vi.fn();
+    renderWithProviders(
+      <UserBubble text="hello" onEdit={onEdit} />,
+      { bridge: createMockHostBridge() },
+    );
+
+    await user.click(screen.getByTitle("编辑"));
+    await user.click(screen.getByRole("button", { name: "取消" }));
+    expect(onEdit).not.toHaveBeenCalled();
+    expect(screen.getByText("hello")).toBeInTheDocument();
+  });
+
+  it("ignores confirm for blank or unchanged drafts", async () => {
+    const user = userEvent.setup();
+    const onEdit = vi.fn();
+    renderWithProviders(
+      <UserBubble text="hello" onEdit={onEdit} />,
+      { bridge: createMockHostBridge() },
+    );
+
+    await user.click(screen.getByTitle("编辑"));
+    const box = screen.getByDisplayValue("hello");
+    await user.clear(box);
+    await user.click(screen.getByRole("button", { name: "重新发送" }));
+    expect(onEdit).not.toHaveBeenCalled();
+
+    await user.click(screen.getByTitle("编辑"));
+    await user.click(screen.getByRole("button", { name: "重新发送" }));
+    expect(onEdit).not.toHaveBeenCalled();
+  });
+
+  it("omits the edit action without a handler", () => {
+    renderWithProviders(<UserBubble text="hello" />, { bridge: createMockHostBridge() });
+    expect(screen.queryByTitle("编辑")).not.toBeInTheDocument();
+  });
+
+  it("closes the editor when the edit action goes away mid-edit", async () => {
+    const onEdit = vi.fn();
+    const view = renderWithProviders(
+      <UserBubble text="hello" onEdit={onEdit} />,
+      { bridge: createMockHostBridge() },
+    );
+
+    const user = userEvent.setup();
+    await user.click(screen.getByTitle("编辑"));
+    expect(screen.getByDisplayValue("hello")).toBeInTheDocument();
+    view.rerender(<UserBubble text="hello" />);
+    expect(screen.queryByDisplayValue("hello")).not.toBeInTheDocument();
+    expect(onEdit).not.toHaveBeenCalled();
+  });
+
   it("renders image attachments through the preview url and zooms via a body portal", async () => {
     const user = userEvent.setup();
     renderWithProviders(

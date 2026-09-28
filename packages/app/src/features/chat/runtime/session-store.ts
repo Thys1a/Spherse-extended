@@ -29,6 +29,7 @@ interface ChatSessionStoreActions {
   sendMessage: (sessionId: string, text: string, image?: SendableImage) => boolean;
   retry: (sessionId: string) => void;
   withdrawLastTurn: (sessionId: string) => void;
+  editAndResend: (sessionId: string, text: string, image?: SendableImage) => boolean;
   abort: (sessionId: string) => void;
   reconnect: (sessionId: string) => void;
   resumeProbeAll: () => void;
@@ -71,6 +72,7 @@ export const useChatSessionStore = create<ChatSessionStoreState & ChatSessionSto
 
   function flushBatches(batches: EventBatches): void {
     const now = Date.now();
+    const pendingResends: Array<{ sessionId: string; intent: NonNullable<ChatSessionState["pendingEditResend"]> }> = [];
     set((state) => {
       let changed = false;
       const sessions = { ...state.sessions };
@@ -81,9 +83,16 @@ export const useChatSessionStore = create<ChatSessionStoreState & ChatSessionSto
         if (reduced === session) continue;
         sessions[sessionId] = { ...session, ...reduced, lastActivityAt: now };
         changed = true;
+        if (reduced.pendingEditResend && events.some((event) => event.type === "turn_withdrawn")) {
+          pendingResends.push({ sessionId, intent: reduced.pendingEditResend });
+        }
       }
       return changed ? { sessions } : state;
     });
+    for (const { sessionId, intent } of pendingResends) {
+      updateSession(sessionId, (current) => ({ ...current, pendingEditResend: null }));
+      outbound.sendMessage(sessionId, intent.content, intent.image);
+    }
   }
 
   let sendInitialMessage: (sessionId: string) => void = () => {};
@@ -171,6 +180,10 @@ export const useChatSessionStore = create<ChatSessionStoreState & ChatSessionSto
 
     withdrawLastTurn(sessionId) {
       outbound.withdrawLastTurn(sessionId);
+    },
+
+    editAndResend(sessionId, text, image) {
+      return outbound.editAndResend(sessionId, text, image);
     },
 
     abort(sessionId) {

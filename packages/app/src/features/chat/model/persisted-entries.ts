@@ -29,7 +29,9 @@ export function applyPersistedEvents<T extends ChatEntryState>(
   events: ChatReplayEvent[],
   now: number,
 ): T {
-  let next: ChatEntryState = state;
+  let next: ChatEntryState = state.pendingEditResend === null
+    ? state
+    : { ...state, pendingEditResend: null };
   for (const event of events) {
     next = applyPersistedEvent(next, event, now);
   }
