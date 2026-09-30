@@ -1388,10 +1388,14 @@ describe("AgentRunner truncated auto-retry", () => {
     return { calls };
   }
 
-  async function newRunner(): Promise<AgentRunner> {
+  async function newRunner(onTurnEvent?: (e: { name: string }) => void): Promise<AgentRunner> {
     const agentStore = getAgentStore(runtime, agentId);
     const sessionId = agentStore.sessions.createSession();
-    return AgentRunner.init(deps, agentId, sessionId);
+    return AgentRunner.init(
+      onTurnEvent === undefined ? deps : { ...deps, onTurnEvent } as RuntimeDeps,
+      agentId,
+      sessionId,
+    );
   }
 
   it("auto-continues a truncated turn once and completes", async () => {
@@ -1417,7 +1421,8 @@ describe("AgentRunner truncated auto-retry", () => {
 
   it("falls back to turn/end error after the second truncation without looping", async () => {
     const { calls } = mockStream([truncatedAssistant, truncatedAssistant, truncatedAssistant]);
-    const runner = await newRunner();
+    const turnEvents: Array<{ name: string; payload?: unknown }> = [];
+    const runner = await newRunner((e) => turnEvents.push(e as { name: string }));
 
     await runner.sendMessage("task", [], () => {});
 
@@ -1427,6 +1432,7 @@ describe("AgentRunner truncated auto-retry", () => {
     const ends = events.filter((e: any) => e.type === "turn/end");
     expect(ends).toHaveLength(1);
     expect(ends[0].data.reason).toBe("error");
+    expect(turnEvents.filter((e) => e.name === "sp:turn-end")).toHaveLength(1);
   });
 
   it("leaves non-truncated error turns untouched", async () => {

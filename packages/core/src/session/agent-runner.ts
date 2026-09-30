@@ -580,8 +580,7 @@ export class AgentRunner {
     this.resetToolLoopGuard();
     const lastBuffered = this.agent.state.messages[this.agent.state.messages.length - 1];
     if (!lastBuffered || lastBuffered.role === "assistant") {
-      this.eventLog.append("turn/end", { reason: "error" });
-      this.emitErrorTurnEnd(this.currentTurnSeq());
+      this.endRetriedTurnAsError();
       return;
     }
     this.pendingPromptEstimate = readCurrentTokens(
@@ -599,9 +598,21 @@ export class AgentRunner {
     }
     if (this.needsAutoRetry) {
       this.needsAutoRetry = false;
-      this.eventLog.append("turn/end", { reason: "error" });
-      this.emitErrorTurnEnd(this.currentTurnSeq());
+      this.endRetriedTurnAsError();
     }
+  }
+
+  private endRetriedTurnAsError(): void {
+    if (!this.eventLog) return;
+    const turnEnd = this.eventLog.append("turn/end", { reason: "error" });
+    this.emitTurnEvent("sp:turn-end", {
+      sessionId: this.sessionId,
+      agentId: this.agentId,
+      seq: turnEnd.seq,
+      reason: "error",
+      depth: this.turnDepth,
+      chainId: this.turnChainId,
+    });
   }
 
   private persistingControlSink(onEvent: RunnerEventHandler): RunnerEventHandler {
