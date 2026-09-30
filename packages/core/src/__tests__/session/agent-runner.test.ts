@@ -1614,18 +1614,22 @@ describe("AgentRunner pre-turn compaction", () => {
 
   it("skips afterTurn hooks once when the pre-check already compacted", async () => {
     mockOkStream();
-    const runner = await newRunner();
+    const preTurnCompaction = compactionCapability({ logger: createSilentLogger() }).preTurnCompaction;
     let afterTurnCalls = 0;
-    (runner as any).turnHooks = {
-      afterTurn: async () => {
-        afterTurnCalls += 1;
-      },
-    };
-    (runner as any).compactedThisTurn = true;
+    const runner = await newRunner({
+      preTurnCompaction,
+      createTurnHooks: () => ({
+        afterTurn: async () => {
+          afterTurnCalls += 1;
+        },
+      }),
+    } as Partial<RuntimeDeps>);
+    seedTurns(runner, 25);
 
-    await (runner as any).applyAfterTurnHooks();
+    await runner.sendMessage("task", [], () => {});
 
+    const events = eventsOf(runner);
+    expect(events.filter((e: any) => e.type === "compaction/applied")).toHaveLength(1);
     expect(afterTurnCalls).toBe(0);
-    expect((runner as any).compactedThisTurn).toBe(false);
   });
 });

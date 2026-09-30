@@ -23,6 +23,7 @@ import { SessionEventLog } from "./event-log.js";
 import type { SessionEvent, SendMessageMeta } from "./events.js";
 import { readCurrentTokens } from "../context/token-estimate.js";
 import { markTruncated } from "../context/truncated-turn.js";
+import { DEFAULT_THRESHOLD_RATIO } from "../context/compaction.js";
 import {
   buildAgent,
   buildPromptAndTools,
@@ -36,7 +37,7 @@ export type RunnerEventHandler = (event: AgentEvent | SessionControlEvent) => vo
 export const MAX_TOOL_CALLS_PER_TURN = 30;
 export const MAX_SAME_TOOLCALL_REPEAT = 3;
 export const MAX_CONSECUTIVE_TRUNCATED_TURNS = 3;
-const PRE_TURN_COMPACTION_RATIO = 0.75;
+const PRE_TURN_COMPACTION_RATIO = DEFAULT_THRESHOLD_RATIO;
 
 export type ToolLoopStopReason = "tool-call-budget" | "tool-call-repeat" | "truncated-loop";
 

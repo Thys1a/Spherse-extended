@@ -10,6 +10,8 @@
 
 ## Bug
 
+- [ ] **预检压缩覆盖特大单条 user 消息**：`maybePreCompact` 只 fold 旧 log 做压缩规划，新 user 在压完后直接 append——粘贴超大单条文本仍可一击超窗，本轮靠 afterTurn 兜底。方向：把新消息纳入压缩规划内估算（改 `maybeCompactLog` 签名或预检后二检）。参见 `docs/dev/investigation/2026-09-29-compaction/solutions.md` 方案 B
+
 - [ ] **补齐 session/agent/project abort-and-drain 生命周期**：destroy/evict/close 当前仅删除 map entry，删除或 shutdown 后 turn、trigger 仍可能执行工具或写入已关闭 store。先设计并实现 admission 关闭、preflight 取消、完整 turn/pending restore/trigger drain、capability teardown、store close 顺序及共享 shutdown Promise；顺手收口 turn finally 清理链的单点抛错风险（如 `sanitizer.finalize` 抛错会跳过 unsubscribe/sink 恢复/释放 busy）。server 侧 hub 的 project/all 级收口与 release 权归 core 已完成（见 [ADR-0012](../decisions/0012-chat-hub-lifecycle-ownership.md)）；剩余 hub 部分是 session/agent 级 delete 时的主动 quiesce 与本项核心 admission 一并设计。参见 `docs/dev/investigation/2026-08-29-session-lifecycle-concurrency/README.md`
 - [ ] **损坏项目滞留 openProjects 无移除入口**：项目打开失败（project.yaml 损坏等）后该路径一直留在 openProjects 设置里，每次启动重试失败记日志，暂无 UI 内移除 / 修复入口。参见 `docs/dev/bugfix/2026-08-27-project-open-overwrite/design.md`（#42 遗留）
 - [ ] **审批卡 abort/run 结束后 pending 态残留**：run 被中断（`rejectAll` 不发 `control_resolved`）时，`run_command` 的 pending_approval CommandCard 与 `manage_agent`/`manage_trigger` 的 pending ApprovalCard 仍保留可交互按钮，点击后静默无效（bus 对未知 requestId 忽略）。ask_user 的 QuestionCard 已在 `run_status inactive` 时由 reducer 清除（`clearPendingQuestionCards`），approval 侧应复用同款收敛（terminalize 或清除），并补 reducer 测试。

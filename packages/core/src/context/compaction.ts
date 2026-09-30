@@ -10,6 +10,8 @@ import { estimateTokens } from "./token-estimate.js";
 const MAX_MESSAGE_CHARS = 500;
 const TRUNCATE_MARKER = "…";
 
+export const DEFAULT_THRESHOLD_RATIO = 0.75;
+
 export interface CompactionOptions {
   currentTokens: number;
   contextWindow: number;
@@ -97,7 +99,7 @@ export function planCompaction(
   messages: Message[],
   options: CompactionOptions,
 ): CompactionPlan {
-  const thresholdRatio = options.thresholdRatio ?? 0.75;
+  const thresholdRatio = options.thresholdRatio ?? DEFAULT_THRESHOLD_RATIO;
   const keepRecentPrompts = options.keepRecentPrompts ?? 20;
   const maxTurns = options.maxTurns ?? 40;
   const hardRatio = options.hardRatio ?? 0.9;

@@ -316,7 +316,8 @@ describe("compaction capability", () => {
     }
   });
 
-  it("forces compaction when the last message is a truncated turn even below threshold", async () => {    const { deps, stream } = makeDeps({});
+  it("forces compaction when the last message is a truncated turn even below threshold", async () => {
+    const { deps, stream } = makeDeps({});
     const capability = compactionCapability(deps);
     const hooks = capability.turnHooks!(agentId, sessionId);
 
@@ -339,6 +340,8 @@ describe("compaction capability", () => {
   });
 
   it("shares the learned window between afterTurn and preTurnCompaction", async () => {
+    const TRUNCATED_USAGE = 1000;
+    const FOLLOWUP_USAGE = 850;
     const { deps, stream } = makeDeps({});
     const capability = compactionCapability(deps);
     expect(typeof capability.preTurnCompaction).toBe("function");
@@ -350,7 +353,7 @@ describe("compaction capability", () => {
         role: "assistant",
         content: [{ type: "thinking", thinking: "That" }],
         stopReason: "length",
-        usage: { input: 10, output: 1, cacheRead: 0, cacheWrite: 0, totalTokens: 1000 },
+        usage: { input: 10, output: 1, cacheRead: 0, cacheWrite: 0, totalTokens: TRUNCATED_USAGE },
         timestamp: Date.now(),
       } as never,
     });
@@ -365,7 +368,7 @@ describe("compaction capability", () => {
         role: "assistant",
         content: [{ type: "text", text: "ok" }],
         stopReason: "stop",
-        usage: { input: 10, output: 1, cacheRead: 0, cacheWrite: 0, totalTokens: 850 },
+        usage: { input: 10, output: 1, cacheRead: 0, cacheWrite: 0, totalTokens: FOLLOWUP_USAGE },
         timestamp: Date.now(),
       } as never,
     });

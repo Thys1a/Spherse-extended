@@ -134,7 +134,7 @@ export function createRunCommandTool(projectRoot: string): AgentTool<typeof RunC
   return {
     name: "run_command",
     label: "Run Command",
-    description: `Execute a shell command and return its stdout/stderr/exit code. ${shellHint}. Requires explicit user approval before each execution — the proposed command is shown to the user who must approve it. The process runs with the user's full privileges (no OS sandbox); prefer project-relative paths and avoid destructive or network commands unless necessary.`,
+    description: `Execute a shell command and return its stdout/stderr/exit code. ${shellHint}. Requires explicit user approval before each execution — the proposed command is shown to the user who must approve it. The process runs with the user's full privileges (no OS sandbox); prefer project-relative paths and avoid destructive or network commands unless necessary. Stdout/stderr are each capped at 32KB with an [output truncated] marker.`,
     parameters: RunCommandParams,
     async execute(_toolCallId, params, signal, onUpdate) {
       const command = params.command;

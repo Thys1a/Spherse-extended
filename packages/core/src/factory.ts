@@ -104,8 +104,12 @@ export async function assembleProject(
     logger.debug("trigger capability absent: turn events are not wired");
   }
   const compactionCap = capabilities.find((c) => c.id === "compaction") as
-    | CompactionCapability
+    | Partial<CompactionCapability>
     | undefined;
+  const preTurnCompaction =
+    compactionCap !== undefined && typeof compactionCap.preTurnCompaction === "function"
+      ? compactionCap.preTurnCompaction
+      : undefined;
   const deps = createRuntimeDeps({
     projectStore,
     logger,
@@ -118,7 +122,7 @@ export async function assembleProject(
     ...(triggerCap !== undefined
       ? { onTurnEvent: (e) => triggerCap.manager.onInternalEvent(e.name, e.payload) }
       : {}),
-    ...(compactionCap !== undefined ? { preTurnCompaction: compactionCap.preTurnCompaction } : {}),
+    ...(preTurnCompaction !== undefined ? { preTurnCompaction } : {}),
   });
 
   const sessionRuntime = new SessionManager(deps, { initialRunConfig: runConfig });
