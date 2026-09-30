@@ -25,23 +25,23 @@ export function createPruningProjector(keepSegments: number = KEEP_RECENT_SEGMEN
         if (message.role !== "toolResult" || (segOf[i] as number) >= cutoff) return message;
         const content = (message as { content?: unknown }).content;
         if (!Array.isArray(content)) return message;
-        let bytes = 0;
-        let hasText = false;
-        for (const block of content) {
-          const textBlock = block as TextBlock;
-          if (textBlock.type !== "text" || typeof textBlock.text !== "string") continue;
-          hasText = true;
-          bytes += textBlock.text.length;
-        }
-        if (!hasText) return message;
-        changed = true;
-        const toolName = (message as { toolName?: unknown }).toolName;
+      let chars = 0;
+      let hasText = false;
+      for (const block of content) {
+        const textBlock = block as TextBlock;
+        if (textBlock.type !== "text" || typeof textBlock.text !== "string") continue;
+        hasText = true;
+        chars += textBlock.text.length;
+      }
+      if (!hasText) return message;
+      changed = true;
+      const toolName = (message as { toolName?: unknown }).toolName;
         return {
           ...message,
           content: [
             {
               type: "text",
-              text: `[Output from ${typeof toolName === "string" ? toolName : "tool"} - ${bytes} chars]`,
+              text: `[Output from ${typeof toolName === "string" ? toolName : "tool"} - ${chars} chars]`,
             },
           ],
         } as AgentMessage;

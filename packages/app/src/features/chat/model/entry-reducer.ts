@@ -540,7 +540,7 @@ function applyError(state: ChatEntryState, message: string, code: ErrorEntry["co
   const error: EntryError = {
     message,
     ...(code !== undefined ? { code } : {}),
-    ...(state.pendingWithdraw ? { retrySuppressed: true } : {}),
+    ...(state.pendingWithdraw || state.pendingCompact ? { retrySuppressed: true } : {}),
   };
   const openIndex = indexOfId(state.entries, state.openStreamId);
   if (openIndex >= 0) {
@@ -563,7 +563,7 @@ function applyError(state: ChatEntryState, message: string, code: ErrorEntry["co
     id: nextTransientId("x"),
     message,
     ...(code !== undefined ? { code } : {}),
-    ...(state.pendingWithdraw ? { retrySuppressed: true } : {}),
+    ...(state.pendingWithdraw || state.pendingCompact ? { retrySuppressed: true } : {}),
     time: now,
   };
   return {

@@ -1732,6 +1732,19 @@ describe("AgentRunner compactNow", () => {
     expect(eventsOf(runner).filter((e: any) => e.type === "compaction/applied")).toHaveLength(0);
   });
 
+  it("returns applied:false for a single-prompt session", async () => {
+    mockDigestStream();
+    const runner = await newRunner();
+    seedEvents(runner, [
+      { type: "user/message", data: { message: { role: "user", content: "solo", timestamp: 1 } } },
+    ]);
+
+    const result = await runner.compactNow();
+
+    expect(result).toEqual({ applied: false });
+    expect(eventsOf(runner).filter((e: any) => e.type === "compaction/applied")).toHaveLength(0);
+  });
+
   it("force-compacts a 3-prompt session while keeping the recent tail", async () => {
     mockDigestStream();
     const runner = await newRunner();

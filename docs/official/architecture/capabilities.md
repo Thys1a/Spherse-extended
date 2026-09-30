@@ -24,7 +24,7 @@
 | `mcp` | MCP server 连接、工具运行时合并、`<mcp-context>` 注入 |
 | `attachments` | 图片等附件处理器 |
 | `compaction` | 上下文压缩（afterTurn 计划 + 发送前预检、`compaction/applied` 重启点、`compactSession` 手动入口） |
-| `tool-output-budget` | toolResult 上下文预算（contextProjector 单条 32KB 截断，覆盖本地/MCP 工具；只改 wire 视图，不改落库） |
+| `tool-output-budget` | toolResult 上下文预算（contextProjector 单条 32KB 截断，覆盖本地/MCP 工具；只改 wire 视图，不改落库） + 历史工具输出收缩（近 5 轮外占位） |
 | `time-perception` | `<time>` 感知前缀（streamDecorator） |
 | `memory` | `memory_save` / `memory_recall` + `<memory>` block（per-agent JSONL） |
 
