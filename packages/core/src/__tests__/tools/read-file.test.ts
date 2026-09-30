@@ -21,7 +21,7 @@ describe("createReadFileTool", () => {
     const tool = createReadFileTool(projectRoot, permissivePolicy(projectRoot));
     const result = await tool.execute("tc1", { path: "hello.txt" }, undefined as any);
     expect(result.content[0].text).toBe("hello world");
-    expect(result.details).toEqual({ path: "hello.txt", size: 11, totalLength: 11, returnedLength: 11, truncated: false });
+    expect(result.details).toEqual({ path: "hello.txt", size: 11, totalLength: 11, returnedLength: 11, truncated: false, paged: false, hasMore: false, offset: 1 });
   });
 
   it("reads a nested file", async () => {
@@ -103,7 +103,7 @@ describe("createReadFileTool", () => {
     const result = await tool.execute("tc1", { path: "code.ts" }, undefined as any);
 
     expect(result.content[0].text).toBe("export const x = 1;\n");
-    expect(result.details).toEqual({ path: "code.ts", size: 20, totalLength: 20, returnedLength: 20, truncated: false });
+    expect(result.details).toEqual({ path: "code.ts", size: 20, totalLength: 20, returnedLength: 20, truncated: false, paged: false, hasMore: false, offset: 1 });
   });
 
   it("treats empty file as text", async () => {
@@ -113,7 +113,7 @@ describe("createReadFileTool", () => {
     const result = await tool.execute("tc1", { path: "empty.txt" }, undefined as any);
 
     expect(result.content[0].text).toBe("");
-    expect(result.details).toEqual({ path: "empty.txt", size: 0, totalLength: 0, returnedLength: 0, truncated: false });
+    expect(result.details).toEqual({ path: "empty.txt", size: 0, totalLength: 0, returnedLength: 0, truncated: false, paged: false, hasMore: false, offset: 1 });
   });
 
   it("caps large files at 32KB and reports truncation", async () => {
@@ -133,9 +133,19 @@ describe("createReadFileTool", () => {
 
     const page = await tool.execute("tc1", { path: "lines.txt", offset: 2, limit: 2 }, undefined as any);
     expect(page.content[0].text).toBe("two\nthree");
-    expect(page.details).toMatchObject({ offset: 2, limit: 2, truncated: true });
+    expect(page.details).toMatchObject({ offset: 2, limit: 2, truncated: false, paged: true, hasMore: true });
 
     const tail = await tool.execute("tc1", { path: "lines.txt", offset: 4 }, undefined as any);
     expect(tail.content[0].text).toBe("four\n");
+    expect(tail.details).toMatchObject({ truncated: false, paged: true, hasMore: false });
+  });
+
+  it("reports out-of-range offset instead of an empty page", async () => {
+    await writeFile(projectRoot, "lines.txt", "one\ntwo\n");
+    const tool = createReadFileTool(projectRoot, permissivePolicy(projectRoot));
+
+    const result = await tool.execute("tc1", { path: "lines.txt", offset: 99 }, undefined as any);
+    expect(result.content[0].text).toContain("超出文件总行数");
+    expect(result.details).toMatchObject({ truncated: false, paged: true, hasMore: false });
   });
 });

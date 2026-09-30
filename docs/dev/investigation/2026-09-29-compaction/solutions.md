@@ -5,6 +5,15 @@
 前置设计：`docs/dev/bugfix/2026-09-21-empty-turn-on-context-overflow/design.md`
 状态：方案待定，未实施。
 
+> 实施注记（2026-09-30，分支 `feat/truncation-auto-retry-54673e`）：
+> 方案 A（含摘要质量修）与工具结果 L1/L2 已实施并合入本分支；
+> B（预检）、L3、C 未做。以下为 review 后已决事项——
+> error 轮 toolResult 全文保留为已决（token 代价由 L3 跟进）；
+> `continue()` 抛异常路径沿既有惯例只发 `sp:turn-end` 不落盘；
+> `read_file` 越界 offset 返回明确提示而非空页；
+> 截断标注中英混杂（`[output truncated]` / 中文标注）记为 i18n 例外（工具输出面向 LLM）；
+> MCP 与 `read_card` list/meta/entries 未封顶残留由 L2 wire 兜底。
+
 ## 问题一句话
 
 截停轮被落盘为 error 消息，用户手发“继续”走新 turn 而非续写，

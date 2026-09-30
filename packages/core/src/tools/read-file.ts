@@ -81,11 +81,27 @@ export function createReadFileTool(
       const content = buf.toString("utf-8");
       const lines = content.split("\n");
       const offset = Math.min(Math.max(params.offset ?? 1, 1), lines.length + 1);
+      if (offset > lines.length) {
+        return {
+          content: [{ type: "text" as const, text: `空：offset ${params.offset} 超出文件总行数（共 ${lines.length} 行）` }],
+          details: {
+            path: params.path,
+            size: content.length,
+            totalLength: content.length,
+            returnedLength: 0,
+            truncated: false,
+            paged: true,
+            hasMore: false,
+            offset,
+            ...(params.limit !== undefined ? { limit: params.limit } : {}),
+          },
+        };
+      }
       const windowed = params.limit === undefined
         ? lines.slice(offset - 1)
         : lines.slice(offset - 1, offset - 1 + params.limit);
+      const endLine = offset - 1 + windowed.length;
       const { text, truncated } = truncateText(windowed.join("\n"), MAX_OUTPUT_CHARS);
-      const sliced = params.limit !== undefined || offset !== 1;
       return {
         content: [{ type: "text" as const, text }],
         details: {
@@ -93,8 +109,10 @@ export function createReadFileTool(
           size: content.length,
           totalLength: content.length,
           returnedLength: text.length,
-          truncated: truncated || sliced,
-          ...(params.offset !== undefined ? { offset: params.offset } : {}),
+          truncated,
+          paged: offset !== 1 || params.limit !== undefined,
+          hasMore: endLine < lines.length || truncated,
+          offset,
           ...(params.limit !== undefined ? { limit: params.limit } : {}),
         },
       };

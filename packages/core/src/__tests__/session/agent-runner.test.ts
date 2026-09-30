@@ -30,6 +30,7 @@ import { attachmentsCapability } from "../../capabilities/attachments/index.js";
 import { timePerceptionCapability } from "../../capabilities/time-perception/index.js";
 import { createStoreRegistry } from "../../kernel/ports.js";
 import { compactionCapability } from "../../capabilities/compaction/index.js";
+import { toolOutputBudgetCapability } from "../../capabilities/tool-output-budget/index.js";
 
 const TEST_AGENT_PROFILE = `---
 name: Test Agent
@@ -1400,7 +1401,8 @@ describe("AgentRunner truncated auto-retry", () => {
 
   it("auto-continues a truncated turn once and completes", async () => {
     const { calls } = mockStream([truncatedAssistant, okAssistant]);
-    const runner = await newRunner();
+    const turnEvents: Array<{ name: string; payload?: any }> = [];
+    const runner = await newRunner((e) => turnEvents.push(e as { name: string }));
 
     await runner.sendMessage("task", [], () => {});
 
@@ -1409,6 +1411,9 @@ describe("AgentRunner truncated auto-retry", () => {
     expect(events.filter((e: any) => e.type === "turn/retried")).toHaveLength(1);
     expect(events.filter((e: any) => e.type === "turn/end")).toHaveLength(1);
     expect(events.find((e: any) => e.type === "turn/end").data.reason).toBe("completed");
+    const turnEnds = turnEvents.filter((e) => e.name === "sp:turn-end");
+    expect(turnEnds).toHaveLength(1);
+    expect((turnEnds[0].payload as any)?.reason).toBe("completed");
     const messages = deriveMessages(events);
     expect(messages[messages.length - 1]).toMatchObject({
       role: "assistant",
@@ -1452,5 +1457,27 @@ describe("AgentRunner truncated auto-retry", () => {
     const ends = events.filter((e: any) => e.type === "turn/end");
     expect(ends).toHaveLength(1);
     expect(ends[0].data.reason).toBe("error");
+  });
+
+  it("caps oversized toolResults in the LLM-projected turn context", async () => {
+    const agentStore = getAgentStore(runtime, agentId);
+    const sessionId = agentStore.sessions.createSession();
+    const cappedDeps = {
+      ...deps,
+      capabilities: [...builtinToolCapabilities(), toolOutputBudgetCapability()],
+    } as RuntimeDeps;
+    const runner = await AgentRunner.init(cappedDeps, agentId, sessionId);
+    seedEvents(runner, [
+      { type: "user/message", data: { message: { role: "user", content: "read it", timestamp: 1 } } },
+      { type: "assistant/message", data: { message: { role: "assistant", content: [{ type: "toolCall", id: "tc1", name: "read_file", arguments: {} }], stopReason: "stop", timestamp: 2 } } },
+      { type: "tool/result", data: { message: { role: "toolResult", toolCallId: "tc1", toolName: "read_file", content: [{ type: "text", text: "z".repeat(40000) }], timestamp: 3 } } },
+    ]);
+
+    const snapshot = runner.getTurnContext();
+    const projected = snapshot.messages.find((m: any) => m.role === "toolResult") as any;
+    expect(projected.content[0].text.length).toBeLessThanOrEqual(32 * 1024 + 100);
+    expect(projected.content[0].text).toContain("上下文预算");
+    const persisted = eventsOf(runner).find((e: any) => e.type === "tool/result");
+    expect((persisted.data.message.content[0] as any).text).toHaveLength(40000);
   });
 });

@@ -210,9 +210,10 @@ export function createSearchCardTool(
           ...(params.limit !== undefined ? { limit: params.limit } : {}),
           ...(params.snippetChars !== undefined ? { snippetChars: params.snippetChars } : {}),
         });
+        const { text, truncated } = truncateText(jsonBlock(result));
         return {
-          content: [{ type: "text" as const, text: jsonBlock(result) }],
-          details: { path: params.file },
+          content: [{ type: "text" as const, text }],
+          details: { path: params.file, truncated },
         };
       } catch (err) {
         return failed(params.file, err);

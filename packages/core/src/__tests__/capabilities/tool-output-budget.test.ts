@@ -29,11 +29,14 @@ describe("toolOutputBudgetProjector", () => {
 
   it("caps a single oversized toolResult", () => {
     const big = "x".repeat(MAX_OUTPUT_CHARS + 100);
-    const out = project([toolResult([big])] as never[]) as Array<Record<string, any>>;
+    const input = [toolResult([big])] as never[];
+    const snapshot = structuredClone(input);
+    const out = project(input) as Array<Record<string, any>>;
     const text = out[0].content[0].text as string;
     expect(text.length).toBeLessThanOrEqual(MAX_OUTPUT_CHARS + 100);
     expect(text).toContain("上下文预算");
     expect(out[0].content[0].text.startsWith("x".repeat(100))).toBe(true);
+    expect(input).toEqual(snapshot);
   });
 
   it("caps across blocks and drops later text blocks", () => {

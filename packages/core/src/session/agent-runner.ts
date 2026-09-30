@@ -75,6 +75,7 @@ export class AgentRunner {
   private pendingPromptEstimate: number | null = null;
   private needsAutoRetry = false;
   private autoRetryCount = 0;
+  private lastAssistantSeq: number | null = null;
   private toolCallTotal = 0;
   private lastToolKey: string | null = null;
   private sameToolRepeat = 0;
@@ -590,9 +591,6 @@ export class AgentRunner {
     try {
       await this.agent.continue();
       await this.applyAfterTurnHooks();
-    } catch (err) {
-      this.emitErrorTurnEnd(this.currentTurnSeq());
-      throw err;
     } finally {
       this.pendingPromptEstimate = null;
     }
@@ -762,9 +760,12 @@ export class AgentRunner {
     const failed = [...this.eventLog.events]
       .reverse()
       .find((event) => event.type === "assistant/message");
-    if (!failed || failed.type !== "assistant/message") return;
+    const failedSeq = failed && failed.type === "assistant/message"
+      ? failed.seq
+      : this.lastAssistantSeq;
+    if (failedSeq === null || failedSeq === undefined) return;
     this.eventLog.appendBatch([
-      { type: "turn/retried", data: { abandonedSeqs: [failed.seq] } },
+      { type: "turn/retried", data: { abandonedSeqs: [failedSeq] } },
       { type: "turn/start", data: {} },
     ]);
     this.needsAutoRetry = true;
@@ -779,6 +780,7 @@ export class AgentRunner {
           ? marked
           : { ...marked, promptEstimate: this.pendingPromptEstimate };
       const appended = this.eventLog!.append("assistant/message", { message: stamped as never });
+      this.lastAssistantSeq = appended.seq;
       this.emitTurnEvent("sp:assistant-message", {
         sessionId: this.sessionId,
         agentId: this.agentId,
