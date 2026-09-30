@@ -41,7 +41,7 @@ export function createPruningProjector(keepSegments: number = KEEP_RECENT_SEGMEN
           content: [
             {
               type: "text",
-              text: `[Output from ${typeof toolName === "string" ? toolName : "tool"} - 原始 ${bytes} bytes]`,
+              text: `[Output from ${typeof toolName === "string" ? toolName : "tool"} - ${bytes} chars]`,
             },
           ],
         } as AgentMessage;

@@ -27,9 +27,11 @@
 ### contracts 层（`packages/contracts`，含 server 共 1h）
 
 client → server 新增 `{ type: 'compact' }`（WS URL 已含 sessionId，不带冗余字段）；
-server 回 ack：**已决（2026-09-30）——采用前者**：把 `compaction/applied` 投影到
-live（`ChatWireProjector` 新增 case），replay/live 同词汇，与 backlog 事实流统一
-方向一致；`{ type: 'compact_result' }` 方案弃用（live/replay 双词汇，留技术债）。
+server 回 `{ type: 'compact_result', applied, digestSource? }` 点对点 ack（`applied: false`
+无事件可投影时请求方仍有反馈）；
+**已决（2026-09-30 review）——同时**把 `compaction/applied` 投影到 live
+（`ChatWireProjector` 新增 `compaction_applied` case，replay/live 同词汇），
+供所有订阅方推进游标；请求方 toast 以 ack 为准。
 
 ### app 层（`packages/app`，1.5h）
 
@@ -41,8 +43,9 @@ ChatPanel 工具栏加"压缩上下文"按钮（streaming/inactive 时禁用；b
 ### 验收测试
 
 - busy 时 `compactSession` 拒绝；空会话返回 `applied: false` 无事件追加。
-- 20 prompt/40 turn 内会话点压缩仍生效（force 旁路守卫）。
-- live 收到压缩反馈事件（任选其一实现）。
+- force 保留最近 3 轮：3 prompt 会话点压缩生效（anchor 覆盖前 2 轮），
+  1 prompt 会话返回 `applied: false`（无事可压）。
+- live 收到 `compaction_applied` 并推进游标；请求方另收 `compact_result` toast。
 
 ## 2. L3 wire 视图版（预算 2h）
 
@@ -53,9 +56,9 @@ ChatPanel 工具栏加"压缩上下文"按钮（streaming/inactive 时禁用；b
 2. **轮切分**：按 `user` 消息切段（"assistant 含 toolUse 为轮起点"不可靠——同轮可有
    多个 assistant、可无 toolUse）；仅对"倒数第 N 段之前"段内的 `toolResult.content`
    换占位。
-3. **占位与阈值**：占位 `[Output from ${toolName} - 原始 ${byteLength} bytes]`
-   （保留 `isError`/type）；N = 5（轮数口径——单轮可含多个 32KB 结果，
-   如需更紧可再加字节上限，本次不做）。
+3. **占位与阈值**：占位 `[Output from ${toolName} - ${chars} chars]`（字符口径，
+   保留 `isError`/type）；N = 5（轮数口径——单轮可含多个 32KB 结果，
+   如需更紧可再加字节上限，本次不做）；N=0 钳制为 1（当前轮永不剪）。
 4. **交互**：与 `excludedSeqs`/digest 无交互（projector 在 fold 之后，
    已跳过 excluded/compacted 部分）；`summarizeForCompaction` 与 `getTurnContext`
    同走 `convertToLlm`，输入同步受益（非副作用，是收益）。

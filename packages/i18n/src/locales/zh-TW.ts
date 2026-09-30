@@ -385,6 +385,7 @@ export const zhTW: Record<TranslationKey, string> = {
   "chat.compactTooltip": "壓縮上下文",
   "chat.compactApplied": "上下文已壓縮",
   "chat.compactNotNeeded": "目前上下文無需壓縮",
+  "chat.compactNotDelivered": "壓縮請求未能發出",
   "markdown.copyCode": "複製程式碼",
   "chat.close": "關閉",
   "chat.responseGenerationFailed": "回覆產生失敗",

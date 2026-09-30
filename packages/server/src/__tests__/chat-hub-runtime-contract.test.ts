@@ -187,4 +187,59 @@ describe("chat hub ↔ real SessionManager contract", () => {
     second.close();
     expect(runtime.sessionRuntime.hasActiveSession(sessionId)).toBe(false);
   });
+
+  it("compactSession compacts through the real runner without mocking it", async () => {
+    stubCatalog.getChatStreamFn.mockImplementation(
+      () =>
+        (async () => ({
+          async *[Symbol.asyncIterator]() {},
+          result: async () => ({
+            role: "assistant",
+            content: [{ type: "text", text: "contract digest of the earlier turns with enough substance here" }],
+            stopReason: "stop",
+          }),
+        })) as never,
+    );
+    try {
+      const agentSessions = store;
+      const compactSessionId = agentSessions.createSession();
+      const seeded: any[] = [];
+      for (let i = 0; i < 25; i++) {
+        seeded.push({
+          type: "user/message",
+          seq: i * 2,
+          time: i,
+          data: { message: { role: "user", content: `turn ${i} with padding`, timestamp: i } },
+        });
+        seeded.push({
+          type: "assistant/message",
+          seq: i * 2 + 1,
+          time: i,
+          data: {
+            message: {
+              role: "assistant",
+              content: [{ type: "text", text: `reply ${i} with padding` }],
+              stopReason: "stop",
+              timestamp: i,
+            },
+          },
+        });
+      }
+      store.appendEvents(compactSessionId, seeded, 1);
+      const hub = new ChatSessionHub(silentLogger as never);
+      const attachment = hub.attach(runtime.sessionRuntime, agentId, compactSessionId, () => {});
+      await attachment.ready;
+
+      const result = await attachment.compactSession();
+
+      expect(result).toMatchObject({ applied: true, digestSource: "llm" });
+      const persisted = store.readEvents(compactSessionId);
+      expect(persisted.at(-1)).toMatchObject({ type: "compaction/applied" });
+      const liveRunner = runtime.sessionRuntime.sessions.get(compactSessionId);
+      expect(liveRunner.currentEvents).toHaveLength(persisted.length);
+      attachment.close();
+    } finally {
+      stubCatalog.getChatStreamFn.mockImplementation(() => vi.fn() as never);
+    }
+  });
 });

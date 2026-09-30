@@ -133,6 +133,12 @@ export function Chat({ sessionId, agent, onNavigateToPath, onOpenSession, initia
 
   const sendSummon = useSummonSend(sessionId, agent.id);
 
+  const handleCompact = () => {
+    if (!compactSession()) {
+      toast.error(t("chat.compactNotDelivered"));
+    }
+  };
+
   const handleSend = (text: string, attachments?: AttachedFile[]) => {
     if (text.trim().startsWith(">>")) {
       if (attachments && attachments.length > 0) {
@@ -224,7 +230,7 @@ export function Chat({ sessionId, agent, onNavigateToPath, onOpenSession, initia
               activeQuickLink={isMobile ? activeQuickLink : null}
               onQuickLink={handleQuickLink}
               onClose={onClose ? handleClose : undefined}
-              onCompact={compactSession}
+              onCompact={handleCompact}
               compacting={compacting}
               compactDisabled={streaming || loading}
             />

@@ -773,12 +773,10 @@ export const zhCN = {
   "chat.withdrawConfirmTooltip": "确认撤回",
   // 撤回按钮两段式确认：点击撤回后出现的 ✕ 取消按钮悬停提示
   "chat.withdrawCancelTooltip": "取消撤回",
-  // 聊天页眉「压缩上下文」按钮悬停提示，点击压缩当前会话历史
   "chat.compactTooltip": "压缩上下文",
-  // 手动压缩成功后的提示
   "chat.compactApplied": "上下文已压缩",
-  // 会话无需压缩时的提示
   "chat.compactNotNeeded": "当前上下文无需压缩",
+  "chat.compactNotDelivered": "压缩请求未能发出",
   // markdown 代码块右上角「复制代码」按钮的悬停提示
   "markdown.copyCode": "复制代码",
   // Chat 关闭按钮悬停提示

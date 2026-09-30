@@ -1732,6 +1732,17 @@ describe("AgentRunner compactNow", () => {
     expect(eventsOf(runner).filter((e: any) => e.type === "compaction/applied")).toHaveLength(0);
   });
 
+  it("force-compacts a 3-prompt session while keeping the recent tail", async () => {
+    mockDigestStream();
+    const runner = await newRunner();
+    seedTurns(runner, 3);
+
+    const result = await runner.compactNow();
+
+    expect(result).toMatchObject({ applied: true });
+    expect(eventsOf(runner).filter((e: any) => e.type === "compaction/applied")).toHaveLength(1);
+  });
+
   it("rejects while a turn is in flight", async () => {
     const runner = await newRunner();
     (runner as any).inFlight = true;

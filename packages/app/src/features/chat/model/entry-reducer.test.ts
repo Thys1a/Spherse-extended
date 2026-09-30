@@ -191,6 +191,14 @@ describe("entry reducer", () => {
     expect(error.retrySuppressed).toBe(true);
   });
 
+  it("settles a pending compact with the next error event", () => {
+    let state = stateWith([assistantEntry({ id: "a1", text: "hi" })]);
+    state = { ...state, pendingCompact: true };
+    state = reduceLiveEvents(state, [event({ type: "error", message: "compact failed" })], 1);
+    expect(state.pendingCompact).toBe(false);
+    expect(state.compactResult).toBeNull();
+  });
+
   it("clears pending withdraw on turn_withdrawn and truncates from the withdrawn seq", () => {
     const user: UserEntry = { kind: "user", id: "e0", seq: 0, text: "q1" };
     const answer = assistantEntry({ id: "e1", seq: 1, text: "a1" });
@@ -224,6 +232,17 @@ describe("entry reducer", () => {
     state = reduceLiveEvents(state, [event({ type: "compact_result", applied: false })], 1);
     expect(state.pendingCompact).toBe(false);
     expect(state.compactResult).toEqual({ applied: false });
+  });
+
+  it("advances the cursor on compaction_applied without touching entries", () => {
+    let state = stateWith([assistantEntry({ id: "a1", seq: 5, text: "hi" })]);
+    state = reduceLiveEvents(
+      state,
+      [event({ type: "compaction_applied", seq: 9, anchorSeq: 4, excludedSeqs: [] })],
+      1,
+    );
+    expect(state.cursor).toBe(9);
+    expect(state.entries.map((entry) => entry.id)).toEqual(["a1"]);
   });
 
   it("tracks control requests on tool results and resolves them", () => {

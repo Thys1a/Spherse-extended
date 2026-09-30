@@ -70,6 +70,14 @@ export class ChatWireProjector {
         };
       case "turn/withdrawn":
         return { type: "turn_withdrawn", seq: event.data.seq };
+      case "compaction/applied":
+        return {
+          type: "compaction_applied",
+          seq: event.seq,
+          anchorSeq: event.data.anchorSeq,
+          excludedSeqs: event.data.excludedSeqs,
+          ...(event.data.digestSource !== undefined ? { digestSource: event.data.digestSource } : {}),
+        };
       case "assistant/message":
       case "tool/result": {
         const message = event.data.message as object;

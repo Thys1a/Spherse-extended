@@ -180,10 +180,30 @@ describe("ChatWireProjector", () => {
           excludedSeqs: [],
         }),
       ),
-    ).toBeUndefined();
+    ).toEqual({
+      type: "compaction_applied",
+      seq: 4,
+      anchorSeq: 1,
+      excludedSeqs: [],
+    });
     expect(projector.consumeLogEvent(logEvent("turn/withdrawn", 6, { seq: 2 }))).toEqual({
       type: "turn_withdrawn",
       seq: 2,
+    });
+  });
+
+  it("projects compaction/applied for live subscribers", () => {
+    const projector = new ChatWireProjector();
+    expect(
+      projector.consumeLogEvent(
+        logEvent("compaction/applied", 9, { anchorSeq: 4, digestContent: "d", excludedSeqs: [5], digestSource: "llm" }),
+      ),
+    ).toEqual({
+      type: "compaction_applied",
+      seq: 9,
+      anchorSeq: 4,
+      excludedSeqs: [5],
+      digestSource: "llm",
     });
   });
 

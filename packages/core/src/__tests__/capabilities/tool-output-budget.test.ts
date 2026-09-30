@@ -102,13 +102,13 @@ describe("toolOutputPruningProjector", () => {
     ];
     const out = project(messages, 1);
     expect(out[2].content).toEqual([
-      { type: "text", text: "[Output from read_file - 原始 15 bytes]" },
+      { type: "text", text: "[Output from read_file - 15 chars]" },
     ]);
     expect(out[5].content).toEqual([
-      { type: "text", text: "[Output from read_file - 原始 14 bytes]" },
+      { type: "text", text: "[Output from read_file - 14 chars]" },
     ]);
     expect(out[8].content).toEqual([
-      { type: "text", text: "[Output from read_file - 原始 8 bytes]" },
+      { type: "text", text: "[Output from read_file - 8 chars]" },
     ]);
     expect(out[11].content).toEqual([{ type: "text", text: "keep three" }]);
   });

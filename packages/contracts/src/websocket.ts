@@ -278,6 +278,15 @@ const chatServerEvent = Type.Union([
     seq: Type.Integer(),
   }),
   Type.Object({
+    type: Type.Literal("compaction_applied"),
+    seq: Type.Integer(),
+    anchorSeq: Type.Integer(),
+    excludedSeqs: Type.Array(Type.Integer()),
+    digestSource: Type.Optional(
+      Type.Union([Type.Literal("llm"), Type.Literal("mechanical")]),
+    ),
+  }),
+  Type.Object({
     type: Type.Literal("compact_result"),
     applied: Type.Boolean(),
     digestSource: Type.Optional(

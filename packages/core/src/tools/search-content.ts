@@ -63,6 +63,7 @@ async function searchInFile(
   results: SearchResult[],
   maxResults: number,
   skipped: SkippedFile[],
+  projectRoot: string,
 ): Promise<void> {
   if (results.length >= maxResults) return;
 
@@ -73,7 +74,7 @@ async function searchInFile(
     return;
   }
   if (stat.size > MAX_SCAN_FILE_BYTES) {
-    skipped.push({ file: filePath, size: stat.size });
+    skipped.push({ file: path.relative(projectRoot, filePath).split(path.sep).join("/"), size: stat.size });
     return;
   }
 
@@ -142,7 +143,7 @@ async function searchDir(
       );
     } else if (entry.isFile()) {
       if (!matchesPattern(entry.name, includePatterns)) continue;
-      await searchInFile(entryPath, query, results, maxResults, skipped);
+      await searchInFile(entryPath, query, results, maxResults, skipped, projectRoot);
     }
   }
 }

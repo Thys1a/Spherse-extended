@@ -385,6 +385,7 @@ export const en: Record<TranslationKey, string> = {
   "chat.compactTooltip": "Compact context",
   "chat.compactApplied": "Context compacted",
   "chat.compactNotNeeded": "No compaction needed",
+  "chat.compactNotDelivered": "Compact request was not delivered",
   "markdown.copyCode": "Copy code",
   "chat.close": "Close",
   "chat.responseGenerationFailed": "Response generation failed",
