@@ -36,6 +36,17 @@ B（预检）、L3、C 不在本次范围。
 - [x] 文档同步：`project-structure.md` 树 + `architecture/capabilities.md` 表 +
   `architecture/core.md` 截停自愈条（backlog 渐进式读取条已删）
 
+## 方案 B：预检压缩 ✅ 2026-09-30 已实施（同分支后续 commit）
+
+- [x] 改动 4：`compactionCapability` 暴露 `preTurnCompaction`（`windows: Map<sessionId>` 会话级共享；
+  `PreTurnCompaction` 类型落户 `kernel/turn-hooks.ts`，`Capability` 接口不动）
+- [x] 改动 5：`AgentRunner.maybePreCompact`（`append user` 前调用，含新消息估算，
+  `PRE_TURN_COMPACTION_RATIO = 0.75`）+ `compactedThisTurn` 标志
+- [x] 改动 6：`factory.ts` 按名取 compaction capability 注入；`createRuntimeDeps` 输入扩展
+- [x] 改动 7：`applyAfterTurnHooks` 见标志跳过本轮
+- [x] 测试：预检先于 user 落盘且无重复 user；预检失败不阻塞；标志跳过；学习窗口复用
+- [x] 文档同步：`architecture/core.md` 预检条 + solutions 实施注记
+
 ## 收尾
 
 - [ ] `npm run verify` 相关子集（lint/build/typecheck/core 测试）

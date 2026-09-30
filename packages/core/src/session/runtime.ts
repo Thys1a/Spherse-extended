@@ -2,7 +2,7 @@ import type { ProjectStore } from "../store/project.js";
 import type { FileWriteMutex } from "../utils/file-write-mutex.js";
 import type { Logger } from "../logger.js";
 import type { SamplingParams, ThinkingLevel } from "../types.js";
-import { composeTurnHooks, type TurnHooksFactory } from "../kernel/turn-hooks.js";
+import { composeTurnHooks, type PreTurnCompaction, type TurnHooksFactory } from "../kernel/turn-hooks.js";
 import type { ModelResolver } from "./model-resolver.js";
 import { createModelResolver } from "./model-resolver.js";
 import { ModelCatalog } from "../model-providers/catalog.js";
@@ -58,6 +58,7 @@ export interface RuntimeDeps {
   readonly logger: Logger;
   readonly runConfig: RunConfigSource;
   readonly createTurnHooks?: TurnHooksFactory;
+  readonly preTurnCompaction?: PreTurnCompaction;
   readonly onTurnEvent?: (event: TurnEvent) => void;
   readonly attribution?: ToolAttributionRegistry;
   readonly modelResolver: ModelResolver;
@@ -80,6 +81,7 @@ export function createRuntimeDeps(input: {
   runConfig: RunConfigSource;
   onTurnEvent?: (event: TurnEvent) => void;
   attribution?: ToolAttributionRegistry;
+  preTurnCompaction?: PreTurnCompaction;
   modelResolver?: ModelResolver;
   modelCatalog?: ModelCatalog;
 }): Readonly<RuntimeDeps> {
@@ -93,6 +95,7 @@ export function createRuntimeDeps(input: {
     runConfig: input.runConfig,
     ...(input.onTurnEvent !== undefined ? { onTurnEvent: input.onTurnEvent } : {}),
     ...(input.attribution !== undefined ? { attribution: input.attribution } : {}),
+    ...(input.preTurnCompaction !== undefined ? { preTurnCompaction: input.preTurnCompaction } : {}),
     createTurnHooks: (agentId, sessionId) =>
       composeTurnHooks(
         capabilities

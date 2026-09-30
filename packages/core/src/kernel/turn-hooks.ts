@@ -14,6 +14,12 @@ export interface TurnHooks {
 
 export type TurnHooksFactory = (agentId: string, sessionId: string) => TurnHooks;
 
+export type PreTurnCompaction = (
+  eventLog: TurnEventAppender,
+  agent: Agent,
+  sessionId: string,
+) => Promise<void>;
+
 export function composeTurnHooks(hooks: ReadonlyArray<TurnHooks>): TurnHooks {
   return {
     async beforeTurn(agent) {

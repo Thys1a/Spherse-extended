@@ -1481,3 +1481,151 @@ describe("AgentRunner truncated auto-retry", () => {
     expect((persisted.data.message.content[0] as any).text).toHaveLength(40000);
   });
 });
+
+describe("AgentRunner pre-turn compaction", () => {
+  let tmpDir: string;
+  let runtime: RuntimeInternals & Awaited<ReturnType<typeof createProject>>;
+  let deps: RuntimeDeps;
+  let agentId: string;
+
+  const okAssistant = {
+    role: "assistant",
+    content: [{ type: "text", text: "done" }],
+    stopReason: "stop",
+    usage: {
+      input: 10,
+      output: 5,
+      cacheRead: 0,
+      cacheWrite: 0,
+      totalTokens: 15,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+    },
+    timestamp: Date.now(),
+  };
+
+  beforeEach(async () => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "wb-pre-compact-"));
+    getChatStreamFnMock.mockClear();
+    resolveModelByIdMock.mockClear();
+    resolveModelByIdMock.mockImplementation((modelId: string) => {
+      const slashIdx = modelId.indexOf("/");
+      const id = slashIdx >= 0 ? modelId.slice(slashIdx + 1) : modelId;
+      const provider = slashIdx >= 0 ? modelId.slice(0, slashIdx) : modelId;
+      return { id, provider, contextWindow: 200 };
+    });
+    runtime = (await createProject(tmpDir, {
+      projectName: "Test",
+      logger: createSilentLogger(),
+    })) as RuntimeInternals & Awaited<ReturnType<typeof createProject>>;
+    const projectStore = runtime.projectManager.projectStore as any;
+    const testAgent = await projectStore.createAgent("test-agent", TEST_AGENT_PROFILE);
+    agentId = testAgent.getProfile().id;
+    runtime.timerService.stop();
+    deps = {
+      projectStore,
+      projectRoot: projectStore.getRootPath(),
+      fileWriteMutex: (runtime as any).sessionRuntime.deps.fileWriteMutex,
+      logger: createSilentLogger(),
+      runConfig: new RunConfigHolder({ defaultModel: "openai/gpt-4o" }),
+      modelResolver: createModelResolver(stubCatalog),
+      modelCatalog: stubCatalog,
+      capabilities: builtinToolCapabilities(),
+      stores: createStoreRegistry(),
+      attachmentProcessors: [],
+    } as unknown as RuntimeDeps;
+  });
+
+  afterEach(async () => {
+    getChatStreamFnMock.mockImplementation(() => vi.fn() as never);
+    resolveModelByIdMock.mockImplementation((modelId: string) => {
+      const slashIdx = modelId.indexOf("/");
+      return slashIdx >= 0
+        ? { id: modelId.slice(slashIdx + 1), provider: modelId.slice(0, slashIdx) }
+        : { id: modelId, provider: modelId };
+    });
+    await runtime.shutdown().catch(() => {});
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  function mockOkStream(): void {
+    getChatStreamFnMock.mockImplementation(
+      () =>
+        (async () => ({
+          async *[Symbol.asyncIterator]() {},
+          result: async () => structuredClone(okAssistant),
+        })) as never,
+    );
+  }
+
+  function seedTurns(runner: AgentRunner, turns: number): void {
+    const seeded: Array<{ type: string; data: unknown }> = [];
+    for (let i = 0; i < turns; i++) {
+      seeded.push({
+        type: "user/message",
+        data: { message: { role: "user", content: `turn ${i} with some padding text`, timestamp: i } },
+      });
+      seeded.push({
+        type: "assistant/message",
+        data: { message: { role: "assistant", content: [{ type: "text", text: `reply ${i} with some padding text` }], stopReason: "stop", timestamp: i } },
+      });
+    }
+    seedEvents(runner, seeded);
+  }
+
+  async function newRunner(extra?: Partial<RuntimeDeps>): Promise<AgentRunner> {
+    const agentStore = getAgentStore(runtime, agentId);
+    const sessionId = agentStore.sessions.createSession();
+    return AgentRunner.init({ ...deps, ...extra } as RuntimeDeps, agentId, sessionId);
+  }
+
+  it("compacts before the user message lands when over threshold", async () => {
+    mockOkStream();
+    const preTurnCompaction = compactionCapability({ logger: createSilentLogger() }).preTurnCompaction;
+    const runner = await newRunner({ preTurnCompaction } as Partial<RuntimeDeps>);
+    seedTurns(runner, 25);
+
+    await runner.sendMessage("task", [], () => {});
+
+    const events = eventsOf(runner);
+    const compactions = events.filter((e: any) => e.type === "compaction/applied");
+    expect(compactions).toHaveLength(1);
+    const users = events.filter((e: any) => e.type === "user/message");
+    expect(users[users.length - 1].seq).toBeGreaterThan(compactions[0].seq);
+    expect(users.filter((e: any) => JSON.stringify(e.data.message.content).includes("task"))).toHaveLength(1);
+    const messages = deriveMessages(events);
+    expect(messages.filter((m: any) => m.role === "user" && JSON.stringify(m.content).includes("task"))).toHaveLength(1);
+  });
+
+  it("a failing pre-check never blocks the turn", async () => {
+    mockOkStream();
+    const runner = await newRunner({
+      preTurnCompaction: async () => {
+        throw new Error("compaction down");
+      },
+    } as Partial<RuntimeDeps>);
+    seedTurns(runner, 25);
+
+    await runner.sendMessage("task", [], () => {});
+
+    const events = eventsOf(runner);
+    expect(events.filter((e: any) => e.type === "compaction/applied")).toHaveLength(0);
+    expect(events.find((e: any) => e.type === "turn/end")?.data.reason).toBe("completed");
+  });
+
+  it("skips afterTurn hooks once when the pre-check already compacted", async () => {
+    mockOkStream();
+    const runner = await newRunner();
+    let afterTurnCalls = 0;
+    (runner as any).turnHooks = {
+      afterTurn: async () => {
+        afterTurnCalls += 1;
+      },
+    };
+    (runner as any).compactedThisTurn = true;
+
+    await (runner as any).applyAfterTurnHooks();
+
+    expect(afterTurnCalls).toBe(0);
+    expect((runner as any).compactedThisTurn).toBe(false);
+  });
+});

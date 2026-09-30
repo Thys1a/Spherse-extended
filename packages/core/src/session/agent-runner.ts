@@ -36,6 +36,7 @@ export type RunnerEventHandler = (event: AgentEvent | SessionControlEvent) => vo
 export const MAX_TOOL_CALLS_PER_TURN = 30;
 export const MAX_SAME_TOOLCALL_REPEAT = 3;
 export const MAX_CONSECUTIVE_TRUNCATED_TURNS = 3;
+const PRE_TURN_COMPACTION_RATIO = 0.75;
 
 export type ToolLoopStopReason = "tool-call-budget" | "tool-call-repeat" | "truncated-loop";
 
@@ -76,6 +77,7 @@ export class AgentRunner {
   private needsAutoRetry = false;
   private autoRetryCount = 0;
   private lastAssistantSeq: number | null = null;
+  private compactedThisTurn = false;
   private toolCallTotal = 0;
   private lastToolKey: string | null = null;
   private sameToolRepeat = 0;
@@ -197,6 +199,7 @@ export class AgentRunner {
     this.resetToolLoopGuard();
     this.needsAutoRetry = false;
     this.autoRetryCount = 0;
+    this.compactedThisTurn = false;
     let sanitizer: AttachmentSanitizer | null = null;
     let unsubscribe: (() => void) | undefined;
     let restoreSink: (() => void) | undefined;
@@ -229,6 +232,8 @@ export class AgentRunner {
       const sanitizedUserMessage = sanitizer
         ? (stripUserAttachments(userMessage as never, attachments) as typeof userMessage)
         : userMessage;
+
+      await this.maybePreCompact(sanitizedUserMessage as AgentMessage);
 
       const [userEvent, turnStartEvent] = this.eventLog!.appendBatch([
         {
@@ -294,6 +299,7 @@ export class AgentRunner {
     this.inFlight = true;
     this.needsAutoRetry = false;
     this.autoRetryCount = 0;
+    this.compactedThisTurn = false;
     let unsubscribe: (() => void) | undefined;
     let restoreSink: (() => void) | undefined;
     try {
@@ -324,6 +330,7 @@ export class AgentRunner {
       }
 
       this.ensureModel();
+      await this.maybePreCompact();
       const [, retryStartEvent] = this.eventLog!.appendBatch([
         { type: "turn/retried", data: { abandonedSeqs: [lastEvent.seq] } },
         { type: "turn/start", data: {} },
@@ -563,6 +570,10 @@ export class AgentRunner {
 
   private async applyAfterTurnHooks(): Promise<void> {
     if (!this.turnHooks.afterTurn || !this.eventLog) return;
+    if (this.compactedThisTurn) {
+      this.compactedThisTurn = false;
+      return;
+    }
     const eventsBefore = this.eventLog.events.length;
     await this.turnHooks.afterTurn(this.agent, this.eventLog);
     if (this.eventLog.events.length !== eventsBefore) {
@@ -753,6 +764,34 @@ export class AgentRunner {
       "tool call loop guard stopped turn",
     );
     return true;
+  }
+
+  private async maybePreCompact(newMessage?: AgentMessage): Promise<void> {
+    const preTurn = this.deps.preTurnCompaction;
+    if (!preTurn || !this.eventLog) return;
+    const window =
+      (this.agent.state.model as { contextWindow?: number } | undefined)?.contextWindow ?? 32768;
+    const estimate = readCurrentTokens(
+      newMessage === undefined
+        ? this.agent.state.messages
+        : [...deriveMessages(this.eventLog.events), newMessage],
+      this.agent.state.systemPrompt,
+    );
+    if (estimate <= window * PRE_TURN_COMPACTION_RATIO) return;
+    const eventsBefore = this.eventLog.events.length;
+    try {
+      await preTurn(this.eventLog, this.agent, this.sessionId);
+    } catch (err) {
+      this.deps.logger.warn(
+        { err, sessionId: this.sessionId },
+        "pre-turn compaction failed, continuing without compaction",
+      );
+      return;
+    }
+    if (this.eventLog.events.length !== eventsBefore) {
+      this.syncBufferFromLog();
+      this.compactedThisTurn = true;
+    }
   }
 
   private abandonTruncatedTurn(): void {

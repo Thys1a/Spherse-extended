@@ -7,7 +7,8 @@
 
 > 实施注记（2026-09-30，分支 `feat/truncation-auto-retry-54673e`）：
 > 方案 A（含摘要质量修）与工具结果 L1/L2 已实施并合入本分支；
-> B（预检）、L3、C 未做。以下为 review 后已决事项——
+> 方案 B（预检压缩：`PreTurnCompaction` + `maybePreCompact` + `compactedThisTurn` 防双压）
+> 随后同分支实施；L3、C 未做。以下为 review 后已决事项——
 > error 轮 toolResult 全文保留为已决（token 代价由 L3 跟进）；
 > `continue()` 抛异常路径沿既有惯例只发 `sp:turn-end` 不落盘；
 > `read_file` 越界 offset 返回明确提示而非空页；

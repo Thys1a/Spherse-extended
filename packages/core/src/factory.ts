@@ -15,7 +15,7 @@ import { createTriggerCapability, type TriggerCapability } from "./capabilities/
 import { ToolAttributionRegistry } from "./tool-attribution.js";
 import { createMcpCapability } from "./capabilities/mcp/index.js";
 import { attachmentsCapability } from "./capabilities/attachments/index.js";
-import { compactionCapability } from "./capabilities/compaction/index.js";
+import { compactionCapability, type CompactionCapability } from "./capabilities/compaction/index.js";
 import { toolOutputBudgetCapability } from "./capabilities/tool-output-budget/index.js";
 import { memoryCapability } from "./capabilities/memory/index.js";
 import { timePerceptionCapability } from "./capabilities/time-perception/index.js";
@@ -103,6 +103,9 @@ export async function assembleProject(
   if (!triggerCap) {
     logger.debug("trigger capability absent: turn events are not wired");
   }
+  const compactionCap = capabilities.find((c) => c.id === "compaction") as
+    | CompactionCapability
+    | undefined;
   const deps = createRuntimeDeps({
     projectStore,
     logger,
@@ -115,6 +118,7 @@ export async function assembleProject(
     ...(triggerCap !== undefined
       ? { onTurnEvent: (e) => triggerCap.manager.onInternalEvent(e.name, e.payload) }
       : {}),
+    ...(compactionCap !== undefined ? { preTurnCompaction: compactionCap.preTurnCompaction } : {}),
   });
 
   const sessionRuntime = new SessionManager(deps, { initialRunConfig: runConfig });
