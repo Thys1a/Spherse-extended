@@ -125,6 +125,7 @@ describe("card tools behavior", () => {
     expect(entries.content[0].text).not.toContain("alpha beta");
     const entry = await read.execute("t3", { action: "entry", file: FILE, id: 0 });
     expect(entry.content[0].text).toContain("alpha beta");
+    expect(entry.details).toMatchObject({ path: FILE, truncated: false });
   });
 
   it("search_card finds by keys", async () => {

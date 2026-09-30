@@ -1,6 +1,7 @@
 import { Type } from "@sinclair/typebox";
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import type { AccessPolicyProvider } from "../../access/access-policy.js";
+import { truncateText } from "../../tools/output-limits.js";
 import type { CardStore, EntryPatch } from "./types.js";
 import {
   CardFileCorruptedError,
@@ -146,6 +147,13 @@ export function createReadCardTool(
                 : params.action === "many"
                   ? await cardStore.entryMany(params.file, params.ids ?? [])
                   : await cardStore.entry(params.file, params.id ?? -1);
+          if (params.action === "entry" || params.action === "many") {
+            const { text, truncated } = truncateText(jsonBlock(result));
+            return {
+              content: [{ type: "text" as const, text }],
+              details: { path: params.file, truncated },
+            };
+          }
           return {
             content: [{ type: "text" as const, text: jsonBlock(result) }],
             details: { path: params.file },

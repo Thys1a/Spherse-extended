@@ -6,7 +6,7 @@ import type { AgentTool } from "@earendil-works/pi-agent-core";
 import { isPathInside } from "../utils/path-safety.js";
 import { AccessDeniedError } from "../errors.js";
 
-const MAX_OUTPUT = 100 * 1024;
+const MAX_OUTPUT = 32 * 1024;
 const DEFAULT_TIMEOUT_MS = 60_000;
 const MIN_TIMEOUT_MS = 1000;
 const MAX_TIMEOUT_MS = 1_800_000;

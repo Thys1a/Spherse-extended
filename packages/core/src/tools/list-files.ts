@@ -5,6 +5,7 @@ import { Type } from "@sinclair/typebox";
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import type { AccessPolicy, AccessPolicyProvider } from "../access/access-policy.js";
 import { resolveProjectPath, isProjectMetaPath } from "../utils/path-safety.js";
+import { truncateText } from "./output-limits.js";
 import { PROJECT_META_DIR } from "../types.js";
 
 const ListFilesParams = Type.Object({
@@ -127,9 +128,10 @@ export function createListFilesTool(
         await listFlat(resolved, lines, root, policy, includeMeta);
       }
 
+      const { text, truncated } = truncateText(lines.join("\n") || "(empty directory)");
       return {
-        content: [{ type: "text" as const, text: lines.join("\n") || "(empty directory)" }],
-        details: { path: params.path, recursive, depth: params.depth, include_meta: includeMeta, count: lines.length },
+        content: [{ type: "text" as const, text }],
+        details: { path: params.path, recursive, depth: params.depth, include_meta: includeMeta, count: lines.length, truncated },
       };
     },
   };

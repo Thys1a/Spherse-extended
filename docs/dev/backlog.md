@@ -26,7 +26,6 @@
 - [ ] **Windows 世界书外链建链权限引导**：`addAgentCardLink` 在 Windows 无权限时已转明确英文错误（与 core 错误英文惯例一致），但用户仍需自行开管理员/开发者模式。方向：对话框报错旁给一键指引（或检测到该错误时 toast 追加解决步骤）；评估是否值得为 Windows 提供 copy 回退（会破坏"直接同步"语义，默认不做）。
 - [ ] **提供手动压缩上下文入口**：core 压缩能力已就绪（planCompaction + maybeCompactLog），但 app/server 无触发入口，用户遇到上下文超限只能新开会话。方向：app 加「压缩上下文」按钮或 `/compact` 命令。参见 `docs/dev/bugfix/2026-09-21-empty-turn-on-context-overflow/design.md`（P1-2）
 - [ ] **`search_content` 总量闸下沉到扫描层**：32KB 总量闸现落在结果拼接层（扫满 100 条再丢弃），巨行极少命中时仍遍历全项目。方向：把字节预算传入 `searchDir`/`searchInFile` 做早停。参见 `docs/dev/bugfix/2026-09-22-search-content-oversized-result/design.md`（review 遗留）
-- [ ] **`read_file` 渐进式读取（offset/limit）**：大文件现整份进上下文，32KB 以上合法源文件无续读路径。方向：`read_file` 加 `offset`/`limit` 参数 + `details.totalLength/returnedLength` 已就位，直接可用。参见 `docs/dev/bugfix/2026-09-22-search-content-oversized-result/design.md`（P1-1 配套）
 - [ ] **sp 订阅 defer 行为变化说明**：T7 起同会话 `sp:` 订阅从恒跳过变为恒转一圈必触发 follow-up turn，且失败 turn 的 `turn/end(error)` 也会点燃订阅者。方向：在 trigger 相关用户文档注明该行为变化。参见 `docs/dev/bugfix/2026-09-23-repeated-tool-calls/design.md`
 
 ## 技术债（重构与收敛）

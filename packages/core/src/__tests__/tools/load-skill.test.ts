@@ -24,7 +24,7 @@ describe("createLoadSkillTool", () => {
     const result = await tool.execute("tc1", { skill_name: "brainstorming" }, undefined as any);
     expect(result.content[0].text).toContain('<skill-content name="brainstorming">');
     expect(result.content[0].text).toContain("Do creative brainstorming here.");
-    expect(result.details).toEqual({ name: "brainstorming" });
+    expect(result.details).toEqual({ name: "brainstorming", truncated: false });
   });
 
   it("returns error for non-existent skill", async () => {
@@ -109,7 +109,7 @@ describe("createLoadSkillTool", () => {
         new SkillStore(agentSkillDir),
       );
       const result = await tool.execute("tc1", { skill_name: "agent-only" }, undefined as any);
-      expect(result.details).toEqual({ name: "agent-only" });
+      expect(result.details).toEqual({ name: "agent-only", truncated: false });
     });
 
     it("returns error when skill missing from both levels", async () => {

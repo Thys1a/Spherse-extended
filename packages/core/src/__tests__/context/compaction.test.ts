@@ -461,21 +461,21 @@ describe("sanitizeToolCallPairs", () => {
     expect(keptIndices).toEqual([0, 1]);
   });
 
-  it("removes error/aborted assistant messages", () => {
+  it("keeps error/aborted assistant messages to preserve failure context", () => {
     const messages: Message[] = [
       userMsg("hello"),
       assistantMsg({ text: "", stopReason: "aborted" }),
       assistantMsg({ text: "retry" }),
     ];
     const { messages: result, keptIndices } = sanitizeToolCallPairs(messages);
-    expect(result.length).toBe(2);
+    expect(result.length).toBe(3);
     expect(result[0].role).toBe("user");
-    expect(result[1].role).toBe("assistant");
-    expect((result[1] as AssistantMessage).content[0]).toMatchObject({ text: "retry" });
-    expect(keptIndices).toEqual([0, 2]);
+    expect((result[1] as AssistantMessage).stopReason).toBe("aborted");
+    expect((result[2] as AssistantMessage).content[0]).toMatchObject({ text: "retry" });
+    expect(keptIndices).toEqual([0, 1, 2]);
   });
 
-  it("removes orphaned toolResult when parent assistant was error/aborted", () => {
+  it("keeps toolResult when its parent assistant is error/aborted", () => {
     const messages: Message[] = [
       userMsg("hello"),
       assistantMsg({
@@ -486,11 +486,8 @@ describe("sanitizeToolCallPairs", () => {
       assistantMsg({ text: "done" }),
     ];
     const { messages: result } = sanitizeToolCallPairs(messages);
-    expect(result.length).toBe(2);
-    expect(result[0].role).toBe("user");
-    expect(result[1].role).toBe("assistant");
-    expect((result[1] as AssistantMessage).content[0]).toMatchObject({ text: "done" });
-    expect(result.some((m) => m.role === "toolResult")).toBe(false);
+    expect(result.length).toBe(4);
+    expect(result[2].role).toBe("toolResult");
   });
 
   it("keeps toolResult when parent assistant is normal", () => {
@@ -531,16 +528,14 @@ describe("sanitizeToolCallPairs", () => {
         toolCalls: [{ id: "tc2", name: "write_file", arguments: {} }],
         stopReason: "error",
       }),
-      toolResultMsg({ toolCallId: "tc2", toolName: "write_file", text: "should be removed" }),
+      toolResultMsg({ toolCallId: "tc2", toolName: "write_file", text: "failed output" }),
       assistantMsg({ text: "final" }),
     ];
     const { messages: result, keptIndices } = sanitizeToolCallPairs(messages);
-    expect(result.length).toBe(4);
-    expect(keptIndices).toEqual([0, 1, 2, 5]);
-    expect(result.some((m) => m.role === "toolResult")).toBe(true);
+    expect(result.length).toBe(6);
+    expect(keptIndices).toEqual([0, 1, 2, 3, 4, 5]);
     const toolResults = result.filter((m) => m.role === "toolResult");
-    expect(toolResults.length).toBe(1);
-    expect((toolResults[0] as ToolResultMessage).toolCallId).toBe("tc1");
+    expect(toolResults.length).toBe(2);
   });
 
   it("keptIndices correctly map to original positions", () => {
@@ -551,20 +546,18 @@ describe("sanitizeToolCallPairs", () => {
       assistantMsg({ text: "ok" }),
     ];
     const { keptIndices } = sanitizeToolCallPairs(messages);
-    expect(keptIndices).toEqual([0, 2, 3]);
-    expect(messages[keptIndices[0]]).toBe(messages[0]);
-    expect(messages[keptIndices[1]]).toBe(messages[2]);
-    expect(messages[keptIndices[2]]).toBe(messages[3]);
+    expect(keptIndices).toEqual([0, 1, 2, 3]);
+    expect(messages[keptIndices[1]]).toBe(messages[1]);
   });
 
-  it("returns empty for all-error input", () => {
+  it("keeps all-error input to preserve failure context", () => {
     const messages: Message[] = [
       assistantMsg({ stopReason: "error" }),
       assistantMsg({ stopReason: "aborted" }),
     ];
     const { messages: result, keptIndices } = sanitizeToolCallPairs(messages);
-    expect(result.length).toBe(0);
-    expect(keptIndices.length).toBe(0);
+    expect(result.length).toBe(2);
+    expect(keptIndices.length).toBe(2);
   });
 });
 

@@ -73,6 +73,8 @@ export class AgentRunner {
   private capabilityMiddlewares: ReadonlyArray<EventMiddleware<AgentEvent>> = [];
   private pendingReload = false;
   private pendingPromptEstimate: number | null = null;
+  private needsAutoRetry = false;
+  private autoRetryCount = 0;
   private toolCallTotal = 0;
   private lastToolKey: string | null = null;
   private sameToolRepeat = 0;
@@ -192,6 +194,8 @@ export class AgentRunner {
     this.turnDepth = meta?.triggerDepth ?? 0;
     this.turnChainId = meta?.triggerChainId ?? randomUUID();
     this.resetToolLoopGuard();
+    this.needsAutoRetry = false;
+    this.autoRetryCount = 0;
     let sanitizer: AttachmentSanitizer | null = null;
     let unsubscribe: (() => void) | undefined;
     let restoreSink: (() => void) | undefined;
@@ -267,6 +271,7 @@ export class AgentRunner {
         );
         await this.agent.prompt(userMessage);
         await this.applyAfterTurnHooks();
+        await this.runAutoRetryIfNeeded();
       } catch (err) {
         this.emitErrorTurnEnd(turnStartEvent.seq);
         throw err;
@@ -286,6 +291,8 @@ export class AgentRunner {
   async retryLastTurn(onEvent: RunnerEventHandler): Promise<void> {
     this.ensureNotBusy();
     this.inFlight = true;
+    this.needsAutoRetry = false;
+    this.autoRetryCount = 0;
     let unsubscribe: (() => void) | undefined;
     let restoreSink: (() => void) | undefined;
     try {
@@ -344,6 +351,7 @@ export class AgentRunner {
       try {
         await this.agent.continue();
         await this.applyAfterTurnHooks();
+        await this.runAutoRetryIfNeeded();
       } catch (err) {
         this.emitErrorTurnEnd(retryStartEvent.seq);
         throw err;
@@ -561,6 +569,41 @@ export class AgentRunner {
     }
   }
 
+  private async runAutoRetryIfNeeded(): Promise<void> {
+    if (!this.needsAutoRetry || this.autoRetryCount >= 1 || !this.eventLog) {
+      this.needsAutoRetry = false;
+      return;
+    }
+    this.needsAutoRetry = false;
+    this.autoRetryCount += 1;
+    this.syncBufferFromLog();
+    this.resetToolLoopGuard();
+    const lastBuffered = this.agent.state.messages[this.agent.state.messages.length - 1];
+    if (!lastBuffered || lastBuffered.role === "assistant") {
+      this.eventLog.append("turn/end", { reason: "error" });
+      this.emitErrorTurnEnd(this.currentTurnSeq());
+      return;
+    }
+    this.pendingPromptEstimate = readCurrentTokens(
+      this.agent.state.messages,
+      this.agent.state.systemPrompt,
+    );
+    try {
+      await this.agent.continue();
+      await this.applyAfterTurnHooks();
+    } catch (err) {
+      this.emitErrorTurnEnd(this.currentTurnSeq());
+      throw err;
+    } finally {
+      this.pendingPromptEstimate = null;
+    }
+    if (this.needsAutoRetry) {
+      this.needsAutoRetry = false;
+      this.eventLog.append("turn/end", { reason: "error" });
+      this.emitErrorTurnEnd(this.currentTurnSeq());
+    }
+  }
+
   private persistingControlSink(onEvent: RunnerEventHandler): RunnerEventHandler {
     return (event) => {
       if (
@@ -605,11 +648,16 @@ export class AgentRunner {
           const lastMessage = [...event.messages]
             .reverse()
             .find((message) => message.role === "assistant") as
-            | { stopReason?: string }
+            | { stopReason?: string; rawStopReason?: string }
             | undefined;
           const marked = (
             lastMessage === undefined ? undefined : markTruncated(lastMessage)
-          ) as { stopReason?: string } | undefined;
+          ) as { stopReason?: string; rawStopReason?: string } | undefined;
+          if (marked?.stopReason === "error" && marked?.rawStopReason === "length") {
+            this.abandonTruncatedTurn();
+            next(event);
+            return;
+          }
           const reason =
             marked?.stopReason === "error"
               ? "error"
@@ -696,6 +744,19 @@ export class AgentRunner {
       "tool call loop guard stopped turn",
     );
     return true;
+  }
+
+  private abandonTruncatedTurn(): void {
+    if (!this.eventLog) return;
+    const failed = [...this.eventLog.events]
+      .reverse()
+      .find((event) => event.type === "assistant/message");
+    if (!failed || failed.type !== "assistant/message") return;
+    this.eventLog.appendBatch([
+      { type: "turn/retried", data: { abandonedSeqs: [failed.seq] } },
+      { type: "turn/start", data: {} },
+    ]);
+    this.needsAutoRetry = true;
   }
 
   private appendMessageEvent(message: unknown): void {

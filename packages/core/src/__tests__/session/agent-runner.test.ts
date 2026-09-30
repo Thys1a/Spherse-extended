@@ -1301,3 +1301,150 @@ describe("AgentRunner in-flight ownership", () => {
     await retry;
   });
 });
+
+describe("AgentRunner truncated auto-retry", () => {
+  let tmpDir: string;
+  let runtime: RuntimeInternals & Awaited<ReturnType<typeof createProject>>;
+  let deps: RuntimeDeps;
+  let agentId: string;
+
+  const truncatedAssistant = {
+    role: "assistant",
+    content: [{ type: "thinking", thinking: "That" }],
+    stopReason: "length",
+    usage: {
+      input: 10,
+      output: 1,
+      cacheRead: 0,
+      cacheWrite: 0,
+      totalTokens: 11,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+    },
+    timestamp: Date.now(),
+  };
+
+  const okAssistant = {
+    role: "assistant",
+    content: [{ type: "text", text: "done" }],
+    stopReason: "stop",
+    usage: {
+      input: 10,
+      output: 5,
+      cacheRead: 0,
+      cacheWrite: 0,
+      totalTokens: 15,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+    },
+    timestamp: Date.now(),
+  };
+
+  beforeEach(async () => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "wb-auto-retry-"));
+    getChatStreamFnMock.mockClear();
+    resolveModelByIdMock.mockClear();
+    runtime = (await createProject(tmpDir, {
+      projectName: "Test",
+      logger: createSilentLogger(),
+    })) as RuntimeInternals & Awaited<ReturnType<typeof createProject>>;
+    const projectStore = runtime.projectManager.projectStore as any;
+    const testAgent = await projectStore.createAgent("test-agent", TEST_AGENT_PROFILE);
+    agentId = testAgent.getProfile().id;
+    runtime.timerService.stop();
+    deps = {
+      projectStore,
+      projectRoot: projectStore.getRootPath(),
+      fileWriteMutex: (runtime as any).sessionRuntime.deps.fileWriteMutex,
+      logger: createSilentLogger(),
+      runConfig: new RunConfigHolder({ defaultModel: "openai/gpt-4o" }),
+      modelResolver: createModelResolver(stubCatalog),
+      modelCatalog: stubCatalog,
+      capabilities: builtinToolCapabilities(),
+      stores: createStoreRegistry(),
+      attachmentProcessors: [],
+    } as unknown as RuntimeDeps;
+  });
+
+  afterEach(async () => {
+    getChatStreamFnMock.mockImplementation(() => vi.fn() as never);
+    await runtime.shutdown().catch(() => {});
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  function mockStream(sequence: Array<Record<string, unknown>>): { calls: unknown[][] } {
+    const calls: unknown[][] = [];
+    let n = 0;
+    getChatStreamFnMock.mockImplementation(
+      () =>
+        (async (_model: unknown, context: { messages: unknown[] }) => {
+          calls.push(structuredClone(context.messages));
+          const message = sequence[Math.min(n, sequence.length - 1)];
+          n += 1;
+          return {
+            async *[Symbol.asyncIterator]() {},
+            result: async () => structuredClone(message),
+          };
+        }) as never,
+    );
+    return { calls };
+  }
+
+  async function newRunner(): Promise<AgentRunner> {
+    const agentStore = getAgentStore(runtime, agentId);
+    const sessionId = agentStore.sessions.createSession();
+    return AgentRunner.init(deps, agentId, sessionId);
+  }
+
+  it("auto-continues a truncated turn once and completes", async () => {
+    const { calls } = mockStream([truncatedAssistant, okAssistant]);
+    const runner = await newRunner();
+
+    await runner.sendMessage("task", [], () => {});
+
+    expect(calls).toHaveLength(2);
+    const events = eventsOf(runner);
+    expect(events.filter((e: any) => e.type === "turn/retried")).toHaveLength(1);
+    expect(events.filter((e: any) => e.type === "turn/end")).toHaveLength(1);
+    expect(events.find((e: any) => e.type === "turn/end").data.reason).toBe("completed");
+    const messages = deriveMessages(events);
+    expect(messages[messages.length - 1]).toMatchObject({
+      role: "assistant",
+      stopReason: "stop",
+    });
+    expect(
+      messages.some((m: any) => m.role === "assistant" && m.stopReason === "error"),
+    ).toBe(false);
+  });
+
+  it("falls back to turn/end error after the second truncation without looping", async () => {
+    const { calls } = mockStream([truncatedAssistant, truncatedAssistant, truncatedAssistant]);
+    const runner = await newRunner();
+
+    await runner.sendMessage("task", [], () => {});
+
+    expect(calls).toHaveLength(2);
+    const events = eventsOf(runner);
+    expect(events.filter((e: any) => e.type === "turn/retried")).toHaveLength(2);
+    const ends = events.filter((e: any) => e.type === "turn/end");
+    expect(ends).toHaveLength(1);
+    expect(ends[0].data.reason).toBe("error");
+  });
+
+  it("leaves non-truncated error turns untouched", async () => {
+    const failed = {
+      ...okAssistant,
+      content: [{ type: "text", text: "boom" }],
+      stopReason: "error",
+    };
+    const { calls } = mockStream([failed]);
+    const runner = await newRunner();
+
+    await runner.sendMessage("task", [], () => {});
+
+    expect(calls).toHaveLength(1);
+    const events = eventsOf(runner);
+    expect(events.filter((e: any) => e.type === "turn/retried")).toHaveLength(0);
+    const ends = events.filter((e: any) => e.type === "turn/end");
+    expect(ends).toHaveLength(1);
+    expect(ends[0].data.reason).toBe("error");
+  });
+});

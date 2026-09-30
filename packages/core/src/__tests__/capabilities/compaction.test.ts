@@ -220,7 +220,7 @@ describe("compaction capability", () => {
     expect(log.events.filter((e) => e.type === "compaction/applied")).toHaveLength(0);
   });
 
-  it("records excluded seqs for invalid messages in the retained tail", async () => {
+  it("records excluded seqs only for messages without a parent in the retained tail", async () => {
     const { deps, stream } = makeDeps();
     const capability = compactionCapability(deps);
     const hooks = capability.turnHooks!(agentId, sessionId);
@@ -249,11 +249,12 @@ describe("compaction capability", () => {
     const event = log.events.find((entry) => entry.type === "compaction/applied");
     expect(event?.type).toBe("compaction/applied");
     if (event?.type !== "compaction/applied") throw new Error("missing compaction event");
-    expect(event.data.excludedSeqs).toEqual(expect.arrayContaining([failed.seq, orphan.seq]));
+    expect(event.data.excludedSeqs).toEqual(expect.arrayContaining([orphan.seq]));
+    expect(event.data.excludedSeqs).not.toContain(failed.seq);
     const visibleSeqs = deriveMessages(log.events).map((message) =>
       (message as { content?: unknown }).content,
     );
-    expect(visibleSeqs).not.toContain(failed.data.message.content);
+    expect(visibleSeqs).toContain(failed.data.message.content);
   });
 
   it("retained tail starts with a user message and has no orphan tool pairs", async () => {

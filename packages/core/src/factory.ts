@@ -16,6 +16,7 @@ import { ToolAttributionRegistry } from "./tool-attribution.js";
 import { createMcpCapability } from "./capabilities/mcp/index.js";
 import { attachmentsCapability } from "./capabilities/attachments/index.js";
 import { compactionCapability } from "./capabilities/compaction/index.js";
+import { toolOutputBudgetCapability } from "./capabilities/tool-output-budget/index.js";
 import { memoryCapability } from "./capabilities/memory/index.js";
 import { timePerceptionCapability } from "./capabilities/time-perception/index.js";
 import { createStoreRegistry, type SessionPort } from "./kernel/ports.js";
@@ -50,6 +51,7 @@ export function defaultCapabilities(opts: DefaultCapabilitiesOptions): Capabilit
     createMcpCapability({ projectStore: opts.projectStore, logger: opts.logger }),
     attachmentsCapability(),
     compactionCapability({ logger: opts.logger }),
+    toolOutputBudgetCapability(),
     timePerceptionCapability(),
     memoryCapability(),
   ];

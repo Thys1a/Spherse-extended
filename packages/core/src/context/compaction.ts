@@ -208,9 +208,6 @@ export function sanitizeToolCallPairs(messages: Message[]): SanitizeResult {
     const msg = messages[i];
     if (msg.role === "assistant") {
       const am = msg as AssistantMessage;
-      if (am.stopReason === "error" || am.stopReason === "aborted") {
-        continue;
-      }
       for (const block of am.content) {
         if (block.type === "toolCall") {
           validToolCallIds.add((block as ToolCall).id);
