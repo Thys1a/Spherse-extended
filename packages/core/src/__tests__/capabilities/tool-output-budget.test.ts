@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { toolOutputBudgetCapability } from "../../capabilities/tool-output-budget/index.js";
 import { toolOutputBudgetProjector } from "../../capabilities/tool-output-budget/projector.js";
+import { createPruningProjector } from "../../capabilities/tool-output-budget/pruning-projector.js";
 import { MAX_OUTPUT_CHARS } from "../../tools/output-limits.js";
 
 function toolResult(texts: string[]): Record<string, unknown> {
@@ -55,9 +56,102 @@ describe("toolOutputBudgetProjector", () => {
     expect(out[0]).toBe(message);
   });
 
-  it("registers as a capability with a contextProjector", () => {
+  it("registers as a capability with contextProjectors", () => {
     const capability = toolOutputBudgetCapability();
     expect(capability.id).toBe("tool-output-budget");
-    expect(capability.contextProjectors).toHaveLength(1);
+    expect(capability.contextProjectors).toHaveLength(2);
+  });
+});
+
+describe("toolOutputPruningProjector", () => {
+  function userTurn(prompt: string, toolOutput: string, toolName = "read_file"): Array<Record<string, unknown>> {
+    return [
+      { role: "user", content: prompt, timestamp: 0 },
+      {
+        role: "assistant",
+        content: [{ type: "toolCall", id: `tc-${prompt}`, name: toolName, arguments: {} }],
+        stopReason: "stop",
+        timestamp: 0,
+      },
+      {
+        role: "toolResult",
+        toolCallId: `tc-${prompt}`,
+        toolName,
+        content: [{ type: "text", text: toolOutput }],
+        timestamp: 0,
+      },
+    ];
+  }
+
+  function project(messages: Array<Record<string, unknown>>, keep = 5): Array<Record<string, any>> {
+    return createPruningProjector(keep)({} as never)(messages as never[]) as Array<Record<string, any>>;
+  }
+
+  it("keeps a single turn untouched", () => {
+    const messages = userTurn("hi", "small output");
+    const out = project(messages);
+    expect(out[2].content).toEqual([{ type: "text", text: "small output" }]);
+  });
+
+  it("prunes toolResults older than the last N segments", () => {
+    const messages = [
+      ...userTurn("t0", "old output zero"),
+      ...userTurn("t1", "old output one"),
+      ...userTurn("t2", "keep two"),
+      ...userTurn("t3", "keep three"),
+    ];
+    const out = project(messages, 1);
+    expect(out[2].content).toEqual([
+      { type: "text", text: "[Output from read_file - 原始 15 bytes]" },
+    ]);
+    expect(out[5].content).toEqual([
+      { type: "text", text: "[Output from read_file - 原始 14 bytes]" },
+    ]);
+    expect(out[8].content).toEqual([
+      { type: "text", text: "[Output from read_file - 原始 8 bytes]" },
+    ]);
+    expect(out[11].content).toEqual([{ type: "text", text: "keep three" }]);
+  });
+
+  it("keeps isError on pruned messages", () => {
+    const messages = [
+      ...userTurn("t0", "failed output"),
+      ...userTurn("t1", "x"),
+      ...userTurn("t2", "y"),
+    ];
+    (messages[2] as Record<string, unknown>).isError = true;
+    const out = project(messages, 1);
+    expect(out[2].isError).toBe(true);
+    expect((out[2].content[0] as any).text).toContain("Output from read_file");
+  });
+
+  it("prunes everything with keep 0 except the trailing segment", () => {
+    const messages = [...userTurn("t0", "old"), ...userTurn("t1", "new")];
+    const out = project(messages, 0);
+    expect((out[2].content[0] as any).text).toContain("Output from read_file");
+    expect(out[5].content).toEqual([{ type: "text", text: "new" }]);
+  });
+
+  it("counts a compaction digest as a segment boundary", () => {
+    const messages = [
+      { role: "user", content: "<compaction-digest>prior</compaction-digest>", timestamp: 0 },
+      ...userTurn("t0", "old output"),
+      ...userTurn("t1", "mid output"),
+      ...userTurn("t2", "recent output"),
+    ];
+    const out = project(messages, 1);
+    expect((out[3].content[0] as any).text).toContain("Output from read_file");
+    expect((out[6].content[0] as any).text).toContain("Output from read_file");
+    expect(out[9].content).toEqual([{ type: "text", text: "recent output" }]);
+  });
+
+  it("names mcp tools in the placeholder", () => {
+    const messages = [
+      ...userTurn("t0", "mcp blob", "mcp__srv__tool"),
+      ...userTurn("t1", "x"),
+      ...userTurn("t2", "y"),
+    ];
+    const out = project(messages, 1);
+    expect((out[2].content[0] as any).text).toContain("mcp__srv__tool");
   });
 });
