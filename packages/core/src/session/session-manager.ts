@@ -11,6 +11,7 @@ import { computeSessionStatus, type SessionStatus } from "./status.js";
 import type { TurnContextSnapshot } from "./types.js";
 import type { Attachment } from "../attachments/index.js";
 import { RunConfigHolder, type RuntimeDeps } from "./runtime.js";
+import type { CompactionOutcome } from "../kernel/turn-hooks.js";
 import { migrateLegacySession } from "./legacy-migrate.js";
 
 export class SessionManager {
@@ -144,6 +145,12 @@ export class SessionManager {
     const session = this.sessions.get(sessionId);
     if (!session) throw new NotFoundError(`No active session "${sessionId}"`);
     return session.withdrawLastTurn();
+  }
+
+  async compactSession(sessionId: string): Promise<CompactionOutcome> {
+    const session = this.sessions.get(sessionId);
+    if (!session) throw new NotFoundError(`No active session "${sessionId}"`);
+    return session.compactNow();
   }
 
   async appendUserMessage(

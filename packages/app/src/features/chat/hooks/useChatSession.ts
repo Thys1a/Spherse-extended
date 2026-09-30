@@ -56,6 +56,12 @@ export function useChatSession({
   const loadingMore = useChatSessionStore(
     (state) => state.sessions[sessionId]?.history.loadingMore ?? false,
   );
+  const compacting = useChatSessionStore(
+    (state) => state.sessions[sessionId]?.pendingCompact ?? false,
+  );
+  const compactResult = useChatSessionStore(
+    (state) => state.sessions[sessionId]?.compactResult ?? null,
+  );
   const loading = historyStatus !== "ready" || connection.state === "connecting";
 
   return {
@@ -66,10 +72,14 @@ export function useChatSession({
     historyError,
     hasMore,
     loadingMore,
+    compacting,
+    compactResult,
     sendMessage: (text: string, image?: AttachedImage) =>
       useChatSessionStore.getState().sendMessage(sessionId, text, image),
     retry: () => useChatSessionStore.getState().retry(sessionId),
     withdrawLastTurn: () => useChatSessionStore.getState().withdrawLastTurn(sessionId),
+    compactSession: () => useChatSessionStore.getState().compactSession(sessionId),
+    clearCompactResult: () => useChatSessionStore.getState().clearCompactResult(sessionId),
     editAndResend: (text: string, image?: SendableImage) =>
       useChatSessionStore.getState().editAndResend(sessionId, text, image),
     abort: () => useChatSessionStore.getState().abort(sessionId),

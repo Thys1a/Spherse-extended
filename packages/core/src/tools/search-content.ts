@@ -50,13 +50,33 @@ interface SearchResult {
   rawLength: number;
 }
 
+interface SkippedFile {
+  file: string;
+  size: number;
+}
+
+const MAX_SCAN_FILE_BYTES = 1024 * 1024;
+
 async function searchInFile(
   filePath: string,
   query: string,
   results: SearchResult[],
   maxResults: number,
+  skipped: SkippedFile[],
+  projectRoot: string,
 ): Promise<void> {
   if (results.length >= maxResults) return;
+
+  let stat: { size: number };
+  try {
+    stat = await fs.stat(filePath);
+  } catch {
+    return;
+  }
+  if (stat.size > MAX_SCAN_FILE_BYTES) {
+    skipped.push({ file: path.relative(projectRoot, filePath).split(path.sep).join("/"), size: stat.size });
+    return;
+  }
 
   let buf: Buffer;
   try {
@@ -95,6 +115,7 @@ async function searchDir(
   projectRoot: string,
   policy: AccessPolicy,
   includeMeta: boolean,
+  skipped: SkippedFile[],
 ): Promise<void> {
   if (results.length >= maxResults) return;
 
@@ -118,10 +139,11 @@ async function searchDir(
         projectRoot,
         policy,
         includeMeta,
+        skipped,
       );
     } else if (entry.isFile()) {
       if (!matchesPattern(entry.name, includePatterns)) continue;
-      await searchInFile(entryPath, query, results, maxResults);
+      await searchInFile(entryPath, query, results, maxResults, skipped, projectRoot);
     }
   }
 }
@@ -169,7 +191,8 @@ export function createSearchContentTool(
       }
 
       const results: SearchResult[] = [];
-      await searchDir(searchPath, params.query, params.includePatterns, results, MAX_RESULTS, root, policy, includeMeta);
+      const skipped: SkippedFile[] = [];
+      await searchDir(searchPath, params.query, params.includePatterns, results, MAX_RESULTS, root, policy, includeMeta, skipped);
 
       const truncatedLines = results.filter((r) => r.truncated).length;
       const maxLineLength = results.reduce((max, r) => Math.max(max, r.rawLength), 0);
@@ -193,6 +216,11 @@ export function createSearchContentTool(
         }
         text = kept.join("\n");
         if (outputLimitHit) text += `\n${outputLimitNotice()}`;
+        if (skipped.length > 0) {
+          const names = skipped.slice(0, 5).map((s) => s.file).join(", ");
+          const more = skipped.length > 5 ? ` 等 ${skipped.length - 5} 个` : "";
+          text += `\n（已跳过 ${skipped.length} 个超大文件：${names}${more}）`;
+        }
       }
 
       return {
@@ -201,9 +229,10 @@ export function createSearchContentTool(
           query: params.query,
           matches: results.length,
           returnedMatches: kept.length,
-          truncated: hitLimit || outputLimitHit || truncatedLines > 0,
+          truncated: hitLimit || outputLimitHit || truncatedLines > 0 || skipped.length > 0,
           truncatedLines,
           maxLineLength,
+          skippedLargeFiles: skipped.length,
         },
       };
     },

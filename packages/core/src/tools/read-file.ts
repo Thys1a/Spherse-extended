@@ -5,6 +5,7 @@ import type { AgentTool } from "@earendil-works/pi-agent-core";
 import type { AccessPolicyProvider } from "../access/access-policy.js";
 import { resolveProjectPath } from "../utils/path-safety.js";
 import { isBinaryBuffer } from "../utils/binary-detect.js";
+import { MAX_OUTPUT_CHARS, truncateText } from "./output-limits.js";
 
 const IMAGE_EXTENSIONS = new Set(["png", "jpg", "jpeg", "gif", "svg", "ico", "webp"]);
 
@@ -21,6 +22,15 @@ function formatSize(bytes: number): string {
 
 const ReadFileParams = Type.Object({
   path: Type.String({ description: "Path relative to project root" }),
+  offset: Type.Optional(Type.Integer({
+    description: "Start line (1-based). Defaults to 1.",
+    minimum: 1,
+    default: 1,
+  })),
+  limit: Type.Optional(Type.Integer({
+    description: "Max lines to return. Defaults to the whole file (subject to the 32KB output cap).",
+    minimum: 1,
+  })),
 });
 
 export function createReadFileTool(
@@ -33,7 +43,7 @@ export function createReadFileTool(
     name: "read_file",
     label: "Read File",
     description:
-      "Read the content of a text file in the project. Returns the file content as text. Binary files (images, fonts, databases, etc.) are detected and refused with a hint instead of returning garbled output — use `render_card` with `file_path` to display image files.",
+      "Read the content of a text file in the project. Returns the file content as text. Binary files (images, fonts, databases, etc.) are detected and refused with a hint instead of returning garbled output — use `render_card` with `file_path` to display image files. Output is capped at 32KB; use offset/limit to page through large files and check details.truncated.",
     parameters: ReadFileParams,
     async execute(_toolCallId, params, _signal) {
       const resolved = resolveProjectPath(root, params.path);
@@ -69,9 +79,42 @@ export function createReadFileTool(
       }
 
       const content = buf.toString("utf-8");
+      const lines = content.split("\n");
+      const offset = Math.min(Math.max(params.offset ?? 1, 1), lines.length + 1);
+      if (offset > lines.length) {
+        return {
+          content: [{ type: "text" as const, text: `空：offset ${params.offset} 超出文件总行数（共 ${lines.length} 行）` }],
+          details: {
+            path: params.path,
+            size: content.length,
+            totalLength: content.length,
+            returnedLength: 0,
+            truncated: false,
+            paged: true,
+            hasMore: false,
+            offset,
+            ...(params.limit !== undefined ? { limit: params.limit } : {}),
+          },
+        };
+      }
+      const windowed = params.limit === undefined
+        ? lines.slice(offset - 1)
+        : lines.slice(offset - 1, offset - 1 + params.limit);
+      const endLine = offset - 1 + windowed.length;
+      const { text, truncated } = truncateText(windowed.join("\n"), MAX_OUTPUT_CHARS);
       return {
-        content: [{ type: "text" as const, text: content }],
-        details: { path: params.path, size: content.length, totalLength: content.length, returnedLength: content.length },
+        content: [{ type: "text" as const, text }],
+        details: {
+          path: params.path,
+          size: content.length,
+          totalLength: content.length,
+          returnedLength: text.length,
+          truncated,
+          paged: offset !== 1 || params.limit !== undefined,
+          hasMore: endLine < lines.length || truncated,
+          offset,
+          ...(params.limit !== undefined ? { limit: params.limit } : {}),
+        },
       };
     },
   };

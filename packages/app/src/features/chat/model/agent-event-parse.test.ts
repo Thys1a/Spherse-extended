@@ -145,6 +145,18 @@ describe("parseAgentEvent", () => {
       seq: 3,
     });
   });
+  it("passes through compact_result unchanged", () => {
+    expect(parseAgentEvent({ type: "compact_result", applied: true, digestSource: "llm" })).toEqual({
+      type: "compact_result",
+      applied: true,
+      digestSource: "llm",
+    });
+  });
+  it("passes through compaction_applied unchanged", () => {
+    expect(
+      parseAgentEvent({ type: "compaction_applied", seq: 9, anchorSeq: 4, excludedSeqs: [] }),
+    ).toEqual({ type: "compaction_applied", seq: 9, anchorSeq: 4, excludedSeqs: [] });
+  });
   it("maps protocol v2 echo events into live events", () => {
     expect(parseAgentEvent({ type: "session_ready", lastSeq: 3, replay: true })).toBeUndefined();
     expect(parseAgentEvent({ type: "replay_done" })).toBeUndefined();

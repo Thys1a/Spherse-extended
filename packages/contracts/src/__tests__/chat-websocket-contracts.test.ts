@@ -199,8 +199,28 @@ describe("chat websocket control contract", () => {
     });
   });
 
+  it("accepts compact client message", () => {
+    expect(parseChatClientMessage({ type: "compact" })).toEqual({
+      type: "compact",
+    });
+  });
+  it("accepts compact_result server event", () => {
+    expect(parseChatServerEvent({ type: "compact_result", applied: true })).toEqual({
+      type: "compact_result",
+      applied: true,
+    });
+    expect(
+      parseChatServerEvent({ type: "compact_result", applied: false, digestSource: "llm" }),
+    ).toEqual({ type: "compact_result", applied: false, digestSource: "llm" });
+  });
+
   it("accepts turn_withdrawn server event", () => {
     const event = { type: "turn_withdrawn", seq: 3 };
+    expect(parseChatServerEvent(event)).toEqual(event);
+  });
+
+  it("accepts compaction_applied server event", () => {
+    const event = { type: "compaction_applied", seq: 9, anchorSeq: 4, excludedSeqs: [] as number[] };
     expect(parseChatServerEvent(event)).toEqual(event);
   });
 

@@ -119,6 +119,17 @@ function applyEvent(state: ChatEntryState, event: AgentEvent, now: number): Chat
       return removeSeqs(state, new Set(event.abandonedSeqs), event.seq);
     case "turn_withdrawn":
       return applyWithdraw(state, event.seq);
+    case "compaction_applied":
+      return advanceCursor(state, event.seq);
+    case "compact_result":
+      return {
+        ...state,
+        pendingCompact: false,
+        compactResult: {
+          applied: event.applied,
+          ...(event.digestSource !== undefined ? { digestSource: event.digestSource } : {}),
+        },
+      };
 
     case "turn_start":
     case "turn_end":
@@ -529,7 +540,7 @@ function applyError(state: ChatEntryState, message: string, code: ErrorEntry["co
   const error: EntryError = {
     message,
     ...(code !== undefined ? { code } : {}),
-    ...(state.pendingWithdraw ? { retrySuppressed: true } : {}),
+    ...(state.pendingWithdraw || state.pendingCompact ? { retrySuppressed: true } : {}),
   };
   const openIndex = indexOfId(state.entries, state.openStreamId);
   if (openIndex >= 0) {
@@ -544,6 +555,7 @@ function applyError(state: ChatEntryState, message: string, code: ErrorEntry["co
       streaming: false,
       pendingWithdraw: false,
       pendingEditResend: null,
+      pendingCompact: false,
     };
   }
   const entry: ErrorEntry = {
@@ -551,7 +563,7 @@ function applyError(state: ChatEntryState, message: string, code: ErrorEntry["co
     id: nextTransientId("x"),
     message,
     ...(code !== undefined ? { code } : {}),
-    ...(state.pendingWithdraw ? { retrySuppressed: true } : {}),
+    ...(state.pendingWithdraw || state.pendingCompact ? { retrySuppressed: true } : {}),
     time: now,
   };
   return {
@@ -560,6 +572,7 @@ function applyError(state: ChatEntryState, message: string, code: ErrorEntry["co
     streaming: false,
     pendingWithdraw: false,
     pendingEditResend: null,
+    pendingCompact: false,
   };
 }
 

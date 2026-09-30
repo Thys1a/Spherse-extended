@@ -191,6 +191,16 @@ describe("entry reducer", () => {
     expect(error.retrySuppressed).toBe(true);
   });
 
+  it("settles a pending compact with the next error event", () => {
+    let state = stateWith([assistantEntry({ id: "a1", text: "hi" })]);
+    state = { ...state, pendingCompact: true };
+    state = reduceLiveEvents(state, [event({ type: "error", message: "compact failed" })], 1);
+    expect(state.pendingCompact).toBe(false);
+    expect(state.compactResult).toBeNull();
+    const error = state.entries[state.entries.length - 1] as ErrorEntry;
+    expect(error.retrySuppressed).toBe(true);
+  });
+
   it("clears pending withdraw on turn_withdrawn and truncates from the withdrawn seq", () => {
     const user: UserEntry = { kind: "user", id: "e0", seq: 0, text: "q1" };
     const answer = assistantEntry({ id: "e1", seq: 1, text: "a1" });
@@ -204,6 +214,58 @@ describe("entry reducer", () => {
     expect(state.openStreamId).toBeNull();
     expect(state.ownerAssistantId).toBeNull();
     expect(state.cursor).toBe(2);
+  });
+
+  it("settles a pending compact on compact_result without touching entries", () => {
+    let state = stateWith([assistantEntry({ id: "a1", text: "hi" })]);
+    state = { ...state, pendingCompact: true };
+    state = reduceLiveEvents(
+      state,
+      [event({ type: "compact_result", applied: true, digestSource: "llm" })],
+      1,
+    );
+    expect(state.pendingCompact).toBe(false);
+    expect(state.compactResult).toEqual({ applied: true, digestSource: "llm" });
+    expect(state.entries.map((entry) => entry.id)).toEqual(["a1"]);
+  });
+
+  it("records a no-op compact result", () => {
+    let state = { ...createEntryState(), pendingCompact: true };
+    state = reduceLiveEvents(state, [event({ type: "compact_result", applied: false })], 1);
+    expect(state.pendingCompact).toBe(false);
+    expect(state.compactResult).toEqual({ applied: false });
+  });
+
+  it("keeps pending across compaction_applied and settles on compact_result", () => {
+    let state = stateWith([assistantEntry({ id: "a1", seq: 5, text: "hi" })]);
+    state = { ...state, pendingCompact: true };
+    state = reduceLiveEvents(
+      state,
+      [event({ type: "compaction_applied", seq: 9, anchorSeq: 4, excludedSeqs: [] })],
+      1,
+    );
+    expect(state.pendingCompact).toBe(true);
+    expect(state.compactResult).toBeNull();
+    expect(state.cursor).toBe(9);
+    state = reduceLiveEvents(
+      state,
+      [event({ type: "compact_result", applied: true, digestSource: "llm" })],
+      1,
+    );
+    expect(state.pendingCompact).toBe(false);
+    expect(state.compactResult).toEqual({ applied: true, digestSource: "llm" });
+    expect(state.cursor).toBe(9);
+  });
+
+  it("advances the cursor on compaction_applied without touching entries", () => {
+    let state = stateWith([assistantEntry({ id: "a1", seq: 5, text: "hi" })]);
+    state = reduceLiveEvents(
+      state,
+      [event({ type: "compaction_applied", seq: 9, anchorSeq: 4, excludedSeqs: [] })],
+      1,
+    );
+    expect(state.cursor).toBe(9);
+    expect(state.entries.map((entry) => entry.id)).toEqual(["a1"]);
   });
 
   it("tracks control requests on tool results and resolves them", () => {

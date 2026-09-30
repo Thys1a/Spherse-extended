@@ -29,6 +29,8 @@ interface ChatSessionStoreActions {
   sendMessage: (sessionId: string, text: string, image?: SendableImage) => boolean;
   retry: (sessionId: string) => void;
   withdrawLastTurn: (sessionId: string) => void;
+  compactSession: (sessionId: string) => boolean;
+  clearCompactResult: (sessionId: string) => void;
   editAndResend: (sessionId: string, text: string, image?: SendableImage) => boolean;
   abort: (sessionId: string) => void;
   reconnect: (sessionId: string) => void;
@@ -180,6 +182,16 @@ export const useChatSessionStore = create<ChatSessionStoreState & ChatSessionSto
 
     withdrawLastTurn(sessionId) {
       outbound.withdrawLastTurn(sessionId);
+    },
+
+    compactSession(sessionId) {
+      return outbound.compactSession(sessionId);
+    },
+
+    clearCompactResult(sessionId) {
+      updateSession(sessionId, (current) =>
+        current.compactResult === null ? current : { ...current, compactResult: null },
+      );
     },
 
     editAndResend(sessionId, text, image) {

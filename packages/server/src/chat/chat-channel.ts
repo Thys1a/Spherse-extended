@@ -1,6 +1,7 @@
 import {
   ConflictError,
   type Attachment,
+  type CompactionOutcome,
   type SessionManager,
 } from "@spherse/core";
 import type { FastifyBaseLogger } from "fastify";
@@ -25,6 +26,7 @@ export interface ChatSessionAttachment {
   sendMessage(content: string, attachments?: Attachment[], clientId?: string): Promise<void>;
   retryLastTurn(): Promise<void>;
   withdrawLastTurn(): Promise<void>;
+  compactSession(): Promise<CompactionOutcome>;
   abort(): void;
   resolveControlRequest(
     requestId: string,
@@ -128,6 +130,15 @@ export class ChatChannel {
           throw new ConflictError(`Session "${this.sessionId}" is already running`);
         }
         await this.runtime.withdrawLastTurn(this.sessionId);
+      },
+      compactSession: async () => {
+        if (!(await ensureUsable())) {
+          throw new ChannelClosedError(`Chat channel for session "${this.sessionId}" is closed`);
+        }
+        if (this.running) {
+          throw new ConflictError(`Session "${this.sessionId}" is already running`);
+        }
+        return this.runtime.compactSession(this.sessionId);
       },
       abort: () => {
         if (active && this.state !== "closed") this.runtime.abortSession(this.sessionId);

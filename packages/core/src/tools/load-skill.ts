@@ -2,6 +2,7 @@ import path from "node:path";
 import { Type } from "@sinclair/typebox";
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import type { SkillStore } from "../store/skill.js";
+import { truncateText } from "./output-limits.js";
 
 const LoadSkillParams = Type.Object({
   skill_name: Type.String({ description: "Name of the skill to load" }),
@@ -45,14 +46,15 @@ export function createLoadSkillTool(
       }
       text += `\n</skill-content>`;
 
+      const { text: capped, truncated } = truncateText(text);
       return {
         content: [
           {
             type: "text" as const,
-            text,
+            text: capped,
           },
         ],
-        details: { name: skill.name },
+        details: { name: skill.name, truncated },
       };
     },
   };

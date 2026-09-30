@@ -124,6 +124,17 @@ export function handleChatWebSocket(
             const message = err instanceof Error ? err.message : "withdraw error";
             send({ type: "error", message, code: classifyRunError(err) });
           }
+        } else if (msg.type === "compact") {
+          try {
+            const result = await attachment.compactSession();
+            if (closed) return;
+            send({ type: "compact_result", ...result });
+          } catch (err) {
+            if (closed) return;
+            fastify.log.error({ err, sessionId }, "chat ws compact error");
+            const message = err instanceof Error ? err.message : "compact error";
+            send({ type: "error", message, code: classifyRunError(err) });
+          }
         } else if (msg.type === "abort") {
           if (!(await ready) || closed) return;
           attachment.abort();

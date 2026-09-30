@@ -17,6 +17,7 @@ export interface OutboundActions {
   sendInitialMessage(sessionId: string): void;
   retry(sessionId: string): void;
   withdrawLastTurn(sessionId: string): void;
+  compactSession(sessionId: string): boolean;
   editAndResend(sessionId: string, text: string, image?: SendableImage): boolean;
   abort(sessionId: string): void;
   respondApproval(sessionId: string, requestId: string, approved: boolean): boolean;
@@ -130,6 +131,21 @@ export function createOutboundActions(host: OutboundHost): OutboundActions {
       if (!link?.isOpen()) return;
       host.updateSession(sessionId, (current) => ({ ...current, pendingWithdraw: true }));
       link.send({ type: "withdraw" });
+    },
+
+    compactSession(sessionId) {
+      const session = host.getSession(sessionId);
+      if (!session || session.streaming) return false;
+      if (session.pendingWithdraw || session.pendingEditResend || session.pendingCompact) return false;
+      const link = host.getLink(sessionId);
+      if (!link?.isOpen()) return false;
+      host.updateSession(sessionId, (current) => ({
+        ...current,
+        pendingCompact: true,
+        compactResult: null,
+      }));
+      link.send({ type: "compact" });
+      return true;
     },
 
     editAndResend(sessionId, text, image?) {

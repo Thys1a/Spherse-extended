@@ -112,6 +112,8 @@ export function parseAgentEvent(event: ChatServerEvent): AgentEvent | undefined 
     case "run_status":
     case "turn_start":
     case "turn_withdrawn":
+    case "compaction_applied":
+    case "compact_result":
     case "pong":
     case "error":
       return event;

@@ -278,6 +278,22 @@ const chatServerEvent = Type.Union([
     seq: Type.Integer(),
   }),
   Type.Object({
+    type: Type.Literal("compaction_applied"),
+    seq: Type.Integer(),
+    anchorSeq: Type.Integer(),
+    excludedSeqs: Type.Array(Type.Integer()),
+    digestSource: Type.Optional(
+      Type.Union([Type.Literal("llm"), Type.Literal("mechanical")]),
+    ),
+  }),
+  Type.Object({
+    type: Type.Literal("compact_result"),
+    applied: Type.Boolean(),
+    digestSource: Type.Optional(
+      Type.Union([Type.Literal("llm"), Type.Literal("mechanical")]),
+    ),
+  }),
+  Type.Object({
     type: Type.Literal("user_message"),
     seq: Type.Integer(),
     message: agentMessage,
@@ -338,6 +354,7 @@ export const schemas = {
     Type.Object({ type: Type.Literal("ping") }),
     Type.Object({ type: Type.Literal("retry") }),
     Type.Object({ type: Type.Literal("withdraw") }),
+    Type.Object({ type: Type.Literal("compact") }),
     Type.Object({
       type: Type.Literal("resolve_control_request"),
       requestId: Type.String(),

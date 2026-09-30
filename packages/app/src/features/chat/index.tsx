@@ -65,9 +65,13 @@ export function Chat({ sessionId, agent, onNavigateToPath, onOpenSession, initia
     historyError,
     hasMore,
     loadingMore,
+    compacting,
+    compactResult,
     sendMessage,
     retry,
     withdrawLastTurn,
+    compactSession,
+    clearCompactResult,
     editAndResend,
     abort,
     reconnect,
@@ -129,6 +133,12 @@ export function Chat({ sessionId, agent, onNavigateToPath, onOpenSession, initia
 
   const sendSummon = useSummonSend(sessionId, agent.id);
 
+  const handleCompact = () => {
+    if (!compactSession()) {
+      toast.error(t("chat.compactNotDelivered"));
+    }
+  };
+
   const handleSend = (text: string, attachments?: AttachedFile[]) => {
     if (text.trim().startsWith(">>")) {
       if (attachments && attachments.length > 0) {
@@ -184,6 +194,16 @@ export function Chat({ sessionId, agent, onNavigateToPath, onOpenSession, initia
   }, [sessionId]);
 
   useEffect(() => {
+    if (!compactResult) return;
+    if (compactResult.applied) {
+      toast.success(t("chat.compactApplied"));
+    } else {
+      toast.info(t("chat.compactNotNeeded"));
+    }
+    clearCompactResult();
+  }, [compactResult, clearCompactResult, t]);
+
+  useEffect(() => {
     if (!autoRead) return;
     return onAssistantTurnComplete((sid, text) => {
       if (sid !== sessionId || document.hidden) return;
@@ -210,6 +230,9 @@ export function Chat({ sessionId, agent, onNavigateToPath, onOpenSession, initia
               activeQuickLink={isMobile ? activeQuickLink : null}
               onQuickLink={handleQuickLink}
               onClose={onClose ? handleClose : undefined}
+              onCompact={handleCompact}
+              compacting={compacting}
+              compactDisabled={streaming || loading}
             />
             {isMobile && activeQuickLink !== null && (
               <QuickLinkPanel projectId={projectId} path={activeQuickLink} />

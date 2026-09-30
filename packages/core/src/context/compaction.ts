@@ -10,6 +10,8 @@ import { estimateTokens } from "./token-estimate.js";
 const MAX_MESSAGE_CHARS = 500;
 const TRUNCATE_MARKER = "…";
 
+export const DEFAULT_THRESHOLD_RATIO = 0.75;
+
 export interface CompactionOptions {
   currentTokens: number;
   contextWindow: number;
@@ -97,7 +99,7 @@ export function planCompaction(
   messages: Message[],
   options: CompactionOptions,
 ): CompactionPlan {
-  const thresholdRatio = options.thresholdRatio ?? 0.75;
+  const thresholdRatio = options.thresholdRatio ?? DEFAULT_THRESHOLD_RATIO;
   const keepRecentPrompts = options.keepRecentPrompts ?? 20;
   const maxTurns = options.maxTurns ?? 40;
   const hardRatio = options.hardRatio ?? 0.9;
@@ -208,9 +210,6 @@ export function sanitizeToolCallPairs(messages: Message[]): SanitizeResult {
     const msg = messages[i];
     if (msg.role === "assistant") {
       const am = msg as AssistantMessage;
-      if (am.stopReason === "error" || am.stopReason === "aborted") {
-        continue;
-      }
       for (const block of am.content) {
         if (block.type === "toolCall") {
           validToolCallIds.add((block as ToolCall).id);

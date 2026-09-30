@@ -16,13 +16,14 @@ import {
   createAttachmentSanitizer,
   type AttachmentSanitizer,
 } from "../attachments/sanitizer.js";
-import { composeTurnHooks, type TurnHooks } from "../kernel/turn-hooks.js";
+import { composeTurnHooks, type CompactionOutcome, type TurnHooks } from "../kernel/turn-hooks.js";
 import { collectAbandonedSeqs, deriveMessages, repairLog } from "./fold.js";
 import { expandSlashMessage } from "./slash.js";
 import { SessionEventLog } from "./event-log.js";
 import type { SessionEvent, SendMessageMeta } from "./events.js";
 import { readCurrentTokens } from "../context/token-estimate.js";
 import { markTruncated } from "../context/truncated-turn.js";
+import { DEFAULT_THRESHOLD_RATIO } from "../context/compaction.js";
 import {
   buildAgent,
   buildPromptAndTools,
@@ -36,6 +37,7 @@ export type RunnerEventHandler = (event: AgentEvent | SessionControlEvent) => vo
 export const MAX_TOOL_CALLS_PER_TURN = 30;
 export const MAX_SAME_TOOLCALL_REPEAT = 3;
 export const MAX_CONSECUTIVE_TRUNCATED_TURNS = 3;
+const PRE_TURN_COMPACTION_RATIO = DEFAULT_THRESHOLD_RATIO;
 
 export type ToolLoopStopReason = "tool-call-budget" | "tool-call-repeat" | "truncated-loop";
 
@@ -73,6 +75,10 @@ export class AgentRunner {
   private capabilityMiddlewares: ReadonlyArray<EventMiddleware<AgentEvent>> = [];
   private pendingReload = false;
   private pendingPromptEstimate: number | null = null;
+  private needsAutoRetry = false;
+  private autoRetryCount = 0;
+  private lastAssistantSeq: number | null = null;
+  private compactedThisTurn = false;
   private toolCallTotal = 0;
   private lastToolKey: string | null = null;
   private sameToolRepeat = 0;
@@ -192,6 +198,9 @@ export class AgentRunner {
     this.turnDepth = meta?.triggerDepth ?? 0;
     this.turnChainId = meta?.triggerChainId ?? randomUUID();
     this.resetToolLoopGuard();
+    this.needsAutoRetry = false;
+    this.autoRetryCount = 0;
+    this.compactedThisTurn = false;
     let sanitizer: AttachmentSanitizer | null = null;
     let unsubscribe: (() => void) | undefined;
     let restoreSink: (() => void) | undefined;
@@ -224,6 +233,8 @@ export class AgentRunner {
       const sanitizedUserMessage = sanitizer
         ? (stripUserAttachments(userMessage as never, attachments) as typeof userMessage)
         : userMessage;
+
+      await this.maybePreCompact(sanitizedUserMessage as AgentMessage);
 
       const [userEvent, turnStartEvent] = this.eventLog!.appendBatch([
         {
@@ -267,6 +278,7 @@ export class AgentRunner {
         );
         await this.agent.prompt(userMessage);
         await this.applyAfterTurnHooks();
+        await this.runAutoRetryIfNeeded();
       } catch (err) {
         this.emitErrorTurnEnd(turnStartEvent.seq);
         throw err;
@@ -286,6 +298,9 @@ export class AgentRunner {
   async retryLastTurn(onEvent: RunnerEventHandler): Promise<void> {
     this.ensureNotBusy();
     this.inFlight = true;
+    this.needsAutoRetry = false;
+    this.autoRetryCount = 0;
+    this.compactedThisTurn = false;
     let unsubscribe: (() => void) | undefined;
     let restoreSink: (() => void) | undefined;
     try {
@@ -316,6 +331,7 @@ export class AgentRunner {
       }
 
       this.ensureModel();
+      await this.maybePreCompact();
       const [, retryStartEvent] = this.eventLog!.appendBatch([
         { type: "turn/retried", data: { abandonedSeqs: [lastEvent.seq] } },
         { type: "turn/start", data: {} },
@@ -344,6 +360,7 @@ export class AgentRunner {
       try {
         await this.agent.continue();
         await this.applyAfterTurnHooks();
+        await this.runAutoRetryIfNeeded();
       } catch (err) {
         this.emitErrorTurnEnd(retryStartEvent.seq);
         throw err;
@@ -352,6 +369,29 @@ export class AgentRunner {
       this.pendingPromptEstimate = null;
       unsubscribe?.();
       restoreSink?.();
+      this.inFlight = false;
+    }
+  }
+
+  async compactNow(): Promise<CompactionOutcome> {
+    this.ensureNotBusy();
+    const preTurn = this.deps.preTurnCompaction;
+    if (!preTurn || !this.eventLog) {
+      throw new ValidationError(
+        `Session "${this.sessionId}" compaction is not available`,
+      );
+    }
+    this.inFlight = true;
+    try {
+      if (this.pendingReload) {
+        this.pendingReload = false;
+        await this.applyReload();
+      }
+      this.ensureWritable();
+      const result = await preTurn(this.eventLog, this.agent, this.sessionId, { force: true });
+      if (result.applied) this.syncBufferFromLog();
+      return result;
+    } finally {
       this.inFlight = false;
     }
   }
@@ -554,11 +594,58 @@ export class AgentRunner {
 
   private async applyAfterTurnHooks(): Promise<void> {
     if (!this.turnHooks.afterTurn || !this.eventLog) return;
+    if (this.compactedThisTurn) {
+      this.compactedThisTurn = false;
+      return;
+    }
     const eventsBefore = this.eventLog.events.length;
     await this.turnHooks.afterTurn(this.agent, this.eventLog);
     if (this.eventLog.events.length !== eventsBefore) {
       this.syncBufferFromLog();
     }
+  }
+
+  private async runAutoRetryIfNeeded(): Promise<void> {
+    if (!this.needsAutoRetry || this.autoRetryCount >= 1 || !this.eventLog) {
+      this.needsAutoRetry = false;
+      return;
+    }
+    this.needsAutoRetry = false;
+    this.autoRetryCount += 1;
+    this.syncBufferFromLog();
+    this.resetToolLoopGuard();
+    const lastBuffered = this.agent.state.messages[this.agent.state.messages.length - 1];
+    if (!lastBuffered || lastBuffered.role === "assistant") {
+      this.endRetriedTurnAsError();
+      return;
+    }
+    this.pendingPromptEstimate = readCurrentTokens(
+      this.agent.state.messages,
+      this.agent.state.systemPrompt,
+    );
+    try {
+      await this.agent.continue();
+      await this.applyAfterTurnHooks();
+    } finally {
+      this.pendingPromptEstimate = null;
+    }
+    if (this.needsAutoRetry) {
+      this.needsAutoRetry = false;
+      this.endRetriedTurnAsError();
+    }
+  }
+
+  private endRetriedTurnAsError(): void {
+    if (!this.eventLog) return;
+    const turnEnd = this.eventLog.append("turn/end", { reason: "error" });
+    this.emitTurnEvent("sp:turn-end", {
+      sessionId: this.sessionId,
+      agentId: this.agentId,
+      seq: turnEnd.seq,
+      reason: "error",
+      depth: this.turnDepth,
+      chainId: this.turnChainId,
+    });
   }
 
   private persistingControlSink(onEvent: RunnerEventHandler): RunnerEventHandler {
@@ -605,11 +692,16 @@ export class AgentRunner {
           const lastMessage = [...event.messages]
             .reverse()
             .find((message) => message.role === "assistant") as
-            | { stopReason?: string }
+            | { stopReason?: string; rawStopReason?: string }
             | undefined;
           const marked = (
             lastMessage === undefined ? undefined : markTruncated(lastMessage)
-          ) as { stopReason?: string } | undefined;
+          ) as { stopReason?: string; rawStopReason?: string } | undefined;
+          if (marked?.stopReason === "error" && marked?.rawStopReason === "length") {
+            this.abandonTruncatedTurn();
+            next(event);
+            return;
+          }
           const reason =
             marked?.stopReason === "error"
               ? "error"
@@ -698,6 +790,50 @@ export class AgentRunner {
     return true;
   }
 
+  private async maybePreCompact(newMessage?: AgentMessage): Promise<void> {
+    const preTurn = this.deps.preTurnCompaction;
+    if (!preTurn || !this.eventLog) return;
+    const window =
+      (this.agent.state.model as { contextWindow?: number } | undefined)?.contextWindow ?? 32768;
+    const estimate = readCurrentTokens(
+      newMessage === undefined
+        ? this.agent.state.messages
+        : [...deriveMessages(this.eventLog.events), newMessage],
+      this.agent.state.systemPrompt,
+    );
+    if (estimate <= window * PRE_TURN_COMPACTION_RATIO) return;
+    const eventsBefore = this.eventLog.events.length;
+    try {
+      await preTurn(this.eventLog, this.agent, this.sessionId);
+    } catch (err) {
+      this.deps.logger.warn(
+        { err, sessionId: this.sessionId },
+        "pre-turn compaction failed, continuing without compaction",
+      );
+      return;
+    }
+    if (this.eventLog.events.length !== eventsBefore) {
+      this.syncBufferFromLog();
+      this.compactedThisTurn = true;
+    }
+  }
+
+  private abandonTruncatedTurn(): void {
+    if (!this.eventLog) return;
+    const failed = [...this.eventLog.events]
+      .reverse()
+      .find((event) => event.type === "assistant/message");
+    const failedSeq = failed && failed.type === "assistant/message"
+      ? failed.seq
+      : this.lastAssistantSeq;
+    if (failedSeq === null || failedSeq === undefined) return;
+    this.eventLog.appendBatch([
+      { type: "turn/retried", data: { abandonedSeqs: [failedSeq] } },
+      { type: "turn/start", data: {} },
+    ]);
+    this.needsAutoRetry = true;
+  }
+
   private appendMessageEvent(message: unknown): void {
     const role = (message as { role?: string }).role;
     if (role === "assistant") {
@@ -707,6 +843,7 @@ export class AgentRunner {
           ? marked
           : { ...marked, promptEstimate: this.pendingPromptEstimate };
       const appended = this.eventLog!.append("assistant/message", { message: stamped as never });
+      this.lastAssistantSeq = appended.seq;
       this.emitTurnEvent("sp:assistant-message", {
         sessionId: this.sessionId,
         agentId: this.agentId,
