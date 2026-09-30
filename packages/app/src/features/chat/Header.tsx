@@ -3,6 +3,7 @@ import { Button } from "../../components/ui/button";
 import { XIcon } from "lucide-react";
 import { useI18n } from "@spherse/i18n/react";
 import { cn } from "../../lib/utils";
+import { CompactButton } from "./CompactButton";
 
 interface HeaderProps {
   agent: AgentSummary;
@@ -10,6 +11,9 @@ interface HeaderProps {
   activeQuickLink?: string | null;
   onQuickLink?: (path: string) => void;
   onClose?: () => void;
+  onCompact?: () => void;
+  compacting?: boolean;
+  compactDisabled?: boolean;
 }
 
 function basename(path: string): string {
@@ -18,7 +22,7 @@ function basename(path: string): string {
   return match ? match[1] : name;
 }
 
-export function Header({ agent, quickLinks, activeQuickLink, onQuickLink, onClose }: HeaderProps) {
+export function Header({ agent, quickLinks, activeQuickLink, onQuickLink, onClose, onCompact, compacting, compactDisabled }: HeaderProps) {
   const { t } = useI18n();
   const links = quickLinks?.filter((p, i, arr) => arr.indexOf(p) === i) ?? [];
   return (
@@ -49,11 +53,19 @@ export function Header({ agent, quickLinks, activeQuickLink, onQuickLink, onClos
           })}
         </div>
       )}
+      {onCompact && (
+        <CompactButton
+          compacting={compacting ?? false}
+          disabled={compactDisabled ?? false}
+          onCompact={onCompact}
+          className={cn(links.length === 0 && "ml-auto", "text-muted-foreground")}
+        />
+      )}
       {onClose && (
         <Button
           variant="ghost"
           size="icon-sm"
-          className={links.length > 0 ? "" : "ml-auto"}
+          className={links.length > 0 || onCompact ? "" : "ml-auto"}
           onClick={onClose}
           title={t("chat.close")}
         >

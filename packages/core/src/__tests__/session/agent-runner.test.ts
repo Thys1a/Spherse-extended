@@ -1633,3 +1633,118 @@ describe("AgentRunner pre-turn compaction", () => {
     expect(afterTurnCalls).toBe(0);
   });
 });
+
+describe("AgentRunner compactNow", () => {
+  let tmpDir: string;
+  let runtime: RuntimeInternals & Awaited<ReturnType<typeof createProject>>;
+  let deps: RuntimeDeps;
+  let agentId: string;
+
+  beforeEach(async () => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "wb-compact-now-"));
+    getChatStreamFnMock.mockClear();
+    resolveModelByIdMock.mockClear();
+    runtime = (await createProject(tmpDir, {
+      projectName: "Test",
+      logger: createSilentLogger(),
+    })) as RuntimeInternals & Awaited<ReturnType<typeof createProject>>;
+    const projectStore = runtime.projectManager.projectStore as any;
+    const testAgent = await projectStore.createAgent("test-agent", TEST_AGENT_PROFILE);
+    agentId = testAgent.getProfile().id;
+    runtime.timerService.stop();
+    deps = {
+      projectStore,
+      projectRoot: projectStore.getRootPath(),
+      fileWriteMutex: (runtime as any).sessionRuntime.deps.fileWriteMutex,
+      logger: createSilentLogger(),
+      runConfig: new RunConfigHolder({ defaultModel: "openai/gpt-4o" }),
+      modelResolver: createModelResolver(stubCatalog),
+      modelCatalog: stubCatalog,
+      capabilities: builtinToolCapabilities(),
+      stores: createStoreRegistry(),
+      attachmentProcessors: [],
+      preTurnCompaction: compactionCapability({ logger: createSilentLogger() }).preTurnCompaction,
+    } as unknown as RuntimeDeps;
+  });
+
+  afterEach(async () => {
+    getChatStreamFnMock.mockImplementation(() => vi.fn() as never);
+    await runtime.shutdown().catch(() => {});
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  function mockDigestStream(): void {
+    getChatStreamFnMock.mockImplementation(
+      () =>
+        (async () => ({
+          async *[Symbol.asyncIterator]() {},
+          result: async () => ({
+            role: "assistant",
+            content: [{ type: "text", text: "summary of the earlier turns with enough substance" }],
+            stopReason: "stop",
+          }),
+        })) as never,
+    );
+  }
+
+  async function newRunner(): Promise<AgentRunner> {
+    const agentStore = getAgentStore(runtime, agentId);
+    const sessionId = agentStore.sessions.createSession();
+    return AgentRunner.init(deps, agentId, sessionId);
+  }
+
+  function seedTurns(runner: AgentRunner, turns: number): void {
+    const seeded: Array<{ type: string; data: unknown }> = [];
+    for (let i = 0; i < turns; i++) {
+      seeded.push({
+        type: "user/message",
+        data: { message: { role: "user", content: `turn ${i} with some padding text`, timestamp: i } },
+      });
+      seeded.push({
+        type: "assistant/message",
+        data: { message: { role: "assistant", content: [{ type: "text", text: `reply ${i} with some padding text` }], stopReason: "stop", timestamp: i } },
+      });
+    }
+    seedEvents(runner, seeded);
+  }
+
+  it("force-compacts a long session and syncs the buffer", async () => {
+    mockDigestStream();
+    const runner = await newRunner();
+    seedTurns(runner, 25);
+    const before = agentOf(runner).state.messages.length;
+
+    const result = await runner.compactNow();
+
+    expect(result).toMatchObject({ applied: true, digestSource: "llm" });
+    const events = eventsOf(runner);
+    expect(events.filter((e: any) => e.type === "compaction/applied")).toHaveLength(1);
+    expect(agentOf(runner).state.messages.length).toBeLessThan(before);
+  });
+
+  it("returns applied:false on a tiny session", async () => {
+    mockDigestStream();
+    const runner = await newRunner();
+
+    const result = await runner.compactNow();
+
+    expect(result).toEqual({ applied: false });
+    expect(eventsOf(runner).filter((e: any) => e.type === "compaction/applied")).toHaveLength(0);
+  });
+
+  it("rejects while a turn is in flight", async () => {
+    const runner = await newRunner();
+    (runner as any).inFlight = true;
+    await expect(runner.compactNow()).rejects.toThrow(/turn in progress/);
+    (runner as any).inFlight = false;
+  });
+
+  it("throws when the compaction capability is absent", async () => {
+    const runner = await AgentRunner.init(
+      { ...deps, preTurnCompaction: undefined } as RuntimeDeps,
+      agentId,
+      getAgentStore(runtime, agentId).sessions.createSession(),
+    );
+    await expect(runner.compactNow()).rejects.toThrow(/not available/);
+  });
+});

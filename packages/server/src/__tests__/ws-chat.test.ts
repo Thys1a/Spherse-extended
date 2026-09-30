@@ -63,6 +63,7 @@ function createMockRegistry() {
       logListener?.({ type: "turn/withdrawn", seq: 7, time: 1, data: { seq: 2 } });
       return Promise.resolve(2);
     }),
+    compactSession: vi.fn(() => Promise.resolve({ applied: true, digestSource: "llm" })),
     abortSession: vi.fn(),
     resolveControlRequest: vi.fn(),
     releaseSession: vi.fn(() => true),
@@ -257,6 +258,31 @@ describe("ws-chat /ws/projects/:p/chat/:a/:s handler", () => {
     expect(sentObjects(socket)).toContainEqual({
       type: "error",
       message: 'Session "s1" has no user message to withdraw',
+      code: "PERMANENT",
+    });
+    expect(socket.close).not.toHaveBeenCalled();
+  });
+
+  it("routes compact to compactSession and replies compact_result", async () => {
+    socket.simulateMessage(Buffer.from(JSON.stringify({ type: "compact" })));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(sessionRuntime.compactSession).toHaveBeenCalledWith("s1");
+    expect(sentObjects(socket)).toContainEqual({
+      type: "compact_result",
+      applied: true,
+      digestSource: "llm",
+    });
+  });
+
+  it("sends error event when compactSession rejects", async () => {
+    sessionRuntime.compactSession.mockRejectedValue(
+      new ValidationError("Session \"s1\" is already running"),
+    );
+    socket.simulateMessage(Buffer.from(JSON.stringify({ type: "compact" })));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(sentObjects(socket)).toContainEqual({
+      type: "error",
+      message: 'Session "s1" is already running',
       code: "PERMANENT",
     });
     expect(socket.close).not.toHaveBeenCalled();

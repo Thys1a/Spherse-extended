@@ -257,6 +257,24 @@ describe("chat session store", () => {
     expect(session().pendingWithdraw).toBe(false);
   });
 
+  it("sends compact and settles on compact_result", async () => {
+    const socket = await attachAndOpen();
+
+    expect(useChatSessionStore.getState().compactSession("s1")).toBe(true);
+    expect(session().pendingCompact).toBe(true);
+    expect(JSON.parse(socket.sent.at(-1)!)).toEqual({ type: "compact" });
+
+    socket.onmessage?.({ data: JSON.stringify({ type: "compact_result", applied: true }) } as MessageEvent);
+    await flush();
+    expect(session().pendingCompact).toBe(false);
+    expect(session().compactResult).toEqual({ applied: true });
+
+    expect(useChatSessionStore.getState().compactSession("s1")).toBe(true);
+    socket.onmessage?.({ data: JSON.stringify({ type: "compact_result", applied: false }) } as MessageEvent);
+    await flush();
+    expect(session().compactResult).toEqual({ applied: false });
+  });
+
   it("resends edited content after turn_withdrawn and clears the intent", async () => {
     const socket = await attachAndOpen();
     useChatSessionStore.getState().sendMessage("s1", "q2");

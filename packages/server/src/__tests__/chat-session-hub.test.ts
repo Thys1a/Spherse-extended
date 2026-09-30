@@ -32,6 +32,7 @@ function createRuntime() {
       appendLog({ type: "turn/withdrawn", seq: nextSeq++, time: 1, data: { seq: 4 } });
       return Promise.resolve(4);
     }),
+    compactSession: vi.fn(() => Promise.resolve({ applied: true, digestSource: "llm" })),
     abortSession: vi.fn(),
     resolveControlRequest: vi.fn(),
     releaseSession: vi.fn(() => true),
@@ -274,6 +275,36 @@ describe("ChatSessionHub", () => {
     await vi.waitFor(() => expect(mock.runtime.sendMessage).toHaveBeenCalled());
 
     await expect(attachment.withdrawLastTurn()).rejects.toThrow(/already running/);
+
+    mock.finish();
+    await run;
+    attachment.close();
+  });
+
+  it("compactSession delegates to the runtime and returns its outcome", async () => {
+    const mock = createRuntime();
+    const hub = new ChatSessionHub(logger);
+    const attachment = hub.attach(mock.runtime as never, "a1", "s1", () => {});
+    await attachment.ready;
+
+    await expect(attachment.compactSession()).resolves.toEqual({
+      applied: true,
+      digestSource: "llm",
+    });
+    expect(mock.runtime.compactSession).toHaveBeenCalledWith("s1");
+    attachment.close();
+  });
+
+  it("rejects compactSession with ConflictError when a run is already active", async () => {
+    const mock = createRuntime();
+    const hub = new ChatSessionHub(logger);
+    const attachment = hub.attach(mock.runtime as never, "a1", "s1", () => {});
+    await attachment.ready;
+
+    const run = attachment.sendMessage("hi");
+    await vi.waitFor(() => expect(mock.runtime.sendMessage).toHaveBeenCalled());
+
+    await expect(attachment.compactSession()).rejects.toThrow(/already running/);
 
     mock.finish();
     await run;

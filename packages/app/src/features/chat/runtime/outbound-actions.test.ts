@@ -118,6 +118,27 @@ describe("outbound actions", () => {
     expect(sent).toHaveLength(0);
   });
 
+  it("marks a pending compact and sends compact", () => {
+    const { actions, sessions, sent } = harness();
+
+    expect(actions.compactSession("s1")).toBe(true);
+    expect(sessions.s1.pendingCompact).toBe(true);
+    expect(sent[0]).toEqual({ type: "compact" });
+  });
+
+  it("skips compact while streaming, armed, or link closed", () => {
+    const { actions, sessions, sent } = harness();
+    sessions.s1 = { ...sessions.s1, streaming: true };
+    expect(actions.compactSession("s1")).toBe(false);
+
+    sessions.s1 = { ...sessions.s1, streaming: false, pendingCompact: true };
+    expect(actions.compactSession("s1")).toBe(false);
+
+    sessions.s1 = { ...sessions.s1, pendingCompact: false, pendingWithdraw: true };
+    expect(actions.compactSession("s1")).toBe(false);
+    expect(sent).toHaveLength(0);
+  });
+
   it("editAndResend arms the intent and sends withdraw", () => {
     const { actions, sessions, sent } = harness();
     sessions.s1 = { ...sessions.s1, entries: [{ kind: "user", id: "u1", text: "hi" }] };

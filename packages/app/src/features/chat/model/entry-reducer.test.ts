@@ -206,6 +206,26 @@ describe("entry reducer", () => {
     expect(state.cursor).toBe(2);
   });
 
+  it("settles a pending compact on compact_result without touching entries", () => {
+    let state = stateWith([assistantEntry({ id: "a1", text: "hi" })]);
+    state = { ...state, pendingCompact: true };
+    state = reduceLiveEvents(
+      state,
+      [event({ type: "compact_result", applied: true, digestSource: "llm" })],
+      1,
+    );
+    expect(state.pendingCompact).toBe(false);
+    expect(state.compactResult).toEqual({ applied: true, digestSource: "llm" });
+    expect(state.entries.map((entry) => entry.id)).toEqual(["a1"]);
+  });
+
+  it("records a no-op compact result", () => {
+    let state = { ...createEntryState(), pendingCompact: true };
+    state = reduceLiveEvents(state, [event({ type: "compact_result", applied: false })], 1);
+    expect(state.pendingCompact).toBe(false);
+    expect(state.compactResult).toEqual({ applied: false });
+  });
+
   it("tracks control requests on tool results and resolves them", () => {
     let state = createEntryState();
     state = reduceLiveEvents(state, [

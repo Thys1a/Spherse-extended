@@ -23,7 +23,7 @@
 | `trigger` | `emit_trigger_event` / `manage_trigger` 工具 + `TriggerManager` / `TimerService` 调度（time 型 10 分钟墙钟对齐轮询、event 型即时；磁盘为唯一真相源，每 tick 重读）+ 回合事件订阅（`sp:user-message` / `sp:assistant-message` / `sp:turn-end`，仅内部可发，外部 bus 拒收 `sp:` 前缀防伪造；跨 turn 链透传 `{depth, chainId}`，depth 上限 5、同链同 trigger 去重；目标会话忙时 defer 到 turn 末重放一次，失败 turn 的 error turn-end 同样点燃订阅者） |
 | `mcp` | MCP server 连接、工具运行时合并、`<mcp-context>` 注入 |
 | `attachments` | 图片等附件处理器 |
-| `compaction` | 上下文压缩（afterTurn 计划、`compaction/applied` 重启点） |
+| `compaction` | 上下文压缩（afterTurn 计划 + 发送前预检、`compaction/applied` 重启点、`compactSession` 手动入口） |
 | `tool-output-budget` | toolResult 上下文预算（contextProjector 单条 32KB 截断，覆盖本地/MCP 工具；只改 wire 视图，不改落库） |
 | `time-perception` | `<time>` 感知前缀（streamDecorator） |
 | `memory` | `memory_save` / `memory_recall` + `<memory>` block（per-agent JSONL） |

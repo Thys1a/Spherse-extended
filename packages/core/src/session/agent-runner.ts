@@ -16,7 +16,7 @@ import {
   createAttachmentSanitizer,
   type AttachmentSanitizer,
 } from "../attachments/sanitizer.js";
-import { composeTurnHooks, type TurnHooks } from "../kernel/turn-hooks.js";
+import { composeTurnHooks, type CompactionOutcome, type TurnHooks } from "../kernel/turn-hooks.js";
 import { collectAbandonedSeqs, deriveMessages, repairLog } from "./fold.js";
 import { expandSlashMessage } from "./slash.js";
 import { SessionEventLog } from "./event-log.js";
@@ -369,6 +369,29 @@ export class AgentRunner {
       this.pendingPromptEstimate = null;
       unsubscribe?.();
       restoreSink?.();
+      this.inFlight = false;
+    }
+  }
+
+  async compactNow(): Promise<CompactionOutcome> {
+    this.ensureNotBusy();
+    const preTurn = this.deps.preTurnCompaction;
+    if (!preTurn || !this.eventLog) {
+      throw new ValidationError(
+        `Session "${this.sessionId}" compaction is not available`,
+      );
+    }
+    this.inFlight = true;
+    try {
+      if (this.pendingReload) {
+        this.pendingReload = false;
+        await this.applyReload();
+      }
+      this.ensureWritable();
+      const result = await preTurn(this.eventLog, this.agent, this.sessionId, { force: true });
+      if (result.applied) this.syncBufferFromLog();
+      return result;
+    } finally {
       this.inFlight = false;
     }
   }

@@ -42,7 +42,7 @@ export function compactionCapability(deps: MaybeCompactDeps): CompactionCapabili
   return {
     id: "compaction",
     turnHooks,
-    preTurnCompaction: (eventLog, agent, sessionId) =>
-      maybeCompactLog(eventLog, agent, sessionId, deps, storeFor(sessionId)),
+    preTurnCompaction: (eventLog, agent, sessionId, options) =>
+      maybeCompactLog(eventLog, agent, sessionId, deps, storeFor(sessionId), options),
   };
 }

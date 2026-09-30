@@ -636,6 +636,23 @@ describe("SessionManager lifecycle", () => {
     );
   });
 
+  it("compactSession throws NotFoundError for an inactive session", async () => {
+    await expect(runtime.sessionRuntime.compactSession("missing")).rejects.toThrow(
+      /No active session/,
+    );
+  });
+
+  it("compactSession returns applied:false when nothing is worth compacting", async () => {
+    const agentStore = runtime.projectManager.projectStore.agents.get(agentId) as any;
+    const sessionId = agentStore.sessions.createSession();
+    await runtime.sessionRuntime.restoreSession(agentId, sessionId);
+
+    const result = await runtime.sessionRuntime.compactSession(sessionId);
+
+    expect(result).toEqual({ applied: false });
+    expect(agentStore.sessions.readEvents(sessionId).filter((e: any) => e.type === "compaction/applied")).toHaveLength(0);
+  });
+
   it("closeAll removes every session", async () => {
     const sidA = await runtime.sessionRuntime.createSession(agentId);
     const sidB = await runtime.sessionRuntime.createSession(agentId);

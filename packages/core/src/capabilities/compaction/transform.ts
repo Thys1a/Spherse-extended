@@ -4,6 +4,7 @@ import { generateDigest, planCompaction, sanitizeDigestContent, sanitizeToolCall
 import { estimateTokens, readCurrentTokens } from "../../context/token-estimate.js";
 import { isTruncatedTurn, readUsageTotal } from "../../context/truncated-turn.js";
 import type { TurnEventAppender } from "../../kernel/turn-hooks.js";
+import type { CompactionOutcome } from "../../kernel/turn-hooks.js";
 import { deriveMessageEntries } from "../../session/fold.js";
 import { summarizeForCompaction, type SummarizeDeps } from "./summarize.js";
 
@@ -25,13 +26,22 @@ function lastTruncatedUsage(messages: Message[]): number | undefined {
 }
 
 export type MaybeCompactDeps = SummarizeDeps;
+
+export interface CompactionOptions {
+  force?: boolean;
+}
+
+const FORCE_KEEP_PROMPTS = 3;
+const FORCE_MAX_TURNS = 3;
+
 export async function maybeCompactLog(
   eventLog: TurnEventAppender,
   agent: Agent,
   sessionId: string,
   deps: MaybeCompactDeps,
   windowStore?: ObservedWindowStore,
-): Promise<void> {
+  options?: CompactionOptions,
+): Promise<CompactionOutcome> {
   const logger = deps.logger;
   const projected = deriveMessageEntries(eventLog.events as never);
   const messages = projected.map((entry) => entry.message as Message);
@@ -55,9 +65,15 @@ export async function maybeCompactLog(
     windowStore?.set(contextWindow);
   }
 
-  const overrides = overflowed ? { thresholdRatio: 0, hardRatio: 0 } : {};
+  const overrides = overflowed || options?.force
+    ? {
+        thresholdRatio: 0,
+        hardRatio: 0,
+        ...(options?.force ? { keepRecentPrompts: FORCE_KEEP_PROMPTS, maxTurns: FORCE_MAX_TURNS } : {}),
+      }
+    : {};
   const plan = planCompaction(messages, { currentTokens, contextWindow, ...overrides });
-  if (!plan.shouldCompact) return;
+  if (!plan.shouldCompact) return { applied: false };
 
   const build = (p: CompactionPlan) => {
     const anchorSeq = projected[p.anchorIndex]?.seq;
@@ -76,7 +92,7 @@ export async function maybeCompactLog(
 
   let finalPlan = plan;
   let built = build(plan);
-  if (!built) return;
+  if (!built) return { applied: false };
   if (overflowed && built.postEstimate > contextWindow * TARGET_RATIO) {
     const tighter = planCompaction(messages, {
       currentTokens,
@@ -108,7 +124,7 @@ export async function maybeCompactLog(
       digestSource = "mechanical";
     } else {
       logger.warn({ sessionId }, "llm summary unavailable, skipping compaction this turn");
-      return;
+      return { applied: false };
     }
 
     eventLog.append("compaction/applied", {
@@ -128,7 +144,9 @@ export async function maybeCompactLog(
       },
       "compaction applied",
     );
+    return { applied: true, digestSource };
   } catch (err) {
     logger.error({ err }, "compaction failed, keeping live buffer");
+    return { applied: false };
   }
 }

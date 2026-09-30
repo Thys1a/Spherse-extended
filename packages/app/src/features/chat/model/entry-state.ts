@@ -16,6 +16,11 @@ export interface PendingEditResend {
   image?: SendableImage;
 }
 
+export interface CompactResult {
+  applied: boolean;
+  digestSource?: string;
+}
+
 export interface ChatEntryState {
   entries: ChatEntry[];
   openStreamId: EntryId | null;
@@ -23,6 +28,8 @@ export interface ChatEntryState {
   streaming: boolean;
   pendingWithdraw: boolean;
   pendingEditResend: PendingEditResend | null;
+  pendingCompact: boolean;
+  compactResult: CompactResult | null;
   cursor: number;
   seqByMessageId: Record<string, number>;
 }
@@ -35,6 +42,8 @@ export function createEntryState(): ChatEntryState {
     streaming: false,
     pendingWithdraw: false,
     pendingEditResend: null,
+    pendingCompact: false,
+    compactResult: null,
     cursor: -1,
     seqByMessageId: {},
   };
