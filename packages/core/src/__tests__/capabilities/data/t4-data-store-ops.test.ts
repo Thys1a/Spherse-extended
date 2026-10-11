@@ -171,14 +171,14 @@ describe("DataStore.mutate", () => {
     expect(row.id).toMatch(/^[0-9a-f-]{36}$/);
     expect(row.createdAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     expect(events).toEqual([
-      { file: FILE, version: r.version, origin: "agent", summary: "addTodo" },
+      { file: FILE, version: r.version, origin: "agent", summary: "addTodo", op: "append", path: "todos" },
     ]);
   });
 
   it("mutate with origin 'sdk' emits sdk-origin events (same entry as page calls)", async () => {
     events.length = 0;
     const r = await store.mutate(FILE, "addTodo", { title: "from page" }, { origin: "sdk" });
-    expect(events).toEqual([{ file: FILE, version: r.version, origin: "sdk", summary: "addTodo" }]);
+    expect(events).toEqual([{ file: FILE, version: r.version, origin: "sdk", summary: "addTodo", op: "append", path: "todos" }]);
     await store.mutate(FILE, "addTodo", { title: "from page again" });
     expect(events[events.length - 1].origin).toBe("agent");
   });
@@ -285,5 +285,187 @@ describe("DataStore.mutate", () => {
     delete doc.todos;
     await fs.writeFile(abs(FILE), JSON.stringify(doc, null, 2));
     await expect(store.mutate(FILE, "addTodo", { title: "x" })).rejects.toThrow(ManifestStaleError);
+  });
+});
+
+describe("DataStore.mutate nested (R1.1)", () => {
+  const NESTED_FILE = "party.data.json";
+  const NESTED_MANIFEST = {
+    version: 2,
+    mutations: {
+      addMember: {
+        op: "append",
+        path: "party",
+        fields: {
+          name: { type: "string", required: true },
+          stats: {
+            type: "object",
+            required: true,
+            properties: {
+              hp: { type: "integer", required: true },
+              level: { type: "integer", default: 1 },
+            },
+          },
+          tags: { type: "array", items: { type: "string" } },
+        },
+        auto: { id: "uuid" },
+      },
+      setConfig: {
+        op: "set",
+        path: "config",
+        fields: {
+          audio: {
+            type: "object",
+            properties: {
+              volume: { type: "integer" },
+              muted: { type: "boolean" },
+            },
+          },
+        },
+      },
+      updateStats: {
+        op: "update",
+        path: "party",
+        match: "name",
+        fields: {
+          stats: {
+            type: "object",
+            properties: {
+              hp: { type: "integer", required: true },
+              level: { type: "integer", default: 1 },
+            },
+          },
+        },
+      },
+    },
+  };
+
+  beforeEach(async () => {
+    await fs.writeFile(
+      abs(NESTED_FILE),
+      JSON.stringify(
+        {
+          $manifest: NESTED_MANIFEST,
+          party: [],
+          config: { audio: { volume: 50, muted: false } },
+        },
+        null,
+        2,
+      ),
+    );
+  });
+
+  it("append with nested object/array writes row with defaults, readable back", async () => {
+    const r = await store.mutate(NESTED_FILE, "addMember", {
+      name: "ash",
+      stats: { hp: 80 },
+      tags: ["brave"],
+    });
+    const row = r.result as Record<string, unknown>;
+    expect(row.name).toBe("ash");
+    expect(row.stats).toEqual({ hp: 80, level: 1 });
+    expect(row.tags).toEqual(["brave"]);
+    expect(row.id).toMatch(/^[0-9a-f-]{36}$/);
+    const after = await store.read(NESTED_FILE, { path: "party" });
+    expect(after.total).toBe(1);
+    expect((after.value as unknown[])[0]).toEqual(row);
+    const outline = await store.outline(NESTED_FILE);
+    expect(outline.outline).toContain("addMember(name!");
+  });
+
+  it("nested validation errors surface dotted paths", async () => {
+    await expect(store.mutate(NESTED_FILE, "addMember", { name: "x", stats: {} })).rejects.toThrow(
+      /stats\.hp/,
+    );
+    await expect(
+      store.mutate(NESTED_FILE, "addMember", { name: "x", stats: { hp: "high" } }),
+    ).rejects.toThrow(/stats\.hp: expected integer/);
+    await expect(
+      store.mutate(NESTED_FILE, "addMember", { name: "x", stats: { hp: 1 }, tags: ["ok", 7] }),
+    ).rejects.toThrow(/tags\[1\]: expected string/);
+    const after = await store.read(NESTED_FILE, { path: "party" });
+    expect(after.total).toBe(0);
+  });
+
+  it("version:1 manifest drops nested mutations but keeps scalar ones", async () => {
+    await fs.writeFile(
+      abs("legacy.data.json"),
+      JSON.stringify({
+        $manifest: {
+          version: 1,
+          mutations: {
+            addMember: {
+              op: "append",
+              path: "party",
+              fields: { stats: { type: "object", properties: { hp: { type: "integer" } } } },
+            },
+            addNote: {
+              op: "append",
+              path: "notes",
+              fields: { text: { type: "string", required: true } },
+            },
+          },
+        },
+        party: [],
+        notes: [],
+      }),
+    );
+    await expect(
+      store.mutate("legacy.data.json", "addMember", { stats: { hp: 1 } }),
+    ).rejects.toThrow(UnknownEntryError);
+    const r = await store.mutate("legacy.data.json", "addNote", { text: "hi" });
+    expect((r.result as { text: string }).text).toBe("hi");
+  });
+
+  it("set replaces a nested object whole-leaf (no deep merge)", async () => {
+    const r = await store.mutate(NESTED_FILE, "setConfig", { audio: { muted: true } });
+    expect(r.result).toEqual({ audio: { muted: true } });
+    const config = await store.read(NESTED_FILE, { path: "config" });
+    expect(config.value).toEqual({ audio: { muted: true } });
+  });
+
+  it("outline and unknown-mutation errors surface manifest diagnostics (R1.2)", async () => {
+    const BAD_FILE = "broken.data.json";
+    await fs.writeFile(
+      abs(BAD_FILE),
+      JSON.stringify(
+        {
+          $manifest: {
+            version: 2,
+            queries: {},
+            mutations: {
+              addTodo: { op: "append", path: "todos", fields: { title: { type: "string" } } },
+              hpCurve: { op: "upsert", path: "todos" },
+            },
+          },
+          todos: [],
+        },
+        null,
+        2,
+      ),
+    );
+    const outline = await store.outline(BAD_FILE);
+    expect(outline.outline).toContain("! mutations.hpCurve: op must be one of append/update/remove/set");
+    await expect(store.mutate(BAD_FILE, "nope", {})).rejects.toThrow(
+      /invalid entries: mutations\.hpCurve: op must be one of/,
+    );
+  });
+
+  it("update with partial nested object keeps stored sibling values", async () => {
+    await store.mutate(NESTED_FILE, "addMember", {
+      name: "ash",
+      stats: { hp: 80, level: 5 },
+      tags: ["brave"],
+    });
+    const r = await store.mutate(NESTED_FILE, "updateStats", {
+      name: "ash",
+      stats: { hp: 90 },
+    });
+    expect((r.result as { stats: unknown }).stats).toEqual({ hp: 90, level: 5 });
+    const after = await store.read(NESTED_FILE, { path: "party" });
+    expect(((after.value as unknown[])[0] as { stats: unknown }).stats).toEqual({
+      hp: 90,
+      level: 5,
+    });
   });
 });

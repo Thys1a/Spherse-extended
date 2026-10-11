@@ -2,13 +2,14 @@ import type { ProjectStore } from "../store/project.js";
 import type { FileWriteMutex } from "../utils/file-write-mutex.js";
 import type { Logger } from "../logger.js";
 import type { SamplingParams, ThinkingLevel } from "../types.js";
-import { composeTurnHooks, type TurnHooksFactory } from "../kernel/turn-hooks.js";
+import { composeTurnHooks, type PreTurnCompaction, type TurnHooksFactory } from "../kernel/turn-hooks.js";
 import type { ModelResolver } from "./model-resolver.js";
 import { createModelResolver } from "./model-resolver.js";
 import { ModelCatalog } from "../model-providers/catalog.js";
 import type { Capability } from "../kernel/capability.js";
 import type { AttachmentProcessor } from "../attachments/index.js";
 import type { StoreRegistry } from "../kernel/ports.js";
+import type { ToolAttributionRegistry } from "../tool-attribution.js";
 
 export interface RunConfig {
   readonly defaultModel?: string;
@@ -36,6 +37,20 @@ export class RunConfigHolder implements RunConfigSource {
   }
 }
 
+export interface TurnEventPayload {
+  sessionId: string;
+  agentId: string;
+  seq: number;
+  reason?: string;
+  depth: number;
+  chainId: string;
+}
+
+export interface TurnEvent {
+  name: string;
+  payload: TurnEventPayload;
+}
+
 export interface RuntimeDeps {
   readonly projectStore: ProjectStore;
   readonly projectRoot: string;
@@ -43,6 +58,9 @@ export interface RuntimeDeps {
   readonly logger: Logger;
   readonly runConfig: RunConfigSource;
   readonly createTurnHooks?: TurnHooksFactory;
+  readonly preTurnCompaction?: PreTurnCompaction;
+  readonly onTurnEvent?: (event: TurnEvent) => void;
+  readonly attribution?: ToolAttributionRegistry;
   readonly modelResolver: ModelResolver;
   readonly modelCatalog: ModelCatalog;
   readonly capabilities: ReadonlyArray<Capability>;
@@ -61,6 +79,9 @@ export function createRuntimeDeps(input: {
   capabilities: ReadonlyArray<Capability>;
   stores: StoreRegistry;
   runConfig: RunConfigSource;
+  onTurnEvent?: (event: TurnEvent) => void;
+  attribution?: ToolAttributionRegistry;
+  preTurnCompaction?: PreTurnCompaction;
   modelResolver?: ModelResolver;
   modelCatalog?: ModelCatalog;
 }): Readonly<RuntimeDeps> {
@@ -72,6 +93,9 @@ export function createRuntimeDeps(input: {
     fileWriteMutex: input.fileWriteMutex,
     logger: input.logger,
     runConfig: input.runConfig,
+    ...(input.onTurnEvent !== undefined ? { onTurnEvent: input.onTurnEvent } : {}),
+    ...(input.attribution !== undefined ? { attribution: input.attribution } : {}),
+    ...(input.preTurnCompaction !== undefined ? { preTurnCompaction: input.preTurnCompaction } : {}),
     createTurnHooks: (agentId, sessionId) =>
       composeTurnHooks(
         capabilities

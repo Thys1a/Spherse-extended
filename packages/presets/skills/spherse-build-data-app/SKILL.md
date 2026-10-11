@@ -24,6 +24,7 @@ description: 设计和构建由 HTML 页面与 Agent 共同读写的 Spherse 数
 - 集合条目必须有稳定且唯一的 identity，通常是由 `auto` 生成的 UUID。
 - manifest 保持精简（建议不超过 2KB），只保存路径映射、入口描述和 schema，不放示例数据。
 - manifest 的 `path` 使用对象字段 dot-path（如 `forum.threads`），不支持数组下标。
+- 嵌套建模（object/array）必须声明 `version: 2`；纯标量沿用 `version: 1`（旧文件自动兼容）。嵌套上限一层（L1）：元素级 type/required/enum，不支持跨字段引用与条件 required。
 - 创建参与互动的 Agent 时，根据职责显式启用所需的 data tools，并遵循最小权限原则。
 
 ## 设计工作流
@@ -59,9 +60,10 @@ description: 设计和构建由 HTML 页面与 Agent 共同读写的 Spherse 数
 | 新增集合条目 | `append` | `createThread`、`addReply` |
 | 按 identity 修改条目 | `update` | `setThreadStatus` |
 | 按 identity 删除条目 | `remove` | `removeReply` |
-| 合并更新对象 | `set` | `updateForumStats` |
+| 顶层浅合并、嵌套叶整替 | `set` | `updateForumStats` |
 
 mutation 名称描述业务动作，`fields` 只开放允许调用方写入的字段。使用 `required`、`enum` 和 `default` 固化数据约束；使用 `auto.uuid` 和 `auto.nowIso` 统一生成 identity 与时间。
+调用方不得传入 `auto` 字段（由运行时统一生成）；未在 `fields` 声明的字段会被拒收。`set` 顶层浅合并（未传且无缺省的可选字段保留旧值），参数中出现的嵌套对象叶整替；`update` 按 identity 修改条目，嵌套对象部分更新时保留已存兄弟值；数组只能走 `append`/`update`/`remove`，`set` 不做元素级 patch。
 
 `match` 用于 `update` 和 `remove` 定位条目，通常与对应 query 的 `identity` 相同。调用方把 match 字段放在 `args` 中传入，但不要在 `fields` 中重复声明。
 
@@ -157,6 +159,8 @@ UI SDK 的 `data.mutate` 直接返回业务对象：`append` 返回新增条目�
 
 不要用 `data.get` 读出整个数组、在页面中修改后再用 `data.set` 写回。该模式会覆盖页面读取之后由其他 Agent 或页面写入的变更。
 
+撤回（withdraw）只截断消息、不回滚写入：`mutate_data` 落库后即持久化，撤回上一轮对话不会撤销已写入的数据。如需“撤销”，用新的 mutation 把数据恢复为期望值。
+
 页面不能只处理自己的 mutation 返回值，还要订阅数据文件变化，使 Agent 或其他页面的写入及时反映到 UI：
 
 ```javascript
@@ -174,6 +178,19 @@ const unsubscribe = spherse.events.on(
 render();
 window.addEventListener("pagehide", unsubscribe, { once: true });
 ```
+
+## 回滚（turn 级撤销）
+
+某轮写入错了，用 `rollback_turn` 按 turn 整轮逆转（从新到旧逐条恢复写入前的值），而不是手工反向再写一轮：
+
+```text
+rollback_turn({ turnSeq: 12 })
+```
+
+- 只回滚 data（`*.data.json`）与 card（`*.card.json`）写入；`write_file`/`edit_file` 直写、`memory`、`trigger`（已产生新 turn）不可回滚。
+- 有文件在目标 turn 之后又被改过时拒绝执行并转人工，不强制覆盖。
+- 撤回（withdraw）只截断消息、不回滚写入；回滚只走显式指令。
+- 页面 `data.set`/`data.delete` 直写不经过 turn，无归因可查，同样不可回滚——页面写入请走 `data.mutate` 同名 mutation。
 
 ## 虚拟论坛示例
 
@@ -264,6 +281,63 @@ window.addEventListener("pagehide", unsubscribe, { once: true });
 
 注意：当前 query 只能按记录自身字段过滤，因此回复记录冗余保存 `threadId`，使 `listRepliesByThread` 可以直接查询。不要为了追求关系型范式而让 Agent 读取多个完整集合并自行 join；应按实际查询路径设计适度冗余。
 
+## 嵌套建模示例（version: 2）
+
+队伍→成员数组→hp/level：成员含嵌套对象 `stats`，必须声明 `version: 2`。
+
+```json
+{
+  "$manifest": {
+    "version": 2,
+    "desc": "队伍与成员",
+    "mutations": {
+      "addMember": {
+        "desc": "向队伍追加成员",
+        "op": "append",
+        "path": "party",
+        "fields": {
+          "name": { "type": "string", "required": true },
+          "stats": {
+            "type": "object",
+            "required": true,
+            "properties": {
+              "hp": { "type": "integer", "required": true },
+              "level": { "type": "integer", "default": 1 }
+            }
+          }
+        },
+        "auto": { "id": "uuid" }
+      },
+      "renameParty": {
+        "desc": "整体替换队伍档案（不合并）",
+        "op": "set",
+        "path": "profile",
+        "fields": {
+          "name": { "type": "string", "required": true },
+          "motto": { "type": "string" }
+        }
+      }
+    }
+  },
+  "party": [],
+  "profile": { "name": "远征队", "motto": "" }
+}
+```
+
+- 含 object/array 即要求 `version: 2`；`version: 1` 文件出现嵌套字段时该 mutation 被丢弃、调用报未知入口（旧纯标量文件自动兼容，无需升级）。
+- 嵌套缺省会填充（如上 `level` 省略时为 1）；类型/缺失错误附字段路径（如 `stats.hp: expected integer`、`tags[1]: expected string`）。
+- `renameParty` 只传 `name` 时，已存的 `motto` 保留（顶层浅合并）；嵌套叶一旦出现在参数中即整替（如 `audio: { muted: true }` 会丢掉 `volume`）。只改条目部分字段用 `update`（按 identity 定位，保留兄弟值）。
+
+## 旁路声明（有意保留的演化通道）
+
+以下三条直写路径绕过 `$manifest` schema 校验（无字段/类型/未知字段检查），是写数据文件时的备选而非正道：
+
+- `spherse.data.set` / `data.delete`：键值直写，不校验 manifest、不填 `auto`、不走 mutation 幂等。
+- `write_file`：整文件直写，只校验 JSON 合法性。修 manifest 本身、搭新文件骨架时用它；写业务数据时优先 `mutate_data`。
+- `edit_file`：文本替换直改，只校验 JSON 合法性。小幅修 manifest、改静态文本时用它；写业务数据时优先 `mutate_data`。
+
+用直写路径修改 `*.data.json` 后，`version` 照常推进（sha256），但 outline 不会提示字段违规——把它们当作演化 manifest 的脚手架，而不是日常写入方式。
+
 ## 建模检查清单
 
 - 文件名以 `.data.json` 结尾，业务数据位于顶层 object，业务键不以 `$` 开头；一个数据文件可以由多个页面共享。
@@ -274,7 +348,9 @@ window.addEventListener("pagehide", unsubscribe, { once: true });
 - 需要稳定分页的 query 声明 `identity`。
 - mutation 使用业务名称，`fields` 只允许预期字段，状态类字段使用 enum。
 - 页面和 Agent 的相同写入动作共用同名 mutation。
+- 含嵌套字段（object/array）时 manifest 声明 `version: 2`；纯标量沿用 `version: 1`。
 - 页面不通过 `data.set` 整体回写增长型集合。
+- 业务写入走命名 mutation，不用旁路直写增长型集合（旁路清单见上节）。
 - 动态页面订阅数据文件的 `file:update`，收到事件后重新读取并渲染。
 - Agent 首次读取 outline，后续优先 query/mutate，不反复读取整个文件。
 - manifest 与 HTML、初始数据、Agent 指令中的字段和入口名称一致。

@@ -1,3 +1,5 @@
+import type { UndoOp, UndoRecord } from "../../tool-attribution.js";
+
 export type DataOrigin = "sdk" | "agent";
 
 export interface DataChangeEvent {
@@ -5,6 +7,12 @@ export interface DataChangeEvent {
   version: string;
   origin: DataOrigin;
   summary?: string;
+  op?: UndoOp;
+  path?: string;
+  before?: unknown;
+  sessionId?: string;
+  turnSeq?: number;
+  toolCallId?: string;
 }
 
 export class VersionConflictError extends Error {
@@ -30,8 +38,11 @@ export class UnknownEntryError extends Error {
     public entry: string,
     public kind: "query" | "mutation",
     public validNames: string[],
+    public readonly detail?: string,
   ) {
-    super(`unknown manifest entry: ${entry}`);
+    super(
+      detail ? `unknown manifest entry: ${entry} (${detail})` : `unknown manifest entry: ${entry}`,
+    );
     this.name = "UnknownEntryError";
   }
 }
@@ -69,12 +80,23 @@ export interface ManifestParam {
   desc?: string;
 }
 
+export type ManifestFieldType =
+  | "string"
+  | "integer"
+  | "number"
+  | "boolean"
+  | "enum"
+  | "object"
+  | "array";
+
 export interface ManifestFieldRule {
-  type: "string" | "integer" | "number" | "boolean" | "enum";
+  type: ManifestFieldType;
   values?: string[];
   required?: boolean;
   default?: unknown;
   desc?: string;
+  properties?: Record<string, ManifestFieldRule>;
+  items?: ManifestFieldRule;
 }
 
 export interface ManifestQuery {
@@ -103,10 +125,16 @@ export interface Manifest {
   mutations: Record<string, ManifestMutation>;
 }
 
+export interface ManifestDiagnostic {
+  name: string;
+  reason: string;
+}
+
 export interface ManifestHealth {
   status: "healthy" | "stale" | "absent" | "invalid";
   staleQueries: string[];
   staleMutations: string[];
+  diagnostics?: ManifestDiagnostic[];
 }
 
 export interface OutlineResult {
@@ -142,18 +170,21 @@ export interface QueryResult {
 export interface MutateResult {
   version: string;
   result: unknown;
+  undo?: UndoRecord;
 }
 
 export interface WriteResult {
   version: string;
+  undo?: UndoRecord;
 }
 
 export interface DataStore {
   outline(file: string): Promise<OutlineResult>;
   read(file: string, opts: { key?: string; path?: string; offset?: number; limit?: number; ifVersion?: string }): Promise<ReadResult>;
   query(file: string, name: string, params?: Record<string, unknown>, page?: { limit?: number; after?: string }): Promise<QueryResult>;
-  mutate(file: string, name: string, args: Record<string, unknown>, opts?: { idempotencyKey?: string; origin?: DataOrigin }): Promise<MutateResult>;
-  rawSet(file: string, key: string, value: unknown, opts?: { ifVersion?: string }): Promise<WriteResult>;
-  rawDelete(file: string, key: string, opts?: { ifVersion?: string }): Promise<WriteResult>;
+  mutate(file: string, name: string, args: Record<string, unknown>, opts?: { idempotencyKey?: string; origin?: DataOrigin; toolCallId?: string; sessionId?: string }): Promise<MutateResult>;
+  rawSet(file: string, key: string, value: unknown, opts?: { ifVersion?: string; toolCallId?: string; sessionId?: string }): Promise<WriteResult>;
+  rawDelete(file: string, key: string, opts?: { ifVersion?: string; toolCallId?: string; sessionId?: string }): Promise<WriteResult>;
+  rollbackUndo(file: string, undo: UndoRecord, expectedVersion: string, opts?: { idempotencyKey?: string; toolCallId?: string; sessionId?: string }): Promise<WriteResult>;
   onChange(handler: (e: DataChangeEvent) => void): () => void;
 }

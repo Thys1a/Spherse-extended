@@ -100,14 +100,14 @@ describe("createManageTriggerTool", () => {
     expect(manager.create).not.toHaveBeenCalled();
   });
 
-  it("rejects reserved event names", async () => {
+  it("allows reserved sp: names for event subscriptions", async () => {
     const result = await makeTool().execute(
       "tc",
-      { action: "create", type: "event", event_name: "sp:internal", mode: "new_session", message: "m" },
+      { action: "create", type: "event", event_name: "sp:assistant-message", mode: "new_session", message: "m" },
       undefined as any,
     );
-    expect(result.details.error).toBe(true);
-    expect(manager.create).not.toHaveBeenCalled();
+    expect(result.details.error).toBeUndefined();
+    expect(manager.create).toHaveBeenCalled();
   });
 
   it("requires target_session_id for existing_session mode", async () => {

@@ -30,7 +30,7 @@
 ```
 
 - **kernel/**：只有类型（`Capability`、`ToolHost`、`SessionPort`、`PathRule`…）和纯组合子（EventPipeline、TurnHooks、ContextBlock）。零 I/O、零实现。
-- **session/**：会话运行时。`AgentRunner` 在固定时机调用 kernel 抽象，对具体能力零 import；`agent-assembly` 从 profile 组装 Agent；`SessionEventLog` 持有 append-only 事件并同步写 SQLite；`SessionManager` 管理 session 池，并在可写 restore 前自动迁移 legacy 会话。
+- **session/**：会话运行时。`AgentRunner` 在固定时机调用 kernel 抽象，对具体能力零 import；`agent-assembly` 从 profile 组装 Agent；`SessionEventLog` 持有 append-only 事件并同步写 SQLite；`SessionManager` 管理 session 池、在可写 restore 前自动迁移 legacy 会话，并提供 `releaseSession`（空闲释放，busy 拒绝）与 restore admission 重检（archived / 已关闭 store 拒绝），server hub 经这两个入口收口而不直接触碰 runner。
 - **capabilities/**：能力模块。每个目录自足，只依赖 kernel 类型，经 `Capability` 接口贡献工具 / context block / turn hooks / attachment processor / path rule / 事件 middleware / 生命周期钩子。
 - **装配点**：`assembleProject` 组合一切。capabilities 列表可参数化（`AssembleOptions.capabilities` 接受数组或 `builtin => list` 函数）。
 
@@ -57,7 +57,7 @@
    - `streamDecorators`：改写 LLM 请求流的装饰器（`StreamDecorator = (view) => (base: StreamFn) => StreamFn | undefined`，洋葱组合——后注册者最外层；time-perception 为首个实例）；
    - `contextProjectors`：上下文投影器（`ContextProjector = (view) => (messages) => messages | undefined`，管线序组合——在 convertToLlm 前清洗 AgentMessage，如 attachments 剥 `_attachments`/空 image block；持久化历史的 fold 语义不放这里）；
    - `attachmentProcessors` / `pathRules` / `eventMiddlewares` / `init(services)` / `onAgentDeleted` / `onAgentConfigChanged(agentId, kind)`（统一配置变更信号，kind: `"mcp" | "tools" | "profile"`）/ `shutdown`：按需实现。
-3. **需要会话驱动的，声明依赖 `SessionPort`**（create/restore/sendMessage/abortSession/sessionExists——完成通知 = await sendMessage 的 Promise），由 `init(services)` 接线——不要 import SessionManager，不要接受懒 ref。
+3. **需要会话驱动的，声明依赖 `SessionPort`**（create/restore/sendMessage/abortSession/sessionExists + 可选 getTriggerChain（供 trigger 回查调用方链-depth/chainId），完成通知 = await sendMessage 的 Promise），由 `init(services)` 接线——不要 import SessionManager，不要接受懒 ref。
 4. **需要私有存储**：布局知识（路径、格式）写在能力自己的 store 模块并导出 `PathRule`（自带 `llm: { read, write }` 裁决），capability 只引用注册。per-agent 存储用 `stores.forAgent(agentId)` 作用域，`onAgentDeleted` 里清理。
 5. **注册**：装配点 `defaultCapabilities`（或经 `assembleProject` 参数注入）加一行。**侵入面以 git diff 为验收**——如果新能力需要改 tools/session/access 的既有文件，先停下来检查是不是接口缺了贡献点（缺则在 kernel 补接口，而不是在消费方开洞）。
 6. **测试随能力走**：capability 目录下逻辑 + `__tests__/capabilities/` 对应测试；组合语义（hooks 链、middleware 序）测 kernel 组合子本身。

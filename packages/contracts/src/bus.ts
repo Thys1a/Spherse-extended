@@ -123,6 +123,8 @@ const busClientMessage = Type.Union([
   Type.Object({
     kind: Type.Literal("emit-trigger-event"),
     projectId: Type.String(),
+    // Event names starting with `sp:` are reserved for internal turn events
+    // and are rejected by the server; subscribe to them via triggers instead.
     eventName: Type.String({ minLength: 1 }),
     payload: Type.Optional(Type.String()),
   }),

@@ -1,7 +1,16 @@
 import type { FastifyInstance } from "fastify";
-import { schemas } from "@spherse/contracts";
+import {
+  AccessDeniedError,
+  ConflictError,
+  NotFoundError,
+  ValidationError,
+  addAgentCardLink,
+  listAgentCardLinks,
+  removeAgentCardLink,
+} from "@spherse/core";
+import { schemas, parseContract } from "@spherse/contracts";
 import type { ProjectRegistry } from "../registry.js";
-import { notFound } from "../errors.js";
+import { conflict, forbidden, notFound } from "../errors.js";
 
 export function registerAgentRoutes(fastify: FastifyInstance, _registry: ProjectRegistry): void {
   fastify.get("/api/projects/:projectId/agents", {
@@ -49,6 +58,68 @@ export function registerAgentRoutes(fastify: FastifyInstance, _registry: Project
     async (req, reply) => {
       const theme = await req.projectCtx!.projectManager.getAgentTheme(req.params.id);
       reply.type("text/css").send(theme);
+    },
+  );
+
+  function agentSlugOr404(projectManager: { getAgentProfile(id: string): { slug: string } | null }, id: string): string {
+    const profile = projectManager.getAgentProfile(id);
+    if (!profile) throw notFound("Agent not found");
+    return profile.slug;
+  }
+
+  fastify.get<{ Params: { projectId: string; id: string } }>(
+    "/api/projects/:projectId/agents/:id/card-links",
+    {
+      schema: { response: { 200: schemas.cardLinkListResponse } },
+      async handler(req) {
+        const ctx = req.projectCtx!;
+        const slug = agentSlugOr404(ctx.projectManager, req.params.id);
+        return parseContract(
+          schemas.cardLinkListResponse,
+          listAgentCardLinks(ctx.projectManager.getRootPath(), slug),
+        );
+      },
+    },
+  );
+
+  fastify.post<{ Params: { projectId: string; id: string } }>(
+    "/api/projects/:projectId/agents/:id/card-links",
+    {
+      schema: { body: schemas.cardLinkAddRequest, response: { 200: schemas.cardLinkAddResponse } },
+      async handler(req, reply) {
+        const body = parseContract(schemas.cardLinkAddRequest, req.body);
+        const ctx = req.projectCtx!;
+        const slug = agentSlugOr404(ctx.projectManager, req.params.id);
+        try {
+          const link = addAgentCardLink(ctx.projectManager.getRootPath(), slug, body.path);
+          return parseContract(schemas.cardLinkAddResponse, link);
+        } catch (err) {
+          if (err instanceof NotFoundError) throw notFound(err.message);
+          if (err instanceof ValidationError) return reply.code(400).send({ error: err.message });
+          if (err instanceof AccessDeniedError) throw forbidden(err.message);
+          if (err instanceof ConflictError) throw conflict(err.message);
+          throw err;
+        }
+      },
+    },
+  );
+
+  fastify.delete<{ Params: { projectId: string; id: string; name: string } }>(
+    "/api/projects/:projectId/agents/:id/card-links/:name",
+    {
+      schema: { response: { 200: schemas.okResponse } },
+      async handler(req, reply) {
+        const ctx = req.projectCtx!;
+        const slug = agentSlugOr404(ctx.projectManager, req.params.id);
+        try {
+          removeAgentCardLink(ctx.projectManager.getRootPath(), slug, req.params.name);
+          return { ok: true };
+        } catch (err) {
+          if (err instanceof NotFoundError) throw notFound(err.message);
+          if (err instanceof ValidationError) return reply.code(400).send({ error: err.message });
+          throw err;
+        }
+      },
     },
   );
 }

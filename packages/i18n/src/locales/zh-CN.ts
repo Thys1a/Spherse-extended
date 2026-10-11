@@ -116,6 +116,10 @@ export const zhCN = {
   "settings.provider.dialog.keyless": "无需 API Key",
   // keyless 开关描述，说明适用于本地部署无鉴权的服务
   "settings.provider.dialog.keylessDesc": "适用于本地部署（Ollama、LM Studio 等）无鉴权的服务",
+  // 清洗空 schema 开关标签，打开后清洗 tool 参数里的无类型空节点
+  "settings.provider.dialog.sanitizeSchemas": "兼容严格 schema",
+  // 清洗空 schema 开关描述，说明部分 Gemini 中转会因此 400
+  "settings.provider.dialog.sanitizeSchemasDesc": "清洗 tool 参数里的无类型空节点（部分 Gemini 中转会因此 400）",
   // 自定义供应商对话框「上下文长度」字段标签（供应商级，应用于该供应商全部模型）
   "settings.provider.dialog.contextWindow": "上下文长度",
   // 上下文长度输入框 placeholder，{value} 为默认值（tokens 数，留空使用默认）
@@ -372,6 +376,22 @@ export const zhCN = {
   "agent-dialog.aliasPlaceholder": "留空则显示名称",
   // 智能体别名 tooltip：说明别名会显示在智能体的消息气泡上，未设置时显示名称
   "agent-dialog.aliasHint": "设置后在智能体的消息气泡上显示该别名，未设置时显示名称。",
+  // 输入框占位字段标签
+  "agent-dialog.placeholderLabel": "输入框占位",
+  // 输入框占位输入框占位提示
+  "agent-dialog.placeholderPlaceholder": "留空使用默认提示，如“输入消息…”",
+  // 开场白字段标签
+  "agent-dialog.greetingLabel": "开场白",
+  // 开场白输入框占位提示
+  "agent-dialog.greetingPlaceholder": "留空则不显示，如“你好，我是小助手，有什么可以帮你？”",
+  // 智能体模型配置字段标签：为智能体单独指定模型与思考强度
+  "agent-dialog.modelLabel": "模型",
+  // 智能体模型字段 tooltip：留空或所选模型已下线时回退到全局默认模型
+  "agent-dialog.modelHint": "为该智能体单独指定模型；留空或所选模型已不可用时，使用全局默认模型。",
+  // 智能体思考强度字段 tooltip：说明可按智能体覆盖全局思考强度
+  "agent-dialog.thinkingLevelHint": "为该智能体单独指定思考强度；选择「跟随全局」时使用全局设置。",
+  // 思考强度下拉的「跟随全局」选项文案
+  "agent-dialog.thinkingLevelFollowGlobal": "跟随全局",
   // Agent 提示词字段标签
   "agent-dialog.promptLabel": "提示词",
   // Agent 提示词字段 tooltip：说明提示词的作用（智能体的设定，智能体始终记住）
@@ -402,8 +422,18 @@ export const zhCN = {
   "agent-dialog.loadFailed": "读取失败",
   // Agent dialog "基本" 标签页标题
   "agent-dialog.tabBasic": "基本",
-  // Agent dialog "主题" 标签页标题
-  "agent-dialog.tabTheme": "主题",
+  // Agent dialog "个性化" 标签页标题（收入主题与快捷链接）
+  "agent-dialog.tabPersonalization": "个性化",
+  // Agent 快捷链接字段标签
+  "agent-dialog.quickLinksLabel": "快捷链接",
+  // Agent 快捷链接字段 tooltip：说明快捷链接的展示位置与作用
+  "agent-dialog.quickLinksHint": "显示为聊天窗口顶部的按钮，点击可快速打开该文件",
+  // Agent 快捷链接路径输入框占位提示
+  "agent-dialog.quickLinksPlaceholder": "添加文件…",
+  "agent-dialog.cardLinksLabel": "世界书外链",
+  "agent-dialog.cardLinksHint": "把项目内 .card.json 文件链入该 Agent，命中条目每轮自动注入其 prompt",
+  "agent-dialog.cardLinksPlaceholder": "添加 .card.json 文件…",
+  "agent-dialog.cardLinksDangling": "{name}（已丢失）",
   // Agent dialog 提示词模板行标签（预留，当前 UI 未强制展示）
   "agent-dialog.templateLabel": "模板",
   // 提示词下方预设模板按钮组的前缀文案
@@ -420,7 +450,9 @@ export const zhCN = {
   "agent-dialog.templateConfirmApply": "应用",
   // 确认弹窗「取消」按钮
   "agent-dialog.templateConfirmCancel": "取消",
-  // Agent dialog 主题 tab：textarea 上方说明，告知主题 CSS 的作用范围（仅当前智能体的聊天窗口）
+  // Agent dialog 个性化 tab：主题区块标签
+  "agent-dialog.themeLabel": "主题",
+  // Agent dialog 个性化 tab：主题区块 tooltip，告知主题 CSS 的作用范围（仅当前智能体的聊天窗口）
   "agent-dialog.themeScopeHint": "仅作用于该智能体的聊天窗口（气泡、输入框、Markdown 等）。",
   // Agent dialog 主题 tab：textarea 占位提示，引导用户与智能体对话来生成主题
   "agent-dialog.themePlaceholder": "与智能体对话来生成主题，或将主题 CSS 粘贴到这里",
@@ -454,10 +486,10 @@ export const zhCN = {
   "agent-dialog.yoloLabel": "自动放行（Yolo）",
   // Yolo 模式开关行提示语：说明启用后哪些工具会跳过用户确认直接执行
   "agent-dialog.yoloHint": "启用后，命令执行、Agent 与 Trigger 配置变更将跳过确认直接运行。文件访问策略不受影响。",
-  // Agent 默认模型选择器标签
-  "agent-dialog.modelLabel": "默认模型",
-  // Agent 默认模型选择器提示语
-  "agent-dialog.modelHint": "为该智能体指定默认模型。留空则跟随全局默认。",
+  // HTML 内联渲染开关标签，允许该 Agent 的 assistant 文本中的 HTML 代码块直接渲染
+  "agent-dialog.allowInlineHtmlLabel": "HTML 内联渲染",
+  // HTML 内联渲染开关行提示语，说明渲染为只读卡片且默认源码折叠
+  "agent-dialog.allowInlineHtmlHint": "启用后，该 Agent 回复中的 HTML 代码块会渲染为只读卡片。",
   // Agent 默认模型选择器首项（跟随全局默认），{model} 为当前全局默认模型
   "agent-dialog.modelFollowGlobal": "跟随全局默认（当前：{model}）",
   // Agent 默认模型选择器：未配置 API Key 时的提示
@@ -533,8 +565,10 @@ export const zhCN = {
   "agent-trigger.eventNamePlaceholder": "输入自定义事件名，如 daily-review",
   // 事件触发模式提示：当此事件被触发时执行此任务
   "agent-trigger.eventHint": "当此事件被触发时执行此任务",
-  // 事件名校验失败提示：不能使用 sp: 保留前缀
-  "agent-trigger.eventNameReserved": "事件名不能以 sp: 开头（保留前缀）",
+  // 内部事件快捷选择：下拉中的自定义选项
+  "agent-trigger.eventNameCustom": "自定义…",
+  // 内部事件说明：sp: 开头为回合内部事件
+  "agent-trigger.internalEventHint": "sp: 开头为回合内部事件：收到用户消息、收到 AI 回复、回合结束时触发",
   // 事件触发模式下提示：使用 {{payload}} 引用事件发送方的消息内容
   "agent-trigger.payloadVarHint": "使用 {{payload}} 引用事件发送方的消息内容",
   // 定时频率输入框标签（时间触发模式下显示）
@@ -689,6 +723,8 @@ export const zhCN = {
   "chat.triggerTurnSummaryFallback": "触发器触发的对话轮",
   // trigger 轮运行失败时，折叠摘要条上的错误徽标文案
   "chat.triggerTurnErrorBadge": "运行失败",
+  // trigger 轮正在运行时，折叠摘要条上的状态徽标文案
+  "chat.triggerTurnRunningBadge": "运行中",
   // HtmlCard 通过 file_path 渲染时，前端拉取文件内容期间的占位提示
   "chat.loading": "加载中...",
   // 聊天保存成功提示
@@ -737,6 +773,10 @@ export const zhCN = {
   "chat.withdrawConfirmTooltip": "确认撤回",
   // 撤回按钮两段式确认：点击撤回后出现的 ✕ 取消按钮悬停提示
   "chat.withdrawCancelTooltip": "取消撤回",
+  "chat.compactTooltip": "压缩上下文",
+  "chat.compactApplied": "上下文已压缩",
+  "chat.compactNotNeeded": "当前上下文无需压缩",
+  "chat.compactNotDelivered": "压缩请求未能发出",
   // markdown 代码块右上角「复制代码」按钮的悬停提示
   "markdown.copyCode": "复制代码",
   // Chat 关闭按钮悬停提示
@@ -751,6 +791,10 @@ export const zhCN = {
   "chat.error.openSettings": "打开设置",
   // 失败的助手回复或发送失败的用户消息上的「重试」按钮文案
   "chat.retry": "重试",
+  "chat.thinking.title": "思考 · {count} 字",
+  "chat.thinking.titleTruncated": "思考 · {count} 字 · 已截断",
+  "chat.error.detail.title": "诊断信息",
+  "chat.error.detail.copy": "复制诊断信息",
   "chat.sendFailed": "发送失败",
   // 会话历史加载失败时，ConnectionBanner 中显示的提示文案
   "chat.historyLoadFailed": "会话历史加载失败",
@@ -762,6 +806,8 @@ export const zhCN = {
   "chat.connectionReconnectFailed": "连接失败",
   // 连接失败后，手动「点击重连」按钮文案
   "chat.connectionReconnect": "重连",
+  // 重连耗尽连接已死时 Composer 输入区的锁定原因提示
+  "chat.panicLockedHint": "连接已失败，输入已锁定，请先重连",
   // 审批/批准操作因连接断开未送达时显示的 toast 提示
   "chat.approvalNotDelivered": "操作未送达，连接可能已断开",
   // Composer 底部「附加图片」按钮的悬停提示
@@ -788,6 +834,10 @@ export const zhCN = {
   "chat.attachmentTruncated": "内容较长，仅前 {shown} 进入上下文",
   // 可编辑的用户消息气泡旁「编辑」按钮的悬停提示，点击后原地编辑重发
   "chat.editTooltip": "编辑",
+  // 内联 HTML 合成卡的折叠源码区标题
+  "chat.inlineHtmlSource": "HTML 源码",
+  // 末轮 AI 回复旁删除按钮的悬停提示
+  "chat.deleteTooltip": "删除",
   // 消息编辑态的确认按钮文案，点击撤回原轮并用新内容重发
   "chat.editConfirm": "重新发送",
   // 消息编辑态的取消按钮文案
@@ -800,6 +850,8 @@ export const zhCN = {
   "chat.summonUsage": "用法：>> agent名称 消息内容",
   // 召唤时携带附件被拦截的提示（召唤仅支持纯文本）
   "chat.summonNoAttachments": "召唤不支持附件，请先移除附件",
+  // 非图片文件附件发送被拦截的提示（当前仅支持图片）
+  "chat.fileAttachmentsUnsupported": "暂不支持文件附件，请仅发送图片",
   // 历史消息中召唤记录卡片的文案，{name} 为目标 agent 名称，点击跳转到新会话
   "chat.summonCard": "已召唤 {name}",
   // 某会话的 agent 工具调用等待用户批准、且用户当前未停留在该会话时弹出的 toast 文案（无法解析到 agent 名时的泛化兜底）
@@ -1235,6 +1287,11 @@ export const zhCN = {
   // 独立工具 tooltip：数据文件读写的作用说明——按 $manifest 入口/outline 局部读写，避免整文件进上下文
   "tool.data_access_hint":
     "允许智能体按入口读写页面数据文件（*.data.json）：查看结构大纲、按业务入口查询与变更，与页面数据联动而无需读取整个文件",
+  // 独立工具标签：卡文件读写（read_card/search_card/edit_card 三个工具，对 *.card.json 世界书条目的选择性读写）
+  "tool.card_access": "卡文件读写",
+  // 独立工具 tooltip：卡文件读写的作用说明——按条目清单/检索局部读写，避免整卡进上下文
+  "tool.card_access_hint":
+    "允许智能体按条目读写世界书卡文件（*.card.json）：查看条目清单、检索后取全文、开关或修改条目，无需读取整个卡文件",
   // 独立工具标签：追加日志
   "tool.append_log": "追加日志",
   // 独立工具 tooltip：追加日志的作用说明

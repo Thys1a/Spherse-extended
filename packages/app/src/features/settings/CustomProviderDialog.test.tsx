@@ -110,7 +110,7 @@ describe("CustomProviderDialog", () => {
       initial: { id: "custom-x", name: "Existing", baseUrl: "https://existing.example", models: ["m1"], keyless: false },
     });
 
-    await user.click(screen.getByRole("switch"));
+    await user.click(screen.getByRole("switch", { name: "无需 API Key" }));
     await user.click(screen.getByRole("button", { name: "保存" }));
 
     expect(onSubmit).toHaveBeenCalledWith({
@@ -119,6 +119,51 @@ describe("CustomProviderDialog", () => {
       baseUrl: "https://existing.example",
       models: ["m1"],
       keyless: true,
+    });
+  });
+
+  it("omits sanitizeEmptySchemas by default and submits it when toggled on", async () => {
+    const user = userEvent.setup();
+    const { onSubmit } = renderDialog();
+
+    await fillValidForm(user);
+    await user.click(screen.getByRole("switch", { name: "兼容严格 schema" }));
+    await user.click(screen.getByRole("button", { name: "保存" }));
+
+    expect(onSubmit).toHaveBeenCalledWith({
+      id: "",
+      name: "My Provider",
+      baseUrl: "https://api.example/v1",
+      models: ["m1", "m2", "m3"],
+      keyless: false,
+      sanitizeEmptySchemas: true,
+    });
+  });
+
+  it("prefills the sanitize switch from initial", async () => {
+    const user = userEvent.setup();
+    const { onSubmit } = renderDialog({
+      open: true,
+      initial: {
+        id: "custom-x",
+        name: "Existing",
+        baseUrl: "https://existing.example",
+        models: ["m1"],
+        keyless: false,
+        sanitizeEmptySchemas: true,
+      },
+    });
+
+    expect(screen.getByRole("switch", { name: "兼容严格 schema" })).toBeChecked();
+    await user.click(screen.getByRole("button", { name: "保存" }));
+
+    expect(onSubmit).toHaveBeenCalledWith({
+      id: "custom-x",
+      name: "Existing",
+      baseUrl: "https://existing.example",
+      models: ["m1"],
+      keyless: false,
+      sanitizeEmptySchemas: true,
     });
   });
 

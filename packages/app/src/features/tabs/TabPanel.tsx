@@ -57,6 +57,7 @@ function ChatTabPanel({ projectId, tab, onClose }: { projectId: string; tab: Tab
       sessionId={session.id}
       agent={agent}
       onNavigateToPath={(path) => navigate(`/project/${projectId}/content?path=${encodeURIComponent(path)}`)}
+      onOpenSession={(targetSessionId) => navigate(`/project/${projectId}/chat/${targetSessionId}`)}
       initialMessage={initialMessage}
       onClose={onClose}
     />

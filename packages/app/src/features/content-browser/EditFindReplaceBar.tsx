@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { Input } from "../../components/ui/input";
 import { Button } from "../../components/ui/button";
 import { useI18n } from "@spherse/i18n/react";
-import { findMatches } from "./hooks/find-engine";
+import { findMatches } from "../../components/find-bar/find-engine";
 import { replaceAllOccurrences, replaceOneAt } from "./text-replace";
 
 interface EditFindReplaceBarProps {

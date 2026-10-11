@@ -10,6 +10,9 @@ tools:
   - read_data
   - query_data
   - mutate_data
+  - read_card
+  - search_card
+  - edit_card
   - append_changelog
   - load_skill
   - render_card

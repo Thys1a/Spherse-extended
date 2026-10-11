@@ -24,6 +24,11 @@ export const TOOL_GROUPS: ToolGroup[] = [
     hint: "tool.data_access_hint",
     toolIds: ["read_data", "query_data", "mutate_data"],
   },
+  {
+    label: "tool.card_access",
+    hint: "tool.card_access_hint",
+    toolIds: ["read_card", "search_card", "edit_card"],
+  },
   { label: "tool.append_log", hint: "tool.append_log_hint", toolIds: ["append_changelog"] },
   { label: "tool.load_skill", hint: "tool.load_skill_hint", toolIds: ["load_skill"] },
   { label: "tool.ask_user", hint: "tool.ask_user_hint", toolIds: ["ask_user"] },

@@ -4,9 +4,11 @@ import { useI18n } from "@spherse/i18n/react";
 import { useAppStore } from "../../stores/app-store";
 import { useHostBridge } from "../../context/host-bridge-context";
 import { closeProjectCascade } from "../../layouts/project-lifecycle";
+import { isValidLastRouteSuffix } from "../tabs/tab-route";
 
 export function buildProjectRoute(projectId: string, lastRoute?: string): string {
-  const suffix = lastRoute?.startsWith("/") ? lastRoute : "";
+  const valid = lastRoute && isValidLastRouteSuffix(lastRoute) ? lastRoute : "";
+  const suffix = valid === "/" ? "" : valid;
   return `/project/${projectId}${suffix}`;
 }
 

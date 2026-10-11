@@ -5,9 +5,14 @@ import { ErrorEventCode } from "@spherse/contracts";
 import { renderWithProviders } from "../../test/render";
 import { ErrorMessageSection } from "./ErrorMessageSection";
 
-function renderError(props: { errorCode?: ErrorEventCode; onRetry?: () => void } = {}) {
+function renderError(props: { errorCode?: ErrorEventCode; onRetry?: () => void; diagnostics?: import("./model/entry").EntryDiagnostics } = {}) {
   renderWithProviders(
-    <ErrorMessageSection error="raw failure text" errorCode={props.errorCode} onRetry={props.onRetry} />,
+    <ErrorMessageSection
+      error="raw failure text"
+      errorCode={props.errorCode}
+      diagnostics={props.diagnostics}
+      onRetry={props.onRetry}
+    />,
   );
 }
 
@@ -61,5 +66,34 @@ describe("ErrorMessageSection", () => {
   it("omits the retry button when not provided", () => {
     renderError();
     expect(screen.queryByRole("button", { name: "重试" })).not.toBeInTheDocument();
+  });
+
+  it("renders diagnostics rows and copies them on click", async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      configurable: true,
+    });
+    renderError({
+      diagnostics: { provider: "custom-go", stopReason: "length", promptTokens: 120, seq: 12 },
+    });
+
+    await user.click(screen.getByRole("button", { name: /回复生成失败/ }));
+    expect(screen.getByText("诊断信息")).toBeInTheDocument();
+    expect(screen.getByText("custom-go")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "复制诊断信息" }));
+    expect(writeText).toHaveBeenCalledTimes(1);
+    expect(writeText.mock.calls[0][0]).toContain("provider: custom-go");
+    expect(writeText.mock.calls[0][0]).toContain("seq: 12");
+  });
+
+  it("omits the diagnostics block without diagnostics", async () => {
+    const user = userEvent.setup();
+    renderError();
+
+    await user.click(screen.getByRole("button", { name: /回复生成失败/ }));
+    expect(screen.queryByText("诊断信息")).not.toBeInTheDocument();
   });
 });

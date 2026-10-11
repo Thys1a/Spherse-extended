@@ -25,7 +25,8 @@ function errorText(err: unknown): string {
     return `Error: manifest entry "${err.entry}" is stale (its path no longer resolves). Valid entries: ${err.validNames.join(", ") || "none"}. Call read_data without path to see the current outline.`;
   }
   if (err instanceof UnknownEntryError) {
-    return `Error: unknown ${err.kind} entry "${err.entry}". Valid entries: ${err.validNames.join(", ") || "none"}. Call read_data without path to see the outline.`;
+    const detail = err.detail ? ` (${err.detail})` : "";
+    return `Error: unknown ${err.kind} entry "${err.entry}"${detail}. Valid entries: ${err.validNames.join(", ") || "none"}. Call read_data without path to see the outline.`;
   }
   if (err instanceof DataValidationError) {
     return `Error: ${err.message}`;
@@ -121,14 +122,18 @@ const MutateDataParams = Type.Object({
   idempotencyKey: Type.Optional(Type.String({ description: "Unique key to make retries safe: same key returns the original result instead of executing again (e.g. session:run:n)" })),
 });
 
-export function createMutateDataTool(dataStore: DataStore, getPolicy: AccessPolicyProvider): AgentTool<typeof MutateDataParams> {
+export function createMutateDataTool(
+  dataStore: DataStore,
+  getPolicy: AccessPolicyProvider,
+  sessionId?: string,
+): AgentTool<typeof MutateDataParams> {
   return {
     name: "mutate_data",
     label: "Mutate Data",
     description:
-      "Run a named mutation from a *.data.json $manifest (append/update/remove/set with schema validation and auto-generated fields). Atomic and safe to retry with idempotencyKey.",
+      "Run a named mutation from a *.data.json $manifest (append/update/remove/set with schema validation and auto-generated fields). Fields may nest one level (object/array; manifests using nesting declare version: 2). Unknown fields are rejected and auto-generated fields must not be passed by the caller. set shallow-merges at the top level (unpassed optional fields without defaults keep stored values) and replaces nested object leaves whole; arrays only change via append/update/remove. Atomic and safe to retry with idempotencyKey. " + "Prefer this over write_file/edit_file or SDK data.set/delete for *.data.json writes: those bypass manifest validation.",
     parameters: MutateDataParams,
-    async execute(_toolCallId, params, _signal) {
+    async execute(toolCallId, params, _signal) {
       try {
         getPolicy().assertWrite(params.file);
       } catch (err) {
@@ -137,10 +142,16 @@ export function createMutateDataTool(dataStore: DataStore, getPolicy: AccessPoli
       try {
         const result = await dataStore.mutate(params.file, params.name, params.args ?? {}, {
           ...(params.idempotencyKey !== undefined ? { idempotencyKey: params.idempotencyKey } : {}),
+          toolCallId,
+          ...(sessionId !== undefined ? { sessionId } : {}),
         });
         return {
-          content: [{ type: "text" as const, text: jsonBlock(result) }],
-          details: { path: params.file, version: result.version },
+          content: [{ type: "text" as const, text: jsonBlock({ version: result.version, result: result.result }) }],
+          details: {
+            path: params.file,
+            version: result.version,
+            ...(result.undo !== undefined ? { undo: result.undo } : {}),
+          },
         };
       } catch (err) {
         return { content: [{ type: "text" as const, text: errorText(err) }], details: { path: params.file, error: true } };

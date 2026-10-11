@@ -6,8 +6,6 @@ import { useProjectCtx } from "../../context/project-context";
 import { useHostBridge } from "../../context/host-bridge-context";
 import { useSettingsStore } from "../../stores/settings-store";
 import { notifyUser } from "../../lib/notify-user";
-import { useApiClient } from "../../lib/use-connection";
-import { useStreamingStore } from "../chat/runtime/streaming-store";
 import { useTriggerStore, getCachedTriggersForAgent } from "./store";
 import { useBusSubscription } from "../../hooks/useBusSubscription";
 import { useReconnectedSync } from "../../hooks/useReconnectedSync";
@@ -18,7 +16,6 @@ const INVALIDATING_EVENTS = new Set(["trigger_updated", "trigger_completed", "tr
 
 export function TriggerEventBridge() {
   const { projectId } = useProjectCtx();
-  const client = useApiClient(projectId);
   const bridge = useHostBridge();
   const navigate = useNavigate();
   const { t } = useI18n();
@@ -56,7 +53,6 @@ export function TriggerEventBridge() {
     if (type === "trigger_completed") {
       const p = payload as { agentId: string; triggerId: string; sessionId: string };
       showTriggerNotification(p.agentId, p.triggerId, p.sessionId);
-      if (client) useStreamingStore.getState().refreshHistory(client, p.agentId, p.sessionId);
     }
   });
 

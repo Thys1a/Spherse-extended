@@ -5,9 +5,8 @@ import type { ProviderCatalogItem } from "@spherse/core";
 import { parseAgentMarkdown, buildAgentMarkdown } from "./agent-markdown";
 import type { AgentFormData } from "./agent-markdown";
 import { useProjectCtx } from "../../context/project-context";
-import { useApiClient } from "../../lib/use-connection";
 import { useHostBridge } from "../../context/host-bridge-context";
-import { AgentModelField } from "./AgentModelField";
+import { useApiClient } from "../../lib/use-connection";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../../components/ui/tabs";
 import {
   AlertDialog,
@@ -28,7 +27,9 @@ import { Switch } from "../../components/ui/switch";
 import { Label } from "../../components/ui/label";
 import { ToolPicker } from "./ToolPicker";
 import { ADVANCED_TOOL_IDS } from "./tool-registry";
-import { ContextPathField } from "./ContextPathField";
+import { ModelConfigField, modelExistsInCatalog } from "./ModelConfigField";
+import { PathListField } from "./PathListField";
+import { AgentCardLinksField } from "./AgentCardLinksField";
 import { TimePerceptionField } from "./TimePerceptionField";
 import { HintLabel } from "./HintLabel";
 import { PromptTemplatePicker, type PromptTemplate } from "./PromptTemplatePicker";
@@ -41,11 +42,12 @@ function getErrorMessage(err: unknown, t: (key: TranslationKey) => string): stri
 interface AgentDialogFormProps {
   initial: LoadedAgentData;
   mode: "create" | "edit";
+  agentId?: string;
   onSubmit: (slugBase: string, content: string, themeContent: string) => Promise<void>;
   onCancel: () => void;
 }
 
-export function AgentDialogForm({ initial, mode, onSubmit, onCancel }: AgentDialogFormProps) {
+export function AgentDialogForm({ initial, mode, agentId, onSubmit, onCancel }: AgentDialogFormProps) {
   const { t } = useI18n();
   const { projectId } = useProjectCtx();
   const client = useApiClient(projectId);
@@ -56,32 +58,37 @@ export function AgentDialogForm({ initial, mode, onSubmit, onCancel }: AgentDial
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmTemplate, setConfirmTemplate] = useState<PromptTemplate | null>(null);
-  const [providers, setProviders] = useState<Record<string, ProviderCatalogItem>>({});
-  const [globalDefault, setGlobalDefault] = useState("");
+  const [providers, setProviders] = useState<Record<string, ProviderCatalogItem> | null>(null);
   const [apiKeys, setApiKeys] = useState<Record<string, string>>({});
 
   useEffect(() => {
     let cancelled = false;
-    void (async () => {
-      try {
-        const [catalog, settings] = await Promise.all([
-          client.getSupportedProviders(),
-          bridge.getSettings(),
-        ]);
-        if (cancelled) return;
-        setProviders(catalog);
-        setGlobalDefault(settings?.models?.text?.defaultModel ?? "");
-        const keys: Record<string, string> = {};
-        for (const [id, c] of Object.entries(settings?.models?.text?.providers ?? {})) {
-          if (c?.apiKey) keys[id] = c.apiKey;
+    Promise.all([
+      client.getSupportedProviders().catch(() => null),
+      bridge.getSettings().catch(() => null),
+    ]).then(([catalog, settings]) => {
+      if (cancelled) return;
+      if (catalog) setProviders(catalog);
+      const keys: Record<string, string> = {};
+      for (const [id, credentials] of Object.entries(settings?.models?.text?.providers ?? {})) {
+        if (typeof credentials?.apiKey === "string" && credentials.apiKey.trim()) {
+          keys[id] = credentials.apiKey;
         }
-        setApiKeys(keys);
-      } catch {
-        // providers 加载失败时保持空态，字段显示「请先配置」
       }
-    })();
-    return () => { cancelled = true; };
+      setApiKeys(keys);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [client, bridge]);
+
+  useEffect(() => {
+    if (providers == null) return;
+    setFormData((prev) => {
+      if (!prev.model || modelExistsInCatalog(prev.model, providers)) return prev;
+      return { ...prev, model: undefined };
+    });
+  }, [providers]);
 
   const handleSelectTemplate = (template: PromptTemplate) => {
     if (formData.systemPrompt.trim() === "") {
@@ -106,6 +113,16 @@ export function AgentDialogForm({ initial, mode, onSubmit, onCancel }: AgentDial
 
   const removeContext = (path: string) => {
     setFormData((prev) => ({ ...prev, context: prev.context.filter((c) => c !== path) }));
+  };
+
+  const addQuickLink = (path: string) => {
+    if (!formData.quickLinks.includes(path)) {
+      setFormData((prev) => ({ ...prev, quickLinks: [...prev.quickLinks, path] }));
+    }
+  };
+
+  const removeQuickLink = (path: string) => {
+    setFormData((prev) => ({ ...prev, quickLinks: prev.quickLinks.filter((c) => c !== path) }));
   };
 
   const toggleGroup = (groupToolIds: string[]) => {
@@ -140,7 +157,7 @@ export function AgentDialogForm({ initial, mode, onSubmit, onCancel }: AgentDial
       <Tabs defaultValue="basic" className="min-h-0 flex-1 flex flex-col">
         <TabsList className="mx-4 mt-1 mb-2">
           <TabsTrigger value="basic">{t("agent-dialog.tabBasic")}</TabsTrigger>
-          <TabsTrigger value="theme">{t("agent-dialog.tabTheme")}</TabsTrigger>
+          <TabsTrigger value="personalization">{t("agent-dialog.tabPersonalization")}</TabsTrigger>
         </TabsList>
         <TabsContent value="basic" className="flex-1 min-h-0 overflow-y-auto px-4">
           <FieldGroup>
@@ -153,22 +170,34 @@ export function AgentDialogForm({ initial, mode, onSubmit, onCancel }: AgentDial
                 placeholder={t("agent-dialog.namePlaceholder")}
               />
             </Field>
+            <ModelConfigField
+              providers={providers ?? {}}
+              apiKeys={apiKeys}
+              model={formData.model}
+              thinkingLevel={formData.thinkingLevel}
+              onModelChange={(model) => setFormData((prev) => ({ ...prev, model }))}
+              onThinkingLevelChange={(thinkingLevel) =>
+                setFormData((prev) => ({ ...prev, thinkingLevel }))
+              }
+            />
             <Field>
-              <HintLabel hint={t("agent-dialog.aliasHint")}>{t("agent-dialog.aliasLabel")}</HintLabel>
+              <FieldLabel>{t("agent-dialog.placeholderLabel")}</FieldLabel>
               <Input
                 type="text"
-                value={formData.alias ?? ""}
-                onChange={(e) => setFormData((prev) => ({ ...prev, alias: e.target.value }))}
-                placeholder={t("agent-dialog.aliasPlaceholder")}
+                value={formData.placeholder ?? ""}
+                onChange={(e) => setFormData((prev) => ({ ...prev, placeholder: e.target.value }))}
+                placeholder={t("agent-dialog.placeholderPlaceholder")}
               />
             </Field>
-            <AgentModelField
-              providers={providers}
-              apiKeys={apiKeys}
-              globalDefault={globalDefault}
-              value={formData.model ?? ""}
-              onChange={(model) => setFormData((prev) => ({ ...prev, model: model || undefined }))}
-            />
+            <Field>
+              <FieldLabel>{t("agent-dialog.greetingLabel")}</FieldLabel>
+              <Textarea
+                className="min-h-20 max-h-40 resize-y"
+                value={formData.greeting ?? ""}
+                onChange={(e) => setFormData((prev) => ({ ...prev, greeting: e.target.value }))}
+                placeholder={t("agent-dialog.greetingPlaceholder")}
+              />
+            </Field>
             <ToolPicker selectedTools={formData.tools} onToggleGroup={toggleGroup} />
             {hasAdvancedTool && (
               <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
@@ -182,10 +211,23 @@ export function AgentDialogForm({ initial, mode, onSubmit, onCancel }: AgentDial
                 />
               </div>
             )}
-            <ContextPathField
-              contextPaths={formData.context}
+            <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
+              <div className="space-y-0.5 pe-3">
+                <Label>{t("agent-dialog.allowInlineHtmlLabel")}</Label>
+                <p className="text-xs text-muted-foreground">{t("agent-dialog.allowInlineHtmlHint")}</p>
+              </div>
+              <Switch
+                checked={formData.allowInlineHtml}
+                onCheckedChange={(v) => setFormData((prev) => ({ ...prev, allowInlineHtml: v }))}
+              />
+            </div>
+            <PathListField
+              paths={formData.context}
               onAdd={addContext}
               onRemove={removeContext}
+              label={t("agent-dialog.refsLabel")}
+              hint={t("agent-dialog.refsHint")}
+              placeholder={t("agent-dialog.refsPlaceholder")}
             />
             <Field>
               <HintLabel hint={t("agent-dialog.promptHint")}>{t("agent-dialog.promptLabel")}</HintLabel>
@@ -205,17 +247,39 @@ export function AgentDialogForm({ initial, mode, onSubmit, onCancel }: AgentDial
             {error && <p className="text-xs text-destructive">{error}</p>}
           </FieldGroup>
         </TabsContent>
-        <TabsContent value="theme" className="flex-1 min-h-0 flex flex-col px-4">
-          <p className="mb-4 text-sm text-muted-foreground">
-            {t("agent-dialog.themeScopeHint")}
-          </p>
-          <Textarea
-            className="flex-1 min-h-0 resize-none font-mono text-xs"
-            value={themeContent}
-            onChange={(e) => setThemeContent(e.target.value)}
-            placeholder={t("agent-dialog.themePlaceholder")}
-            spellCheck={false}
-          />
+        <TabsContent value="personalization" className="flex-1 min-h-0 flex flex-col px-4">
+          <FieldGroup className="flex-1 min-h-0 flex flex-col">
+            <Field>
+              <HintLabel hint={t("agent-dialog.aliasHint")}>{t("agent-dialog.aliasLabel")}</HintLabel>
+              <Input
+                type="text"
+                value={formData.alias ?? ""}
+                onChange={(e) => setFormData((prev) => ({ ...prev, alias: e.target.value }))}
+                placeholder={t("agent-dialog.aliasPlaceholder")}
+              />
+            </Field>
+            <PathListField
+              paths={formData.quickLinks}
+              onAdd={addQuickLink}
+              onRemove={removeQuickLink}
+              label={t("agent-dialog.quickLinksLabel")}
+              hint={t("agent-dialog.quickLinksHint")}
+              placeholder={t("agent-dialog.quickLinksPlaceholder")}
+            />
+            {mode === "edit" && agentId && client && (
+              <AgentCardLinksField agentId={agentId} client={client} />
+            )}
+            <Field className="min-h-0 flex-1">
+              <HintLabel hint={t("agent-dialog.themeScopeHint")}>{t("agent-dialog.themeLabel")}</HintLabel>
+              <Textarea
+                className="flex-1 min-h-40 resize-none font-mono text-xs"
+                value={themeContent}
+                onChange={(e) => setThemeContent(e.target.value)}
+                placeholder={t("agent-dialog.themePlaceholder")}
+                spellCheck={false}
+              />
+            </Field>
+          </FieldGroup>
         </TabsContent>
       </Tabs>
       <DialogFooter>

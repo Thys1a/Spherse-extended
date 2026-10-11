@@ -22,6 +22,17 @@ export function isTextContent(x: unknown): x is TextContent {
   return isObject(x) && x.type === "text" && typeof x.text === "string";
 }
 
+export interface ThinkingContentLike {
+  type: "thinking";
+  text?: unknown;
+  thinking?: unknown;
+  content?: unknown;
+}
+
+export function isThinkingContent(x: unknown): x is ThinkingContentLike {
+  return isObject(x) && x.type === "thinking";
+}
+
 export function isToolCall(x: unknown): x is ToolCall {
   return (
     isObject(x) &&
@@ -101,6 +112,8 @@ export function parseAgentEvent(event: ChatServerEvent): AgentEvent | undefined 
     case "run_status":
     case "turn_start":
     case "turn_withdrawn":
+    case "compaction_applied":
+    case "compact_result":
     case "pong":
     case "error":
       return event;
@@ -153,23 +166,6 @@ export function parseAgentEvent(event: ChatServerEvent): AgentEvent | undefined 
         approved: event.approved,
         reason: event.reason,
       };
-    case "agent_end":
-      return {
-        type: "agent_end",
-        messages: Array.isArray(event.messages) ? event.messages.map(parseAgentMessage) : [],
-      };
-    case "turn_end":
-      return {
-        type: "turn_end",
-        message: parseAgentMessage(event.message),
-        toolResults: parseToolResultMessages(event.toolResults),
-      };
-    case "message_start":
-      return { type: "message_start", message: parseAgentMessage(event.message) };
-    case "message_update":
-      return { type: "message_update", message: parseAgentMessage(event.message) };
-    case "message_end":
-      return { type: "message_end", message: parseAgentMessage(event.message) };
     case "user_message":
       return {
         type: "user_message",
@@ -180,6 +176,46 @@ export function parseAgentEvent(event: ChatServerEvent): AgentEvent | undefined 
         ...(event.triggerName !== undefined ? { triggerName: event.triggerName } : {}),
         ...(event.slash !== undefined ? { slash: event.slash } : {}),
         ...(event.summon !== undefined ? { summon: event.summon } : {}),
+      };
+    case "turn_retried":
+      return {
+        type: "turn_retried",
+        seq: event.seq,
+        abandonedSeqs: event.abandonedSeqs,
+      };
+    case "agent_end":
+      return {
+        type: "agent_end",
+        messages: Array.isArray(event.messages) ? event.messages.map(parseAgentMessage) : [],
+        ...(event.seq !== undefined ? { seq: event.seq } : {}),
+      };
+    case "turn_end":
+      return {
+        type: "turn_end",
+        message: parseAgentMessage(event.message),
+        toolResults: parseToolResultMessages(event.toolResults),
+      };
+    case "message_start":
+      return {
+        type: "message_start",
+        message: parseAgentMessage(event.message),
+        ...(event.messageId !== undefined ? { messageId: event.messageId } : {}),
+      };
+    case "message_update":
+      return {
+        type: "message_update",
+        message: parseAgentMessage(event.message),
+        ...(event.messageId !== undefined ? { messageId: event.messageId } : {}),
+        ...(event.assistantMessageEvent !== undefined
+          ? { assistantMessageEvent: event.assistantMessageEvent }
+          : {}),
+      };
+    case "message_end":
+      return {
+        type: "message_end",
+        message: parseAgentMessage(event.message),
+        ...(event.messageId !== undefined ? { messageId: event.messageId } : {}),
+        ...(event.seq !== undefined ? { seq: event.seq } : {}),
       };
     default:
       return undefined;

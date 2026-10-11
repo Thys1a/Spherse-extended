@@ -41,6 +41,37 @@ type EventOf<
 const agentMessage = Type.Unsafe<AgentMessage>(Type.Unknown());
 const assistantMessage = Type.Unsafe<AssistantMessage>(Type.Unknown());
 const toolResultMessage = Type.Unsafe<ToolResultMessage>(Type.Unknown());
+const undoRecord = Type.Object({
+  op: Type.Union([
+    Type.Literal("append"),
+    Type.Literal("update"),
+    Type.Literal("remove"),
+    Type.Literal("set"),
+    Type.Literal("rawSet"),
+    Type.Literal("rawDelete"),
+    Type.Literal("cardUpdate"),
+    Type.Literal("cardBulk"),
+    Type.Literal("cardAdd"),
+    Type.Literal("cardRemove"),
+  ]),
+  path: Type.String(),
+  before: Type.Optional(Type.Unknown()),
+  after: Type.Optional(Type.Unknown()),
+  index: Type.Optional(Type.Integer()),
+});
+const sideEffectRef = Type.Object({
+  type: Type.Union([
+    Type.Literal("data"),
+    Type.Literal("card"),
+    Type.Literal("write"),
+    Type.Literal("edit"),
+    Type.Literal("memory"),
+    Type.Literal("trigger"),
+  ]),
+  file: Type.String(),
+  version: Type.Optional(Type.String()),
+  undo: Type.Optional(undoRecord),
+});
 const toolResultMessages = Type.Unsafe<ToolResultMessage[]>(
   Type.Array(Type.Unknown()),
 );
@@ -73,6 +104,16 @@ export const chatReplayEvent = Type.Union([
       message: agentMessage,
       source: Type.Optional(Type.Literal("triggered")),
       triggerName: Type.Optional(Type.String()),
+      slash: Type.Optional(Type.Object({
+        type: Type.Union([Type.Literal("skill"), Type.Literal("command")]),
+        name: Type.String(),
+        rawArgs: Type.String(),
+      })),
+      summon: Type.Optional(Type.Object({
+        agentId: Type.String(),
+        sessionId: Type.String(),
+        agentName: Type.String(),
+      })),
     }),
   }),
   Type.Object({
@@ -85,7 +126,10 @@ export const chatReplayEvent = Type.Union([
     type: Type.Literal("tool/result"),
     seq: Type.Integer(),
     time: Type.Integer(),
-    data: Type.Object({ message: toolResultMessage }),
+    data: Type.Object({
+      message: toolResultMessage,
+      sideEffects: Type.Optional(Type.Array(sideEffectRef)),
+    }),
   }),
   Type.Object({
     type: Type.Literal("compaction/applied"),
@@ -111,6 +155,32 @@ export const chatReplayEvent = Type.Union([
     seq: Type.Integer(),
     time: Type.Integer(),
     data: Type.Object({ seq: Type.Integer() }),
+  }),
+  Type.Object({
+    type: Type.Literal("control/requested"),
+    seq: Type.Integer(),
+    time: Type.Integer(),
+    data: Type.Object({
+      requestId: Type.String(),
+      kind: Type.Union([Type.Literal("approval"), Type.Literal("question")]),
+      toolCallId: Type.String(),
+      toolName: Type.String(),
+      args: Type.Unknown(),
+    }),
+  }),
+  Type.Object({
+    type: Type.Literal("control/resolved"),
+    seq: Type.Integer(),
+    time: Type.Integer(),
+    data: Type.Object({
+      requestId: Type.String(),
+      kind: Type.Union([Type.Literal("approval"), Type.Literal("question")]),
+      approved: Type.Optional(Type.Boolean()),
+      reason: Type.Optional(Type.String()),
+      answer: Type.Optional(Type.String()),
+      timedOut: Type.Optional(Type.Boolean()),
+      aborted: Type.Optional(Type.Boolean()),
+    }),
   }),
 ]);
 
@@ -172,6 +242,7 @@ const chatServerEvent = Type.Union([
     args: Type.Unsafe<
       EventOf<SessionControlEvent, "control_request">["args"]
     >(Type.Unknown()),
+    seq: Type.Optional(Type.Integer()),
   }),
   Type.Object({
     type: Type.Literal("control_request"),
@@ -182,6 +253,7 @@ const chatServerEvent = Type.Union([
     args: Type.Unsafe<
       EventOf<SessionControlEvent, "control_request">["args"]
     >(Type.Unknown()),
+    seq: Type.Optional(Type.Integer()),
   }),
   Type.Object({
     type: Type.Literal("control_resolved"),
@@ -189,6 +261,8 @@ const chatServerEvent = Type.Union([
     kind: Type.Literal("approval"),
     approved: Type.Boolean(),
     reason: Type.Optional(Type.String()),
+    aborted: Type.Optional(Type.Boolean()),
+    seq: Type.Optional(Type.Integer()),
   }),
   Type.Object({
     type: Type.Literal("control_resolved"),
@@ -196,10 +270,28 @@ const chatServerEvent = Type.Union([
     kind: Type.Literal("question"),
     answer: Type.Optional(Type.String()),
     timedOut: Type.Boolean(),
+    aborted: Type.Optional(Type.Boolean()),
+    seq: Type.Optional(Type.Integer()),
   }),
   Type.Object({
     type: Type.Literal("turn_withdrawn"),
     seq: Type.Integer(),
+  }),
+  Type.Object({
+    type: Type.Literal("compaction_applied"),
+    seq: Type.Integer(),
+    anchorSeq: Type.Integer(),
+    excludedSeqs: Type.Array(Type.Integer()),
+    digestSource: Type.Optional(
+      Type.Union([Type.Literal("llm"), Type.Literal("mechanical")]),
+    ),
+  }),
+  Type.Object({
+    type: Type.Literal("compact_result"),
+    applied: Type.Boolean(),
+    digestSource: Type.Optional(
+      Type.Union([Type.Literal("llm"), Type.Literal("mechanical")]),
+    ),
   }),
   Type.Object({
     type: Type.Literal("user_message"),
@@ -262,6 +354,7 @@ export const schemas = {
     Type.Object({ type: Type.Literal("ping") }),
     Type.Object({ type: Type.Literal("retry") }),
     Type.Object({ type: Type.Literal("withdraw") }),
+    Type.Object({ type: Type.Literal("compact") }),
     Type.Object({
       type: Type.Literal("resolve_control_request"),
       requestId: Type.String(),

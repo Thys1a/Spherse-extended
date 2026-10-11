@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { screen, fireEvent } from "@testing-library/react";
+import { act, screen, fireEvent } from "@testing-library/react";
 import { renderWithProviders } from "../../test/render";
 import { useTabStore } from "./tab-store";
 import { useSplitStore } from "./split-store";
@@ -95,6 +95,37 @@ describe("TabContainer split layout", () => {
     expect(screen.queryByTestId("panel-t1")).toBeNull();
     expect(screen.queryByRole("separator")).toBeNull();
     expect(screen.getByTestId("split-pane")).toHaveTextContent("b.md");
+  });
+
+  it("seeds a home tab when the project has no tabs", () => {
+    renderWithProviders(<TabContainer projectId="p1" />);
+
+    const entry = useTabStore.getState().byProject["p1"];
+    expect(entry?.tabs).toHaveLength(1);
+    expect(entry?.tabs[0].kind).toBe("home");
+    expect(entry?.activeTabId).toBe(entry?.tabs[0].id);
+    expect(screen.getByTestId(`panel-${entry?.tabs[0].id}`)).toBeInTheDocument();
+  });
+
+  it("keeps a single home tab after closeAll without reseeding", () => {
+    setTabs();
+    useTabStore.getState().openTab("p1", { kind: "chat", label: "s1", sessionId: "s1" });
+    renderWithProviders(<TabContainer projectId="p1" />);
+    act(() => {
+      useTabStore.getState().closeAll("p1");
+    });
+    const entry = useTabStore.getState().byProject["p1"];
+    expect(entry?.tabs).toHaveLength(1);
+    expect(entry?.tabs[0].kind).toBe("home");
+    expect(entry?.activeTabId).toBe(entry?.tabs[0].id);
+  });
+
+  it("does not seed a home tab when only a split is open", () => {
+    useSplitStore.getState().openSplit("p1", "b.md");
+    renderWithProviders(<TabContainer projectId="p1" />);
+
+    expect(useTabStore.getState().byProject["p1"]).toBeUndefined();
+    expect(screen.getByTestId("split-pane")).toBeInTheDocument();
   });
 });
 

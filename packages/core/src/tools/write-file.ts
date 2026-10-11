@@ -25,6 +25,7 @@ export function createWriteFileTool(
     label: "Write File",
     description:
       "Write content to a file in the project. Creates parent directories by default. " +
+      "Direct writes to *.data.json bypass $manifest schema validation (only JSON syntax is checked); this is an intentional escape hatch for evolving the manifest itself. For data writes prefer mutate_data. " +
       "For .json files the content is validated and invalid JSON is rejected.",
     parameters: WriteFileParams,
     async execute(_toolCallId, params, _signal?: AbortSignal) {

@@ -15,9 +15,18 @@ const agentProfile = Type.Object({
   slug: Type.String(),
   createdAt: Type.Optional(Type.Number()),
   model: Type.Optional(Type.String()),
+  thinkingLevel: Type.Optional(
+    Type.Union([
+      Type.Literal("off"),
+      Type.Literal("low"),
+      Type.Literal("medium"),
+      Type.Literal("high"),
+    ]),
+  ),
   schedule: Type.Optional(Type.Boolean()),
   tools: Type.Optional(Type.Array(Type.String())),
   context: Type.Optional(Type.Array(Type.String())),
+  quickLinks: Type.Optional(Type.Array(Type.String())),
   output: Type.Optional(
     Type.Object({
       path: Type.String(),
@@ -27,6 +36,9 @@ const agentProfile = Type.Object({
   ),
   timePerception: Type.Optional(timePerceptionConfig),
   yolo: Type.Optional(Type.Boolean()),
+  allowInlineHtml: Type.Optional(Type.Boolean()),
+  placeholder: Type.Optional(Type.String()),
+  greeting: Type.Optional(Type.String()),
   systemPrompt: Type.String(),
   filePath: Type.String(),
 });
@@ -72,6 +84,12 @@ const agentSummary = Type.Object(
   { additionalProperties: false },
 );
 
+const cardLink = Type.Object({
+  name: Type.String(),
+  target: Type.String(),
+  dangling: Type.Boolean(),
+});
+
 export const schemas = {
   agentProfile,
   agentSummary,
@@ -95,6 +113,12 @@ export const schemas = {
   agentMcpUpdateRequest: Type.Object({
     servers: Type.Array(mcpServerConfig),
   }),
+  cardLink,
+  cardLinkListResponse: Type.Array(cardLink),
+  cardLinkAddRequest: Type.Object({
+    path: Type.String({ minLength: 1 }),
+  }),
+  cardLinkAddResponse: cardLink,
 } as const;
 
 export type AgentProfileContract = Static<typeof agentProfile>;
@@ -108,3 +132,7 @@ export type AgentUpdateResponse = Static<typeof schemas.agentUpdateResponse>;
 export type McpServerConfigContract = Static<typeof schemas.mcpServerConfig>;
 export type AgentMcpResponse = Static<typeof schemas.agentMcpResponse>;
 export type AgentMcpUpdateRequest = Static<typeof schemas.agentMcpUpdateRequest>;
+export type CardLinkContract = Static<typeof schemas.cardLink>;
+export type CardLinkListResponse = Static<typeof schemas.cardLinkListResponse>;
+export type CardLinkAddRequest = Static<typeof schemas.cardLinkAddRequest>;
+export type CardLinkAddResponse = Static<typeof schemas.cardLinkAddResponse>;

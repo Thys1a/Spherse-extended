@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyBaseLogger } from "fastify";
 import type { WebSocket } from "@fastify/websocket";
 import type { TriggerEventPayload, TriggerManager, ProjectManager, AgentChangePayload } from "@spherse/core";
+import { isReservedEventName } from "@spherse/core";
 import { parseBusClientMessage } from "@spherse/contracts";
 import type { ProjectRegistry } from "../registry.js";
 import { acquireFsWatch, releaseFsWatch } from "./fs-watcher.js";
@@ -95,6 +96,13 @@ class BusConnectionHandler {
         const ctx = this.registry.get(msg.projectId);
         if (!ctx) {
           this.logger.debug({ projectId: msg.projectId }, "emit-trigger-event: unknown project");
+          return;
+        }
+        if (isReservedEventName(msg.eventName)) {
+          this.logger.debug(
+            { projectId: msg.projectId, eventName: msg.eventName },
+            "emit-trigger-event: rejected reserved event name",
+          );
           return;
         }
         ctx.triggerManager.onUserEvent(msg.eventName, msg.payload ?? "");

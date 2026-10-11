@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   parseChatClientMessage,
+  parseChatReplayEvent,
   parseChatServerEvent,
 } from "../index.js";
 
@@ -198,8 +199,28 @@ describe("chat websocket control contract", () => {
     });
   });
 
+  it("accepts compact client message", () => {
+    expect(parseChatClientMessage({ type: "compact" })).toEqual({
+      type: "compact",
+    });
+  });
+  it("accepts compact_result server event", () => {
+    expect(parseChatServerEvent({ type: "compact_result", applied: true })).toEqual({
+      type: "compact_result",
+      applied: true,
+    });
+    expect(
+      parseChatServerEvent({ type: "compact_result", applied: false, digestSource: "llm" }),
+    ).toEqual({ type: "compact_result", applied: false, digestSource: "llm" });
+  });
+
   it("accepts turn_withdrawn server event", () => {
     const event = { type: "turn_withdrawn", seq: 3 };
+    expect(parseChatServerEvent(event)).toEqual(event);
+  });
+
+  it("accepts compaction_applied server event", () => {
+    const event = { type: "compaction_applied", seq: 9, anchorSeq: 4, excludedSeqs: [] as number[] };
     expect(parseChatServerEvent(event)).toEqual(event);
   });
 
@@ -224,5 +245,165 @@ describe("chat websocket control contract", () => {
     expect(() =>
       parseChatServerEvent({ type: "turn_withdrawn", seq: "3" }),
     ).toThrow(/Invalid payload/);
+  });
+
+  it("accepts control events with persisted seq and aborted marker", () => {
+    const request = {
+      type: "control_request",
+      requestId: "req9",
+      kind: "approval",
+      toolCallId: "call9",
+      toolName: "run_command",
+      args: {},
+      seq: 12,
+    };
+    expect(parseChatServerEvent(request)).toEqual(request);
+    const aborted = {
+      type: "control_resolved",
+      requestId: "req9",
+      kind: "approval",
+      approved: false,
+      aborted: true,
+      seq: 13,
+    };
+    expect(parseChatServerEvent(aborted)).toEqual(aborted);
+    const questionAborted = {
+      type: "control_resolved",
+      requestId: "req10",
+      kind: "question",
+      timedOut: false,
+      aborted: true,
+      seq: 14,
+    };
+    expect(parseChatServerEvent(questionAborted)).toEqual(questionAborted);
+  });
+
+  it("accepts control events in the replay envelope after persistence", () => {
+    expect(
+      parseChatReplayEvent({
+        type: "control/requested",
+        seq: 5,
+        time: 1000,
+        data: {
+          requestId: "req1",
+          kind: "approval",
+          toolCallId: "tc1",
+          toolName: "run_command",
+          args: { command: "ls" },
+        },
+      }),
+    ).toEqual({
+      type: "control/requested",
+      seq: 5,
+      time: 1000,
+      data: {
+        requestId: "req1",
+        kind: "approval",
+        toolCallId: "tc1",
+        toolName: "run_command",
+        args: { command: "ls" },
+      },
+    });
+    expect(
+      parseChatReplayEvent({
+        type: "control/resolved",
+        seq: 6,
+        time: 1001,
+        data: { requestId: "req1", kind: "question", timedOut: true },
+      }),
+    ).toEqual({
+      type: "control/resolved",
+      seq: 6,
+      time: 1001,
+      data: { requestId: "req1", kind: "question", timedOut: true },
+    });
+    expect(() =>
+      parseChatReplayEvent({ type: "control/requested", seq: 5, time: 1 }),
+    ).toThrow(/Invalid payload/);
+  });
+
+  it("accepts slash/summon on replayed user messages and rejects bogus kinds", () => {
+    const base = {
+      type: "user/message",
+      seq: 1,
+      time: 100,
+      data: { message: { role: "user", content: "hi", timestamp: 100 } },
+    };
+    expect(
+      parseChatReplayEvent({
+        ...base,
+        data: {
+          ...base.data,
+          slash: { type: "skill", name: "review", rawArgs: "x" },
+          summon: { agentId: "a2", sessionId: "s2", agentName: "Builder" },
+        },
+      }),
+    ).toMatchObject({
+      data: {
+        slash: { type: "skill", name: "review", rawArgs: "x" },
+        summon: { agentId: "a2", sessionId: "s2", agentName: "Builder" },
+      },
+    });
+    expect(() =>
+      parseChatReplayEvent({
+        ...base,
+        data: { ...base.data, slash: { type: "bogus", name: "x", rawArgs: "" } },
+      }),
+    ).toThrow(/Invalid payload/);
+  });
+});
+
+describe("chat replay tool/result sideEffects (R2.5a)", () => {
+  const message = {
+    role: "toolResult",
+    toolCallId: "call-1",
+    toolName: "mutate_data",
+    content: [],
+    details: { path: "board.data.json", version: "v1" },
+    isError: false,
+    timestamp: 1,
+  };
+
+  it("accepts tool/result with sideEffects", () => {
+    const event = {
+      type: "tool/result",
+      seq: 5,
+      time: 1,
+      data: {
+        message,
+        sideEffects: [{ type: "data", file: "board.data.json", version: "v1" }],
+      },
+    };
+    expect(parseChatReplayEvent(event)).toEqual(event);
+  });
+
+  it("accepts tool/result without sideEffects", () => {
+    const event = { type: "tool/result", seq: 5, time: 1, data: { message } };
+    expect(parseChatReplayEvent(event)).toEqual(event);
+  });
+
+  it("accepts tool/result with undo-enriched sideEffects", () => {
+    const event = {
+      type: "tool/result",
+      seq: 5,
+      time: 1,
+      data: {
+        message,
+        sideEffects: [
+          { type: "data", file: "board.data.json", version: "v1", undo: { op: "set", path: "cfg", before: { a: 1 } } },
+        ],
+      },
+    };
+    expect(parseChatReplayEvent(event)).toEqual(event);
+  });
+
+  it("rejects tool/result with malformed sideEffects", () => {
+    const event = {
+      type: "tool/result",
+      seq: 5,
+      time: 1,
+      data: { message, sideEffects: [{ type: "nope", file: "x" }] },
+    };
+    expect(() => parseChatReplayEvent(event)).toThrow(/Invalid payload/);
   });
 });

@@ -8,18 +8,22 @@ import { SessionControlBus } from "./control-bus.js";
 import { createApprovalGate } from "./approval-gate.js";
 import { createAskGate } from "./ask-gate.js";
 import type { SessionStatus } from "./status.js";
-import type { RuntimeDeps } from "./runtime.js";
+import { randomUUID } from "node:crypto";
+import type { RuntimeDeps, TurnEventPayload } from "./runtime.js";
+import { deriveSideEffects, type SideEffectRef } from "../tool-attribution.js";
 import { logEventMiddleware } from "./event-middlewares.js";
 import {
   createAttachmentSanitizer,
   type AttachmentSanitizer,
 } from "../attachments/sanitizer.js";
-import { composeTurnHooks, type TurnHooks } from "../kernel/turn-hooks.js";
+import { composeTurnHooks, type CompactionOutcome, type TurnHooks } from "../kernel/turn-hooks.js";
 import { collectAbandonedSeqs, deriveMessages, repairLog } from "./fold.js";
 import { expandSlashMessage } from "./slash.js";
 import { SessionEventLog } from "./event-log.js";
 import type { SessionEvent, SendMessageMeta } from "./events.js";
 import { readCurrentTokens } from "../context/token-estimate.js";
+import { markTruncated } from "../context/truncated-turn.js";
+import { DEFAULT_THRESHOLD_RATIO } from "../context/compaction.js";
 import {
   buildAgent,
   buildPromptAndTools,
@@ -30,12 +34,56 @@ import {
 
 export type RunnerEventHandler = (event: AgentEvent | SessionControlEvent) => void;
 
+export const MAX_TOOL_CALLS_PER_TURN = 30;
+export const MAX_SAME_TOOLCALL_REPEAT = 3;
+export const MAX_CONSECUTIVE_TRUNCATED_TURNS = 3;
+const PRE_TURN_COMPACTION_RATIO = DEFAULT_THRESHOLD_RATIO;
+
+export type ToolLoopStopReason = "tool-call-budget" | "tool-call-repeat" | "truncated-loop";
+
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  if (value !== null && typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([key, entry]) => `${JSON.stringify(key)}:${canonicalJson(entry)}`);
+    return `{${entries.join(",")}}`;
+  }
+  try {
+    return JSON.stringify(value) ?? "null";
+  } catch {
+    return "unknown";
+  }
+}
+
+function loopStopReasonText(reason: ToolLoopStopReason, toolName?: string): string {
+  if (reason === "tool-call-repeat") {
+    return `Tool call loop guard: "${toolName ?? "unknown tool"}" with identical arguments was blocked ${MAX_SAME_TOOLCALL_REPEAT} times in a row; stopping this turn to avoid an infinite loop.`;
+  }
+  if (reason === "truncated-loop") {
+    return `Tool call loop guard: ${MAX_CONSECUTIVE_TRUNCATED_TURNS} consecutive responses were cut off by the output limit; stopping this turn to avoid an infinite loop.`;
+  }
+  return `Tool call loop guard: exceeded ${MAX_TOOL_CALLS_PER_TURN} tool calls in a single turn; stopping to avoid an infinite loop.`;
+}
+
 export class AgentRunner {
   private eventLog: SessionEventLog | null = null;
   private inFlight = false;
+  private turnDepth = 0;
+  private turnChainId: string = randomUUID();
   private turnHooks: TurnHooks;
   private capabilityMiddlewares: ReadonlyArray<EventMiddleware<AgentEvent>> = [];
   private pendingReload = false;
+  private pendingPromptEstimate: number | null = null;
+  private needsAutoRetry = false;
+  private autoRetryCount = 0;
+  private lastAssistantSeq: number | null = null;
+  private compactedThisTurn = false;
+  private toolCallTotal = 0;
+  private lastToolKey: string | null = null;
+  private sameToolRepeat = 0;
+  private lengthStreak = 0;
+  private toolLoopStop: ToolLoopStopReason | null = null;
 
   private constructor(
     private readonly agent: Agent,
@@ -64,6 +112,14 @@ export class AgentRunner {
       createAskGate(controlBus),
     );
     const runner = new AgentRunner(agent, agentId, sessionId, deps, controlBus);
+    agent.beforeToolCall = async (context) => {
+      deps.attribution?.begin(sessionId, context.toolCall.id, {
+        turnSeq: runner.currentTurnSeq(),
+      });
+      return runner.guardToolCall(context.toolCall.name, context.args);
+    };
+    agent.shouldStopAfterTurn = async ({ message, toolResults }) =>
+      runner.checkToolLoopStop(message, toolResults.length);
     runner.turnHooks = composeTurnHooks(
       deps.createTurnHooks ? [deps.createTurnHooks(agentId, sessionId)] : [],
     );
@@ -139,6 +195,12 @@ export class AgentRunner {
   ): Promise<void> {
     this.ensureNotBusy();
     this.inFlight = true;
+    this.turnDepth = meta?.triggerDepth ?? 0;
+    this.turnChainId = meta?.triggerChainId ?? randomUUID();
+    this.resetToolLoopGuard();
+    this.needsAutoRetry = false;
+    this.autoRetryCount = 0;
+    this.compactedThisTurn = false;
     let sanitizer: AttachmentSanitizer | null = null;
     let unsubscribe: (() => void) | undefined;
     let restoreSink: (() => void) | undefined;
@@ -172,7 +234,9 @@ export class AgentRunner {
         ? (stripUserAttachments(userMessage as never, attachments) as typeof userMessage)
         : userMessage;
 
-      this.eventLog!.appendBatch([
+      await this.maybePreCompact(sanitizedUserMessage as AgentMessage);
+
+      const [userEvent, turnStartEvent] = this.eventLog!.appendBatch([
         {
           type: "user/message",
           data: {
@@ -180,10 +244,18 @@ export class AgentRunner {
             ...(meta?.source !== undefined ? { source: meta.source } : {}),
             ...(meta?.triggerName !== undefined ? { triggerName: meta.triggerName } : {}),
             ...(slash !== null ? { slash: slash.slash } : {}),
+            ...(meta?.summon !== undefined ? { summon: meta.summon } : {}),
           },
         },
         { type: "turn/start", data: {} },
       ]);
+      this.emitTurnEvent("sp:user-message", {
+        sessionId: this.sessionId,
+        agentId: this.agentId,
+        seq: userEvent.seq,
+        depth: this.turnDepth,
+        chainId: this.turnChainId,
+      });
 
       const dispatch = createEventPipeline(
         [
@@ -195,13 +267,24 @@ export class AgentRunner {
         onEvent,
       );
 
-      const previousSink = this.controlBus.swapEventSink(onEvent);
+      const previousSink = this.controlBus.swapEventSink(this.persistingControlSink(onEvent));
       restoreSink = () => this.controlBus.swapEventSink(previousSink);
       unsubscribe = this.agent.subscribe(dispatch);
 
-      await this.agent.prompt(userMessage);
-      await this.applyAfterTurnHooks();
+      try {
+        this.pendingPromptEstimate = readCurrentTokens(
+          [...this.agent.state.messages, sanitizedUserMessage as never],
+          this.agent.state.systemPrompt,
+        );
+        await this.agent.prompt(userMessage);
+        await this.applyAfterTurnHooks();
+        await this.runAutoRetryIfNeeded();
+      } catch (err) {
+        this.emitErrorTurnEnd(turnStartEvent.seq);
+        throw err;
+      }
     } finally {
+      this.pendingPromptEstimate = null;
       if (sanitizer) {
         const result = sanitizer.finalize(this.agent.state.messages);
         this.agent.state.messages = result.messages;
@@ -215,6 +298,9 @@ export class AgentRunner {
   async retryLastTurn(onEvent: RunnerEventHandler): Promise<void> {
     this.ensureNotBusy();
     this.inFlight = true;
+    this.needsAutoRetry = false;
+    this.autoRetryCount = 0;
+    this.compactedThisTurn = false;
     let unsubscribe: (() => void) | undefined;
     let restoreSink: (() => void) | undefined;
     try {
@@ -226,12 +312,18 @@ export class AgentRunner {
         .reverse()
         .find((event) => event.type === "assistant/message");
       const lastBuffered = this.agent.state.messages[this.agent.state.messages.length - 1];
+      const lastPersisted =
+        lastEvent && lastEvent.type === "assistant/message"
+          ? (markTruncated(
+              (lastEvent as { data: { message: unknown } }).data.message,
+            ) as { stopReason?: string })
+          : undefined;
       if (
         !lastEvent ||
         lastEvent.type !== "assistant/message" ||
         !lastBuffered ||
         lastBuffered.role !== "assistant" ||
-        (lastBuffered as { stopReason?: string }).stopReason !== "error"
+        lastPersisted?.stopReason !== "error"
       ) {
         throw new ValidationError(
           `Session "${this.sessionId}" has no failed assistant turn to retry`,
@@ -239,11 +331,17 @@ export class AgentRunner {
       }
 
       this.ensureModel();
-      this.eventLog!.appendBatch([
+      await this.maybePreCompact();
+      const [, retryStartEvent] = this.eventLog!.appendBatch([
         { type: "turn/retried", data: { abandonedSeqs: [lastEvent.seq] } },
         { type: "turn/start", data: {} },
       ]);
       this.syncBufferFromLog();
+      this.resetToolLoopGuard();
+      this.pendingPromptEstimate = readCurrentTokens(
+        this.agent.state.messages,
+        this.agent.state.systemPrompt,
+      );
 
       const sessionLogger = this.deps.logger.child({ sessionId: this.sessionId });
       const dispatch = createEventPipeline(
@@ -255,15 +353,45 @@ export class AgentRunner {
         onEvent,
       );
 
-      const previousSink = this.controlBus.swapEventSink(onEvent);
+      const previousSink = this.controlBus.swapEventSink(this.persistingControlSink(onEvent));
       restoreSink = () => this.controlBus.swapEventSink(previousSink);
       unsubscribe = this.agent.subscribe(dispatch);
 
-      await this.agent.continue();
-      await this.applyAfterTurnHooks();
+      try {
+        await this.agent.continue();
+        await this.applyAfterTurnHooks();
+        await this.runAutoRetryIfNeeded();
+      } catch (err) {
+        this.emitErrorTurnEnd(retryStartEvent.seq);
+        throw err;
+      }
     } finally {
+      this.pendingPromptEstimate = null;
       unsubscribe?.();
       restoreSink?.();
+      this.inFlight = false;
+    }
+  }
+
+  async compactNow(): Promise<CompactionOutcome> {
+    this.ensureNotBusy();
+    const preTurn = this.deps.preTurnCompaction;
+    if (!preTurn || !this.eventLog) {
+      throw new ValidationError(
+        `Session "${this.sessionId}" compaction is not available`,
+      );
+    }
+    this.inFlight = true;
+    try {
+      if (this.pendingReload) {
+        this.pendingReload = false;
+        await this.applyReload();
+      }
+      this.ensureWritable();
+      const result = await preTurn(this.eventLog, this.agent, this.sessionId, { force: true });
+      if (result.applied) this.syncBufferFromLog();
+      return result;
+    } finally {
       this.inFlight = false;
     }
   }
@@ -271,10 +399,11 @@ export class AgentRunner {
   async withdrawLastTurn(): Promise<number> {
     this.ensureNotBusy();
     const events = this.eventLog!.events;
+    const abandoned = collectAbandonedSeqs(events);
     const lastUserEvent = [...events]
       .reverse()
-      .find((event) => event.type === "user/message");
-    if (!lastUserEvent || collectAbandonedSeqs(events).has(lastUserEvent.seq)) {
+      .find((event) => event.type === "user/message" && !abandoned.has(event.seq));
+    if (!lastUserEvent) {
       throw new ValidationError(
         `Session "${this.sessionId}" has no user message to withdraw`,
       );
@@ -360,6 +489,10 @@ export class AgentRunner {
     };
   }
 
+  isBusy(): boolean {
+    return this.inFlight;
+  }
+
   getStatus(): SessionStatus {
     return {
       currentTokens: readCurrentTokens(this.agent.state.messages, this.agent.state.systemPrompt),
@@ -409,7 +542,8 @@ export class AgentRunner {
   }
 
   applyThinkingLevel(thinkingLevel: ThinkingLevel | undefined): void {
-    const next = thinkingLevel ?? "medium";
+    const profile = this.deps.projectStore.getAgent(this.agentId)?.getProfile();
+    const next = profile?.thinkingLevel ?? thinkingLevel ?? "medium";
     if (this.agent.state.thinkingLevel !== next) {
       this.agent.state.thinkingLevel = next;
     }
@@ -438,6 +572,8 @@ export class AgentRunner {
       );
       this.agent.state.systemPrompt = systemPrompt;
       this.agent.state.tools = tools;
+      this.applyDefaultModel(this.deps.runConfig.current().defaultModel);
+      this.applyThinkingLevel(this.deps.runConfig.current().thinkingLevel);
       this.agent.streamFunction = composeStreamFn(
         this.deps.modelCatalog,
         this.deps.runConfig.current().sampling,
@@ -458,11 +594,93 @@ export class AgentRunner {
 
   private async applyAfterTurnHooks(): Promise<void> {
     if (!this.turnHooks.afterTurn || !this.eventLog) return;
+    if (this.compactedThisTurn) {
+      this.compactedThisTurn = false;
+      return;
+    }
     const eventsBefore = this.eventLog.events.length;
     await this.turnHooks.afterTurn(this.agent, this.eventLog);
     if (this.eventLog.events.length !== eventsBefore) {
       this.syncBufferFromLog();
     }
+  }
+
+  private async runAutoRetryIfNeeded(): Promise<void> {
+    if (!this.needsAutoRetry || this.autoRetryCount >= 1 || !this.eventLog) {
+      this.needsAutoRetry = false;
+      return;
+    }
+    this.needsAutoRetry = false;
+    this.autoRetryCount += 1;
+    this.syncBufferFromLog();
+    this.resetToolLoopGuard();
+    const lastBuffered = this.agent.state.messages[this.agent.state.messages.length - 1];
+    if (!lastBuffered || lastBuffered.role === "assistant") {
+      this.endRetriedTurnAsError();
+      return;
+    }
+    this.pendingPromptEstimate = readCurrentTokens(
+      this.agent.state.messages,
+      this.agent.state.systemPrompt,
+    );
+    try {
+      await this.agent.continue();
+      await this.applyAfterTurnHooks();
+    } finally {
+      this.pendingPromptEstimate = null;
+    }
+    if (this.needsAutoRetry) {
+      this.needsAutoRetry = false;
+      this.endRetriedTurnAsError();
+    }
+  }
+
+  private endRetriedTurnAsError(): void {
+    if (!this.eventLog) return;
+    const turnEnd = this.eventLog.append("turn/end", { reason: "error" });
+    this.emitTurnEvent("sp:turn-end", {
+      sessionId: this.sessionId,
+      agentId: this.agentId,
+      seq: turnEnd.seq,
+      reason: "error",
+      depth: this.turnDepth,
+      chainId: this.turnChainId,
+    });
+  }
+
+  private persistingControlSink(onEvent: RunnerEventHandler): RunnerEventHandler {
+    return (event) => {
+      if (
+        !this.eventLog ||
+        (event.type !== "control_request" && event.type !== "control_resolved")
+      ) {
+        onEvent(event);
+        return;
+      }
+      if (event.type === "control_request") {
+        const persisted = this.eventLog.append("control/requested", {
+          requestId: event.requestId,
+          kind: event.kind,
+          toolCallId: event.toolCallId,
+          toolName: event.toolName,
+          args: event.args,
+        });
+        onEvent({ ...event, seq: persisted.seq });
+        return;
+      }
+      const persisted = this.eventLog.append("control/resolved", {
+        requestId: event.requestId,
+        kind: event.kind,
+        ...(event.kind === "approval"
+          ? { approved: event.approved, ...(event.reason !== undefined ? { reason: event.reason } : {}) }
+          : {}),
+        ...(event.kind === "question"
+          ? { ...(event.answer !== undefined ? { answer: event.answer } : {}), timedOut: event.timedOut }
+          : {}),
+        ...(event.aborted !== undefined ? { aborted: event.aborted } : {}),
+      });
+      onEvent({ ...event, seq: persisted.seq });
+    };
   }
 
   private persistMiddleware(): EventMiddleware<AgentEvent> {
@@ -474,15 +692,30 @@ export class AgentRunner {
           const lastMessage = [...event.messages]
             .reverse()
             .find((message) => message.role === "assistant") as
-            | { stopReason?: string }
+            | { stopReason?: string; rawStopReason?: string }
             | undefined;
-          this.eventLog.append("turn/end", {
-            reason:
-              lastMessage?.stopReason === "error"
-                ? "error"
-                : lastMessage?.stopReason === "aborted"
-                  ? "aborted"
-                  : "completed",
+          const marked = (
+            lastMessage === undefined ? undefined : markTruncated(lastMessage)
+          ) as { stopReason?: string; rawStopReason?: string } | undefined;
+          if (marked?.stopReason === "error" && marked?.rawStopReason === "length") {
+            this.abandonTruncatedTurn();
+            next(event);
+            return;
+          }
+          const reason =
+            marked?.stopReason === "error"
+              ? "error"
+              : marked?.stopReason === "aborted"
+                ? "aborted"
+                : "completed";
+          const turnEnd = this.eventLog.append("turn/end", { reason });
+          this.emitTurnEvent("sp:turn-end", {
+            sessionId: this.sessionId,
+            agentId: this.agentId,
+            seq: turnEnd.seq,
+            reason,
+            depth: this.turnDepth,
+            chainId: this.turnChainId,
           });
         }
       }
@@ -490,12 +723,185 @@ export class AgentRunner {
     };
   }
 
+  private currentTurnSeq(): number {
+    const events = this.eventLog?.events ?? [];
+    for (let i = events.length - 1; i >= 0; i--) {
+      if (events[i].type === "turn/start") return events[i].seq;
+    }
+    return 0;
+  }
+
+  getTriggerChain(): { depth: number; chainId: string } {
+    return { depth: this.turnDepth, chainId: this.turnChainId };
+  }
+
+  private resetToolLoopGuard(): void {
+    this.toolCallTotal = 0;
+    this.lastToolKey = null;
+    this.sameToolRepeat = 0;
+    this.lengthStreak = 0;
+    this.toolLoopStop = null;
+  }
+
+  private guardToolCall(
+    toolName: string,
+    args: unknown,
+  ): { block: true; terminate: true; reason: string } | undefined {
+    if (this.toolLoopStop !== null) {
+      return { block: true, terminate: true, reason: loopStopReasonText(this.toolLoopStop, toolName) };
+    }
+    const key = `${toolName}\n${canonicalJson(args)}`;
+    if (key === this.lastToolKey) {
+      this.sameToolRepeat += 1;
+    } else {
+      this.lastToolKey = key;
+      this.sameToolRepeat = 1;
+    }
+    if (this.sameToolRepeat >= MAX_SAME_TOOLCALL_REPEAT) {
+      this.toolLoopStop = "tool-call-repeat";
+      this.deps.logger.warn(
+        { sessionId: this.sessionId, toolName },
+        "tool call loop guard stopped turn: same tool and arguments repeated",
+      );
+      return { block: true, terminate: true, reason: loopStopReasonText(this.toolLoopStop, toolName) };
+    }
+    return undefined;
+  }
+
+  private checkToolLoopStop(message: { stopReason?: string }, resultCount: number): boolean {
+    this.toolCallTotal += resultCount;
+    if (message.stopReason === "length") {
+      this.lengthStreak += 1;
+    } else {
+      this.lengthStreak = 0;
+    }
+    if (this.toolLoopStop !== null) return true;
+    if (this.toolCallTotal > MAX_TOOL_CALLS_PER_TURN) {
+      this.toolLoopStop = "tool-call-budget";
+    } else if (this.lengthStreak >= MAX_CONSECUTIVE_TRUNCATED_TURNS) {
+      this.toolLoopStop = "truncated-loop";
+    } else {
+      return false;
+    }
+    this.deps.logger.warn(
+      { sessionId: this.sessionId, reason: this.toolLoopStop },
+      "tool call loop guard stopped turn",
+    );
+    return true;
+  }
+
+  private async maybePreCompact(newMessage?: AgentMessage): Promise<void> {
+    const preTurn = this.deps.preTurnCompaction;
+    if (!preTurn || !this.eventLog) return;
+    const window =
+      (this.agent.state.model as { contextWindow?: number } | undefined)?.contextWindow ?? 32768;
+    const estimate = readCurrentTokens(
+      newMessage === undefined
+        ? this.agent.state.messages
+        : [...deriveMessages(this.eventLog.events), newMessage],
+      this.agent.state.systemPrompt,
+    );
+    if (estimate <= window * PRE_TURN_COMPACTION_RATIO) return;
+    const eventsBefore = this.eventLog.events.length;
+    try {
+      await preTurn(this.eventLog, this.agent, this.sessionId);
+    } catch (err) {
+      this.deps.logger.warn(
+        { err, sessionId: this.sessionId },
+        "pre-turn compaction failed, continuing without compaction",
+      );
+      return;
+    }
+    if (this.eventLog.events.length !== eventsBefore) {
+      this.syncBufferFromLog();
+      this.compactedThisTurn = true;
+    }
+  }
+
+  private abandonTruncatedTurn(): void {
+    if (!this.eventLog) return;
+    const failed = [...this.eventLog.events]
+      .reverse()
+      .find((event) => event.type === "assistant/message");
+    const failedSeq = failed && failed.type === "assistant/message"
+      ? failed.seq
+      : this.lastAssistantSeq;
+    if (failedSeq === null || failedSeq === undefined) return;
+    this.eventLog.appendBatch([
+      { type: "turn/retried", data: { abandonedSeqs: [failedSeq] } },
+      { type: "turn/start", data: {} },
+    ]);
+    this.needsAutoRetry = true;
+  }
+
   private appendMessageEvent(message: unknown): void {
     const role = (message as { role?: string }).role;
     if (role === "assistant") {
-      this.eventLog!.append("assistant/message", { message: message as never });
+      const marked = markTruncated(message) as Record<string, unknown>;
+      const stamped =
+        this.pendingPromptEstimate === null
+          ? marked
+          : { ...marked, promptEstimate: this.pendingPromptEstimate };
+      const appended = this.eventLog!.append("assistant/message", { message: stamped as never });
+      this.lastAssistantSeq = appended.seq;
+      this.emitTurnEvent("sp:assistant-message", {
+        sessionId: this.sessionId,
+        agentId: this.agentId,
+        seq: appended.seq,
+        depth: this.turnDepth,
+        chainId: this.turnChainId,
+      });
     } else if (role === "toolResult") {
-      this.eventLog!.append("tool/result", { message: message as never });
+      const result = message as {
+        toolCallId?: unknown;
+        toolName?: unknown;
+        details?: unknown;
+        isError?: unknown;
+      };
+      let sideEffects: SideEffectRef[] | undefined;
+      const registry = this.deps.attribution;
+      if (registry && typeof result.toolCallId === "string") {
+        const attribution = registry.attribute(this.sessionId, result.toolCallId);
+        registry.drop(this.sessionId, result.toolCallId);
+        if (
+          attribution !== undefined &&
+          result.isError !== true &&
+          typeof result.toolName === "string"
+        ) {
+          const refs = deriveSideEffects(result.toolName, result.details);
+          if (refs.length > 0) sideEffects = refs;
+        }
+      }
+      this.eventLog!.append("tool/result", {
+        message: message as never,
+        ...(sideEffects !== undefined ? { sideEffects } : {}),
+      });
+    }
+  }
+
+  private emitErrorTurnEnd(turnStartSeq: number): void {
+    const ended = this.eventLog!.events.some(
+      (event) => event.type === "turn/end" && event.seq > turnStartSeq,
+    );
+    if (ended) return;
+    this.emitTurnEvent("sp:turn-end", {
+      sessionId: this.sessionId,
+      agentId: this.agentId,
+      seq: turnStartSeq,
+      reason: "error",
+      depth: this.turnDepth,
+      chainId: this.turnChainId,
+    });
+  }
+
+  private emitTurnEvent(name: string, payload: TurnEventPayload): void {
+    try {
+      this.deps.onTurnEvent?.({ name, payload });
+    } catch (err) {
+      this.deps.logger.warn(
+        { err, sessionId: this.sessionId, name },
+        "turn event listener failed",
+      );
     }
   }
 

@@ -1,6 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import matter from "gray-matter";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { createManageAgentTool, isManageAgentWriteAction } from "../../tools/manage-agent.js";
+import { listAgentCardLinks } from "../../capabilities/card/index.js";
 import { ProjectStore } from "../../store/project.js";
 import { createSilentLogger } from "../../logger.js";
 import { createTempProject, cleanupDir } from "../helpers.js";
@@ -114,6 +118,7 @@ describe("createManageAgentTool", () => {
         alias: "CR",
         tools: ["read_file", "read_file"],
         context: ["notes/outline.md"],
+        quick_links: ["world/characters.md"],
       },
       undefined as any,
     );
@@ -124,6 +129,7 @@ describe("createManageAgentTool", () => {
     expect(profile.alias).toBe("CR");
     expect(profile.tools).toEqual(["read_file"]);
     expect(profile.context).toEqual(["notes/outline.md"]);
+    expect(profile.quickLinks).toEqual(["world/characters.md"]);
     expect(profile.systemPrompt).toBe("Review chapters.");
     expect(profile.slug).toMatch(/^chapter-reviewer-[0-9a-f]{6}$/);
   });
@@ -194,6 +200,54 @@ describe("createManageAgentTool", () => {
     const updated = store.getAgent(profile.id)!.getProfile();
     expect(updated.alias).toBeUndefined();
     expect(updated.model).toBeUndefined();
+  });
+
+  it("replaces quick links on update and clears them with an empty array", async () => {
+    const profile = await seedProfileContent(
+      `---\nname: World Builder\nquickLinks:\n  - notes/a.md\n  - notes/b.md\n---\n\nYou are a world building assistant.`,
+    );
+    await makeTool().execute(
+      "tc",
+      { action: "update", agent_id: profile.id, quick_links: ["world/characters.md"] },
+      undefined as any,
+    );
+    expect(store.getAgent(profile.id)!.getProfile().quickLinks).toEqual(["world/characters.md"]);
+
+    await makeTool().execute(
+      "tc",
+      { action: "update", agent_id: profile.id, quick_links: [] },
+      undefined as any,
+    );
+    expect(store.getAgent(profile.id)!.getProfile().quickLinks).toBeUndefined();
+    expect((await readFrontmatter(profile.id)).quickLinks).toBeUndefined();
+  });
+
+  it("keeps quick links untouched on update when the param is omitted", async () => {
+    const profile = await seedProfileContent(
+      `---\nname: World Builder\nquickLinks:\n  - notes/a.md\n---\n\nYou are a world building assistant.`,
+    );
+    await makeTool().execute(
+      "tc",
+      { action: "update", agent_id: profile.id, name: "Renamed" },
+      undefined as any,
+    );
+    const updated = store.getAgent(profile.id)!.getProfile();
+    expect(updated.name).toBe("Renamed");
+    expect(updated.quickLinks).toEqual(["notes/a.md"]);
+  });
+
+  it("surfaces quick links in list and get output", async () => {
+    const profile = await seedProfileContent(
+      `---\nname: World Builder\nquickLinks:\n  - world/characters.md\n---\n\nYou are a world building assistant.`,
+    );
+    const listed = await makeTool().execute("tc", { action: "list" }, undefined as any);
+    expect(listed.content[0].text).toContain("world/characters.md");
+    const got = await makeTool().execute(
+      "tc",
+      { action: "get", agent_id: profile.id },
+      undefined as any,
+    );
+    expect(got.content[0].text).toContain("world/characters.md");
   });
 
   it("reports a missing agent id", async () => {
@@ -380,12 +434,75 @@ describe("createManageAgentTool", () => {
       timePerception: { enabled: true, flowRate: 60 },
     });
   });
+
+  it("link_card requires agent and path", async () => {
+    const noAgent = await makeTool().execute("tc", { action: "link_card", path: "lore/a.card.json" }, undefined as any);
+    expect(noAgent.content[0].text).toContain("agent_id");
+    const profile = await seedAgent();
+    const noPath = await makeTool().execute("tc", { action: "link_card", agent_id: profile.id }, undefined as any);
+    expect(noPath.content[0].text).toContain("path");
+    const missing = await makeTool().execute(
+      "tc",
+      { action: "link_card", agent_id: profile.id, path: "lore/missing.card.json" },
+      undefined as any,
+    );
+    expect(missing.content[0].text).toContain("not found");
+  });
+
+  it("unlink_card requires agent and path and refuses missing links", async () => {
+    const profile = await seedAgent();
+    const noPath = await makeTool().execute("tc", { action: "unlink_card", agent_id: profile.id }, undefined as any);
+    expect(noPath.content[0].text).toContain("path");
+    const missing = await makeTool().execute(
+      "tc",
+      { action: "unlink_card", agent_id: profile.id, path: "ghost.card.json" },
+      undefined as any,
+    );
+    expect(missing.content[0].text).toContain("not found");
+  });
+
+  it.runIf(
+    (() => {
+      const probe = fs.mkdtempSync(path.join(os.tmpdir(), "wb-tool-probe-"));
+      try {
+        fs.symlinkSync(path.join(probe, "t"), path.join(probe, "l"), "file");
+        return true;
+      } catch {
+        return false;
+      } finally {
+        fs.rmSync(probe, { recursive: true, force: true });
+      }
+    })(),
+  )("link_card and unlink_card round-trip through the tool", async () => {
+    const profile = await seedAgent();
+    fs.mkdirSync(path.join(projectRoot, "lore"), { recursive: true });
+    fs.writeFileSync(
+      path.join(projectRoot, "lore", "kings.card.json"),
+      JSON.stringify({ character_book: { entries: [] } }),
+    );
+    const linked = await makeTool().execute(
+      "tc",
+      { action: "link_card", agent_id: profile.id, path: "lore/kings.card.json" },
+      undefined as any,
+    );
+    expect(linked.content[0].text).toContain("kings.card.json");
+    expect(listAgentCardLinks(projectRoot, profile.slug)).toHaveLength(1);
+    const unlinked = await makeTool().execute(
+      "tc",
+      { action: "unlink_card", agent_id: profile.id, path: "kings.card.json" },
+      undefined as any,
+    );
+    expect(unlinked.content[0].text).toContain("kings.card.json");
+    expect(listAgentCardLinks(projectRoot, profile.slug)).toHaveLength(0);
+  });
 });
 
 describe("isManageAgentWriteAction", () => {
   it("only treats create/update as write actions", () => {
     expect(isManageAgentWriteAction({ action: "create" })).toBe(true);
     expect(isManageAgentWriteAction({ action: "update" })).toBe(true);
+    expect(isManageAgentWriteAction({ action: "link_card" })).toBe(true);
+    expect(isManageAgentWriteAction({ action: "unlink_card" })).toBe(true);
     expect(isManageAgentWriteAction({ action: "list" })).toBe(false);
     expect(isManageAgentWriteAction({ action: "get" })).toBe(false);
     expect(isManageAgentWriteAction(null)).toBe(false);

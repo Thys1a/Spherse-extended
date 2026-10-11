@@ -1,106 +1,106 @@
 ---
 name: spherse-create-command
-description: 当用户想要创建自定义斜杠命令（/command:）时使用，涵盖命令文件位置、frontmatter 格式、$ARGUMENTS/$1..$9/@path 三种占位展开规则与命名约束
+description: 当用户想要创建或修改全局快速命令（command）时使用，涵盖 command 与 skill 的区别、存储位置、frontmatter 格式、参数与文件引用、调用与管理方式
 ---
 
-# 创建自定义命令
+# 创建全局快速命令（Command）
 
-命令（command）是一段可复用的提示模板。用户在聊天输入框打出 `/command:{name} {args}` 并发送后，模板按规则展开成完整提示词，再由当前 agent 执行。适合把"固定流程 + 每次不同的参数"封装起来，例如审代码、写周报、解释概念。
+Command 是一段可通过 `/command:{name}` 在聊天输入框直接调用的提示词模板。调用时模板先展开（填参数、内联文件），再作为用户消息发给当前 agent。
 
-## 命令的位置与层级
+## Command 与 Skill 的区别：我要做 X，用什么
 
-命令**只有项目级**，没有 agent 私有层，也没有内置层：
+| 我要 | 用什么 |
+|------|--------|
+| 把常用提示词变成 `/` 一键调用 | **command**（本篇） |
+| 封装复用的写作规范、领域知识、工作流程 | skill（见 `spherse-create-skill`），agent 用 `load_skill` 按需加载 |
+| 全项目通查某个机制怎么实现 | `search_content`（最后手段：必须带 `path` / `includePatterns` 收窄，禁止裸搜短词） |
+| 只查世界书条目 | `search_card` / `read_card`，不要用 `search_content` 扫卡文件 |
+| 打开已知路径的文件 | `read_file` |
+
+## 存储位置
+
+```
+.spherse/commands/{name}.md
+```
+
+每个 command 即一个 `.md` 文件，文件名（去掉 `.md`）就是调用名。Command Panel 读写的是同一批文件；列表每次现读目录，新文件即时生效，无需重启 session。
+
+## 文件格式
+
+文件 = YAML frontmatter + Markdown 模板正文，用 `gray-matter` 解析：
+
+```markdown
+---
+description: 一句话说明这个命令做什么
+model: provider/model-id
+---
+
+把以下内容整理成一份更新日志，只收录 {{date}} 之后的变化：
+
+$ARGUMENTS
+```
+
+| 字段 | 必填 | 说明 |
+|------|------|------|
+| `description` | 否 | 一句话用途，显示在 `/` 联想菜单与 Command Panel 列表里；写清楚 agent 才能在候选中认出它 |
+| `model` | 否 | 指定该命令调用时切换的模型（`provider/model-id` 格式）；不填则用当前会话模型 |
+| 模板正文 | **是** | 发送前做两次展开（见下）。正文为空的文件会被忽略 |
+
+### 命名规则
+
+- 非空，不含 `/`、`\`、`:`，不以 `.` 开头
+- 同名创建会报冲突（`Command "..." already exists`），改名 = 新建 + 删除旧文件
+
+## 参数：`$1` 与 `$ARGUMENTS`
+
+调用 `/command:review pr-123 --short` 时，空格切分后的参数按 `$1`、`$2`……依次填入模板：
+
+```markdown
+---
+description: Review 指定 PR 并给出简短结论
+---
+
+Review PR $1，输出不超过 200 字。附加要求：$2
+```
+
+- `$1` 取第一个参数；缺参数时调用直接报错（`requires argument $1 but none was provided`），不会发一半的消息出去
+- `$ARGUMENTS` 取整段原文（含空格），适合自由文本
+- 没出现在模板里的参数会被**忽略**（不会追加到消息末尾），所以占位符与参数个数要对齐
+
+## 文件引用：`@路径`
+
+模板里的 `@相对路径` 会在发送前被替换成文件全文（超长按预算截断并标注）：
+
+```markdown
+---
+description: 按仓库规范检查这份设计文档
+---
+
+按 .spherse/skills/review/checklist.md 的标准检查 @docs/dev/bugfix/2026-09-22-search-content-oversized-result/design.md
+```
+
+- 路径必须在项目内且可读，否则调用报错（越界 / 不可读 / 不存在各有明确错误）
+- 大字段整段塞进上下文会挤爆窗口（见 `search_content` 撑爆事故）：引用只点名必要文件，不要 `@` 整个目录或巨型 JSON
+
+## 调用与管理
+
+- **调用**：聊天输入框输入 `/command:{name} 参数…`，有 `/` 联想补全（输入 `command:` 即过滤出命令列表）
+- **管理**：Command Panel 可增删改查（对应 `GET/POST/PATCH/DELETE /api/projects/:projectId/commands[/:name]`）；改模板正文为空会报 `command template is required`
+- **调用不存在的命令**：报 `Command "..." not found`，检查拼写或去 Command Panel 确认列表
+
+## 创建方式
+
+首选 Command Panel（自动处理命名校验与 frontmatter 格式）。直接写文件亦可：
 
 ```text
 路径：.spherse/commands/{name}.md
 ```
 
-- 文件名（去掉 `.md`）即命令名，`review.md` 对应 `/command:review`。
-- 每次使用时重新读取文件，**新建/修改立刻生效**，不走 session 启动时的 catalog 快照。
-- 可视化管理走左侧 Commands 面板（新建/编辑/删除），与直接 `write_file` 写文件完全等价。
-
-## 文件格式
-
-文件由可选的 YAML frontmatter + 模板正文组成：
-
-```markdown
----
-description: 审阅指定代码并给出修改建议
-model: openai/gpt-4o
----
-
-请审阅以下代码，重点关注正确性与边界条件：
-
-$ARGUMENTS
-```
-
-| 字段 | 必需 | 说明 |
-|------|------|------|
-| `description` | 否 | 一句话用途，显示在补全列表与 Commands 面板 |
-| `model` | 否 | 本次调用专用的模型，**仅本轮生效**，不改 agent 配置；必须是有效的模型 id，否则调用直接报错不发送 |
-| 模板正文 | 是 | 不能为空，下文三种占位符在此展开 |
-
-## 三种占位符
-
-### 1. `$ARGUMENTS` 与 `$1`..`$9`
-
-- `$ARGUMENTS`：原样填入 `/command:name` 之后的全部参数文本。
-- `$1`..`$9`：按空白切分参数后取第 N 个。**缺参数直接报错、本轮不发送**（例如模板用了 `$2` 但用户只给了一个词）。
-- `$` 后跟其它字符不展开，保持原样。
-
-### 2. `@path` 文件引用
-
-模板里写 `@` + 项目内相对路径，发送时自动读入文件正文并包进 `<file path="...">` 块：
-
-- `@` 必须出现在行首、空白或左括号/引号（含中文引号）之后；`user@example.com` 这类邮箱形不会被误判。
-- 路径尾随的标点（`,.)]!?...。！？` 等）会被自动剥离。
-- 文件必须在项目内且当前 agent 可读，否则报错不发送；不存在的文件同样报错。
-- 超过 16KB 的文件只取前 16KB 并标注截断。
-
-`@` 展开发生在参数替换之后，所以 `@$1` 这类写法是合法的：先换参数，再读文件。
-
-## 使用方式
-
-```text
-/command:review src/auth/login.ts
-```
-
-- 命令名未知时报错提示，不会把原文发给 agent。
-- 展开后的完整提示词会以 `/command:{name}` pill 形式留在历史中，可回看原始调用。
-- 附件可与 `/command:` 同发：附件按普通消息通道处理，随展开后的提示词一起送达。
-
-## 命名规范
-
-- 只用小写字母、数字和连字符（`-`），如 `weekly-report`、`explain`
-- 不含 `/`、`\`、`:``，不以 `.` 开头
-- 文件名必须与调用名一致；模板正文不能为空
-
-## 完整示例
-
-```markdown
----
-description: 解释一个概念并举例，适合快速学习
----
-
-请用通俗语言解释「$1」，并给出两个具体例子：
-
-$ARGUMENTS
-```
-
-```markdown
----
-description: 审阅变更并输出问题清单
-model: anthropic/claude-sonnet-4-5
----
-
-你是代码审查员，只看正确性与边界条件，不评价风格。
-按严重程度列出问题，每条给出文件与行号：
-
-@$1
-```
+按上面的格式写完整 frontmatter + 模板正文即可；`write_file` 会自动创建不存在的父目录。
 
 ## 注意事项
 
-- 命令文件被视为不可信输入：模板里的 `@` 读文件同样受 agent 的 access policy 约束，不要指望用命令绕过权限。
-- 一个命令只做一件事；需要多步编排的流程用 skill 封装，而不是把巨型模板塞进命令。
-- `model` 只影响本轮，且创建/修改命令时会预校验模型 id——写错模型名会在保存时就被拦下。
+- 一个 command 只做一件事；通用规范沉淀请做成 skill，不要全塞进模板
+- `description` 是 agent 与用户在候选中识别它的唯一依据，写具体动词 + 对象，不要写"常用命令"这类空话
+- 需要固定切模型的场景（如长文总结切大窗口模型）才填 `model`；普通命令留空，跟随会话模型
+- 不要用 `search_content` 裸搜短词来"发现"命令机制——命令列表直接看 `.spherse/commands/` 目录或 Command Panel

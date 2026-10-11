@@ -8,6 +8,7 @@ import {
 } from "./context.js";
 import { actions } from "./actions.js";
 import { data } from "./data.js";
+import { card } from "./card.js";
 import { api } from "./api.js";
 import { events, installEventListener } from "./events.js";
 import { dockChat, installAutoDock, undock } from "./dock.js";
@@ -47,6 +48,7 @@ if (!window.__SPHERSE_SDK__) {
     },
     ...actions,
     data,
+    card,
     api,
     events,
     dockChat,

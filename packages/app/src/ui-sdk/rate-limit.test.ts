@@ -1,7 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { checkRateLimit, isRateLimitWhitelisted, RATE_LIMIT_WHITELIST, resetRateLimit } from "./rate-limit";
-
-const MAX_CALLS_PER_MINUTE = 30;
+import {
+  checkRateLimit,
+  isRateLimitWhitelisted,
+  MAX_CALLS_PER_MINUTE,
+  RATE_LIMIT_WHITELIST,
+  resetRateLimit,
+} from "./rate-limit";
 
 describe("rate-limit", () => {
   beforeEach(() => resetRateLimit());

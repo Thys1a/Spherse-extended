@@ -4,7 +4,7 @@ import os from "node:os";
 import fs from "node:fs";
 import Database from "better-sqlite3";
 import { createSilentLogger } from "../../logger.js";
-import { ModelNotConfiguredError } from "../../errors.js";
+import { ModelNotConfiguredError, NotFoundError } from "../../errors.js";
 
 const { getChatStreamFnMock, resolveModelByIdMock } = vi.hoisted(() => ({
   getChatStreamFnMock: vi.fn(() => vi.fn()),
@@ -29,6 +29,8 @@ vi.mock("../../model-providers/catalog.js", async (importOriginal) => {
 });
 
 import { createProject } from "../../factory.js";
+import { AgentRunner } from "../../session/agent-runner.js";
+import { SessionEventLog } from "../../session/event-log.js";
 
 const TEST_AGENT_PROFILE = `---
 name: Test Agent
@@ -79,6 +81,7 @@ describe("SessionManager temperature propagation", () => {
   });
 
   afterEach(() => {
+    runtime.projectManager.close();
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
@@ -166,6 +169,7 @@ describe("SessionManager sampling (temperature + topP) propagation", () => {
   });
 
   afterEach(() => {
+    runtime.projectManager.close();
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
@@ -227,6 +231,7 @@ describe("SessionManager thinking level propagation", () => {
   });
 
   afterEach(() => {
+    runtime.projectManager.close();
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
@@ -270,6 +275,21 @@ describe("SessionManager thinking level propagation", () => {
       expect(activeAgent(runtime as RuntimeInternals, sid).state.thinkingLevel).toBe("low");
     }
   });
+
+  it("prefers the per-agent thinkingLevel over the global setting", async () => {
+    const projectStore = runtime.projectManager.projectStore;
+    const agentStore = projectStore.agents.get(agentId) as {
+      _profile: { thinkingLevel?: string };
+    };
+    agentStore._profile = { ...agentStore._profile, thinkingLevel: "low" };
+
+    const sessionId = await runtime.sessionRuntime.createSession(agentId);
+    expect(activeAgent(runtime as RuntimeInternals, sessionId).state.thinkingLevel).toBe("low");
+
+    runtime.sessionRuntime.setThinkingLevel("off");
+
+    expect(activeAgent(runtime as RuntimeInternals, sessionId).state.thinkingLevel).toBe("low");
+  });
 });
 
 describe("SessionManager default model hot-swap", () => {
@@ -292,6 +312,7 @@ describe("SessionManager default model hot-swap", () => {
   });
 
   afterEach(() => {
+    runtime.projectManager.close();
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
@@ -321,6 +342,26 @@ describe("SessionManager default model hot-swap", () => {
 
     expect(agent.state.model?.id).toBe("pinned");
     expect(agent.state.model?.provider).toBe("custom");
+  });
+
+  it("falls back to the global default when the per-agent model is stale", async () => {
+    const projectStore = runtime.projectManager.projectStore;
+    const agentStore = projectStore.agents.get(agentId) as {
+      _profile: { model?: string };
+    };
+    agentStore._profile = { ...agentStore._profile, model: "custom/stale" };
+
+    const sessionId = await runtime.sessionRuntime.createSession(agentId);
+    const agent = activeAgent(runtime as RuntimeInternals, sessionId);
+    expect(agent.state.model?.id).toBe("stale");
+
+    resolveModelByIdMock.mockImplementationOnce(() => {
+      throw new Error("unknown model");
+    });
+    runtime.sessionRuntime.setDefaultModel("openai/gpt-4o");
+
+    expect(agent.state.model?.id).toBe("gpt-4o");
+    expect(agent.state.model?.provider).toBe("openai");
   });
 
   it("hot-swaps model on ALL active agents (multiple sessions)", async () => {
@@ -358,6 +399,7 @@ describe("SessionManager lazy model resolution", () => {
   });
 
   afterEach(() => {
+    runtime.projectManager.close();
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
@@ -418,6 +460,7 @@ describe("SessionManager lifecycle", () => {
   });
 
   afterEach(() => {
+    runtime.projectManager.close();
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
@@ -443,6 +486,66 @@ describe("SessionManager lifecycle", () => {
     runtime.projectManager.deleteSession(agentId, sessionId);
 
     expect(runtime.sessionRuntime.sessionExists(agentId, sessionId)).toBe(false);
+  });
+
+  it("releaseSession removes an idle runner and refuses one with a turn in flight", async () => {
+    const sessionId = await runtime.sessionRuntime.createSession(agentId);
+    runtime.sessionRuntime.setDefaultModel("openai/gpt-4o");
+    const agent = activeAgent(runtime as RuntimeInternals, sessionId);
+    agent.subscribe = vi.fn(() => () => {}) as FakeAgent["subscribe"];
+    let finishPrompt!: () => void;
+    agent.prompt = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finishPrompt = resolve;
+        }),
+    ) as FakeAgent["prompt"];
+
+    const run = runtime.sessionRuntime.sendMessage(sessionId, "hi", [], () => {});
+    expect(runtime.sessionRuntime.releaseSession(sessionId)).toBe(false);
+    expect(runtime.sessionRuntime.hasActiveSession(sessionId)).toBe(true);
+
+    await vi.waitFor(() => expect(agent.prompt).toHaveBeenCalled());
+    finishPrompt();
+    await run;
+
+    expect(runtime.sessionRuntime.releaseSession(sessionId)).toBe(true);
+    expect(runtime.sessionRuntime.hasActiveSession(sessionId)).toBe(false);
+    expect(runtime.sessionRuntime.releaseSession(sessionId)).toBe(false);
+    expect(runtime.sessionRuntime.releaseSession("missing")).toBe(false);
+  });
+
+  it("restoreSession refuses an archived session", async () => {
+    const sessionId = await runtime.sessionRuntime.createSession(agentId);
+    runtime.sessionRuntime.destroySession(sessionId);
+    runtime.projectManager.deleteSession(agentId, sessionId);
+
+    await expect(runtime.sessionRuntime.restoreSession(agentId, sessionId)).rejects.toThrow(
+      NotFoundError,
+    );
+    expect(runtime.sessionRuntime.hasActiveSession(sessionId)).toBe(false);
+  });
+
+  it("does not resurrect a session archived while initForRestore is in flight", async () => {
+    const agentStore = runtime.projectManager.projectStore.agents.get(agentId) as any;
+    const sessionId = agentStore.sessions.createSession();
+
+    const pending = runtime.sessionRuntime.restoreSession(agentId, sessionId);
+    runtime.projectManager.deleteSession(agentId, sessionId);
+
+    await expect(pending).rejects.toThrow(NotFoundError);
+    expect(runtime.sessionRuntime.hasActiveSession(sessionId)).toBe(false);
+  });
+
+  it("restoreSession maps a closed agent store to NotFoundError", async () => {
+    const agentStore = runtime.projectManager.projectStore.agents.get(agentId) as any;
+    const sessionId = agentStore.sessions.createSession();
+    agentStore.sessions.close();
+
+    await expect(runtime.sessionRuntime.restoreSession(agentId, sessionId)).rejects.toThrow(
+      NotFoundError,
+    );
+    expect(runtime.sessionRuntime.hasActiveSession(sessionId)).toBe(false);
   });
 
   it("automatically migrates legacy history before restoring a writable session", async () => {
@@ -533,6 +636,23 @@ describe("SessionManager lifecycle", () => {
     );
   });
 
+  it("compactSession throws NotFoundError for an inactive session", async () => {
+    await expect(runtime.sessionRuntime.compactSession("missing")).rejects.toThrow(
+      /No active session/,
+    );
+  });
+
+  it("compactSession returns applied:false when nothing is worth compacting", async () => {
+    const agentStore = runtime.projectManager.projectStore.agents.get(agentId) as any;
+    const sessionId = agentStore.sessions.createSession();
+    await runtime.sessionRuntime.restoreSession(agentId, sessionId);
+
+    const result = await runtime.sessionRuntime.compactSession(sessionId);
+
+    expect(result).toEqual({ applied: false });
+    expect(agentStore.sessions.readEvents(sessionId).filter((e: any) => e.type === "compaction/applied")).toHaveLength(0);
+  });
+
   it("closeAll removes every session", async () => {
     const sidA = await runtime.sessionRuntime.createSession(agentId);
     const sidB = await runtime.sessionRuntime.createSession(agentId);
@@ -565,6 +685,7 @@ describe("SessionManager event facade", () => {
   });
 
   afterEach(() => {
+    runtime.projectManager.close();
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
@@ -666,6 +787,7 @@ describe("SessionManager getSessionStatus", () => {
   });
 
   afterEach(() => {
+    runtime.projectManager.close();
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
@@ -745,6 +867,7 @@ describe("SessionManager agent hot-reload", () => {
   });
 
   afterEach(() => {
+    runtime.projectManager.close();
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
@@ -831,6 +954,7 @@ describe("SessionManager createSession title", () => {
   });
 
   afterEach(() => {
+    runtime.projectManager.close();
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
@@ -1089,5 +1213,120 @@ describe("SessionManager.appendUserMessage", () => {
     expect(new Set([first, second]).size).toBe(2);
     const history = runtime.projectManager.getRecentSessionHistory(agentId, sessionId, 20);
     expect(history.entries).toHaveLength(2);
+  });
+});
+
+describe("SessionManager concurrent restore", () => {
+  let tmpDir: string;
+  let runtime: RuntimeInternals & Awaited<ReturnType<typeof createProject>>;
+  let agentId: string;
+
+  beforeEach(async () => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "wb-mgr-restore-"));
+    getChatStreamFnMock.mockClear();
+    resolveModelByIdMock.mockClear();
+    runtime = (await createProject(tmpDir, {
+      projectName: "Test",
+      logger: createSilentLogger(),
+    })) as RuntimeInternals & Awaited<ReturnType<typeof createProject>>;
+    const projectStore = runtime.projectManager.projectStore;
+    const testAgent = await projectStore.createAgent("test-agent", TEST_AGENT_PROFILE);
+    agentId = testAgent.getProfile().id;
+    runtime.timerService.stop();
+  });
+
+  afterEach(async () => {
+    await runtime.shutdown();
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("shares one init across concurrent restores of the same session", async () => {
+    const projectStore = runtime.projectManager.projectStore;
+    const agentStore = projectStore.getAgent(agentId);
+    const sessionId = agentStore.sessions.createSession();
+    runtime.sessionRuntime.destroySession(sessionId);
+    const spy = vi.spyOn(AgentRunner, "initForRestore");
+    try {
+      const [first, second] = await Promise.all([
+        runtime.sessionRuntime.restoreSession(agentId, sessionId),
+        runtime.sessionRuntime.restoreSession(agentId, sessionId),
+      ]);
+      expect(first).toBe(sessionId);
+      expect(second).toBe(sessionId);
+      expect(spy).toHaveBeenCalledTimes(1);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("propagates restore failure to all waiters and clears the memo", async () => {
+    const projectStore = runtime.projectManager.projectStore;
+    const agentStore = projectStore.getAgent(agentId);
+    const sessionId = agentStore.sessions.createSession();
+    runtime.sessionRuntime.destroySession(sessionId);
+    const spy = vi.spyOn(AgentRunner, "initForRestore").mockRejectedValueOnce(new Error("db gone"));
+    try {
+      const [first, second] = await Promise.allSettled([
+        runtime.sessionRuntime.restoreSession(agentId, sessionId),
+        runtime.sessionRuntime.restoreSession(agentId, sessionId),
+      ]);
+      expect(first.status).toBe("rejected");
+      expect(second.status).toBe("rejected");
+      expect(spy).toHaveBeenCalledTimes(1);
+    } finally {
+      spy.mockRestore();
+    }
+    await expect(runtime.sessionRuntime.restoreSession(agentId, sessionId)).resolves.toBe(sessionId);
+    expect((runtime.sessionRuntime as any).sessions.has(sessionId)).toBe(true);
+  });
+});
+
+describe("SessionManager turn side-effect index", () => {
+  let tmpDir: string;
+  let runtime: RuntimeInternals & Awaited<ReturnType<typeof createProject>>;
+  let agentId: string;
+
+  beforeEach(async () => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "wb-mgr-sidefx-"));
+    getChatStreamFnMock.mockClear();
+    resolveModelByIdMock.mockClear();
+    runtime = (await createProject(tmpDir, {
+      projectName: "Test",
+      logger: createSilentLogger(),
+    })) as RuntimeInternals & Awaited<ReturnType<typeof createProject>>;
+    const projectStore = runtime.projectManager.projectStore;
+    const testAgent = await projectStore.createAgent("test-agent", TEST_AGENT_PROFILE);
+    agentId = testAgent.getProfile().id;
+    runtime.timerService.stop();
+  });
+
+  afterEach(async () => {
+    await runtime.shutdown();
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("lists only turns with side effects from persisted events", () => {
+    const projectStore = runtime.projectManager.projectStore;
+    const agentStore = projectStore.getAgent(agentId);
+    const sessionId = agentStore.sessions.createSession();
+    const log = SessionEventLog.open(agentStore.sessions, sessionId);
+    const first = log.append("turn/start", {});
+    log.append("tool/result", {
+      message: {
+        role: "toolResult",
+        toolCallId: "t1",
+        toolName: "read_file",
+        content: [],
+        isError: false,
+      },
+      sideEffects: [{ type: "data", file: "a.data.json", version: "v1" }],
+    } as never);
+    log.append("turn/start", {});
+    log.append("user/message", {
+      message: { role: "user", content: "hi" },
+    } as never);
+
+    expect(runtime.sessionRuntime.listTurnSeqsWithSideEffects(sessionId)).toEqual([first.seq]);
+    expect(runtime.sessionRuntime.listTurnSeqsWithSideEffects("no-such-session")).toEqual([]);
   });
 });

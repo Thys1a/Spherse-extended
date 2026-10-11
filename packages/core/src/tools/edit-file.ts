@@ -27,6 +27,7 @@ export function createEditFileTool(
     description:
       "Edit a file by replacing exact text matches. Provide old_string (must appear in the file) and new_string (replacement text). " +
       "Fails if old_string is not found or matches multiple times unless replace_all is true. " +
+      "Edits to *.data.json bypass $manifest schema validation (only JSON syntax is checked); this is an intentional escape hatch for small manifest fixes. For data writes prefer mutate_data. " +
       "For .json files the resulting content is validated and invalid JSON is rejected.",
     parameters: EditFileParams,
     async execute(_toolCallId, params, _signal) {

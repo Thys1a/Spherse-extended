@@ -68,7 +68,6 @@ describe("chat hub ↔ real SessionManager contract", () => {
     const hub = new ChatSessionHub(silentLogger as never);
     const events: any[] = [];
     const attachment = hub.attach(
-      "p1",
       runtime.sessionRuntime,
       agentId,
       sessionId,
@@ -154,7 +153,6 @@ describe("chat hub ↔ real SessionManager contract", () => {
 
     const replayEvents: any[] = [];
     const replayAttachment = hub.attach(
-      "p1",
       runtime.sessionRuntime,
       agentId,
       sessionId,
@@ -171,5 +169,77 @@ describe("chat hub ↔ real SessionManager contract", () => {
 
     replayAttachment.close();
     attachment.close();
+  });
+
+  it("releases the real runner only after the last attachment closes", async () => {
+    const hub = new ChatSessionHub(silentLogger as never);
+    await runtime.sessionRuntime.restoreSession(agentId, sessionId);
+    expect(runtime.sessionRuntime.hasActiveSession(sessionId)).toBe(true);
+
+    const first = hub.attach(runtime.sessionRuntime, agentId, sessionId, () => {});
+    const second = hub.attach(runtime.sessionRuntime, agentId, sessionId, () => {});
+    await first.ready;
+    await second.ready;
+
+    first.close();
+    expect(runtime.sessionRuntime.hasActiveSession(sessionId)).toBe(true);
+
+    second.close();
+    expect(runtime.sessionRuntime.hasActiveSession(sessionId)).toBe(false);
+  });
+
+  it("compactSession compacts through the real runner without mocking it", async () => {
+    stubCatalog.getChatStreamFn.mockImplementation(
+      () =>
+        (async () => ({
+          async *[Symbol.asyncIterator]() {},
+          result: async () => ({
+            role: "assistant",
+            content: [{ type: "text", text: "contract digest of the earlier turns with enough substance here" }],
+            stopReason: "stop",
+          }),
+        })) as never,
+    );
+    try {
+      const agentSessions = store;
+      const compactSessionId = agentSessions.createSession();
+      const seeded: any[] = [];
+      for (let i = 0; i < 25; i++) {
+        seeded.push({
+          type: "user/message",
+          seq: i * 2,
+          time: i,
+          data: { message: { role: "user", content: `turn ${i} with padding`, timestamp: i } },
+        });
+        seeded.push({
+          type: "assistant/message",
+          seq: i * 2 + 1,
+          time: i,
+          data: {
+            message: {
+              role: "assistant",
+              content: [{ type: "text", text: `reply ${i} with padding` }],
+              stopReason: "stop",
+              timestamp: i,
+            },
+          },
+        });
+      }
+      store.appendEvents(compactSessionId, seeded, 1);
+      const hub = new ChatSessionHub(silentLogger as never);
+      const attachment = hub.attach(runtime.sessionRuntime, agentId, compactSessionId, () => {});
+      await attachment.ready;
+
+      const result = await attachment.compactSession();
+
+      expect(result).toMatchObject({ applied: true, digestSource: "llm" });
+      const persisted = store.readEvents(compactSessionId);
+      expect(persisted.at(-1)).toMatchObject({ type: "compaction/applied" });
+      const liveRunner = runtime.sessionRuntime.sessions.get(compactSessionId);
+      expect(liveRunner.currentEvents).toHaveLength(persisted.length);
+      attachment.close();
+    } finally {
+      stubCatalog.getChatStreamFn.mockImplementation(() => vi.fn() as never);
+    }
   });
 });

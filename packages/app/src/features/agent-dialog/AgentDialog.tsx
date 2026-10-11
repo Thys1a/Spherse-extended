@@ -66,6 +66,7 @@ export function AgentDialog({ mode, agentId, onSubmit, onCancel }: AgentDialogPr
             key={data.raw}
             initial={data}
             mode={mode}
+            agentId={agentId}
             onSubmit={onSubmit}
             onCancel={onCancel}
           />

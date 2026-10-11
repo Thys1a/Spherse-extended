@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
+import { ValidationError } from "../../errors.js";
 import { TriggerExecutor } from "../executor.js";
 import type { SessionPort } from "../../kernel/ports.js";
 import type { TriggerStore } from "../../store/trigger.js";
@@ -55,7 +56,7 @@ describe("TriggerExecutor", () => {
       "s-new",
       "Hello world",
       expect.any(Function),
-      { source: "triggered", triggerName: "evt" },
+      { source: "triggered", triggerName: "evt", triggerDepth: 1, triggerChainId: expect.any(String) },
     );
     expect(triggered).toHaveBeenCalledWith(
       expect.objectContaining({ agentId: "a1", triggerId: "tr-1" }),
@@ -65,6 +66,19 @@ describe("TriggerExecutor", () => {
     );
     expect(completed).toHaveBeenCalledWith(
       expect.objectContaining({ agentId: "a1", triggerId: "tr-1", sessionId: "s-new", status: "success" }),
+    );
+  });
+
+  it("skips the second fire of the same trigger in one chain", async () => {
+    const { executor, session, store } = makeDeps();
+    const opts = { chainId: "chain-1", depth: 0 };
+
+    await executor.fire(makeEntry(), "a1", "Agent", "first", "evt", opts);
+    await executor.fire(makeEntry(), "a1", "Agent", "second", "evt", opts);
+
+    expect(session.sendMessage).toHaveBeenCalledTimes(1);
+    expect(store.appendLog).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "failed", error: expect.stringContaining("already fired in this chain") }),
     );
   });
 
@@ -266,6 +280,108 @@ describe("TriggerExecutor", () => {
     expect(store.appendLog).toHaveBeenCalledWith(
       expect.objectContaining({ triggerName: "evt" }),
     );
+  });
+
+  it("passes depth+1 and the chain through to the new turn", async () => {
+    const { executor, session } = makeDeps();
+    await executor.fire(makeEntry(), "a1", "Agent", "", "evt", { depth: 2, chainId: "chain-1" });
+    expect(session.sendMessage).toHaveBeenCalledWith(
+      "s-new",
+      expect.any(String),
+      expect.any(Function),
+      { source: "triggered", triggerName: "evt", triggerDepth: 3, triggerChainId: "chain-1" },
+    );
+  });
+
+  it("rejects fires at max depth without sending", async () => {
+    const { executor, session, store } = makeDeps();
+    const failed = vi.fn();
+    executor.on("trigger_failed", failed);
+
+    await executor.fire(makeEntry(), "a1", "Agent", "", "evt", { depth: 5, chainId: "chain-1" });
+
+    expect(session.sendMessage).not.toHaveBeenCalled();
+    expect(session.createSession).not.toHaveBeenCalled();
+    expect(store.appendLog).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "failed", error: expect.stringContaining("max trigger depth") }),
+    );
+    expect(failed).not.toHaveBeenCalled();
+    expect(executor.isRunning("tr-1")).toBe(false);
+  });
+
+  it("skips refiring the same trigger within one chain (ping-pong guard)", async () => {
+    const { executor, session, store } = makeDeps();
+    await executor.fire(makeEntry(), "a1", "Agent", "", "evt", { depth: 0, chainId: "chain-1" });
+    await executor.fire(makeEntry(), "a1", "Agent", "", "evt", { depth: 1, chainId: "chain-1" });
+
+    expect(session.sendMessage).toHaveBeenCalledTimes(1);
+    expect(store.appendLog).toHaveBeenCalledTimes(3);
+    expect(store.appendLog).toHaveBeenLastCalledWith(
+      expect.objectContaining({ status: "failed", error: expect.stringContaining("already fired in this chain") }),
+    );
+  });
+
+  it("evicts old chains so tracking stays bounded", async () => {
+    const { executor, session } = makeDeps();
+    await executor.fire(makeEntry(), "a1", "Agent", "", "evt", { depth: 0, chainId: "chain-0" });
+    for (let i = 1; i <= 1024; i++) {
+      await executor.fire(makeEntry(), "a1", "Agent", "", "evt", { depth: 0, chainId: `chain-${i}` });
+    }
+    await executor.fire(makeEntry(), "a1", "Agent", "", "evt", { depth: 0, chainId: "chain-0" });
+
+    expect(session.sendMessage).toHaveBeenCalledTimes(1026);
+  });
+
+  it("allows the same trigger again in a fresh chain", async () => {
+    const { executor, session } = makeDeps();
+    await executor.fire(makeEntry(), "a1", "Agent", "", "evt");
+    await executor.fire(makeEntry(), "a1", "Agent", "", "evt");
+
+    expect(session.sendMessage).toHaveBeenCalledTimes(2);
+  });
+
+  it("defers a busy-session fire and retries it on drainDeferred", async () => {
+    let calls = 0;
+    const { executor, session, store } = makeDeps({
+      sessionExists: vi.fn(() => true) as unknown as SessionPort["sessionExists"],
+      sendMessage: vi.fn(async (_sid: string, _msg: string, onEvent: (e: { type: string }) => void) => {
+        calls++;
+        if (calls === 1) throw new ValidationError("Session \"s1\" already has a turn in progress");
+        onEvent({ type: "agent_end" });
+      }) as unknown as SessionPort["sendMessage"],
+    });
+    const entry = makeEntry({ mode: "existing_session", targetSessionId: "s1" });
+    await executor.fire(entry, "a1", "Agent", "");
+
+    expect(session.sendMessage).toHaveBeenCalledTimes(1);
+    expect(store.appendLog).toHaveBeenLastCalledWith(
+      expect.objectContaining({ status: "failed", error: expect.stringContaining("deferred until turn end") }),
+    );
+
+    executor.drainDeferred("s1");
+    await vi.waitFor(() => {
+      expect(session.sendMessage).toHaveBeenCalledTimes(2);
+    });
+    expect(store.appendLog).toHaveBeenLastCalledWith(expect.objectContaining({ status: "success" }));
+  });
+
+  it("drops a deferred fire that is still busy after retry", async () => {
+    const { executor, session, store } = makeDeps({
+      sessionExists: vi.fn(() => true) as unknown as SessionPort["sessionExists"],
+      sendMessage: vi.fn(async () => {
+        throw new ValidationError("Session \"s1\" already has a turn in progress");
+      }) as unknown as SessionPort["sendMessage"],
+    });
+    const entry = makeEntry({ mode: "existing_session", targetSessionId: "s1" });
+    await executor.fire(entry, "a1", "Agent", "");
+    executor.drainDeferred("s1");
+    await vi.waitFor(() => {
+      expect(session.sendMessage).toHaveBeenCalledTimes(2);
+    });
+    expect(store.appendLog).toHaveBeenLastCalledWith(
+      expect.objectContaining({ status: "failed", error: expect.stringContaining("skipped") }),
+    );
+    expect(session.sendMessage).toHaveBeenCalledTimes(2);
   });
 
   it("forgets in-flight ids on forgetAll", async () => {

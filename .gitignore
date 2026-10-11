@@ -10,3 +10,4 @@ packages/desktop/release/
 .superpowers/
 .pi/
 paseo.json
+start-dev.ps1

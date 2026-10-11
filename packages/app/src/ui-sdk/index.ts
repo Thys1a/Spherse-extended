@@ -1,4 +1,5 @@
 import "./handlers/api";
+import "./handlers/card";
 import "./handlers/chat-dock";
 import "./handlers/create-session";
 import "./handlers/data";

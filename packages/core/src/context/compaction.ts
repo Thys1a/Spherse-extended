@@ -5,9 +5,12 @@ import type {
   ToolResultMessage,
   ToolCall,
 } from "@earendil-works/pi-ai";
+import { estimateTokens } from "./token-estimate.js";
 
 const MAX_MESSAGE_CHARS = 500;
 const TRUNCATE_MARKER = "…";
+
+export const DEFAULT_THRESHOLD_RATIO = 0.75;
 
 export interface CompactionOptions {
   currentTokens: number;
@@ -15,6 +18,8 @@ export interface CompactionOptions {
   keepRecentPrompts?: number;
   maxTurns?: number;
   thresholdRatio?: number;
+  hardRatio?: number;
+  targetRatio?: number;
 }
 
 export interface CompactionPlan {
@@ -94,9 +99,11 @@ export function planCompaction(
   messages: Message[],
   options: CompactionOptions,
 ): CompactionPlan {
-  const thresholdRatio = options.thresholdRatio ?? 0.75;
+  const thresholdRatio = options.thresholdRatio ?? DEFAULT_THRESHOLD_RATIO;
   const keepRecentPrompts = options.keepRecentPrompts ?? 20;
   const maxTurns = options.maxTurns ?? 40;
+  const hardRatio = options.hardRatio ?? 0.9;
+  const targetRatio = options.targetRatio ?? 0.5;
 
   const shouldCompact =
     options.currentTokens > options.contextWindow * thresholdRatio;
@@ -110,7 +117,25 @@ export function planCompaction(
     if (message.role === "user" && !isDigestMessage(message)) promptCount++;
     if (message.role === "assistant") turnCount++;
   }
-  if (promptCount <= keepRecentPrompts && turnCount <= maxTurns) {
+  const overHard = options.currentTokens > options.contextWindow * hardRatio;
+  if (promptCount <= keepRecentPrompts && turnCount <= maxTurns && !overHard) {
+    return { shouldCompact: false, anchorIndex: -1, tail: messages };
+  }
+
+  if (overHard) {
+    const budget = options.contextWindow * targetRatio;
+    for (let keep = Math.min(keepRecentPrompts, promptCount - 1); keep >= 1; keep--) {
+      const turnLimit = Math.max(1, Math.min(maxTurns, keep));
+      const split = Math.max(findPromptSplit(messages, keep), findTurnSplit(messages, turnLimit));
+      if (split <= 0) continue;
+      if (estimateTokens(messages.slice(split)) <= budget) {
+        return { shouldCompact: true, anchorIndex: split - 1, tail: messages.slice(split) };
+      }
+    }
+    const fallback = Math.max(findPromptSplit(messages, 1), findTurnSplit(messages, 1));
+    if (fallback > 0) {
+      return { shouldCompact: true, anchorIndex: fallback - 1, tail: messages.slice(fallback) };
+    }
     return { shouldCompact: false, anchorIndex: -1, tail: messages };
   }
 
@@ -185,9 +210,6 @@ export function sanitizeToolCallPairs(messages: Message[]): SanitizeResult {
     const msg = messages[i];
     if (msg.role === "assistant") {
       const am = msg as AssistantMessage;
-      if (am.stopReason === "error" || am.stopReason === "aborted") {
-        continue;
-      }
       for (const block of am.content) {
         if (block.type === "toolCall") {
           validToolCallIds.add((block as ToolCall).id);

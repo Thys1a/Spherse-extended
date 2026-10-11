@@ -220,7 +220,7 @@ describe("compaction capability", () => {
     expect(log.events.filter((e) => e.type === "compaction/applied")).toHaveLength(0);
   });
 
-  it("records excluded seqs for invalid messages in the retained tail", async () => {
+  it("records excluded seqs only for messages without a parent in the retained tail", async () => {
     const { deps, stream } = makeDeps();
     const capability = compactionCapability(deps);
     const hooks = capability.turnHooks!(agentId, sessionId);
@@ -249,11 +249,12 @@ describe("compaction capability", () => {
     const event = log.events.find((entry) => entry.type === "compaction/applied");
     expect(event?.type).toBe("compaction/applied");
     if (event?.type !== "compaction/applied") throw new Error("missing compaction event");
-    expect(event.data.excludedSeqs).toEqual(expect.arrayContaining([failed.seq, orphan.seq]));
+    expect(event.data.excludedSeqs).toEqual(expect.arrayContaining([orphan.seq]));
+    expect(event.data.excludedSeqs).not.toContain(failed.seq);
     const visibleSeqs = deriveMessages(log.events).map((message) =>
       (message as { content?: unknown }).content,
     );
-    expect(visibleSeqs).not.toContain(failed.data.message.content);
+    expect(visibleSeqs).toContain(failed.data.message.content);
   });
 
   it("retained tail starts with a user message and has no orphan tool pairs", async () => {
@@ -313,6 +314,103 @@ describe("compaction capability", () => {
         expect(toolCallIds.has((message as { toolCallId: string }).toolCallId)).toBe(true);
       }
     }
+  });
+
+  it("forces compaction when the last message is a truncated turn even below threshold", async () => {
+    const { deps, stream } = makeDeps({});
+    const capability = compactionCapability(deps);
+    const hooks = capability.turnHooks!(agentId, sessionId);
+
+    const log = seededLog(3);
+    log.append("assistant/message", {
+      message: {
+        role: "assistant",
+        content: [{ type: "thinking", thinking: "That" }],
+        stopReason: "length",
+        usage: { input: 10, output: 1, cacheRead: 0, cacheWrite: 0, totalTokens: 100 },
+        timestamp: Date.now(),
+      } as never,
+    });
+
+    await hooks.afterTurn!(fakeAgent({}, stream), log);
+
+    const compactionEvents = log.events.filter((e) => e.type === "compaction/applied");
+    expect(compactionEvents).toHaveLength(1);
+    expect(compactionEvents[0].data.digestSource).toBe("llm");
+  });
+
+  it("shares the learned window between afterTurn and preTurnCompaction", async () => {
+    const TRUNCATED_USAGE = 1000;
+    const FOLLOWUP_USAGE = 850;
+    const { deps, stream } = makeDeps({});
+    const capability = compactionCapability(deps);
+    expect(typeof capability.preTurnCompaction).toBe("function");
+    const hooks = capability.turnHooks!(agentId, sessionId);
+
+    const log = seededLog(25);
+    log.append("assistant/message", {
+      message: {
+        role: "assistant",
+        content: [{ type: "thinking", thinking: "That" }],
+        stopReason: "length",
+        usage: { input: 10, output: 1, cacheRead: 0, cacheWrite: 0, totalTokens: TRUNCATED_USAGE },
+        timestamp: Date.now(),
+      } as never,
+    });
+    await hooks.afterTurn!(fakeAgent({}, stream), log);
+    expect(log.events.filter((e) => e.type === "compaction/applied")).toHaveLength(1);
+
+    log.append("user/message", {
+      message: { role: "user", content: "continue", timestamp: Date.now() },
+    });
+    log.append("assistant/message", {
+      message: {
+        role: "assistant",
+        content: [{ type: "text", text: "ok" }],
+        stopReason: "stop",
+        usage: { input: 10, output: 1, cacheRead: 0, cacheWrite: 0, totalTokens: FOLLOWUP_USAGE },
+        timestamp: Date.now(),
+      } as never,
+    });
+
+    await capability.preTurnCompaction(log, fakeAgent({}, stream), sessionId);
+    expect(log.events.filter((e) => e.type === "compaction/applied")).toHaveLength(2);
+  });
+
+  it("records the observed window so later turns compact earlier", async () => {
+    const { deps, stream } = makeDeps({});
+    const capability = compactionCapability(deps);
+    const hooks = capability.turnHooks!(agentId, sessionId);
+
+    const log = seededLog(3);
+    log.append("assistant/message", {
+      message: {
+        role: "assistant",
+        content: [{ type: "thinking", thinking: "That" }],
+        stopReason: "length",
+        usage: { input: 10, output: 1, cacheRead: 0, cacheWrite: 0, totalTokens: 100 },
+        timestamp: Date.now(),
+      } as never,
+    });
+
+    await hooks.afterTurn!(fakeAgent({}, stream), log);
+    expect(log.events.filter((e) => e.type === "compaction/applied")).toHaveLength(1);
+
+    log.append("user/message", {
+      message: { role: "user", content: "continue", timestamp: Date.now() },
+    });
+    log.append("assistant/message", {
+      message: {
+        role: "assistant",
+        content: [{ type: "text", text: "ok" }],
+        stopReason: "stop",
+        usage: { input: 10, output: 1, cacheRead: 0, cacheWrite: 0, totalTokens: 5_000 },
+        timestamp: Date.now(),
+      } as never,
+    });
+
+    await hooks.afterTurn!(fakeAgent({}, stream), log);
+    expect(log.events.filter((e) => e.type === "compaction/applied")).toHaveLength(2);
   });
 
   it("contributes to a composed hook chain like any other capability", async () => {

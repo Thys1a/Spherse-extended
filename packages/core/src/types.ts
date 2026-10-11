@@ -23,8 +23,10 @@ export interface AgentProfile {
   slug: string;
   createdAt?: number;
   model?: string;
+  thinkingLevel?: ThinkingLevel;
   tools?: string[];
   context?: string[];
+  quickLinks?: string[];
   output?: {
     path: string;
     naming: string;
@@ -32,6 +34,9 @@ export interface AgentProfile {
   };
   timePerception?: TimePerceptionConfig;
   yolo?: boolean;
+  allowInlineHtml?: boolean;
+  placeholder?: string;
+  greeting?: string;
   systemPrompt: string;
   filePath: string;
 }
@@ -189,4 +194,5 @@ export interface CustomProviderDef {
   contextWindow?: number;
   maxTokens?: number;
   headers?: Record<string, string>;
+  sanitizeEmptySchemas?: boolean;
 }

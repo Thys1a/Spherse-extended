@@ -53,6 +53,8 @@ export const schemas = {
       name: Type.Optional(Type.String()),
       type: Type.Union([Type.Literal("time"), Type.Literal("event")]),
       cron: Type.Optional(Type.String()),
+      // Event names starting with `sp:` subscribe to internal turn events;
+      // emitting such names stays reserved.
       eventName: Type.Optional(Type.String()),
       mode: Type.Union([
         Type.Literal("new_session"),
@@ -72,6 +74,8 @@ export const schemas = {
       enabled: Type.Optional(Type.Boolean()),
       type: Type.Optional(Type.Union([Type.Literal("time"), Type.Literal("event")])),
       cron: Type.Optional(Type.String()),
+      // Event names starting with `sp:` subscribe to internal turn events;
+      // emitting such names stays reserved.
       eventName: Type.Optional(Type.String()),
       mode: Type.Optional(
         Type.Union([

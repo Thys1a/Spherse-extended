@@ -5,7 +5,10 @@ import { Type } from "@sinclair/typebox";
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import type { AccessPolicy, AccessPolicyProvider } from "../access/access-policy.js";
 import { resolveProjectPath, isProjectMetaPath } from "../utils/path-safety.js";
+import { truncateText } from "./output-limits.js";
 import { PROJECT_META_DIR } from "../types.js";
+
+const MAX_LIST_LINES = 2000;
 
 const ListFilesParams = Type.Object({
   path: Type.String({ description: "Directory path relative to project root" }),
@@ -34,7 +37,9 @@ async function listRecursive(
   includeMeta: boolean,
 ): Promise<void> {
   const entries = await fs.readdir(dirPath, { withFileTypes: true });
+
   for (const entry of entries) {
+    if (lines.length >= MAX_LIST_LINES) break;
     if (shouldSkipEntry(entry.name, includeMeta)) continue;
     const entryPath = path.join(dirPath, entry.name);
     const relativePath = path.relative(projectRoot, entryPath).split(path.sep).join("/");
@@ -43,7 +48,6 @@ async function listRecursive(
 
     const icon = isDir ? "📁" : "📄";
     lines.push(`${prefix}${icon} ${entry.name}`);
-
     if (isDir && currentDepth < maxDepth) {
       await listRecursive(entryPath, `${prefix}  `, lines, projectRoot, policy, currentDepth + 1, maxDepth, includeMeta);
     }
@@ -59,6 +63,7 @@ async function listFlat(
 ): Promise<void> {
   const entries = await fs.readdir(dirPath, { withFileTypes: true });
   for (const entry of entries) {
+    if (lines.length >= MAX_LIST_LINES) break;
     if (shouldSkipEntry(entry.name, includeMeta)) continue;
     const entryPath = path.join(dirPath, entry.name);
     const relativePath = path.relative(projectRoot, entryPath).split(path.sep).join("/");
@@ -80,7 +85,7 @@ export function createListFilesTool(
     name: "list_files",
     label: "List Files",
     description:
-      "List files and directories in a project path. Returns a tree with 📁/📄 prefixes. Skips dotfiles and node_modules. The .spherse metadata directory is excluded by default; set include_meta=true to list it.",
+      "List files and directories in a project path. Returns a tree with 📁/📄 prefixes. Skips dotfiles and node_modules. Output is capped at 2000 entries and 32KB; check details.truncated. The .spherse metadata directory is excluded by default; set include_meta=true to list it.",
     parameters: ListFilesParams,
     async execute(_toolCallId, params, _signal) {
       const resolved = resolveProjectPath(root, params.path);
@@ -127,9 +132,17 @@ export function createListFilesTool(
         await listFlat(resolved, lines, root, policy, includeMeta);
       }
 
+      const { text, truncated } = truncateText(lines.join("\n") || "(empty directory)");
       return {
-        content: [{ type: "text" as const, text: lines.join("\n") || "(empty directory)" }],
-        details: { path: params.path, recursive, depth: params.depth, include_meta: includeMeta, count: lines.length },
+        content: [{ type: "text" as const, text }],
+        details: {
+          path: params.path,
+          recursive,
+          depth: params.depth,
+          include_meta: includeMeta,
+          count: lines.length,
+          truncated: truncated || lines.length >= MAX_LIST_LINES,
+        },
       };
     },
   };

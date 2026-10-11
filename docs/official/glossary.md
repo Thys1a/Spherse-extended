@@ -14,10 +14,10 @@
 | yolo | agent frontmatter 的自动放行开关：true 时危险工具跳过审批门，文件访问策略不受影响 | [architecture/security.md](architecture/security.md) |
 | Session（会话） | agent 的对话单元，存于该 agent 的 `sessions.db`；status 为 active / archived | [data-conventions.md](data-conventions.md) |
 | restore | 会话恢复：事件日志校验 + 未闭合 turn 修复 + legacy 迁移 + fold 重建 | [architecture/core.md](architecture/core.md) |
-| ChatSessionHub | server 侧 channel 注册表：`Map<projectId:sessionId, ChatChannel>` + 身份守卫删除 | [architecture/chat.md](architecture/chat.md) |
-| ChatChannel | 单 session 生命周期对象：restore、run 序列化、快照压缩、握手重放、fanout、空闲销毁；多 WS 连接共享 | [architecture/chat.md](architecture/chat.md) |
+| ChatSessionHub | server 侧 channel 注册表：按 `SessionManager` 身份 + sessionId 索引，提供 closeRuntime / close 收口与 admission（详见 [ADR-0012](../../dev/decisions/0012-chat-hub-lifecycle-ownership.md)） | [architecture/chat.md](architecture/chat.md) |
+| ChatChannel | 单 session 生命周期对象：opening/open/closed 状态机、lazy restore、lease 计数、run 序列化、快照压缩、握手重放、fanout、空闲 release；多 WS 连接共享 | [architecture/chat.md](architecture/chat.md) |
 | ChatWireProjector | persist→wire 翻译纯状态机：echo、seq 引用配对、run 级 messageId | [architecture/chat.md](architecture/chat.md) |
-| 游标重放 | connect 带 `?since=` 时服务端重放 `seq > since` 的原始持久事件，取代 HTTP 对账的增量恢复机制 | [architecture/chat.md](architecture/chat.md) |
+| 游标重放 | connect 带 `?since=` 时服务端重放 `seq > since` 的原始持久事件，renderer 以 `applyPersistedEvents` 归约；旧 server 或首页未加载时回落 HTTP 冷对账 | [architecture/chat.md](architecture/chat.md) |
 
 ## 事件与投影
 
@@ -26,16 +26,20 @@
 | Event Log（events 表） | 消息唯一真相：per-session append-only 事件日志，主键 `(session_id, seq)` | [data-conventions.md](data-conventions.md) |
 | fold（投影） | 从事件日志推导内存消息数组的纯函数过程；内存只是可重建缓存 | [architecture/core.md](architecture/core.md) |
 | 控制事件（重启点） | `turn/retried` / `turn/withdrawn` / `compaction/applied` 三类事件，restore 时按语义重建 | [architecture/core.md](architecture/core.md) |
+| control gate 事件 | `control/requested` / `control/resolved` 审批/问答门事件（区别于上面的重启点控制事件），落库并附 seq；pending = requested 未配对 resolved 且无 turn/end 隔断 | [architecture/core.md](architecture/core.md) |
 | compaction（上下文压缩） | 历史超阈值时生成摘要、以 `compaction/applied` 重启点表达；LLM 双路与机械回退 | [architecture/core.md](architecture/core.md) |
 | withdraw（撤回） | 以 `turn/withdrawn {seq}` 锚定被撤回 user message，fold 推导废弃区间 | [architecture/core.md](architecture/core.md) |
-| 历史对账 | renderer 重连后拉取历史、按 `_messageId` 去重合并的过程 | [architecture/chat.md](architecture/chat.md) |
+| rollback（回滚） | `rollback_turn` 按 turn 整轮逆转 data/card 写入（版本冲突转人工）；与 withdraw（仅截断）正交 | [architecture/capabilities.md](architecture/capabilities.md) |
+| 历史对账 | renderer 重连后拉取历史、按 `seq` upsert 合并的过程 | [architecture/chat.md](architecture/chat.md) |
+| Entry（会话条目） | 事件日志的前端 1:1 投影，按 `seq` / `streamId` / `clientId` 身份寻址，含 user/assistant/tool-result/error 四类 | [architecture/chat.md](architecture/chat.md) |
+| MessageGroup（消息组） | 由 entries 组装出的渲染单元（turn / trigger-turn 组，含 assistant/tool-result/error 气泡），保证每条 entry 有归宿 | [architecture/chat.md](architecture/chat.md) |
 
 ## Capability 架构
 
 | 术语 | 定义 | 详见 |
 |---|---|---|
 | kernel（内核） | core 中零 I/O 的类型与纯组合子层（`kernel/`） | [architecture/core.md](architecture/core.md) |
-| Capability（能力模块） | 实现 kernel 贡献点的模块（fs / skill / mcp / trigger / memory 等 14 个） | [architecture/capabilities.md](architecture/capabilities.md) |
+| Capability（能力模块） | 实现 kernel 贡献点的模块（fs / skill / mcp / trigger / memory / rollback 等 16 个） | [architecture/capabilities.md](architecture/capabilities.md) |
 | 贡献点 | `Capability` 接口的扩展槽：tools / contextBlocks / turnHooks / eventMiddlewares 等 | [architecture/capabilities.md](architecture/capabilities.md) |
 | SessionPort | 能力反向触达会话的窄入口（createSession / sendMessage 等） | [architecture/capabilities.md](architecture/capabilities.md) |
 | ToolHost | 工具可见的全部环境：项目、store、mutex、审批/问答门、toolCatalog | [architecture/capabilities.md](architecture/capabilities.md) |
@@ -73,6 +77,9 @@
 |---|---|---|
 | Trigger | 自动化触发器：time 型（cron）/ event 型（用户事件），存 `triggers/index.yml` | [data-conventions.md](data-conventions.md) |
 | TimerService | time 型触发的调度器：10 分钟墙钟对齐轮询，磁盘为唯一真相源 | [data-conventions.md](data-conventions.md) |
+| sp: 回合事件 | 仅内部可发的订阅事件：`sp:user-message` / `sp:assistant-message` / `sp:turn-end`，外部 bus 拒收 `sp:` 前缀 | [architecture/capabilities.md](architecture/capabilities.md) |
+| chain / depth | 跨 turn 触发链：同 chainId + 同 trigger 去重，depth 上限 5；调用方链经 `SessionPort.getTriggerChain` 透传 | [architecture/capabilities.md](architecture/capabilities.md) |
+| sideEffects | 挂在 `tool/result` 上的写入归因（`{type, file, version?, undo?}`），`rollback_turn` 按 turn 逆序恢复的依据 | [data-conventions.md](data-conventions.md) |
 | MCP 连接器（mcp.json） | per-agent 的 MCP server 列表（stdio / http / sse），对 LLM 不可读写 | [data-conventions.md](data-conventions.md) |
 | MCP 工具命名 | `mcp__{server}_{shortid}__{tool}`，首 turn 懒合并进 agent 工具集 | [architecture/capabilities.md](architecture/capabilities.md) |
 
@@ -85,6 +92,10 @@
 | outline | `read_data` 无 path 时输出的结构大纲 + manifest 入口签名 | [data-conventions.md](data-conventions.md) |
 | HTML Card | `render_card` 渲染的 HTML 卡片；全文仅经 onUpdate 传输、不落库 | [data-conventions.md](data-conventions.md) |
 | Image Card | `generate_image` 渲染的图片卡片，三态 generating / done / error | [data-conventions.md](data-conventions.md) |
+| worldbook | agent 级世界书：`.spherse/agents/{slug}/` 下顶层 `*.card.json` 的条目集合，逐轮按 keys 扫描命中后以 `<worldbook>` user 块注入（constant 恒注入） | [architecture/capabilities.md](architecture/capabilities.md) |
+| selective | 世界书条目开关：为 true 时 primary（keys）与 secondary（secondary_keys）必须同时命中才注入（ST AND 语义） | [architecture/capabilities.md](architecture/capabilities.md) |
+| CardStore | `*.card.json` 的读写单例：解析缓存 + 原子落盘 + 回读校验，SDK / agent / server 共用 | [data-conventions.md](data-conventions.md) |
+| card tools | agent 侧世界书工具：`read_card` / `search_card` / `edit_card`（读）与 `card.entry.add/remove`（增删），对应 `card.*` 10 op | [architecture/server.md](architecture/server.md) |
 | preview URL | `/api/projects/:id/preview/` 静态资源代理，HTML 卡 base 注入的基准 | [architecture/server.md](architecture/server.md) |
 
 ## UI SDK 与前端
@@ -94,6 +105,8 @@
 | UI SDK（`@spherse/sdk`） | 注入 iframe 的浏览器运行时，暴露 `window.spherse` API | [architecture/ui-sdk.md](architecture/ui-sdk.md) |
 | HostBridge | renderer 对宿主能力的抽象接口，desktop / web 各有实现 | [architecture/frontend.md](architecture/frontend.md) |
 | HostCapabilities | 宿主能力开关声明，renderer 据此条件渲染宿主专属 UI | [architecture/frontend.md](architecture/frontend.md) |
-| streaming-store | chat 的 Zustand store，只持 UI 可观察状态与 actions | [architecture/chat.md](architecture/chat.md) |
+| chat session store | chat 的 Zustand store（`useChatSessionStore`），持有 Entry 状态、连接投影、分页与 actions | [architecture/chat.md](architecture/chat.md) |
 | timePerception | agent 时间感知配置：感知时间 = 真实时间经锚点 / 流速变换 | [data-conventions.md](data-conventions.md) |
 | memory（memory.jsonl） | per-agent 记忆持久化，`memory_save` / `memory_recall` 读写，`<memory>` block 注入 | [architecture/capabilities.md](architecture/capabilities.md) |
+| slash 命令 | Composer 内 `/skill:`、`/command:` 前缀触发补全，解析为用户消息 meta 随轮发送 | [architecture/chat.md](architecture/chat.md) |
+| summon（召唤） | Composer 内 `>>agent名` 将消息转投目标 agent 会话，源会话留 summon 备注并可跳转 | [architecture/chat.md](architecture/chat.md) |

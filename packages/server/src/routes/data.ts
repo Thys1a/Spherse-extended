@@ -77,6 +77,8 @@ export function registerDataRoutes(fastify: FastifyInstance, registry: ProjectRe
           {
             origin: "sdk",
             ...(body.idempotencyKey !== undefined ? { idempotencyKey: body.idempotencyKey } : {}),
+            ...(body.sessionId !== undefined ? { sessionId: body.sessionId } : {}),
+            ...(body.toolCallId !== undefined ? { toolCallId: body.toolCallId } : {}),
           },
         );
         return reply.code(200).send(result);
@@ -95,6 +97,8 @@ export function registerDataRoutes(fastify: FastifyInstance, registry: ProjectRe
       try {
         const result = await store.rawSet(body.file, body.key, body.value, {
           ...(body.ifVersion !== undefined ? { ifVersion: body.ifVersion } : {}),
+          ...(body.sessionId !== undefined ? { sessionId: body.sessionId } : {}),
+          ...(body.toolCallId !== undefined ? { toolCallId: body.toolCallId } : {}),
         });
         return reply.code(200).send(result);
       } catch (err) {
@@ -112,6 +116,8 @@ export function registerDataRoutes(fastify: FastifyInstance, registry: ProjectRe
       try {
         const result = await store.rawDelete(body.file, body.key, {
           ...(body.ifVersion !== undefined ? { ifVersion: body.ifVersion } : {}),
+          ...(body.sessionId !== undefined ? { sessionId: body.sessionId } : {}),
+          ...(body.toolCallId !== undefined ? { toolCallId: body.toolCallId } : {}),
         });
         return reply.code(200).send(result);
       } catch (err) {

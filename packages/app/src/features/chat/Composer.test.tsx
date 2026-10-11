@@ -1,4 +1,4 @@
-import { act, cleanup, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
@@ -48,6 +48,8 @@ afterEach(() => {
 interface ComposerProps {
   streaming?: boolean;
   loading?: boolean;
+  panicLocked?: boolean;
+  placeholder?: string;
 }
 
 function renderComposer(props: ComposerProps) {
@@ -57,7 +59,9 @@ function renderComposer(props: ComposerProps) {
     <Composer
       streaming={props.streaming ?? false}
       loading={props.loading ?? false}
+      panicLocked={props.panicLocked ?? false}
       sessionId="session-1"
+      placeholder={props.placeholder}
       onSend={onSend}
       onAbort={onAbort}
     />,
@@ -76,6 +80,7 @@ function rerenderComposer(
     <Composer
       streaming={props.streaming ?? false}
       loading={props.loading ?? false}
+      panicLocked={props.panicLocked ?? false}
       sessionId="session-1"
       onSend={onSend}
       onAbort={onAbort}
@@ -97,6 +102,26 @@ function mockPointerCoarse(matches: boolean) {
 }
 
 describe("Composer input availability", () => {
+  it("uses the agent placeholder when provided", () => {
+    renderComposer({ placeholder: "Ask me anything" });
+    expect(screen.getByPlaceholderText("Ask me anything")).not.toBeNull();
+  });
+
+  it("locks input with a reason when panicLocked", () => {
+    renderComposer({ panicLocked: true });
+    expect(screen.getByRole("textbox")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "发送" })).toBeDisabled();
+    expect(screen.getByText("连接已失败，输入已锁定，请先重连")).not.toBeNull();
+  });
+
+  it("does not send on Enter while panicLocked", async () => {
+    const { onSend, onAbort, view } = renderComposer({});
+    await user.type(screen.getByRole("textbox"), "hello");
+    rerenderComposer(view, { panicLocked: true }, onSend, onAbort);
+    fireEvent.keyDown(screen.getByRole("textbox"), { key: "Enter" });
+    expect(onSend).not.toHaveBeenCalled();
+  });
+
   it("keeps the textarea enabled while the agent is streaming", () => {
     renderComposer({ streaming: true });
     expect(screen.getByRole("textbox")).toBeEnabled();

@@ -24,6 +24,7 @@ export function buildSummaryInstruction(tokenBudget: number): string {
   - Task-oriented: preserve the user's goals, preferences and explicit instructions; key decisions and their rationale; involved file paths, data files (*.data.json) and generated artifacts (HTML pages, images); unfinished work and user expectations.
   - Emotional companionship / roleplay: preserve the relationship trajectory and how it evolved; the user's emotional context and recurring themes; key personal facts the user shared; shared jokes, nicknames and promises; unresolved emotional threads (things the user said they would follow up on). Do NOT strip these as "irrelevant exploration" — in this mode they are the substance of the conversation.
 - Drop: greetings, raw tool output details, and exploration irrelevant to the conversation's purpose.
+- Preserve the latest unfinished task verbatim: its exact current step, involved file paths, tool names and arguments. Do not generalize them.
 - Do not call any tool. Output the summary directly.
 - Output structured Markdown, at most ${tokenBudget} tokens.
 - Write the summary in the dominant language of the user's messages.`;

@@ -8,25 +8,27 @@ import { Button } from "../../components/ui/button";
 import { useProjectCtx } from "../../context/project-context";
 import { useApiClient } from "../../lib/use-connection";
 import { useHostBridge } from "../../context/host-bridge-context";
-import { useChatRuntime } from "./runtime-context";
+import { useDataLinkedRefresh } from "./hooks/useDataLinkedRefresh";
+import { useChatAgent } from "./chat-agent-context";
 import { isPathInsideProject, toProjectRelative, joinProjectPath } from "../../lib/project-path";
 import { ensureCharset, buildFileSrcDoc, buildInlineSrcDoc, isImageFile } from "./html-card-src";
 
 interface HtmlCardRendererProps {
   card: HtmlCard;
   defaultCollapsed?: boolean;
+  injectSdk?: boolean;
 }
 
 function sanitizeFileName(name: string): string {
   return name.replace(/[\\/:*?"<>|]/g, "_").trim() || "untitled";
 }
 
-export function HtmlCardRenderer({ card, defaultCollapsed = false }: HtmlCardRendererProps) {
+export function HtmlCardRenderer({ card, defaultCollapsed = false, injectSdk = true }: HtmlCardRendererProps) {
   const { t } = useI18n();
   const { projectRoot, projectId } = useProjectCtx();
   const client = useApiClient(projectId);
   const bridge = useHostBridge();
-  const runtime = useChatRuntime();
+  const agent = useChatAgent();
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [fetchedHtml, setFetchedHtml] = useState<string | null>(null);
   const [fetchError, setFetchError] = useState(false);
@@ -42,6 +44,8 @@ export function HtmlCardRenderer({ card, defaultCollapsed = false }: HtmlCardRen
 
   const previewUrl = card.file_path && client ? client.getPreviewUrl(card.file_path) : null;
   const isImage = !!card.file_path && isImageFile(card.file_path);
+  const linkedHtml = !card.html && !isImage ? (fetchedHtml ?? null) : null;
+  const dataRevision = useDataLinkedRefresh(projectId, card.file_path ?? null, linkedHtml);
 
   useEffect(() => {
     if (collapsed) return;
@@ -60,7 +64,7 @@ export function HtmlCardRenderer({ card, defaultCollapsed = false }: HtmlCardRen
     return () => {
       cancelled = true;
     };
-  }, [collapsed, previewUrl, card.html, isImage]);
+  }, [collapsed, previewUrl, card.html, isImage, dataRevision]);
 
   useEffect(() => {
     if (!expanded) return;
@@ -72,12 +76,12 @@ export function HtmlCardRenderer({ card, defaultCollapsed = false }: HtmlCardRen
   }, [expanded]);
 
   function injectRuntime(iframe: HTMLIFrameElement | null) {
-    if (!iframe || !runtime) return;
+    if (!iframe || !agent) return;
     const win = iframe.contentWindow as (Window & { __SPHERSE__?: unknown }) | null;
     if (!win) return;
     const payload = {
-      sessionId: runtime.sessionId,
-      agentId: runtime.agentId,
+      sessionId: agent.sessionId,
+      agentId: agent.agentId,
       projectId,
     };
     try {
@@ -199,7 +203,9 @@ export function HtmlCardRenderer({ card, defaultCollapsed = false }: HtmlCardRen
       border: "none",
       display: "block" as const,
     };
-    const onLoad = () => injectRuntime(iframeRef.current);
+    const onLoad = () => {
+      if (injectSdk) injectRuntime(iframeRef.current);
+    };
 
     // 图片 file_path 直接用 <img> 加载 preview URL，避免把二进制当文本读取产生乱码。
     if (isImage && previewUrl) {
@@ -299,6 +305,7 @@ export function HtmlCardRenderer({ card, defaultCollapsed = false }: HtmlCardRen
     <div
       className="group/card my-2 overflow-hidden rounded-lg border border-border"
       style={{ maxWidth: "100%", width }}
+      data-chat-html-card
     >
       {card.title ? (
         <div className="group-title flex items-center justify-between border-b border-border bg-muted px-3 py-1.5">

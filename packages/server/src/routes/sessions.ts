@@ -115,7 +115,6 @@ export function registerSessionRoutes(
     },
     async (req) => {
       await hub.startDetachedRun(
-        req.params.projectId,
         req.projectCtx!.sessionRuntime,
         req.params.agentId,
         req.params.id,
@@ -208,7 +207,6 @@ export function registerSessionRoutes(
           },
         );
         await hub.startDetachedRun(
-          req.params.projectId,
           req.projectCtx!.sessionRuntime,
           target.id,
           targetSessionId,

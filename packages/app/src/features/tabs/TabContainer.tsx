@@ -76,6 +76,7 @@ export function TabContainer({ projectId }: { projectId: string }) {
   const entry = useTabStore((s) => s.byProject[projectId]);
   const split = useSplitStore((s) => s.byProject[projectId]);
   const setRatio = useSplitStore((s) => s.setRatio);
+  const openTab = useTabStore((s) => s.openTab);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   const tabs = entry?.tabs ?? [];
@@ -84,6 +85,12 @@ export function TabContainer({ projectId }: { projectId: string }) {
   useEffect(() => {
     containerRef.current?.style.setProperty("--split-ratio", String(split?.ratio ?? 0.5));
   }, [split?.ratio]);
+
+  useEffect(() => {
+    if (!split && tabs.length === 0) {
+      openTab(projectId, { kind: "home", label: "" });
+    }
+  }, [projectId, split, tabs.length, openTab]);
 
   const handleDividerCommit = useCallback(
     (ratio: number) => {

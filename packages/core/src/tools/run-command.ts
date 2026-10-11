@@ -6,7 +6,7 @@ import type { AgentTool } from "@earendil-works/pi-agent-core";
 import { isPathInside } from "../utils/path-safety.js";
 import { AccessDeniedError } from "../errors.js";
 
-const MAX_OUTPUT = 100 * 1024;
+const MAX_OUTPUT = 32 * 1024;
 const DEFAULT_TIMEOUT_MS = 60_000;
 const MIN_TIMEOUT_MS = 1000;
 const MAX_TIMEOUT_MS = 1_800_000;
@@ -134,7 +134,7 @@ export function createRunCommandTool(projectRoot: string): AgentTool<typeof RunC
   return {
     name: "run_command",
     label: "Run Command",
-    description: `Execute a shell command and return its stdout/stderr/exit code. ${shellHint}. Requires explicit user approval before each execution — the proposed command is shown to the user who must approve it. The process runs with the user's full privileges (no OS sandbox); prefer project-relative paths and avoid destructive or network commands unless necessary.`,
+    description: `Execute a shell command and return its stdout/stderr/exit code. ${shellHint}. Requires explicit user approval before each execution — the proposed command is shown to the user who must approve it. The process runs with the user's full privileges (no OS sandbox); prefer project-relative paths and avoid destructive or network commands unless necessary. Stdout/stderr are each capped at 32KB with an [output truncated] marker.`,
     parameters: RunCommandParams,
     async execute(_toolCallId, params, signal, onUpdate) {
       const command = params.command;

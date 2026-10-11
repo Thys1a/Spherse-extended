@@ -9,10 +9,14 @@ import { RunConfigHolder, createRuntimeDeps } from "./session/runtime.js";
 import { builtinToolCapabilities } from "./capabilities/builtin.js";
 import { createDataStore } from "./capabilities/data/index.js";
 import type { DataStore } from "./capabilities/data/index.js";
-import { createTriggerCapability } from "./capabilities/trigger/index.js";
+import { createCardStore } from "./capabilities/card/index.js";
+import type { CardStore } from "./capabilities/card/index.js";
+import { createTriggerCapability, type TriggerCapability } from "./capabilities/trigger/index.js";
+import { ToolAttributionRegistry } from "./tool-attribution.js";
 import { createMcpCapability } from "./capabilities/mcp/index.js";
 import { attachmentsCapability } from "./capabilities/attachments/index.js";
-import { compactionCapability } from "./capabilities/compaction/index.js";
+import { compactionCapability, type CompactionCapability } from "./capabilities/compaction/index.js";
+import { toolOutputBudgetCapability } from "./capabilities/tool-output-budget/index.js";
 import { memoryCapability } from "./capabilities/memory/index.js";
 import { timePerceptionCapability } from "./capabilities/time-perception/index.js";
 import { createStoreRegistry, type SessionPort } from "./kernel/ports.js";
@@ -33,17 +37,21 @@ export interface AssembleOptions {
   capabilities?: Capability[] | ((builtin: Capability[]) => Capability[]);
 }
 
-export function defaultCapabilities(
-  projectStore: ProjectStore,
-  logger: Logger,
-  dataStore?: DataStore,
-): Capability[] {
+export interface DefaultCapabilitiesOptions {
+  projectStore: ProjectStore;
+  logger: Logger;
+  dataStore?: DataStore;
+  cardStore?: CardStore;
+}
+
+export function defaultCapabilities(opts: DefaultCapabilitiesOptions): Capability[] {
   return [
-    ...builtinToolCapabilities(dataStore),
-    createTriggerCapability({ projectStore, logger }),
-    createMcpCapability({ projectStore, logger }),
+    ...builtinToolCapabilities({ dataStore: opts.dataStore, cardStore: opts.cardStore }),
+    createTriggerCapability({ projectStore: opts.projectStore, logger: opts.logger }),
+    createMcpCapability({ projectStore: opts.projectStore, logger: opts.logger }),
     attachmentsCapability(),
-    compactionCapability({ logger }),
+    compactionCapability({ logger: opts.logger }),
+    toolOutputBudgetCapability(),
     timePerceptionCapability(),
     memoryCapability(),
   ];
@@ -57,7 +65,9 @@ export async function assembleProject(
 
   const fileWriteMutex = new FileWriteMutex();
   const projectStore = new ProjectStore(projectRoot, logger, fileWriteMutex);
-  const dataStore = createDataStore({ projectRoot, fileWriteMutex, logger });
+  const attribution = new ToolAttributionRegistry();
+  const dataStore = createDataStore({ projectRoot, fileWriteMutex, logger, attribution });
+  const cardStore = createCardStore({ projectRoot, fileWriteMutex, logger, attribution });
 
   let isNewProject = false;
   try {
@@ -78,16 +88,28 @@ export async function assembleProject(
 
   const projectManager = new ProjectManager(projectStore, logger, fileWriteMutex);
   const stores = createStoreRegistry(logger);
+  const builtin = { projectStore, logger, dataStore, cardStore };
   const capabilities =
     typeof options?.capabilities === "function"
-      ? options.capabilities(defaultCapabilities(projectStore, logger, dataStore))
-      : (options?.capabilities ?? defaultCapabilities(projectStore, logger, dataStore));
+      ? options.capabilities(defaultCapabilities(builtin))
+      : (options?.capabilities ?? defaultCapabilities(builtin));
 
   const runConfig = new RunConfigHolder({
     ...(options?.defaultModel !== undefined ? { defaultModel: options.defaultModel } : {}),
     ...(options?.sampling !== undefined ? { sampling: options.sampling } : {}),
     ...(options?.thinkingLevel !== undefined ? { thinkingLevel: options.thinkingLevel } : {}),
   });
+  const triggerCap = capabilities.find((c) => c.id === "trigger") as TriggerCapability | undefined;
+  if (!triggerCap) {
+    logger.debug("trigger capability absent: turn events are not wired");
+  }
+  const compactionCap = capabilities.find((c) => c.id === "compaction") as
+    | Partial<CompactionCapability>
+    | undefined;
+  const preTurnCompaction =
+    compactionCap !== undefined && typeof compactionCap.preTurnCompaction === "function"
+      ? compactionCap.preTurnCompaction
+      : undefined;
   const deps = createRuntimeDeps({
     projectStore,
     logger,
@@ -96,6 +118,11 @@ export async function assembleProject(
     capabilities,
     stores,
     runConfig,
+    attribution,
+    ...(triggerCap !== undefined
+      ? { onTurnEvent: (e) => triggerCap.manager.onInternalEvent(e.name, e.payload) }
+      : {}),
+    ...(preTurnCompaction !== undefined ? { preTurnCompaction } : {}),
   });
 
   const sessionRuntime = new SessionManager(deps, { initialRunConfig: runConfig });
@@ -107,6 +134,7 @@ export async function assembleProject(
       sessionRuntime.sendMessage(sessionId, message, [], onEvent as never, meta),
     abortSession: (sessionId) => sessionRuntime.abortSession(sessionId),
     sessionExists: (agentId, sessionId) => sessionRuntime.sessionExists(agentId, sessionId),
+    getTriggerChain: (sessionId) => sessionRuntime.getTriggerChain(sessionId),
   };
 
   for (const capability of capabilities) {
@@ -128,6 +156,7 @@ export async function assembleProject(
     logger,
     capabilities,
     dataStore,
+    cardStore,
   });
 }
 

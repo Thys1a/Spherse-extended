@@ -83,6 +83,47 @@ describe("createSearchContentTool", () => {
     expect(result.details?.truncated).toBe(true);
   });
 
+  it("truncates a giant single-line match and reports it in details", async () => {
+    const giant = `prefix needle ${"x".repeat(100 * 1024)}`;
+    await writeFile(projectRoot, "card.json", giant);
+    const tool = createSearchContentTool(projectRoot, permissivePolicy(projectRoot));
+    const result = await tool.execute("tc1", { query: "needle" }, undefined as any);
+    const text = result.content[0].text as string;
+    expect(text).not.toContain("x".repeat(1024));
+    expect(text).toContain("已截断");
+    expect(result.details?.matches).toBe(1);
+    expect(result.details?.truncated).toBe(true);
+    expect(result.details?.truncatedLines).toBe(1);
+    expect(result.details?.maxLineLength).toBe(giant.length);
+  });
+
+  it("skips files over the scan size gate and reports them", async () => {
+    await writeFile(projectRoot, "huge.bin.txt", `needle ${"x".repeat(2 * 1024 * 1024)}`);
+    await writeFile(projectRoot, "small.txt", "needle here");
+    const tool = createSearchContentTool(projectRoot, permissivePolicy(projectRoot));
+    const result = await tool.execute("tc1", { query: "needle" }, undefined as any);
+    const text = result.content[0].text as string;
+    expect(text).toContain("small.txt");
+    expect(text).toContain("已跳过 1 个超大文件");
+    expect(result.details?.matches).toBe(1);
+    expect(result.details?.truncated).toBe(true);
+    expect(result.details?.skippedLargeFiles).toBe(1);
+  });
+
+  it("caps total output at 32KB across many matches", async () => {
+    for (let i = 0; i < 10; i++) {
+      const lines = Array.from({ length: 10 }, (_, j) => `match ${i}-${j} ${"y".repeat(1000)}`);
+      await writeFile(projectRoot, `big${i}.txt`, lines.join("\n"));
+    }
+    const tool = createSearchContentTool(projectRoot, permissivePolicy(projectRoot));
+    const result = await tool.execute("tc1", { query: "match" }, undefined as any);
+    const text = result.content[0].text as string;
+    expect(text.length).toBeLessThanOrEqual(32 * 1024 + 200);
+    expect(text).toContain("已达输出上限");
+    expect(result.details?.truncated).toBe(true);
+    expect(result.details?.returnedMatches).toBeLessThan(result.details?.matches);
+  });
+
   it("returns error for non-existent path", async () => {
     const tool = createSearchContentTool(projectRoot, permissivePolicy(projectRoot));
     const result = await tool.execute("tc1", { query: "x", path: "nope" }, undefined as any);

@@ -46,6 +46,8 @@ project-root/
 
 Agent 创建界面可配置 Prompt、工具、上下文文件、时间感知、聊天主题和 YOLO 模式。工具必须显式启用；未启用的工具不会交给模型。
 
+想给 Agent 加自动生效的背景设定（人物、世界观、术语），见下文「世界书自动注入」——把 `.card.json` 放进该 Agent 目录即可，无需写进 Prompt。
+
 新建项目会自带一个预设 Agent「小助手」：通用型助手，默认开启除 `run_command` 外的全部工具，可随时在界面中修改或删除。
 
 ### 会话
@@ -93,6 +95,7 @@ Content Browser 支持：
 | 文件读取 | `read_file`、`list_files`、`search_content` |
 | 文件修改 | `write_file`、`edit_file`、`move_file`、`copy_file` |
 | 结构化数据 | `read_data`、`query_data`、`mutate_data` |
+| 世界书（卡文件） | `read_card`、`search_card`、`edit_card`（先 search 再 entry 取全文，不要用 `search_content` 扫卡文件） |
 | 交互与展示 | `ask_user`、`render_card`、`generate_image` |
 | 项目协作 | `append_changelog`、`load_skill`、`emit_trigger_event` |
 | 记忆 | `memory_save`、`memory_recall` |
@@ -185,7 +188,34 @@ HTML 可以：
 - Agent 用 `query_data` / `mutate_data`
 - 两者共享同一 mutation 和原子写入通道
 
-这样可以避免 Agent 每次读取整个 JSON 浪费上下文，也能通过字段校验、自动 ID/时间和 item 级 mutation 提升写入准确性。构建论坛、任务板、模拟经营等数据型应用时加载 `spherse-build-data-app`。
+这样可以避免 Agent 每次读取整个 JSON 浪费上下文，也能通过字段校验、自动 ID/时间和 item 级 mutation 提升写入准确性。构建论坛、任务板、模拟经营等数据类型应用时加载 `spherse-build-data-app`。
+
+### 世界书（卡文件）
+
+页面和 Agent 可以围绕同一个 `.card.json` 协作。世界书条目用 `character_book.entries` 存放，单条正文可能很长：
+
+- 页面用 `spherse.card.*`
+- Agent 用 `read_card` / `search_card` / `edit_card`
+- 先 `search` 定位条目，再 `entry` 取全文；不要用 `search_content` 扫卡文件（会把整条几千字倒进上下文，还看不到条目边界）
+- `search` 默认只返回启用的条目；在编辑台里关掉的条目不会再被当作设定依据。
+
+### 世界书自动注入（给 Agent 加设定）
+
+想让某个 Agent 每一轮自动带上特定设定（人物小传、世界观、术语表），把 `*.card.json` 文件放进 `.spherse/agents/{agent名}/` 目录顶层即可，无需手动检索：
+
+- 条目写法：`keys` 写触发关键词，`content` 写正文；对话中出现关键词时自动注入 prompt
+- 每轮都带的常识（如文风要求）用 `constant: true`，不需要写 `keys`
+- 需要"两个条件同时满足"才注入时（如人名 + 地名），把第二组词放进 `secondary_keys` 并打开 `selective: true`
+- 关掉的条目（`enabled: false`）不会注入
+- 每轮最多注入 8 条、共 2000 tokens，按 `insertion_order` 排序截断；只扫描目录顶层，不递归子目录；改完文件下一轮自动生效
+
+### 世界书外链（好编辑的卡放外面）
+
+agent 目录是隐藏的管理目录，直接在里面改卡不方便。可以把 `.card.json` 放在项目内好编辑的位置（如 `lore/`），再链入 agent 目录，改外面文件即时同步到注入：
+
+- 在 Agent 编辑框的个性化页「世界书外链」里填项目内路径添加；有 `manage_agent` 权限的助手 Agent 也可用 `link_card` / `unlink_card` 操作
+- 链接名取目标文件名；目标必须在项目内且真实存在，悬空（目标被删）的链接会被跳过并标出
+- Windows 下创建链接需要管理员或开发者模式，否则会明确报错
 
 ### 主题
 

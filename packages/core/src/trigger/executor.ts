@@ -3,7 +3,28 @@ import type { SessionEventPayload, SessionPort } from "../kernel/ports.js";
 import type { TriggerStore } from "../store/trigger.js";
 import type { TriggerEntry, TriggerLogEntry } from "../types.js";
 import { type Logger, createSilentLogger } from "../logger.js";
+import { ValidationError } from "../errors.js";
 import { resolveTemplateVars } from "./template.js";
+import { randomUUID } from "node:crypto";
+
+const MAX_TRIGGER_DEPTH = 5;
+const MAX_TRACKED_CHAINS = 1024;
+const MAX_DEFERRED_PER_SESSION = 20;
+
+export interface TriggerFireOptions {
+  depth?: number;
+  chainId?: string;
+  deferredAttempts?: number;
+}
+
+interface DeferredFire {
+  entry: TriggerEntry;
+  agentId: string;
+  agentName: string;
+  payload: string;
+  eventName: string | undefined;
+  opts: TriggerFireOptions;
+}
 
 export interface TriggerExecutorDeps {
   session: SessionPort;
@@ -32,6 +53,9 @@ function readTurnError(event: SessionEventPayload): string | undefined {
 
 export class TriggerExecutor extends EventEmitter {
   private readonly inProgress = new Set<string>();
+  private readonly sessionQueues = new Map<string, Promise<void>>();
+  private readonly deferred = new Map<string, DeferredFire[]>();
+  private readonly chainFiredTriggers = new Map<string, Set<string>>();
   private readonly logger: Logger;
 
   constructor(private readonly deps: TriggerExecutorDeps) {
@@ -45,6 +69,62 @@ export class TriggerExecutor extends EventEmitter {
 
   forgetAll(): void {
     this.inProgress.clear();
+    this.sessionQueues.clear();
+    this.deferred.clear();
+  }
+
+  private deferUntilTurnEnd(
+    entry: TriggerEntry,
+    agentId: string,
+    agentName: string,
+    payload: string,
+    eventName: string | undefined,
+    opts: TriggerFireOptions | undefined,
+    sessionId: string,
+    logEntry: TriggerLogEntry,
+  ): void {
+    let queue = this.deferred.get(sessionId);
+    if (!queue) {
+      queue = [];
+      this.deferred.set(sessionId, queue);
+    }
+    if (queue.length >= MAX_DEFERRED_PER_SESSION) {
+      const dropped = queue.shift();
+      this.logger.warn({ agentId, triggerId: entry.id, sessionId }, "trigger deferred queue full, dropped oldest");
+      if (dropped) {
+        this.deps.getTriggerStore(dropped.agentId)?.appendLog({
+          triggerId: dropped.entry.id,
+          triggerName: dropped.entry.name || dropped.entry.id,
+          agentName: dropped.agentName,
+          eventName: dropped.eventName,
+          sessionId,
+          triggeredAt: Date.now(),
+          completedAt: Date.now(),
+          status: "failed",
+          error: "deferred queue full, dropped before retry",
+        });
+      }
+    }
+    queue.push({ entry, agentId, agentName, payload, eventName, opts: opts ?? {} });
+    this.logger.warn({ agentId, triggerId: entry.id, sessionId }, "trigger deferred: target session busy, will retry at turn end");
+    this.deps.getTriggerStore(agentId)?.appendLog({
+      ...logEntry,
+      completedAt: Date.now(),
+      status: "failed",
+      error: "session busy (turn in progress), deferred until turn end",
+    });
+  }
+
+  drainDeferred(sessionId: string): void {
+    const pending = this.deferred.get(sessionId);
+    if (!pending || pending.length === 0) return;
+    this.deferred.delete(sessionId);
+    for (const item of pending) {
+      void this.fire(item.entry, item.agentId, item.agentName, item.payload, item.eventName, {
+        ...item.opts,
+        deferredAttempts: (item.opts.deferredAttempts ?? 0) + 1,
+      });
+    }
   }
 
   async fire(
@@ -53,27 +133,59 @@ export class TriggerExecutor extends EventEmitter {
     agentName: string,
     payload: string,
     eventName?: string,
+    opts?: TriggerFireOptions,
   ): Promise<void> {
-    if (this.inProgress.has(entry.id)) return;
-    this.inProgress.add(entry.id);
-
-    const now = Date.now();
-    const triggerName = entry.name || (entry.type === "time" ? entry.cron! : entry.eventName!);
+    const depth = opts?.depth ?? 0;
+    const chainId = opts?.chainId ?? randomUUID();
 
     const logEntry: TriggerLogEntry = {
       triggerId: entry.id,
-      triggerName,
+      triggerName: entry.name || (entry.type === "time" ? entry.cron! : entry.eventName!),
       agentName,
       eventName,
       sessionId: "",
-      triggeredAt: now,
+      triggeredAt: Date.now(),
       status: "running",
     };
+    if (depth >= MAX_TRIGGER_DEPTH) {
+      this.logger.warn(
+        { agentId, triggerId: entry.id, eventName, depth, chainId },
+        "trigger skipped: max chain depth exceeded",
+      );
+      this.deps.getTriggerStore(agentId)?.appendLog({
+        ...logEntry,
+        completedAt: Date.now(),
+        status: "failed",
+        error: `max trigger depth exceeded (depth ${depth} >= ${MAX_TRIGGER_DEPTH})`,
+      });
+      return;
+    }
+
+    if (this.inProgress.has(entry.id)) return;
+    const chainSeen = this.chainFiredTriggers.get(chainId);
+    if (chainSeen?.has(entry.id)) {
+      this.logger.debug(
+        { agentId, triggerId: entry.id, eventName, chainId },
+        "trigger skipped: already fired in this chain",
+      );
+      this.deps.getTriggerStore(agentId)?.appendLog({
+        ...logEntry,
+        completedAt: Date.now(),
+        status: "failed",
+        error: `already fired in this chain${eventName ? ` (event "${eventName}")` : ""}, skipped`,
+      });
+      return;
+    }
+    this.inProgress.add(entry.id);
+
+    const triggerName = logEntry.triggerName;
+
+    let sessionId = "";
+    let releaseQueue = (): void => {};
+    let queuedTurn: Promise<void> | undefined;
 
     try {
-      this.emit("trigger_triggered", { agentId, triggerId: entry.id, eventName, triggeredAt: now });
-
-      let sessionId: string;
+      this.emit("trigger_triggered", { agentId, triggerId: entry.id, eventName, triggeredAt: logEntry.triggeredAt });
 
       switch (entry.mode) {
         case "new_session": {
@@ -121,6 +233,26 @@ export class TriggerExecutor extends EventEmitter {
       let agentEnded = false;
       let turnError: string | undefined;
 
+      const prevTurn = this.sessionQueues.get(sessionId) ?? Promise.resolve();
+      const gate = new Promise<void>((resolve) => {
+        releaseQueue = resolve;
+      });
+      queuedTurn = prevTurn.then(() => gate);
+      this.sessionQueues.set(sessionId, queuedTurn);
+      await prevTurn;
+
+      let chainSeen = this.chainFiredTriggers.get(chainId);
+      if (!chainSeen) {
+        chainSeen = new Set();
+        this.chainFiredTriggers.set(chainId, chainSeen);
+        while (this.chainFiredTriggers.size > MAX_TRACKED_CHAINS) {
+          const oldest = this.chainFiredTriggers.keys().next().value;
+          if (oldest === undefined) break;
+          this.chainFiredTriggers.delete(oldest);
+        }
+      }
+      chainSeen.add(entry.id);
+
       await this.deps.session.sendMessage(
         sessionId,
         resolvedMessage,
@@ -129,7 +261,7 @@ export class TriggerExecutor extends EventEmitter {
           agentEnded = true;
           turnError = readTurnError(event);
         },
-        { source: "triggered", triggerName },
+        { source: "triggered", triggerName, triggerDepth: depth + 1, triggerChainId: chainId },
       );
 
       if (turnError !== undefined) {
@@ -150,18 +282,36 @@ export class TriggerExecutor extends EventEmitter {
         });
       }
     } catch (err) {
+      const busy =
+        err instanceof ValidationError && err.message.includes("turn in progress") && sessionId !== "";
+      if (busy && (opts?.deferredAttempts ?? 0) < 1) {
+        this.deferUntilTurnEnd(entry, agentId, agentName, payload, eventName, opts, sessionId, logEntry);
+        return;
+      }
+      const skipped =
+        err instanceof ValidationError && err.message.includes("turn in progress");
+      const error = skipped
+        ? `session busy (turn in progress), skipped: ${String(err)}`
+        : String(err);
+      if (skipped) {
+        this.logger.warn({ agentId, triggerId: entry.id, sessionId }, "trigger skipped: target session busy");
+      }
       this.deps.getTriggerStore(agentId)?.appendLog({
         ...logEntry,
         completedAt: Date.now(),
         status: "failed",
-        error: String(err),
+        error,
       });
       this.emit("trigger_failed", {
         agentId,
         triggerId: entry.id,
-        error: String(err),
+        error,
       });
     } finally {
+      releaseQueue();
+      if (queuedTurn !== undefined && this.sessionQueues.get(sessionId) === queuedTurn) {
+        this.sessionQueues.delete(sessionId);
+      }
       this.inProgress.delete(entry.id);
     }
   }

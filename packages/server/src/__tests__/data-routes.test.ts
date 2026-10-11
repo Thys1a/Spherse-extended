@@ -242,4 +242,94 @@ describe("data routes", () => {
     });
     expect(res2.statusCode).toBe(400);
   });
+
+  describe("sdk attribution (R2.5b)", () => {  it("raw-set forwards sessionId to store attribution without turnSeq", async () => {
+    const store = createDataStore({
+      projectRoot: tmpDir,
+      fileWriteMutex: new FileWriteMutex(),
+      logger: createSilentLoggerForTests(),
+    });
+    const events: Array<Record<string, unknown>> = [];
+    store.onChange((e) => events.push(e as unknown as Record<string, unknown>));
+    const scoped = Fastify();
+    registerDataRoutes(scoped, { get: () => ({ runtime: { dataStore: store } }) } as unknown as ProjectRegistry);
+    await scoped.ready();
+    try {
+      fs.writeFileSync(
+        path.join(tmpDir, "attr.data.json"),
+        JSON.stringify({ score: 1 }),
+      );
+      const res = await scoped.inject({
+        method: "POST",
+        url: "/api/projects/p1/data/raw-set",
+        payload: { file: "attr.data.json", key: "score", value: 2, sessionId: "s9" },
+      });
+      expect(res.statusCode).toBe(200);
+      expect(events).toHaveLength(1);
+      expect(events[0]).toMatchObject({ origin: "sdk", sessionId: "s9", op: "rawSet", path: "score" });
+      expect(events[0]).not.toHaveProperty("turnSeq");
+    } finally {
+      await scoped.close();
+    }
+  });
+
+  it("raw-delete forwards sessionId to store attribution", async () => {
+    const store = createDataStore({
+      projectRoot: tmpDir,
+      fileWriteMutex: new FileWriteMutex(),
+      logger: createSilentLoggerForTests(),
+    });
+    const events: Array<Record<string, unknown>> = [];
+    store.onChange((e) => events.push(e as unknown as Record<string, unknown>));
+    const scoped = Fastify();
+    registerDataRoutes(scoped, { get: () => ({ runtime: { dataStore: store } }) } as unknown as ProjectRegistry);
+    await scoped.ready();
+    try {
+      fs.writeFileSync(
+        path.join(tmpDir, "attr-del.data.json"),
+        JSON.stringify({ score: 1 }),
+      );
+      const res = await scoped.inject({
+        method: "POST",
+        url: "/api/projects/p1/data/raw-delete",
+        payload: { file: "attr-del.data.json", key: "score", sessionId: "s9" },
+      });
+      expect(res.statusCode).toBe(200);
+      expect(events).toHaveLength(1);
+      expect(events[0]).toMatchObject({ origin: "sdk", sessionId: "s9", op: "rawDelete", before: 1 });
+    } finally {
+      await scoped.close();
+    }
+  });
+
+  it("raw-set without sessionId stays unattributed", async () => {
+    const store = createDataStore({
+      projectRoot: tmpDir,
+      fileWriteMutex: new FileWriteMutex(),
+      logger: createSilentLoggerForTests(),
+    });
+    const events: Array<Record<string, unknown>> = [];
+    store.onChange((e) => events.push(e as unknown as Record<string, unknown>));
+    const scoped = Fastify();
+    registerDataRoutes(scoped, { get: () => ({ runtime: { dataStore: store } }) } as unknown as ProjectRegistry);
+    await scoped.ready();
+    try {
+      fs.writeFileSync(
+        path.join(tmpDir, "attr-none.data.json"),
+        JSON.stringify({ score: 1 }),
+      );
+      const res = await scoped.inject({
+        method: "POST",
+        url: "/api/projects/p1/data/raw-set",
+        payload: { file: "attr-none.data.json", key: "score", value: 2 },
+      });
+      expect(res.statusCode).toBe(200);
+      expect(events).toHaveLength(1);
+      expect(events[0]).not.toHaveProperty("sessionId");
+    } finally {
+      await scoped.close();
+    }
+  });
+});
+
 });

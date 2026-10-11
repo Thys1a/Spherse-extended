@@ -20,8 +20,40 @@ export function useProjectAgents(projectId: string, client: ApiClient | null) {
   };
 }
 
+export function useProjectAgentProfile(
+  projectId: string,
+  client: ApiClient | null,
+  agentId: string | undefined,
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: projectQueryKeys.agent(projectId, agentId ?? ""),
+    queryFn: () => client!.getAgent(agentId!),
+    enabled: Boolean(enabled && projectId && client && agentId),
+  });
+}
+
 export function getCachedAgents(projectId: string): AgentSummary[] {
   return queryClient.getQueryData(projectQueryKeys.agents(projectId)) ?? EMPTY_AGENTS;
+}
+
+export function useAgentProfile(projectId: string, client: ApiClient | null, agentId: string) {
+  const profileQuery = useQuery({
+    queryKey: [...projectQueryKeys.agents(projectId), agentId, "profile"],
+    queryFn: () => client!.getAgent(agentId),
+    enabled: Boolean(projectId && client && agentId),
+  });
+  return {
+    profile: profileQuery.data ?? null,
+    loading: profileQuery.isPending,
+    error: profileQuery.error,
+  };
+}
+
+export async function refreshAgentProfile(projectId: string, agentId: string): Promise<void> {
+  await queryClient.invalidateQueries({
+    queryKey: [...projectQueryKeys.agents(projectId), agentId, "profile"],
+  });
 }
 
 export async function ensureProjectAgents(projectId: string, client: ApiClient): Promise<AgentSummary[]> {
@@ -56,6 +88,10 @@ export async function updateProjectAgent(
 ): Promise<void> {
   await client.updateAgent(agentId, content, themeContent);
   await refreshProjectAgents(projectId);
+  await refreshAgentProfile(projectId, agentId);
+  await queryClient.invalidateQueries({
+    queryKey: projectQueryKeys.agent(projectId, agentId),
+  });
 }
 
 export async function deleteProjectAgent(
@@ -66,4 +102,8 @@ export async function deleteProjectAgent(
   await client.deleteAgent(agentId);
   await refreshProjectAgents(projectId);
   await refreshProjectSessions(projectId);
+  await refreshAgentProfile(projectId, agentId);
+  await queryClient.invalidateQueries({
+    queryKey: projectQueryKeys.agent(projectId, agentId),
+  });
 }

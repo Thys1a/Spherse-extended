@@ -62,7 +62,7 @@ describe("POST .../agents/:agentId/sessions/:id/summon route", () => {
       source: "summon",
       summon: { agentId: "a2", sessionId: "target-s1", agentName: "Builder" },
     });
-    expect(hub.startDetachedRun).toHaveBeenCalledWith("p1", sessionRuntime, "a2", "target-s1", "run the tests");
+    expect(hub.startDetachedRun).toHaveBeenCalledWith(sessionRuntime, "a2", "target-s1", "run the tests");
   });
 
   it("responds 404 for an unknown target slug", async () => {

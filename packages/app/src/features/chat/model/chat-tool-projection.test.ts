@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { ToolCall as AgentToolCall } from "@spherse/core";
-import { buildCardFromToolResult } from "./chat-tool-projection";
+import {
+  buildCardFromToolResult,
+  extractAssistantExtras,
+  extractMessageThinking,
+} from "./chat-tool-projection";
 
 function toolCall(name: string, args: Record<string, unknown> = {}): AgentToolCall {
   return { type: "toolCall", id: "tc1", name, arguments: args };
@@ -216,5 +220,61 @@ describe("buildCardFromToolResult", () => {
     it("returns undefined for unknown tool names", () => {
       expect(buildCardFromToolResult("write_file", toolCall("write_file"), { path: "a" })).toBeUndefined();
     });
+  });
+});
+
+describe("extractMessageThinking", () => {
+  it("joins thinking blocks across text/thinking/content shapes", () => {
+    expect(
+      extractMessageThinking([
+        { type: "thinking", thinking: "ab" },
+        { type: "text", text: "hi" },
+        { type: "thinking", text: "cd" },
+      ] as never),
+    ).toBe("abcd");
+  });
+
+  it("returns empty string without thinking blocks", () => {
+    expect(extractMessageThinking([{ type: "text", text: "hi" }] as never)).toBe("");
+    expect(extractMessageThinking("plain")).toBe("");
+  });
+});
+
+describe("extractAssistantExtras", () => {
+  it("projects thinking, truncated flag and diagnostics for a truncated turn", () => {
+    expect(
+      extractAssistantExtras(
+        {
+          content: [{ type: "thinking", thinking: "That" }],
+          stopReason: "length",
+          rawStopReason: "length",
+          provider: "custom-go",
+          model: "m",
+          usage: { input: 100, output: 1, cacheRead: 20, reasoning: 1 },
+          promptEstimate: 120,
+        } as never,
+        12,
+      ),
+    ).toEqual({
+      _thinking: "That",
+      _thinkingTruncated: true,
+      _diagnostics: {
+        provider: "custom-go",
+        model: "m",
+        stopReason: "length",
+        rawStopReason: "length",
+        promptTokens: 120,
+        outputTokens: 1,
+        reasoningTokens: 1,
+        promptEstimate: 120,
+        seq: 12,
+      },
+    });
+  });
+
+  it("returns no extras for a normal turn", () => {
+    expect(
+      extractAssistantExtras({ content: [{ type: "text", text: "hi" }], stopReason: "stop" } as never),
+    ).toEqual({});
   });
 });

@@ -26,6 +26,10 @@ export function createWindow(): BrowserWindow {
     mainWindow.loadFile(path.join(__dirname, "../../renderer/index.html"));
   }
 
+  mainWindow.on("closed", () => {
+    mainWindow = null;
+  });
+
   return mainWindow;
 }
 

@@ -26,13 +26,39 @@ export type { ProjectRuntime } from "./project-runtime.js";
 export type { ProjectManager } from "./project-manager.js";
 export type { SessionManager } from "./session/session-manager.js";
 export type { SessionEvent } from "./session/events.js";
+export type { CompactionOutcome } from "./kernel/turn-hooks.js";
 export type { SessionControlEvent } from "./session/types.js";
 export type { TriggerManager } from "./trigger/trigger-manager.js";
 export type { TriggerEventPayload } from "./trigger/trigger-manager.js";
 export type { TimerService } from "./trigger/timer-service.js";
 export { createProject } from "./factory.js";
-export type { DataStore, DataChangeEvent, OutlineResult, ReadResult, QueryResult, MutateResult, WriteResult } from "./capabilities/data/index.js";
+export type { DataStore, DataChangeEvent, ManifestFieldRule, ManifestFieldType, OutlineResult, ReadResult, QueryResult, MutateResult, WriteResult } from "./capabilities/data/index.js";
+export type { SideEffectRef, UndoOp, UndoRecord, TurnSideEffectSource } from "./tool-attribution.js";
+export { TURN_SIDE_EFFECTS_STORE_KEY } from "./tool-attribution.js";
 export { createDataStore } from "./capabilities/data/index.js";
+export type {
+  CardStore,
+  CardListItem,
+  CardMeta,
+  CardEntrySummary,
+  CardEntry,
+  CardSearchOpts,
+  CardSearchHit,
+  EntryPatch,
+} from "./capabilities/card/index.js";
+export {
+  createCardStore,
+  CardNotFoundError,
+  EntryNotFoundError,
+  InvalidFieldError,
+  CardFileCorruptedError,
+  CardTooLargeError,
+  CardWriteFailedError,
+  listAgentCardLinks,
+  addAgentCardLink,
+  removeAgentCardLink,
+  type AgentCardLink,
+} from "./capabilities/card/index.js";
 export { FileWriteMutex } from "./utils/file-write-mutex.js";
 export {
   VersionConflictError,

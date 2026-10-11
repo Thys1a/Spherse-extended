@@ -1,11 +1,12 @@
 import { EventEmitter } from "node:events";
 import type { SessionPort } from "../kernel/ports.js";
+import type { TurnEventPayload } from "../session/runtime.js";
 import type { ProjectStore } from "../store/project.js";
 import type { TriggerStore } from "../store/trigger.js";
 import type { TriggerEntry, TriggerLogEntry } from "../types.js";
 import { type Logger, createSilentLogger } from "../logger.js";
 import { TriggerScheduler, getNextCronDate, type TriggerRef } from "./scheduler.js";
-import { TriggerExecutor } from "./executor.js";
+import { TriggerExecutor, type TriggerFireOptions } from "./executor.js";
 
 export interface TriggerEventPayload {
   agentId: string;
@@ -23,6 +24,7 @@ export class TriggerManager extends EventEmitter {
   private readonly logger: Logger;
   private readonly scheduler: TriggerScheduler;
   private readonly executor: TriggerExecutor;
+  private readonly session: SessionPort;
 
   constructor(deps: {
     sessionRuntime: SessionPort;
@@ -30,6 +32,7 @@ export class TriggerManager extends EventEmitter {
     logger?: Logger;
   }) {
     super();
+    this.session = deps.sessionRuntime;
     this.projectStore = deps.projectStore;
     this.logger = deps.logger ?? createSilentLogger();
     this.executor = new TriggerExecutor({
@@ -70,17 +73,56 @@ export class TriggerManager extends EventEmitter {
     this.scheduler.onTimeTick();
   }
 
-  onUserEvent(eventName: string, payload: string): number {
+  onUserEvent(eventName: string, payload: string, source?: { sessionId?: string }): number {
     if (eventName.startsWith("sp:")) return 0;
+    const chain =
+      source?.sessionId !== undefined ? this.session.getTriggerChain?.(source.sessionId) : undefined;
+    if (source?.sessionId !== undefined && chain === undefined) {
+      this.logger.debug(
+        { eventName, sessionId: source.sessionId },
+        "emit without caller chain: source session has no live turn, starting a new chain",
+      );
+    }
+    return this.fireMatching(
+      eventName,
+      payload,
+      chain !== undefined ? { depth: chain.depth, chainId: chain.chainId } : undefined,
+    );
+  }
 
+  onInternalEvent(eventName: string, payload: TurnEventPayload): number {
+    if (!eventName.startsWith("sp:")) {
+      this.logger.debug({ eventName }, "internal event rejected: reserved sp: prefix required");
+      return 0;
+    }
+    if (eventName === "sp:turn-end" && payload.sessionId) {
+      this.executor.drainDeferred(payload.sessionId);
+    }
+    return this.fireMatching(eventName, JSON.stringify(payload), {
+      depth: payload.depth,
+      chainId: payload.chainId,
+    });
+  }
+
+  private fireMatching(
+    eventName: string,
+    payload: string,
+    opts?: TriggerFireOptions,
+  ): number {
     let fired = 0;
     for (const { agentId, agentName, entry } of this.readAllTriggers()) {
       if (entry.type !== "event" || !entry.enabled || !entry.eventName) continue;
       if (entry.eventName !== eventName) continue;
-      if (this.executor.isRunning(entry.id)) continue;
+      if (this.executor.isRunning(entry.id)) {
+        this.logger.debug(
+          { agentId, triggerId: entry.id, eventName },
+          "trigger skipped: same trigger already running",
+        );
+        continue;
+      }
 
       fired++;
-      void this.executor.fire(entry, agentId, agentName, payload, eventName);
+      void this.executor.fire(entry, agentId, agentName, payload, eventName, opts);
     }
     return fired;
   }

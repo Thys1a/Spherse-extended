@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { useNavigate } from "react-router";
 import { useProjectCtx } from "../../context/project-context";
 import { useApiClient } from "../../lib/use-connection";
 import { useProjectCatalog, useProjectSession } from "../../queries/project";
@@ -37,6 +38,7 @@ function DockedChatItem({
   entry: DockedChatEntry;
 }) {
   const { projectId } = useProjectCtx();
+  const navigate = useNavigate();
   const client = useApiClient(projectId);
   const { sessions, agents } = useProjectCatalog(projectId, client);
   const sessionQuery = useProjectSession(projectId, client, entry.sessionId);
@@ -99,6 +101,9 @@ function DockedChatItem({
         sessionId={entry.sessionId}
         agent={agent}
         hideHeader
+        onOpenSession={(targetSessionId) => {
+          navigate(`/project/${projectId}/chat/${targetSessionId}`);
+        }}
       />
     </div>,
     document.body,

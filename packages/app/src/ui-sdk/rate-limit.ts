@@ -1,4 +1,4 @@
-const MAX_CALLS_PER_MINUTE = 30;
+export const MAX_CALLS_PER_MINUTE = 300;
 const WINDOW_MS = 60_000;
 const timestamps: number[] = [];
 

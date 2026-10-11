@@ -232,6 +232,21 @@ describe("ws-bus /ws/bus handler", () => {
 
       expect(triggerManager.onUserEvent).toHaveBeenCalledWith("user-login", "");
     });
+
+    it("rejects forged emit-trigger-event with reserved sp: prefix", () => {
+      socket.simulateMessage(
+        Buffer.from(
+          JSON.stringify({
+            kind: "emit-trigger-event",
+            projectId: "p1",
+            eventName: "sp:assistant-message",
+            payload: "{}",
+          }),
+        ),
+      );
+
+      expect(triggerManager.onUserEvent).not.toHaveBeenCalled();
+    });
   });
 
   describe("fs-watch channel", () => {

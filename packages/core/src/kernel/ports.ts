@@ -21,6 +21,7 @@ export interface SessionPort {
   ): Promise<void>;
   abortSession(sessionId: string): void;
   sessionExists(agentId: string, sessionId: string): boolean;
+  getTriggerChain?(sessionId: string): { depth: number; chainId: string } | undefined;
 }
 
 export interface AgentStoreScope {

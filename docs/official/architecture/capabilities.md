@@ -18,10 +18,13 @@
 | `interaction` | `run_command`（逐次审批）、`ask_user`（问答门） |
 | `project-config` | `manage_project_config` 工具 |
 | `data` | `read_data` / `query_data` / `mutate_data` 工具（`*.data.json`） |
-| `trigger` | `emit_trigger_event` / `manage_trigger` 工具 + `TriggerManager` / `TimerService` 调度（time 型 10 分钟墙钟对齐轮询、event 型即时；磁盘为唯一真相源，每 tick 重读） |
+| `card` | `read_card` / `search_card` / `edit_card` 工具（`*.card.json` 世界书条目读写）+ worldbook contextProjector（agent 级卡逐轮扫描注入，token/条目双预算，agent 目录下 `*.card.json` 软链接跟随读取且目标须在项目内，见调优记录 `docs/dev/investigation/worldbook-order-tuning.md`） |
+| `rollback` | `rollback_turn` 工具（turn 级 undo：按 `turnSeq` 逆序恢复 data/card 写入前值，版本冲突转人工；读 `SessionManager` 经 stores registry 自注册的 side-effect 源，见 ADR-0013） |
+| `trigger` | `emit_trigger_event` / `manage_trigger` 工具 + `TriggerManager` / `TimerService` 调度（time 型 10 分钟墙钟对齐轮询、event 型即时；磁盘为唯一真相源，每 tick 重读）+ 回合事件订阅（`sp:user-message` / `sp:assistant-message` / `sp:turn-end`，仅内部可发，外部 bus 拒收 `sp:` 前缀防伪造；跨 turn 链透传 `{depth, chainId}`，depth 上限 5、同链同 trigger 去重；目标会话忙时 defer 到 turn 末重放一次，失败 turn 的 error turn-end 同样点燃订阅者） |
 | `mcp` | MCP server 连接、工具运行时合并、`<mcp-context>` 注入 |
 | `attachments` | 图片等附件处理器 |
-| `compaction` | 上下文压缩（afterTurn 计划、`compaction/applied` 重启点） |
+| `compaction` | 上下文压缩（afterTurn 计划 + 发送前预检、`compaction/applied` 重启点、`compactSession` 手动入口） |
+| `tool-output-budget` | toolResult 上下文预算（contextProjector 单条 32KB 截断，覆盖本地/MCP 工具；只改 wire 视图，不改落库） + 历史工具输出收缩（近 5 轮外占位） |
 | `time-perception` | `<time>` 感知前缀（streamDecorator） |
 | `memory` | `memory_save` / `memory_recall` + `<memory>` block（per-agent JSONL） |
 
@@ -81,6 +84,7 @@
   - `TriggerCapability.manager` / `timerService` → `ProjectRuntime.triggerManager` / `timerService`
   - `McpCapability.manager` / `invalidate` → deleteAgent 级联清理与配置失效
   - `DataStore` 由 factory 创建、构造注入 data capability、经 `ProjectRuntime.dataStore` 暴露给 `/data/*` 路由
+  - `CardStore` 同构：factory 创建、构造注入 card capability、经 `ProjectRuntime.cardStore` 暴露给 `/card/*` 路由
   - 新增此类能力需在 ProjectRuntime 补转发 getter
 - 能力间共享代码放 `capabilities/shared/`（如 llm-policy 被 fs / data / render 共用）；能力目录之间不互相 import
 

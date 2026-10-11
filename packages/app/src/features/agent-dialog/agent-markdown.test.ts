@@ -52,6 +52,25 @@ describe("parseAgentMarkdown", () => {
     expect(result.formData.context).toEqual([]);
   });
 
+  it("parses quickLinks array when present", () => {
+    const raw = "---\nname: Agent\nquickLinks:\n  - notes/world.md\n  - chars/hero.md\n---\n\nsystem prompt";
+    const result = parseAgentMarkdown(raw);
+    expect(result.formData.quickLinks).toEqual(["notes/world.md", "chars/hero.md"]);
+    expect(result.extraFrontmatter).not.toHaveProperty("quickLinks");
+  });
+
+  it("returns empty quickLinks when missing", () => {
+    const raw = "---\nname: Agent\n---\n\nsystem prompt";
+    const result = parseAgentMarkdown(raw);
+    expect(result.formData.quickLinks).toEqual([]);
+  });
+
+  it("filters non-string entries in the quickLinks array", () => {
+    const raw = "---\nname: Agent\nquickLinks:\n  - a.md\n  - 42\n---\n\nsystem prompt";
+    const result = parseAgentMarkdown(raw);
+    expect(result.formData.quickLinks).toEqual(["a.md"]);
+  });
+
   it("parses alias when present", () => {
     const raw = "---\nname: Agent\nalias: 小明\n---\n\nsystem prompt";
     const result = parseAgentMarkdown(raw);
@@ -83,28 +102,64 @@ describe("parseAgentMarkdown", () => {
   });
 
   it("keeps unknown extra frontmatter keys separate from form data", () => {
-    const raw = "---\nname: Agent\nautoRun: true\n---\n\nsystem prompt";
+    const raw = "---\nname: Agent\nautoRun: true\ncustomKey: 42\n---\n\nsystem prompt";
     const result = parseAgentMarkdown(raw);
-    expect(result.extraFrontmatter).toEqual({ autoRun: true });
+    expect(result.extraFrontmatter).toEqual({ autoRun: true, customKey: 42 });
   });
 
   it("parses model into form data as a first-class field", () => {
-    const raw = "---\nname: Agent\nmodel: gpt-4\n---\n\nsystem prompt";
+    const raw = "---\nname: Agent\nmodel: openai/gpt-4o\n---\n\nsystem prompt";
     const result = parseAgentMarkdown(raw);
-    expect(result.formData.model).toBe("gpt-4");
+    expect(result.formData.model).toBe("openai/gpt-4o");
     expect(result.extraFrontmatter).not.toHaveProperty("model");
   });
 
-  it("returns undefined model when missing", () => {
-    const raw = "---\nname: Agent\n---\n\nsystem prompt";
+  it("parses placeholder and greeting into form data", () => {
+    const raw = "---\nname: Agent\nplaceholder: 输入消息…\ngreeting: 你好，我是小助手\n---\n\nsystem prompt";
     const result = parseAgentMarkdown(raw);
-    expect(result.formData.model).toBeUndefined();
+    expect(result.formData.placeholder).toBe("输入消息…");
+    expect(result.formData.greeting).toBe("你好，我是小助手");
+    expect(result.extraFrontmatter).not.toHaveProperty("placeholder");
+    expect(result.extraFrontmatter).not.toHaveProperty("greeting");
+  });
+
+  it("returns undefined placeholder/greeting when missing or blank", () => {
+    const missing = parseAgentMarkdown("---\nname: Agent\n---\n\nsystem prompt");
+    expect(missing.formData.placeholder).toBeUndefined();
+    expect(missing.formData.greeting).toBeUndefined();
+    const blank = parseAgentMarkdown("---\nname: Agent\nplaceholder: '   '\n---\n\nsystem prompt");
+    expect(blank.formData.placeholder).toBeUndefined();
+  });
+
+  it("returns undefined model when missing or empty", () => {
+    expect(parseAgentMarkdown("---\nname: Agent\n---\n\np").formData.model).toBeUndefined();
+    expect(parseAgentMarkdown("---\nname: Agent\nmodel: ''\n---\n\np").formData.model).toBeUndefined();
+    expect(parseAgentMarkdown("---\nname: Agent\nmodel: 123\n---\n\np").formData.model).toBeUndefined();
   });
 
   it("returns undefined model when whitespace-only", () => {
     const raw = "---\nname: Agent\nmodel: '   '\n---\n\nsystem prompt";
     const result = parseAgentMarkdown(raw);
     expect(result.formData.model).toBeUndefined();
+  });
+
+  it("does not leak model into extra frontmatter", () => {
+    const raw = "---\nname: Agent\nmodel: openai/gpt-4o\n---\n\nsystem prompt";
+    const result = parseAgentMarkdown(raw);
+    expect(result.extraFrontmatter).not.toHaveProperty("model");
+  });
+
+  it("parses thinkingLevel when present", () => {
+    const raw = "---\nname: Agent\nthinkingLevel: high\n---\n\nsystem prompt";
+    const result = parseAgentMarkdown(raw);
+    expect(result.formData.thinkingLevel).toBe("high");
+  });
+
+  it("ignores invalid thinkingLevel values", () => {
+    const raw = "---\nname: Agent\nthinkingLevel: extreme\n---\n\nsystem prompt";
+    const result = parseAgentMarkdown(raw);
+    expect(result.formData.thinkingLevel).toBeUndefined();
+    expect(result.extraFrontmatter).not.toHaveProperty("thinkingLevel");
   });
 
   it("handles CRLF line endings", () => {
@@ -168,6 +223,24 @@ describe("parseAgentMarkdown", () => {
     expect(result.formData.yolo).toBe(false);
   });
 
+  it("parses allowInlineHtml true when present", () => {
+    const raw = "---\nname: Agent\nallowInlineHtml: true\n---\n\nsystem prompt";
+    const result = parseAgentMarkdown(raw);
+    expect(result.formData.allowInlineHtml).toBe(true);
+  });
+
+  it("returns false allowInlineHtml when field is missing", () => {
+    const raw = "---\nname: Agent\n---\n\nsystem prompt";
+    const result = parseAgentMarkdown(raw);
+    expect(result.formData.allowInlineHtml).toBe(false);
+  });
+
+  it("does not leak allowInlineHtml into extra frontmatter", () => {
+    const raw = "---\nname: Agent\nallowInlineHtml: true\n---\n\nsystem prompt";
+    const result = parseAgentMarkdown(raw);
+    expect(result.extraFrontmatter).not.toHaveProperty("allowInlineHtml");
+  });
+
   it("does not leak yolo into extra frontmatter", () => {
     const raw = "---\nname: Agent\nyolo: true\n---\n\nsystem prompt";
     const result = parseAgentMarkdown(raw);
@@ -178,7 +251,7 @@ describe("parseAgentMarkdown", () => {
 describe("buildAgentMarkdown", () => {
   it("writes tools array into frontmatter", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", tools: ["read_file"], context: [], systemPrompt: "hello", yolo: false },
+      { name: "Agent", tools: ["read_file"], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false },
       {},
       false,
     );
@@ -189,16 +262,36 @@ describe("buildAgentMarkdown", () => {
 
   it("omits context when empty", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", tools: [], context: [], systemPrompt: "hello", yolo: false },
+      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false },
       {},
       false,
     );
     expect(md).not.toContain("context");
   });
 
+  it("writes quickLinks into frontmatter and round-trips", () => {
+    const md = buildAgentMarkdown(
+      { name: "Agent", tools: [], context: [], quickLinks: ["notes/world.md"], systemPrompt: "hello", yolo: false, allowInlineHtml: false },
+      {},
+      false,
+    );
+    expect(md).toContain("quickLinks");
+    const parsed = parseAgentMarkdown(md);
+    expect(parsed.formData.quickLinks).toEqual(["notes/world.md"]);
+  });
+
+  it("omits quickLinks from frontmatter when empty", () => {
+    const md = buildAgentMarkdown(
+      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false },
+      {},
+      false,
+    );
+    expect(md).not.toContain("quickLinks");
+  });
+
   it("preserves empty tools array through a round-trip", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", tools: [], context: [], systemPrompt: "hello", yolo: false },
+      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false },
       {},
       false,
     );
@@ -208,7 +301,7 @@ describe("buildAgentMarkdown", () => {
 
   it("writes alias into frontmatter when set", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", alias: "小明", tools: [], context: [], systemPrompt: "hello", yolo: false },
+      { name: "Agent", alias: "小明", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false },
       {},
       false,
     );
@@ -218,7 +311,7 @@ describe("buildAgentMarkdown", () => {
 
   it("omits alias from frontmatter when empty", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", alias: "", tools: [], context: [], systemPrompt: "hello", yolo: false },
+      { name: "Agent", alias: "", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false },
       {},
       false,
     );
@@ -227,16 +320,39 @@ describe("buildAgentMarkdown", () => {
 
   it("omits alias from frontmatter when whitespace-only", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", alias: "   ", tools: [], context: [], systemPrompt: "hello", yolo: false },
+      { name: "Agent", alias: "   ", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false },
       {},
       false,
     );
     expect(md).not.toContain("alias");
   });
 
+  it("round-trips placeholder and greeting through frontmatter", () => {
+    const md = buildAgentMarkdown(
+      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, placeholder: "输入消息…", greeting: "你好" },
+      {},
+      false,
+    );
+    expect(md).toContain("placeholder");
+    expect(md).toContain("greeting");
+    const parsed = parseAgentMarkdown(md);
+    expect(parsed.formData.placeholder).toBe("输入消息…");
+    expect(parsed.formData.greeting).toBe("你好");
+  });
+
+  it("omits blank placeholder/greeting from frontmatter", () => {
+    const md = buildAgentMarkdown(
+      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, placeholder: "  ", greeting: "" },
+      {},
+      false,
+    );
+    expect(md).not.toContain("placeholder");
+    expect(md).not.toContain("greeting");
+  });
+
   it("preserves alias through a round-trip with extra frontmatter", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", alias: "小明", tools: ["read_file"], context: [], systemPrompt: "hello", yolo: false },
+      { name: "Agent", alias: "小明", tools: ["read_file"], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false },
       { autoRun: true },
       false,
     );
@@ -248,7 +364,7 @@ describe("buildAgentMarkdown", () => {
 
   it("writes model into frontmatter when set", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", tools: [], context: [], systemPrompt: "hello", yolo: false, model: "gpt-4" },
+      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, model: "gpt-4" },
       {},
       false,
     );
@@ -260,7 +376,7 @@ describe("buildAgentMarkdown", () => {
 
   it("omits model from frontmatter when not set", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", tools: [], context: [], systemPrompt: "hello", yolo: false },
+      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false },
       {},
       false,
     );
@@ -269,7 +385,7 @@ describe("buildAgentMarkdown", () => {
 
   it("omits model from frontmatter when whitespace-only", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", tools: [], context: [], systemPrompt: "hello", yolo: false, model: "   " },
+      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, model: "   " },
       {},
       false,
     );
@@ -278,12 +394,53 @@ describe("buildAgentMarkdown", () => {
 
   it("does not double-write model when it is both form data and extra", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", tools: [], context: [], systemPrompt: "hello", yolo: false, model: "gpt-4" },
+      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, model: "gpt-4" },
       { model: "claude" },
       false,
     );
     const parsed = parseAgentMarkdown(md);
     expect(parsed.formData.model).toBe("gpt-4");
+  });
+
+  it("writes model and thinkingLevel into frontmatter when set", () => {
+    const md = buildAgentMarkdown(
+      {
+        name: "Agent",
+        model: "openai/gpt-4o",
+        thinkingLevel: "high",
+        tools: [],
+        context: [],
+        quickLinks: [],
+        systemPrompt: "hello",
+        yolo: false,
+        allowInlineHtml: false,
+      },
+      {},
+      false,
+    );
+    const parsed = parseAgentMarkdown(md);
+    expect(parsed.formData.model).toBe("openai/gpt-4o");
+    expect(parsed.formData.thinkingLevel).toBe("high");
+  });
+
+  it("omits model and thinkingLevel when unset", () => {
+    const md = buildAgentMarkdown(
+      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false },
+      {},
+      false,
+    );
+    expect(md).not.toContain("model:");
+    expect(md).not.toContain("thinkingLevel:");
+  });
+
+  it("drops a previously set model when cleared", () => {
+    const md = buildAgentMarkdown(
+      { name: "Agent", model: undefined, thinkingLevel: undefined, tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false },
+      {},
+      false,
+    );
+    expect(md).not.toContain("model:");
+    expect(md).not.toContain("thinkingLevel:");
   });
 
   it("writes timePerception when enabled", () => {
@@ -292,8 +449,9 @@ describe("buildAgentMarkdown", () => {
         name: "Agent",
         tools: [],
         context: [],
+        quickLinks: [],
         systemPrompt: "hello",
-        yolo: false,
+        yolo: false, allowInlineHtml: false,
         timePerception: {
           enabled: true,
           epochMs: 1700000000000,
@@ -322,8 +480,9 @@ describe("buildAgentMarkdown", () => {
         name: "Agent",
         tools: [],
         context: [],
+        quickLinks: [],
         systemPrompt: "hello",
-        yolo: false,
+        yolo: false, allowInlineHtml: false,
         timePerception: { enabled: false, epochMs: 1700000000000 },
       },
       {},
@@ -334,7 +493,7 @@ describe("buildAgentMarkdown", () => {
 
   it("writes yolo into frontmatter when true", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", tools: [], context: [], systemPrompt: "hello", yolo: true },
+      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: true, allowInlineHtml: false },
       {},
       false,
     );
@@ -345,10 +504,30 @@ describe("buildAgentMarkdown", () => {
 
   it("omits yolo from frontmatter when false", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", tools: [], context: [], systemPrompt: "hello", yolo: false },
+      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false },
       {},
       false,
     );
     expect(md).not.toContain("yolo");
+  });
+
+  it("writes allowInlineHtml into frontmatter when true", () => {
+    const md = buildAgentMarkdown(
+      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: true },
+      {},
+      false,
+    );
+    expect(md).toContain("allowInlineHtml");
+    const parsed = parseAgentMarkdown(md);
+    expect(parsed.formData.allowInlineHtml).toBe(true);
+  });
+
+  it("omits allowInlineHtml from frontmatter when false", () => {
+    const md = buildAgentMarkdown(
+      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false },
+      {},
+      false,
+    );
+    expect(md).not.toContain("allowInlineHtml");
   });
 });

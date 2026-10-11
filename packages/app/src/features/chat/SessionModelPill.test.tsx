@@ -83,26 +83,50 @@ const baseSession: SessionInfo = {
 };
 
 describe("SessionModelPill", () => {
-  it("shows the session model when set", async () => {
+  it("shows the session model with its provider", async () => {
     renderPill({ ...baseSession, model: "openai/o1" });
-    expect(await screen.findByRole("button", { name: "O1" })).toBeInTheDocument();
+    const button = await screen.findByRole("button", { name: /O1/ });
+    expect(button).toBeInTheDocument();
+    expect(button.textContent).toContain("O1");
+    expect(button.textContent).toContain("OpenAI");
   });
 
   it("falls back to the agent model and then the global default", async () => {
     renderPill(baseSession);
-    expect(await screen.findByRole("button", { name: "O1" })).toBeInTheDocument();
+    const button = await screen.findByRole("button", { name: /O1/ });
+    expect(button.textContent).toContain("OpenAI");
+  });
+
+  it("groups dropdown options by provider", async () => {
+    getSupportedProviders.mockResolvedValueOnce({
+      ...catalog,
+      anthropic: {
+        id: "anthropic",
+        name: "Anthropic",
+        auth: { type: "apiKey", envKeys: [] },
+        keyless: true,
+        models: [
+          { id: "claude", name: "Claude", provider: "anthropic", api: "anthropic", reasoning: false, input: ["text"] },
+        ],
+      },
+    });
+    renderPill({ ...baseSession, model: "openai/gpt-4o" });
+    await user.click(await screen.findByRole("button", { name: /GPT-4o/ }));
+    expect((await screen.findAllByText("OpenAI")).length).toBeGreaterThanOrEqual(1);
+    expect(await screen.findByText("Anthropic")).toBeInTheDocument();
+    expect(await screen.findByRole("menuitem", { name: "Claude" })).toBeInTheDocument();
   });
 
   it("switches the session model from the dropdown", async () => {
     renderPill({ ...baseSession, model: "openai/gpt-4o" });
-    await user.click(await screen.findByRole("button", { name: "GPT-4o" }));
+    await user.click(await screen.findByRole("button", { name: /GPT-4o/ }));
     await user.click(await screen.findByRole("menuitem", { name: "O1" }));
     expect(setSessionModel).toHaveBeenCalledWith("a1", "s1", "openai/o1");
   });
 
   it("clears the override through the follow-default item", async () => {
     renderPill({ ...baseSession, model: "openai/o1" });
-    await user.click(await screen.findByRole("button", { name: "O1" }));
+    await user.click(await screen.findByRole("button", { name: /O1/ }));
     await user.click(await screen.findByRole("menuitem", { name: "跟随默认" }));
     expect(setSessionModel).toHaveBeenCalledWith("a1", "s1", "");
   });
@@ -110,7 +134,7 @@ describe("SessionModelPill", () => {
   it("shows a toast when switching fails", async () => {
     setSessionModel.mockRejectedValueOnce(new Error("offline"));
     renderPill({ ...baseSession, model: "openai/gpt-4o" });
-    await user.click(await screen.findByRole("button", { name: "GPT-4o" }));
+    await user.click(await screen.findByRole("button", { name: /GPT-4o/ }));
     await user.click(await screen.findByRole("menuitem", { name: "O1" }));
     await vi.waitFor(() => expect(toast.error).toHaveBeenCalled());
     expect(vi.mocked(toast.error).mock.calls.at(-1)?.[0]).toContain("切换模型失败");
