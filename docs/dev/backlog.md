@@ -83,6 +83,10 @@
 - [ ] **内联 HTML 沙箱加固（upstream merge review I6/U1）**：fence 合成卡片与 tool 卡片共用 `HtmlCardRenderer`（`sandbox="allow-scripts allow-same-origin"` + srcDoc 同源），LLM 正文 fence 可达同等权限；核验确认未扩大既有暴露面（tool 卡片本就同权限，均为 LLM 产出 HTML）。方向：holistic sandbox review，并补测试钉住 `<script>`/外链行为。
 - [ ] **summon 目标预校验 + 跳转恢复（upstream merge review M3/C4）**：`>> ghost` 到服务端 404 才报错；`>>` 开头普通文本无法发出；`onOpenSession` 跳转链已移除。方向：客户端 agents 列表预校验、`>>` 转义规则进 i18n、恢复 summon 卡片点击跳转。
 - [ ] **TTS 跨会话串音窄竞态（upstream merge review U4，低优先）**：`tts-controller` 为模块级单例；turn complete 恰落在会话切换 cleanup/重订阅之间时可能朗读旧会话文本；主窗 + 浮窗两实例共享单 synth 互打断。方向：朗读前用 store 当前 sessionId 二次校验，或判定下沉到 controller。
+- [ ] **重落地聊天 AI 回复删除回填（R6.3，upstream merge 丢失）**：`deleteAiTurn`（withdraw 末轮 + composer 草稿回填、不重发）随 `66fef68` 落地，后在 upstream merge `9a9e9b6`（ADR-0014）port 时丢失，当前树只有 withdraw/editAndResend；phase2 plan T6 的 `[x]` 已过期。方向：在新运行时分层（outbound-actions/session-store + AssistantBubble 入口）按 design 原语义重实现并补单测，withdraw/edit/delete 互斥语义沿用。参见 `docs/dev/features/2026-09-19-game-engine-phase2/plan.md` T6 与审计 `docs/dev/investigation/2026-10-11-engine-float-swipe-audit.md` §二。
+- [ ] **实现 swipe 多候选（R6.2）**：方向已锁定（分支带走 active 版、切换记新事件，见 `docs/dev/features/2026-09-23-swipe/plan.md`），实现零代码，4 个开放问题未关。方向：reducer 分支状态 + 持久化 + WS 事件（contracts + chat-wire-projector）+ swipe UI；前置：先与本节「会话分支」项定义关系（合并/复用其虚拟 seq 映射/并行两套），否则两套分支语义冲突。
+- [ ] **原生子窗口浮窗（native-float 拆分之一）**：当前两浮窗域是主窗口内 Portal overlay（`FloatingContentBrowserContainer`/`FloatingChatContainer`），`pinned` 只是 z-index，拖拽钳在窗口内。方向：Electron 原生子窗口（`parent: mainWindow` + `alwaysOnTop`）+ `http://localhost:{serverPort}` 承载；renderer 新增顶层浮窗路由（上提至 ProjectScope 之外）；IPC 改多窗口；关闭策略（`window-all-closed` 即退，主窗关后浮窗孤儿）；位置持久化复用现有 `byProject` store。参见 `docs/dev/features/2026-09-19-native-float/design.md` §一§三。
+- [ ] **接通 File System Access API（native-float 拆分之二）**：打包版 `file://` opaque origin、跨源 iframe、零权限放行三层拦截（见 design §二）。方向：与原生子窗口同载体（localhost 安全上下文）；主进程 `session.setPermissionRequestHandler` 按路径/来源白名单放行 `fileSystem` 权限；HtmlCard/srcDoc 场景另需 `allow-modals` 沙箱安全评估；简易浏览器内跨源页仍不可用（spec 硬限制，只能走顶层/子窗口打开）。参见同上 §二§三。
 
 ## 基础设施
 

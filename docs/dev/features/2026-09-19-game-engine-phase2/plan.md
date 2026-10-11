@@ -151,6 +151,8 @@ import { FindBar } from "../../components/find-bar/FindBar";   // content-browse
 
 ## Task 6: R6.1 panic 锁定 + R6.3 删除回填 [x]
 
+**状态追记（2026-10-11 审计）**：R6.1 已落地但范围扩大为 `failed/fatal` 双态（`index.tsx:282`，plan 只写 reconnectFailed）；R6.3 `deleteAiTurn` 在 upstream merge `9a9e9b6`（ADR-0014）port 时丢失，当前树无删除入口，本 `[x]` 对 R6.3 已过期，待按 backlog 重落地项恢复。详见 `docs/dev/investigation/2026-10-11-engine-float-swipe-audit.md` §二。
+
 **依赖**：无（可与 T1–T4 并行；与 T5 同改 `MessageItem`，见上）。
 
 **改动文件**：
