@@ -5,6 +5,7 @@ import { estimateTokens, readCurrentTokens } from "../../context/token-estimate.
 import { isTruncatedTurn, readUsageTotal } from "../../context/truncated-turn.js";
 import type { TurnEventAppender } from "../../kernel/turn-hooks.js";
 import type { CompactionOutcome } from "../../kernel/turn-hooks.js";
+import { MESSAGE_EVENT_TYPES, type SessionEventType } from "../../session/events.js";
 import { deriveMessageEntries } from "../../session/fold.js";
 import { summarizeForCompaction, type SummarizeDeps } from "./summarize.js";
 
@@ -111,6 +112,23 @@ export async function maybeCompactLog(
   }
 
   try {
+    // Idempotency: if no message content arrived after the newest
+    // compaction/applied, there is nothing new to compact — appending
+    // another digest would only duplicate coverage. (Restore-safe: the
+    // latest digest stays authoritative, and fold keeps using it.)
+    let lastAppliedSeq = -1;
+    let lastMessageSeq = -1;
+    for (const event of eventLog.events) {
+      if (event.type === "compaction/applied") {
+        lastAppliedSeq = event.seq;
+      } else if (MESSAGE_EVENT_TYPES.has(event.type as SessionEventType)) {
+        lastMessageSeq = event.seq;
+      }
+    }
+    if (lastAppliedSeq >= 0 && lastMessageSeq <= lastAppliedSeq) {
+      return { applied: false };
+    }
+
     const summary = await summarizeForCompaction(agent, messages, sessionId, deps, {
       currentTokens,
     });

@@ -29,7 +29,8 @@ afterAll(() => {
 describe("attachment processors via capability", () => {
   it("processors come from the attachments capability, not a global registry", async () => {
     const processors = attachmentsCapability().attachmentProcessors ?? [];
-    expect(processors.map((p) => p.type)).toContain("image");
+    // image + text (generic file attachments); the set grows with the capability, not a global singleton
+    expect(processors.map((p) => p.type).sort()).toEqual(["image", "text"]);
 
     const msg = await prepareAttachmentUserMessage(
       "look",
@@ -37,7 +38,7 @@ describe("attachment processors via capability", () => {
       tmpDir,
       processors,
     );
-    expect(processors).toHaveLength(1);
+    expect(processors).toHaveLength(2);
     expect(msg.content).toHaveLength(2);
     expect(msg.content[1]).toMatchObject({ type: "image", mimeType: "image/png" });
   });

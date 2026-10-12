@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import path from "node:path";
 import type { BrowserWindow } from "electron";
 
 const { dialogMock, fsMock, unsafeMock, serverMock, translateMock, settingsMock } = vi.hoisted(() => {
@@ -183,11 +184,11 @@ describe("open-sample-project guard", () => {
   it("copies and registers when the parent directory is safe", async () => {
     await expect(invoke("open-sample-project", { sampleId: "sample" })).resolves.toEqual({
       projectId: "pid-1",
-      path: "/parent/Demo",
+      path: path.join("/parent", "Demo"),
     });
-    expect(fsMock.mkdirSync).toHaveBeenCalledWith("/parent/Demo", { recursive: true });
-    expect(fsMock.cpSync).toHaveBeenCalledWith("/src/demo", "/parent/Demo", { recursive: true });
-    expect(serverMock.registerProject).toHaveBeenCalledWith("/parent/Demo", { lastOpened: expect.any(String) });
+    expect(fsMock.mkdirSync).toHaveBeenCalledWith(path.join("/parent", "Demo"), { recursive: true });
+    expect(fsMock.cpSync).toHaveBeenCalledWith("/src/demo", path.join("/parent", "Demo"), { recursive: true });
+    expect(serverMock.registerProject).toHaveBeenCalledWith(path.join("/parent", "Demo"), { lastOpened: expect.any(String) });
   });
 
   it("returns null without copying when the user declines the unsafe location", async () => {

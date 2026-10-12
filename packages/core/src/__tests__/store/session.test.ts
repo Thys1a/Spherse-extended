@@ -505,9 +505,11 @@ describe("SessionStore", () => {
         .get(legacySessionId) as { id: number };
       legacy.close();
 
-      const colsBefore = new Database(legacyDbPath, { readonly: true })
+      const probeBefore = new Database(legacyDbPath, { readonly: true });
+      const colsBefore = probeBefore
         .prepare("PRAGMA table_info(messages)")
         .all() as Array<{ name: string }>;
+      probeBefore.close();
       expect(colsBefore.map((c) => c.name)).not.toContain("message_content_schema_version");
 
       const migrated = new SessionStore(legacyDbPath, agentId);
@@ -516,10 +518,15 @@ describe("SessionStore", () => {
         expect(messages).toHaveLength(1);
         expect(messages[0]).toEqual(legacyMessage);
 
-        const versionRow = new Database(legacyDbPath, { readonly: true })
-          .prepare("SELECT message_content_schema_version FROM messages WHERE id = ?")
-          .get(legacyRowId.id) as { message_content_schema_version: number };
-        expect(versionRow.message_content_schema_version).toBe(1);
+        const probeAfter = new Database(legacyDbPath, { readonly: true });
+        try {
+          const versionRow = probeAfter
+            .prepare("SELECT message_content_schema_version FROM messages WHERE id = ?")
+            .get(legacyRowId.id) as { message_content_schema_version: number };
+          expect(versionRow.message_content_schema_version).toBe(1);
+        } finally {
+          probeAfter.close();
+        }
       } finally {
         migrated.close();
       }

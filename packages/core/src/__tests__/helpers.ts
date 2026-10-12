@@ -14,7 +14,21 @@ export async function createTempProject(): Promise<string> {
 }
 
 export async function cleanupDir(dir: string): Promise<void> {
-  await fs.rm(dir, { recursive: true, force: true });
+  // Windows teardown after killing a child can take seconds (taskkill +
+  // console-subsystem release have been observed near ~7s on slow hosts);
+  // poll generously before giving up. Harmless on POSIX, where the first
+  // attempt normally succeeds.
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 30; attempt++) {
+    try {
+      await fs.rm(dir, { recursive: true, force: true });
+      return;
+    } catch (err) {
+      lastError = err;
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+  }
+  throw lastError;
 }
 
 export async function writeFile(dir: string, relativePath: string, content: string): Promise<void> {

@@ -204,7 +204,12 @@ describe("createSession action", () => {
       { agentId: "agent-1", float: true },
       { client: makeClient(async () => []), projectId: "proj-1", navigate, hostKind: "electron" } as any,
     );
-    expect(mockSetFloatingChat).toHaveBeenCalledWith("proj-1", { sessionId: "session-1" });
+    expect(mockSetFloatingChat).toHaveBeenCalledWith(
+      "proj-1",
+      // full default state (position/size/mode) comes from getDefaultFloatingState;
+      // the handler's job is routing to the right project + session
+      expect.objectContaining({ sessionId: "session-1" }),
+    );
     expect(navigate).not.toHaveBeenCalled();
   });
 
