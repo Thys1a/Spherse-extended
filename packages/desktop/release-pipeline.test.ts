@@ -29,11 +29,18 @@ const release = loadWorkflow("build-and-release.yml");
 const pages = loadWorkflow("deploy-pages.yml");
 const deployWeb = release.jobs["deploy-web"];
 
-describe("build-and-release.yml: triggers (branch-driven, no tags)", () => {
-  it("only triggers on dev/main branch pushes", () => {
+describe("build-and-release.yml: triggers (branch-driven + manual)", () => {
+  it("triggers on dev/main branch pushes", () => {
     const triggers = release.on ?? release["on"] ?? release.true;
     expect(triggers.push?.branches).toEqual(["dev", "main"]);
-    expect(triggers.workflow_dispatch).toBeUndefined();
+  });
+
+  it("offers a manual dispatch with channel/version inputs", () => {
+    const triggers = release.on ?? release["on"] ?? release.true;
+    const inputs = triggers.workflow_dispatch?.inputs ?? {};
+    expect(inputs.channel?.type).toBe("choice");
+    expect(inputs.channel?.options).toEqual(["beta", "stable"]);
+    expect(inputs.version).toBeDefined();
   });
 });
 
@@ -54,6 +61,13 @@ describe("build-and-release.yml: meta job resolves channel versions", () => {
     expect(run).toContain("-beta");
     expect(run).toContain("plain X.Y.Z");
     expect(run).toContain("Changes.md");
+  });
+
+  it("manual dispatch resolves channel/version from inputs", () => {
+    const run: string = meta.steps.find((s: any) => s.id === "ver")?.run ?? "";
+    expect(run).toContain("workflow_dispatch");
+    expect(run).toContain("inputs.channel");
+    expect(run).toContain("inputs.version");
   });
 });
 

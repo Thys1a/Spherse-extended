@@ -35,6 +35,9 @@ CI（`.github/workflows/build-and-release.yml`）自动完成 verify 门禁、�
    - beta：合入 `dev` 后 `git push origin dev` → CI 出 `v<base>-beta` pre-release（同名旧 beta 自动删了重建，可反复推）。
    - 正式版：合入 `main` 后 `git push origin main` → CI 用 `Changes.md` 建 `v<base>` 正式版；`package.json` 带后缀会直接失败，`Changes.md` 缺失也会失败。
 
+3b. **手动触发（Actions 开启后可用）**
+   Actions 页 → Build & Release → Run workflow：选分支、选 `channel`（beta/stable）、可选填 `version`（空则取 `package.json`）。用于 Actions 刚开启时补发，或不推代码单独发一版。stable 同样要求纯版本号 + `Changes.md` 存在。
+
 4. **确认 CI 触发**
    提示用户可在 GitHub Actions 页面查看构建进度。CI 会（beta 跳过 Pages）：
    - verify 门禁（ubuntu 上跑 `npm run verify`：lint + build + typecheck + 单测 + i18n；失败则不建 release、不打包）
