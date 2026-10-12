@@ -2,7 +2,7 @@
 
 - 日期：2026-10-12
 - 状态：已立项，待方案
-- 版本：v1.0.x（新增项）
+- 版本：v1.0.1（新增项）
 - 来源：上游 `mengrru/Spherse` v0.6.0（2026-10-11 发布）；本 fork README「未来计划」
 
 ## 范围
@@ -16,5 +16,5 @@
 
 ## 关联
 
-- 需逐项评估与本 fork 现有实现的冲突（特别注意 settings server 化、模板市场与欢迎页 tab 部分）
+- 需逐项评估与本 fork 现有实现/未来计划的冲突（特别注意 settings server 化、模板市场与欢迎页 tab 部分）
 - 上游 Release 页：`https://github.com/mengrru/Spherse/releases`

@@ -2,7 +2,7 @@
 
 - 日期：2026-10-12
 - 状态：已立项，待方案
-- 版本：v1.0.x
+- 版本：v1.0.2
 - 来源：`docs/dev/investigation/2026-10-06-cross-project/09-token-usage-feasibility.md`（结论可行，建议先做 A1 + B1）
 
 ## 范围
