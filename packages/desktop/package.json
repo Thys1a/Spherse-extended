@@ -1,11 +1,11 @@
 {
   "name": "@spherse/desktop",
   "productName": "Spherse",
-  "version": "1.0.0-alpha",
+  "version": "1.0.0",
   "type": "module",
   "main": "dist/main/index.js",
   "author": "Spherse <noreply@spherse.app>",
-  "homepage": "https://github.com/mengrru/Spherse",
+  "homepage": "https://github.com/Thys1a/Spherse-extended",
   "scripts": {
     "build": "electron-vite build",
     "dev": "electron-vite dev",

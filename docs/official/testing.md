@@ -73,7 +73,7 @@ npm run verify:e2e    # verify + desktop 全量 E2E（合并/发布前）
 ```
 
 - 单包快速回路：`npm test --workspace=packages/<pkg>`（app 组件测试依赖 i18n/presets 等 dist，跨包改动后先 `npm run build`）。
-- pre-commit 钩子执行 `npm run lint`；PR（非 docs-only）上 CI 跑 `npm run verify` 与全量 E2E；tag push 发版跑 verify 与 arch 匹配 job 上的打包 smoke（发版不跑 E2E，拦截在 PR 阶段）。
+- pre-commit 钩子执行 `npm run lint`；PR（非 docs-only）上 CI 跑 `npm run verify` 与全量 E2E；分支 push 发版（dev→beta、main→stable）跑 verify 与 arch 匹配 job 上的打包 smoke（发版不跑 E2E，拦截在 PR 阶段）。
 
 ## 维护规则
 

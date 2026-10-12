@@ -105,7 +105,7 @@ describe("electron-builder 可执行文件名 / linux 配置（Linux 发版）",
     expect(config.executableName).toBe(config.productName);
   });
 
-  it("linux.target 含 AppImage（publish-oss 的 latest.json linux.x64 与 landing Linux 下载依赖它）", () => {
+  it("linux.target 含 AppImage（GitHub release 资产与 landing Linux 下载依赖它）", () => {
     expect(config.linux?.target).toContain("AppImage");
   });
 

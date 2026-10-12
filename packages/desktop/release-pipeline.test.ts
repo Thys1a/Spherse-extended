@@ -6,12 +6,13 @@ import { describe, expect, it } from "vitest";
 /**
  * Release pipeline 结构测试。
  *
- * 发版流水线（build-and-release.yml）必须在发布完成后联动触发 web 版部署
+ * 发版流水线（build-and-release.yml）分支驱动：push dev 出 beta 预发布，
+ * push main 出正式版；发版完成后联动触发 web 版部署
  * （deploy-pages.yml，GitHub Pages：landing + web）。
  * 这条链路最容易出现的回归是「静默失败」：
  * - 少了 `actions: write` 权限 → gh workflow run 直接 403，发版照常"成功"；
  * - dispatch 目标 deploy-pages.yml 丢了 workflow_dispatch 触发器 → 无法被触发；
- * - 条件写错 → 重发布（workflow_dispatch）意外重刷 Pages，或 tag 发版漏触发。
+ * - 条件写错 → beta 误刷 Pages，或 stable 漏触发。
  * 以上全部用 YAML 结构断言锁死。
  */
 
@@ -28,20 +29,121 @@ const release = loadWorkflow("build-and-release.yml");
 const pages = loadWorkflow("deploy-pages.yml");
 const deployWeb = release.jobs["deploy-web"];
 
-describe("build-and-release.yml: deploy-web job", () => {
-  it("存在 deploy-web job，且排在 publish-oss 与 publish-changelog 之后", () => {
-    expect(deployWeb).toBeDefined();
-    expect(deployWeb.needs).toEqual(["publish-oss", "publish-changelog"]);
-    // 链路锚点：两个前置 job 必须仍然存在，否则 needs 悬空
-    expect(release.jobs["publish-oss"]).toBeDefined();
-    expect(release.jobs["publish-changelog"]).toBeDefined();
+describe("build-and-release.yml: triggers (branch-driven + manual)", () => {
+  it("triggers on dev/main branch pushes", () => {
+    const triggers = release.on ?? release["on"] ?? release.true;
+    expect(triggers.push?.branches).toEqual(["dev", "main"]);
   });
 
-  it("仅在 tag push 且 publish-oss / publish-changelog 均成功时触发（workflow_dispatch 重发布不重刷 Pages）", () => {
+  it("offers a manual dispatch with channel/version inputs", () => {
+    const triggers = release.on ?? release["on"] ?? release.true;
+    const inputs = triggers.workflow_dispatch?.inputs ?? {};
+    expect(inputs.channel?.type).toBe("choice");
+    expect(inputs.channel?.options).toEqual(["beta", "stable"]);
+    expect(inputs.version).toBeDefined();
+  });
+});
+
+describe("build-and-release.yml: meta job resolves channel versions", () => {
+  const meta = release.jobs["meta"];
+
+  it("declares version/tag/prerelease/stable outputs", () => {
+    expect(meta).toBeDefined();
+    expect(meta.outputs?.version).toBeDefined();
+    expect(meta.outputs?.tag).toBeDefined();
+    expect(meta.outputs?.prerelease).toBeDefined();
+    expect(meta.outputs?.stable).toBeDefined();
+  });
+
+  it("dev resolves to -beta prerelease, main requires plain version + Changes.md", () => {
+    const run: string = meta.steps.find((s: any) => s.id === "ver")?.run ?? "";
+    expect(run).toContain('"dev"');
+    expect(run).toContain("-beta");
+    expect(run).toContain("plain X.Y.Z");
+    expect(run).toContain("Changes.md");
+  });
+
+  it("manual dispatch resolves channel/version from inputs", () => {
+    const run: string = meta.steps.find((s: any) => s.id === "ver")?.run ?? "";
+    expect(run).toContain("workflow_dispatch");
+    expect(run).toContain("inputs.channel");
+    expect(run).toContain("inputs.version");
+  });
+});
+
+describe("build-and-release.yml: create-release job", () => {
+  const createRelease = release.jobs["create-release"];
+
+  it("beta deletes the previous same-tag release then creates a pre-release", () => {
+    const steps: any[] = createRelease.steps ?? [];
+    const del = steps.find((s: any) =>
+      String(s.run ?? "").includes("gh release delete"),
+    );
+    expect(del).toBeDefined();
+    const beta = steps.find((s: any) =>
+      String(s.run ?? "").includes("--prerelease"),
+    );
+    expect(beta).toBeDefined();
+  });
+
+  it("stable creates the release from Changes.md without --prerelease", () => {
+    const steps: any[] = createRelease.steps ?? [];
+    const stable = steps.find((s: any) =>
+      String(s.run ?? "").includes("--notes-file Changes.md"),
+    );
+    expect(stable).toBeDefined();
+    expect(String(stable.run)).not.toContain("--prerelease");
+  });
+});
+
+describe("build-and-release.yml: build job uses meta version (no tag parsing)", () => {
+  const build = release.jobs["build"];
+
+  it("maps meta version/tag into job env", () => {
+    expect(build.env?.RELEASE_VERSION).toBe(
+      "${{ needs.meta.outputs.version }}",
+    );
+    expect(build.env?.RELEASE_TAG).toBe("${{ needs.meta.outputs.tag }}");
+  });
+
+  it("syncs the app version from the env", () => {
+    const sync = (build.steps ?? []).find((s: any) =>
+      String(s.run ?? "").includes("npm version"),
+    );
+    expect(sync).toBeDefined();
+    expect(String(sync.run)).toContain("$RELEASE_VERSION");
+  });
+
+  it("uploads reference the env tag, not GITHUB_REF_NAME", () => {
+    const dump = JSON.stringify(build.steps ?? []);
+    expect(dump).not.toContain("GITHUB_REF_NAME#v");
+    expect(dump).toContain("$RELEASE_TAG");
+  });
+});
+
+describe("build-and-release.yml: no OSS distribution", () => {
+  it("has no publish-oss / publish-changelog jobs", () => {
+    expect(release.jobs["publish-oss"]).toBeUndefined();
+    expect(release.jobs["publish-changelog"]).toBeUndefined();
+  });
+
+  it("mentions no ossutil/OSS bucket", () => {
+    expect(JSON.stringify(release)).not.toContain("ossutil");
+    expect(JSON.stringify(release)).not.toContain("OSS_BUCKET");
+  });
+});
+
+describe("build-and-release.yml: deploy-web job", () => {
+  it("exists and needs meta + build", () => {
+    expect(deployWeb).toBeDefined();
+    expect(deployWeb.needs).toEqual(["meta", "build"]);
+  });
+
+  it("only triggers on stable push (beta never refreshes Pages)", () => {
     const condition: string = deployWeb.if;
     expect(condition).toContain("github.event_name == 'push'");
-    expect(condition).toContain("needs.publish-oss.result == 'success'");
-    expect(condition).toContain("needs.publish-changelog.result == 'success'");
+    expect(condition).toContain("needs.build.result == 'success'");
+    expect(condition).toContain("needs.meta.outputs.stable == 'true'");
   });
 
   it("持有 actions: write 权限（GITHUB_TOKEN 级联 workflow_dispatch 的前提）", () => {
@@ -51,7 +153,7 @@ describe("build-and-release.yml: deploy-web job", () => {
     expect(permissions?.contents).toBe("read");
   });
 
-  it("用 gh CLI 触发 deploy-pages.yml，ref 指向发版 tag 且 include_web=true", () => {
+  it("用 gh CLI 触发 deploy-pages.yml，ref 指向分支且 include_web=true", () => {
     const step = deployWeb.steps.find((s: any) => String(s.run ?? "").includes("gh workflow run"));
     expect(step).toBeDefined();
 
@@ -61,55 +163,6 @@ describe("build-and-release.yml: deploy-web job", () => {
     expect(run).toContain("-f include_web=true");
 
     expect(step.env?.GH_TOKEN).toBe("${{ secrets.GITHUB_TOKEN }}");
-  });
-});
-
-describe("build-and-release.yml: publish-changelog job", () => {
-  const publishChangelog = release.jobs["publish-changelog"];
-
-  it("串行在 publish-oss 之后执行，避免 changelog 先于 latest.json 更新（版本不一致窗口）", () => {
-    expect(publishChangelog.needs).toBe("publish-oss");
-    const condition: string = publishChangelog.if;
-    expect(condition).toContain("always()");
-    expect(condition).toContain("needs.publish-oss.result == 'success'");
-  });
-
-  it("用 scripts/build-changelog.mjs 生成 changelog 并上传到 spherse/changelog.json", () => {
-    const generate = publishChangelog.steps.find(
-      (s: any) => String(s.run ?? "").includes("scripts/build-changelog.mjs"),
-    );
-    expect(generate).toBeDefined();
-    expect(generate.env?.GH_TOKEN).toBe("${{ secrets.GITHUB_TOKEN }}");
-
-    const upload = publishChangelog.steps.find(
-      (s: any) =>
-        String(s.uses ?? "").startsWith("peaceiris") === false &&
-        String(s.run ?? "").includes("ossutil cp") &&
-        String(s.run ?? "").includes("spherse/changelog.json"),
-    );
-    expect(upload).toBeDefined();
-    expect(upload.env?.OSS_BUCKET).toBe("${{ secrets.OSS_BUCKET }}");
-  });
-});
-
-describe("build-and-release.yml: publish-oss job 的 linux 资产（可选键语义）", () => {
-  const publishOss = release.jobs["publish-oss"];
-  const discover = publishOss.steps.find((s: any) => s.name === "Discover asset filenames");
-  const generate = publishOss.steps.find((s: any) => s.name === "Generate and upload latest.json");
-
-  it("AppImage 发现容错缺失（2>/dev/null || true），不得设为硬性必需", () => {
-    // workflow_dispatch 重发 pre-Linux 时代的旧 tag 时 release 里没有 AppImage，
-    // 硬失败会让重发布流程挂掉（与 win_arm64_exe 同语义，缺失时省略 linux 键）
-    expect(discover).toBeDefined();
-    expect(String(discover.run)).toMatch(/linux_appimage=.*2>\/dev\/null \|\| true/s);
-    expect(String(discover.run)).not.toContain("Required Linux AppImage");
-  });
-
-  it("latest.json 的 linux.x64 按存在与否增量合并（可选键）", () => {
-    expect(generate).toBeDefined();
-    const run: string = generate.run;
-    expect(run).toContain("LINUX_APPIMAGE_NAME");
-    expect(run).toContain("'.linux = {x64:$url}'");
   });
 });
 

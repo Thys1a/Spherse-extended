@@ -1,25 +1,90 @@
-name: Build & Release
+﻿name: Build & Release
 
+# 分支驱动发版：
+# - push dev   → beta 通道：<base>-beta，GitHub pre-release，只发包
+# - push main  → stable 通道：<base>（要求纯 X.Y.Z），GitHub 正式版（latest），文案取仓库根 Changes.md，
+#   随后联动部署 web 版（landing + web）
+# - 手动触发（workflow_dispatch）：自选 channel（beta/stable）与可选版本号，用于 Actions 开启后补发
+# 版本号唯一来源：packages/desktop/package.json（写纯 X.Y.Z）。
+# 本地指定版本：DIST_VERSION=X.Y.Z npm run dist:alpha（见 scripts/sync-desktop-version.mjs）。
+# 注意：本仓库不用 OSS 分发（上游渠道，已移除 publish-oss / publish-changelog；
+# 更新检测与下载页直接读本仓库的 GitHub Releases）。
 on:
   push:
-    tags:
-      - "v*"
+    branches: [dev, main]
   workflow_dispatch:
     inputs:
-      tag:
-        description: "Existing release tag to re-publish to OSS (e.g. v1.2.3)"
+      channel:
+        description: "Release channel: beta = pre-release (re-runnable), stable = formal release from Changes.md"
         required: true
+        type: choice
+        options: [beta, stable]
+      version:
+        description: "Base version X.Y.Z (defaults to packages/desktop/package.json)"
+        required: false
         type: string
 
 permissions:
   contents: write
 
 jobs:
+  # 版本解析：push 按分支定通道（dev→beta，main→stable）；
+  # 手动触发按 inputs.channel 定通道，inputs.version 为空时取 package.json。
+  meta:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+      tag: ${{ steps.ver.outputs.tag }}
+      prerelease: ${{ steps.ver.outputs.prerelease }}
+      stable: ${{ steps.ver.outputs.stable }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: ver
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            channel="${{ inputs.channel }}"
+            input_ver="${{ inputs.version }}"
+          elif [[ "${{ github.ref_name }}" == "dev" ]]; then
+            channel="beta"
+            input_ver=""
+          else
+            channel="stable"
+            input_ver=""
+          fi
+          if [[ -n "$input_ver" ]]; then
+            raw="$input_ver"
+          else
+            raw=$(node -p "require('./packages/desktop/package.json').version")
+          fi
+          base="${raw%%-*}"
+          if ! [[ "$base" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::base version must be X.Y.Z, got: $raw"
+            exit 1
+          fi
+          if [[ "$channel" == "beta" ]]; then
+            echo "version=${base}-beta" >> "$GITHUB_OUTPUT"
+            echo "tag=v${base}-beta" >> "$GITHUB_OUTPUT"
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+            echo "stable=false" >> "$GITHUB_OUTPUT"
+          else
+            if [[ "$raw" != "$base" ]]; then
+              echo "::error::stable releases require a plain X.Y.Z version (got $raw)"
+              exit 1
+            fi
+            if [[ ! -f Changes.md ]]; then
+              echo "::error::Changes.md is required as the stable release notes"
+              exit 1
+            fi
+            echo "version=${base}" >> "$GITHUB_OUTPUT"
+            echo "tag=v${base}" >> "$GITHUB_OUTPUT"
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+            echo "stable=true" >> "$GITHUB_OUTPUT"
+          fi
+
   # 发版门禁：lint + build + typecheck + 全 workspace 单测 + i18n check。
-  # 失败则 create-release/build 均不启动（不产生空 draft release，避免阻塞同 tag 重打）。
-  # workflow_dispatch 重发布跳过：原 tag push 时已通过验证，无需重复拖慢重发布。
+  # 失败则 create-release/build 均不启动（不产生空 release，避免阻塞同版本重推）。
   verify:
-    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -39,19 +104,35 @@ jobs:
         run: npm run verify
 
   create-release:
-    needs: verify
-    if: github.event_name == 'push'
+    needs: [meta, verify]
     runs-on: ubuntu-latest
+    env:
+      TAG: ${{ needs.meta.outputs.tag }}
     steps:
       - uses: actions/checkout@v7
-      - name: Create draft release for tag
+      # beta 允许反复推送覆盖：先删同名旧 release（含 tag），保证重推不卡住；
+      # stable 通道禁止覆盖——同名 release 已存在则直接失败，防止误覆盖正式版。
+      - name: Delete previous beta release (dev only)
+        if: needs.meta.outputs.prerelease == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release create "${GITHUB_REF_NAME}" --title "${GITHUB_REF_NAME}" --generate-notes
+        run: gh release delete "$TAG" --cleanup-tag -y || true
+      - name: Create beta pre-release
+        if: needs.meta.outputs.prerelease == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release create "$TAG" --title "$TAG" --prerelease --generate-notes
+      - name: Create stable release from Changes.md
+        if: needs.meta.outputs.stable == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release create "$TAG" --title "$TAG" --notes-file Changes.md
 
   build:
-    needs: create-release
-    if: github.event_name == 'push'
+    needs: [meta, create-release]
+    env:
+      RELEASE_VERSION: ${{ needs.meta.outputs.version }}
+      RELEASE_TAG: ${{ needs.meta.outputs.tag }}
     strategy:
       fail-fast: false
       matrix:
@@ -92,10 +173,10 @@ jobs:
       - name: Install dependencies (skip native compilation)
         run: npm ci --ignore-scripts
 
-      - name: Sync app version from tag
+      - name: Sync app version from release meta
         shell: bash
         working-directory: packages/desktop
-        run: npm version "${GITHUB_REF_NAME#v}" --no-git-tag-version --allow-same-version
+        run: npm version "$RELEASE_VERSION" --no-git-tag-version --allow-same-version
 
       - name: Build desktop chain (i18n -> presets -> sdk -> core -> server -> desktop)
         run: npm run build:desktop
@@ -141,9 +222,9 @@ jobs:
           SPHERSE_SMOKE: "1"
         run: |
           if [[ "$RUNNER_OS" == "Linux" ]]; then
-            xvfb-run -a bash -c 'SPHERSE_SMOKE_VERSION="${GITHUB_REF_NAME#v}" npx playwright test -c playwright.config.ts e2e/packaged-smoke.spec.ts'
+            xvfb-run -a bash -c 'SPHERSE_SMOKE_VERSION="$RELEASE_VERSION" npx playwright test -c playwright.config.ts e2e/packaged-smoke.spec.ts'
           else
-            SPHERSE_SMOKE_VERSION="${GITHUB_REF_NAME#v}" npx playwright test -c playwright.config.ts e2e/packaged-smoke.spec.ts
+            SPHERSE_SMOKE_VERSION="$RELEASE_VERSION" npx playwright test -c playwright.config.ts e2e/packaged-smoke.spec.ts
           fi
 
       - name: Upload macOS dmg
@@ -152,8 +233,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          mv release/*.dmg "release/Spherse-${GITHUB_REF_NAME#v}-${{ matrix.arch-label }}.dmg"
-          gh release upload "${GITHUB_REF_NAME}" release/*.dmg --clobber
+          mv release/*.dmg "release/Spherse-${RELEASE_VERSION}-${{ matrix.arch-label }}.dmg"
+          gh release upload "$RELEASE_TAG" release/*.dmg --clobber
 
       - name: Upload Windows installer
         if: runner.os == 'Windows'
@@ -162,172 +243,43 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         # 只上传本 job arch 后缀的安装包：x64/arm64 两个 matrix job 并发运行，
-        # 若按 release/*.exe 全量上传，双 arch 时产物同名会并发 --clobber 互踩（曾致 HTTP 404）
-        run: gh release upload "${GITHUB_REF_NAME}" "release/*-${{ matrix.target-arch }}.exe" --clobber
+        # 若按 release/*.exe 全量上传，双 arch 时产物同名会并发 --clobber 互踩（曾致 HTTP 404）。
+        # 同时上传 blockmap（electron-updater 增量下载）与 latest.yml（in-app 更新 feed）：
+        # electron-updater 在 Windows 上 channel 文件名恒为 ${channel}.yml，双 arch feed 需两个文件，
+        # arm64 job 的 yml 重命名为 latest-arm64.yml 避免与 x64 job 的 latest.yml 同名互踩。
+        run: |
+          shopt -s nullglob
+          exes=(release/*-${{ matrix.target-arch }}.exe)
+          blockmaps=(release/*-${{ matrix.target-arch }}.exe.blockmap)
+          ymls=()
+          if [[ -f release/latest.yml ]]; then
+            if [[ "${{ matrix.target-arch }}" == "arm64" ]]; then
+              mv release/latest.yml release/latest-arm64.yml
+              ymls=(release/latest-arm64.yml)
+            else
+              ymls=(release/latest.yml)
+            fi
+          fi
+          gh release upload "$RELEASE_TAG" "${exes[@]}" "${blockmaps[@]}" "${ymls[@]}" --clobber
 
       - name: Upload Linux packages
         if: runner.os == 'Linux'
         working-directory: packages/desktop
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload "${GITHUB_REF_NAME}" release/*.AppImage release/*.deb --clobber
-
-  publish-oss:
-    needs: build
-    if: >-
-      always() &&
-      (needs.build.result == 'success' || github.event_name == 'workflow_dispatch')
-    runs-on: ubuntu-latest
-    env:
-      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 1
-
-      - name: Resolve version
-        id: ver
-        run: echo "version=${RELEASE_TAG#v}" >> "$GITHUB_OUTPUT"
-
-      - name: Install ossutil
-        run: |
-          curl -fsSL -o /tmp/ossutil https://gosspublic.alicdn.com/ossutil/1.7.18/ossutil64
-          chmod +x /tmp/ossutil
-
-      - name: Download release assets
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          mkdir -p ./oss-out
-          gh release download "${RELEASE_TAG}" -D ./oss-out \
-            --pattern '*.dmg' --pattern '*.exe' --pattern '*.AppImage' --clobber
-
-      - name: Discover asset filenames
-        id: assets
-        run: |
-          arm64_dmg=$(basename "$(ls ./oss-out/*arm64*.dmg | head -n1)")
-          intel_dmg=$(basename "$(ls ./oss-out/*intel*.dmg | head -n1)")
-          win_exe=$(basename "$(ls ./oss-out/*.exe | grep -v 'arm64' | head -n1)")
-          win_arm64_exe=$(basename "$(ls ./oss-out/*arm64*.exe 2>/dev/null | head -n1)" 2>/dev/null || true)
-          linux_appimage=$(basename "$(ls ./oss-out/*.AppImage 2>/dev/null | head -n1)" 2>/dev/null || true)
-          if [[ -z "$arm64_dmg" || -z "$intel_dmg" ]]; then
-            echo "::error::Required macOS dmg assets not found in release (arm64/intel)"
-            exit 1
-          fi
-          if [[ -z "$win_exe" ]]; then
-            echo "::error::Required x64 Windows installer not found in release assets"
-            exit 1
-          fi
-          # linux_appimage 与 win_arm64_exe 同为可选：workflow_dispatch 重发旧 tag 时，
-          # pre-Linux 时代的 release 没有 AppImage，缺失时省略 latest.json 的 linux 键
-          # 而非硬失败（读取端对缺失键有回退）。
-          {
-            echo "arm64_dmg=${arm64_dmg}"
-            echo "intel_dmg=${intel_dmg}"
-            echo "win_exe=${win_exe}"
-            echo "win_arm64_exe=${win_arm64_exe}"
-            echo "linux_appimage=${linux_appimage}"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Upload installers to OSS (versioned path)
-        env:
-          OSS_ACCESS_KEY_ID: ${{ secrets.OSS_ACCESS_KEY_ID }}
-          OSS_ACCESS_KEY_SECRET: ${{ secrets.OSS_ACCESS_KEY_SECRET }}
-          OSS_ENDPOINT: ${{ secrets.OSS_ENDPOINT }}
-          OSS_BUCKET: ${{ secrets.OSS_BUCKET }}
-        run: |
-          VER="${{ steps.ver.outputs.version }}"
-          for f in ./oss-out/*; do
-            /tmp/ossutil cp "$f" "oss://${OSS_BUCKET}/spherse/releases/${VER}/$(basename "$f")" \
-              -e "$OSS_ENDPOINT" \
-              -i "$OSS_ACCESS_KEY_ID" -k "$OSS_ACCESS_KEY_SECRET" \
-              --force -u
-          done
-
-      - name: Generate and upload latest.json
-        env:
-          OSS_ACCESS_KEY_ID: ${{ secrets.OSS_ACCESS_KEY_ID }}
-          OSS_ACCESS_KEY_SECRET: ${{ secrets.OSS_ACCESS_KEY_SECRET }}
-          OSS_ENDPOINT: ${{ secrets.OSS_ENDPOINT }}
-          OSS_BUCKET: ${{ secrets.OSS_BUCKET }}
-          OSS_PUBLIC_BASE_URL: ${{ vars.OSS_PUBLIC_BASE_URL }}
-        run: |
-          VER="${{ steps.ver.outputs.version }}"
-          BASE="${OSS_PUBLIC_BASE_URL}/spherse/releases/${VER}"
-          WIN_ARM64_NAME="${{ steps.assets.outputs.win_arm64_exe }}"
-          LINUX_APPIMAGE_NAME="${{ steps.assets.outputs.linux_appimage }}"
-          # 基础清单只含必需键，可选键（win.arm64 / linux.x64）按存在与否增量合并，
-          # 避免 arm64 × linux 的组合分支膨胀
-          jq -n \
-            --arg version "$VER" \
-            --arg arm64 "${BASE}/${{ steps.assets.outputs.arm64_dmg }}" \
-            --arg intel "${BASE}/${{ steps.assets.outputs.intel_dmg }}" \
-            --arg x64 "${BASE}/${{ steps.assets.outputs.win_exe }}" \
-            '{version:$version, mac:{arm64:$arm64, intel:$intel}, win:{x64:$x64}}' \
-            > /tmp/latest.json
-          if [[ -n "$WIN_ARM64_NAME" ]]; then
-            jq --arg url "${BASE}/${WIN_ARM64_NAME}" '.win.arm64 = $url' \
-              /tmp/latest.json > /tmp/latest.json.tmp && mv /tmp/latest.json.tmp /tmp/latest.json
-          fi
-          if [[ -n "$LINUX_APPIMAGE_NAME" ]]; then
-            jq --arg url "${BASE}/${LINUX_APPIMAGE_NAME}" '.linux = {x64:$url}' \
-              /tmp/latest.json > /tmp/latest.json.tmp && mv /tmp/latest.json.tmp /tmp/latest.json
-          fi
-          jq empty /tmp/latest.json
-          /tmp/ossutil cp /tmp/latest.json "oss://${OSS_BUCKET}/spherse/latest.json" \
-            -e "$OSS_ENDPOINT" \
-            -i "$OSS_ACCESS_KEY_ID" -k "$OSS_ACCESS_KEY_SECRET" \
-            --force -u
-
-  # 全量重建 changelog：拉取全部 GitHub release notes，筛掉 docs/chore/infra 条目并
-  # 结构化后上传 OSS spherse/changelog.json。串行在 publish-oss 之后而非与 build 并行：
-  # latest.json 更新完成后才写入新版本 changelog，避免发版期间（或 build 失败后）
-  # changelog 首条与 latest.json 版本不一致。
-  # workflow_dispatch 重发布时 publish-oss 也会执行，本 job 随之运行（全量重建幂等，
-  # 可用于修复/刷新历史 changelog）。
-  publish-changelog:
-    needs: publish-oss
-    if: always() && needs.publish-oss.result == 'success'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 22.19
-
-      - name: Generate changelog
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: node scripts/build-changelog.mjs --repo "${GITHUB_REPOSITORY}" --output /tmp/changelog.json
-
-      - name: Install ossutil
-        run: |
-          curl -fsSL -o /tmp/ossutil https://gosspublic.alicdn.com/ossutil/1.7.18/ossutil64
-          chmod +x /tmp/ossutil
-
-      - name: Upload changelog to OSS
-        env:
-          OSS_ACCESS_KEY_ID: ${{ secrets.OSS_ACCESS_KEY_ID }}
-          OSS_ACCESS_KEY_SECRET: ${{ secrets.OSS_ACCESS_KEY_SECRET }}
-          OSS_ENDPOINT: ${{ secrets.OSS_ENDPOINT }}
-          OSS_BUCKET: ${{ secrets.OSS_BUCKET }}
-        run: |
-          /tmp/ossutil cp /tmp/changelog.json "oss://${OSS_BUCKET}/spherse/changelog.json" \
-            -e "$OSS_ENDPOINT" \
-            -i "$OSS_ACCESS_KEY_ID" -k "$OSS_ACCESS_KEY_SECRET" \
-            --force -u
+        run: gh release upload "$RELEASE_TAG" release/*.AppImage release/*.deb --clobber
 
   # 发版完成后联动部署 web 版（GitHub Pages：landing + web）。
+  # 仅 stable 通道执行（push main 或手动 stable）：beta 预发布不刷 Pages。
   # GITHUB_TOKEN 触发的事件默认不会级联 workflow run，但 workflow_dispatch 是官方例外，
   # 因此用 gh workflow run（需要 actions: write 权限）触发 deploy-pages.yml；
-  # ref 用发版 tag，保证 Pages 内容与本次发版代码一致。
+  # stable 通道 ref 用分支名（push 时刻即发版 commit，内容一致）。
   deploy-web:
-    needs: [publish-oss, publish-changelog]
+    needs: [meta, build]
     if: >-
       github.event_name == 'push' &&
-      needs.publish-oss.result == 'success' &&
-      needs.publish-changelog.result == 'success'
+      needs.build.result == 'success' &&
+      needs.meta.outputs.stable == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read

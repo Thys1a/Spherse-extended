@@ -329,7 +329,7 @@ spherse/
 │   │   │   ├── fix-path.ts           # 打包版 PATH 修复：仅 packaged + darwin/linux，spawn 用户登录 shell（$SHELL -lic 'echo $PATH'，TERM=dumb，3s 超时）拉取登录 shell 的 PATH，剥离 ANSI/控制字节后按去重保序前置合并进 process.env.PATH（dev/test/win32 no-op，失败保留原 PATH 不阻断启动）；修复 GUI 进程不继承 shell PATH 导致 stdio MCP server（uvx/npx/python）找不到可执行文件
 │   │   │   ├── crash-log.ts          # 崩溃取证落盘（userData/logs/crash.jsonl）+ renderer 自愈决策纯函数（reload/recreate/退避）
 │   │   │   ├── preload.ts            # contextBridge，IPC 白名单（含更新检查 main→renderer 事件订阅）
-│   │   │   ├── updater.ts            # 更新检测：OSS latest.json 清单 + compareVersions + 平台 downloadUrl 解析（electron-updater 仅保留 Windows in-app 下载 API，feed 已废弃）、silent 检测不改写交互状态、startAutoUpdateChecks 调度（启动 5s + 每小时 tick，≥24h 且用户活动时静默检测）
+│   │   │   ├── updater.ts            # 更新检测：本仓库 GitHub Releases（latest 非预发布）+ compareVersions + 平台 downloadUrl 解析（electron-updater 仅保留 Windows in-app 下载 API，feed 已废弃）、silent 检测不改写交互状态、startAutoUpdateChecks 调度（启动 5s + 每小时 tick，≥24h 且用户活动时静默检测）
 │   │   │   ├── sample-projects.ts    # 内置示例项目资源路径解析（dev/packaged）+ manifest 读取（供 onboarding「打开示例项目」）
 │   │   │   ├── unsafe-location.ts    # 项目路径「易失区」判定：getUnsafeZoneRoot 计算更新时会被覆盖清空的目录（win32 = dirname(process.execPath)，NSIS 卸载器 RMDir /r $INSTDIR 作用域；darwin = .app bundle 目录；dev/linux 无，dev 下 SPHERSE_UNSAFE_ZONE env 可覆盖供 E2E 指定），isInsideUnsafeZone 经 @spherse/core 的 isPathInside 判断（打开/示例项目 IPC 弹警告框用）
 │   │   │   ├── ipc/                  # IPC handler 注册，按业务域拆分
@@ -392,7 +392,7 @@ spherse/
 │   │   │   └── themes/              # 轮播切换时动态加载的主题 CSS（覆盖 --sp-* 变量）
 │   │   └── src/
 │   │       ├── styles.css            # Tailwind v4 + --sp-* token 体系（从 app 精简复制）
-│   │       ├── lib/                  # release.ts（OSS latest.json 解析 + 平台/架构检测选安装包）、changelog.ts（OSS changelog.json 拉取）、urls.ts（GitHub 仓库 URL 常量派生）及单测
+│   │       ├── lib/                  # release.ts（GitHub Releases 解析 + 平台/架构检测选安装包）、changelog.ts（GitHub releases 列表拉取）、urls.ts（GitHub 仓库 URL 常量派生）及单测
 │   │       ├── i18n/                 # landing 专属 i18n（复用 @spherse/i18n 类型与 locale 工具，自建 catalog）
 │   │       │   ├── index.ts          # useLandingI18n hook + localStorage 持久化
 │   │       │   └── locales/          # zh-CN / zh-TW / en 三语
@@ -401,7 +401,7 @@ spherse/
 │   │       └── data/                # 轮播与 feature 配置数据
 ├── scripts/
 │   ├── rebuild-native.mjs            # Electron native dependency rebuild
-│   └── build-changelog.mjs           # 发版 CI 用：GitHub releases 全量拉取 → 筛选/结构化 → changelog.json（纯函数导出供 desktop 测试）
+│   └── build-changelog.mjs           # GitHub releases 拉取 → 筛选/结构化 → changelog.json（纯函数导出供 desktop 测试；发版 CI 已不再调用）
 ├── docs/
 │   ├── official/                     # 正式项目文档（始终与代码同步；索引与写作规范见 README.md）
 │   │   ├── README.md                 # 按任务路由的索引 + official 写作规范
