@@ -173,6 +173,21 @@ Spherse treats the project folder as a complete distribution unit. Copy or share
 
 Spherse ships as a macOS, Windows, and Linux desktop app. A token-protected Web client can connect mobile devices to the desktop runtime. Quick Tunnel mode can establish a Cloudflare Tunnel automatically, while manual public endpoints are also supported.
 
+## Release notes
+
+### v1.0.0 (current)
+
+- Automatic world-book injection with shared links, agent long-term memory with turn rollback
+- Validated structured data, trigger turn events, context compaction and budgets
+- Slash commands with agent summoning, attachments, TTS, tabbed windows, mobile PWA
+
+## Roadmap
+
+- Merge the latest upstream release (v0.6.0): server-side settings, template marketplace, welcome tab, and more, merged after per-difference review
+- World-book position fix with larger budgets, session-level profiles, token display, state data links
+- Worldbuilding aids, restricted SDK writes, AI output parsing, language learning with info cards, memory upgrades
+- Script-running triggers, in-app backup, agent roundtable, swipe alternatives
+
 ## Local development
 
 Requires Node.js 22.19+.
