@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import path from "node:path";
 
 vi.mock("@spherse/core", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@spherse/core")>();
@@ -28,7 +29,10 @@ function createRuntime(projectId = "p1", root = "/proj/p1") {
   return {
     projectId,
     projectManager: {
-      getRootPath: () => root,
+      // Production getRootPath() always returns a resolved absolute path
+      // (ProjectStore opens with a resolved root); resolve here so the mock
+      // matches on Windows too, where resolve("/proj/p1") gains a drive letter.
+      getRootPath: () => path.resolve(root),
       regenerateProjectId: vi.fn(),
     },
     sessionRuntime: {

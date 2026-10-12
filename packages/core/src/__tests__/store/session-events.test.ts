@@ -244,8 +244,9 @@ describe("SessionStore events", () => {
       legacy.close();
 
       const reopened = new SessionStore(legacyDbPath, agentId);
+      const probe = new Database(legacyDbPath, { readonly: true });
       try {
-        const cols = new Database(legacyDbPath, { readonly: true })
+        const cols = probe
           .prepare("PRAGMA table_info(sessions)")
           .all() as Array<{ name: string }>;
         const names = cols.map((c) => c.name);
@@ -253,11 +254,12 @@ describe("SessionStore events", () => {
         expect(names).toContain("fork_seq");
         expect(names).toContain("migrated_at");
 
-        const tables = new Database(legacyDbPath, { readonly: true })
+        const tables = probe
           .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='events'")
           .all();
         expect(tables).toHaveLength(1);
       } finally {
+        probe.close();
         reopened.close();
       }
     });

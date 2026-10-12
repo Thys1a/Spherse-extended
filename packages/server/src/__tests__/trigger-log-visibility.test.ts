@@ -221,7 +221,9 @@ describe("direct trigger run is visible through the session event log (log-deriv
     });
     expect(reattached).toContainEqual({
       type: "message_end",
-      message: assistantMessage,
+      // persist stamps promptEstimate onto the message; match the dispatched
+      // content without coupling to stamped metadata (cf. objectContaining above)
+      message: expect.objectContaining(assistantMessage),
       seq: expect.any(Number),
     });
   });

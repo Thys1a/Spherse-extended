@@ -90,7 +90,8 @@ describe("AgentRunner attachment handling", () => {
     fs.writeFileSync(path.join(attachmentsDir, "photo.png"), PNG_BYTES);
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    await runtime.shutdown().catch(() => {});
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 

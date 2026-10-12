@@ -118,7 +118,8 @@ describe("AgentRunner context engineering", () => {
     };
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    await runtime.shutdown().catch(() => {});
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
@@ -722,6 +723,9 @@ Agent with time perception.`,
     const agent = agentOf(runner);
     const originalPrompt = agent.state.systemPrompt;
 
+    // Mirror ProjectStore.deleteAgent: close the store before dropping it
+    // from the map, otherwise its SQLite handle stays open (EPERM on rm).
+    agentStore.close();
     (deps.projectStore as any)._agents.delete(agentId);
 
     await expect(runnerOf(runner).applyReload()).resolves.toBeUndefined();
@@ -940,7 +944,8 @@ describe("AgentRunner yolo mode", () => {
     };
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    await runtime.shutdown().catch(() => {});
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
@@ -1084,7 +1089,8 @@ describe("AgentRunner in-flight ownership", () => {
     };
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    await runtime.shutdown().catch(() => {});
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 

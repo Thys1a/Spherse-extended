@@ -79,7 +79,12 @@ describe("openSession action", () => {
       { sessionId: "s1", float: true },
       makeCtx("electron"),
     );
-    expect(mockSetFloatingChat).toHaveBeenCalledWith("proj-1", { sessionId: "s1" });
+    expect(mockSetFloatingChat).toHaveBeenCalledWith(
+      "proj-1",
+      // full default state (position/size/mode) comes from getDefaultFloatingState;
+      // the handler's job is routing to the right project + session
+      expect.objectContaining({ sessionId: "s1" }),
+    );
     expect(mockNavigate).not.toHaveBeenCalled();
   });
 

@@ -31,6 +31,15 @@ describe("clampTimeout", () => {
 describe("createRunCommandTool", () => {
   let projectRoot: string;
 
+  // The tool intentionally runs POSIX sh on unix and PowerShell on Windows
+  // (see buildSpawnTarget); shell snippets below must work on both.
+  const isWindows = process.platform === "win32";
+  const okCmd = isWindows ? "[Console]::Write('hello')" : "printf hello";
+  const errCmd = isWindows
+    ? "[Console]::Error.WriteLine('oops'); exit 3"
+    : "echo oops 1>&2; exit 3";
+  const sleepCmd = isWindows ? "Start-Sleep -Seconds 5" : "sleep 5";
+
   beforeEach(async () => {
     projectRoot = await createTempProject();
   });
@@ -40,7 +49,7 @@ describe("createRunCommandTool", () => {
 
   it("captures stdout and exit code on success", async () => {
     const tool = createRunCommandTool(projectRoot);
-    const result = await tool.execute("tc1", { command: "printf hello" }, undefined, undefined);
+    const result = await tool.execute("tc1", { command: okCmd }, undefined, undefined);
     const details = result.details as CommandCardDetails;
     expect(details.status).toBe("completed");
     expect(details.exitCode).toBe(0);
@@ -49,7 +58,7 @@ describe("createRunCommandTool", () => {
 
   it("reports error status on non-zero exit with stderr", async () => {
     const tool = createRunCommandTool(projectRoot);
-    const result = await tool.execute("tc1", { command: "echo oops 1>&2; exit 3" }, undefined, undefined);
+    const result = await tool.execute("tc1", { command: errCmd }, undefined, undefined);
     const details = result.details as CommandCardDetails;
     expect(details.status).toBe("error");
     expect(details.exitCode).toBe(3);
@@ -67,7 +76,7 @@ describe("createRunCommandTool", () => {
 
   it("kills the process on timeout and marks timedOut", async () => {
     const tool = createRunCommandTool(projectRoot);
-    const result = await tool.execute("tc1", { command: "sleep 5", timeout_ms: 150 }, undefined, undefined);
+    const result = await tool.execute("tc1", { command: sleepCmd, timeout_ms: 150 }, undefined, undefined);
     const details = result.details as CommandCardDetails;
     expect(details.status).toBe("error");
     expect(details.timedOut).toBe(true);
@@ -76,7 +85,7 @@ describe("createRunCommandTool", () => {
   it("kills the process when abort signal fires mid-run", async () => {
     const tool = createRunCommandTool(projectRoot);
     const controller = new AbortController();
-    const promise = tool.execute("tc1", { command: "sleep 5", timeout_ms: 10000 }, controller.signal, undefined);
+    const promise = tool.execute("tc1", { command: sleepCmd, timeout_ms: 10000 }, controller.signal, undefined);
     setTimeout(() => controller.abort(), 150);
     const result = await promise;
     const details = result.details as CommandCardDetails;

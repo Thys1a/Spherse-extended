@@ -85,7 +85,10 @@ describe("DataStore rawSet/rawDelete", () => {
     await store.rawSet(FILE, "a", 1);
     await fs.chmod(abs(FILE), 0o000);
     try {
-      await expect(store.rawSet(FILE, "b", 2)).rejects.toThrow(/EACCES/);
+      // POSIX reports EACCES on the unreadable file; Windows lets the owner
+      // read through chmod but fails the atomic rename with EPERM instead.
+      // Either way the write must surface an error, never a silent reset.
+      await expect(store.rawSet(FILE, "b", 2)).rejects.toThrow(/EACCES|EPERM/);
     } finally {
       await fs.chmod(abs(FILE), 0o644);
     }

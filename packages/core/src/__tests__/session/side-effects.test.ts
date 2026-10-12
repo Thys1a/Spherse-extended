@@ -109,7 +109,12 @@ describe("turn side effects end to end (R2.5a)", () => {
       const toolResults = events.filter((e: { type: string }) => e.type === "tool/result");
       expect(toolResults).toHaveLength(1);
       expect(toolResults[0].data.sideEffects).toEqual([
-        { type: "data", file: "board.data.json", version: expect.any(String) },
+        {
+          type: "data",
+          file: "board.data.json",
+          version: expect.any(String),
+          undo: { op: "append", path: "todos", after: { title: "hi" }, index: 0 },
+        },
       ]);
 
       const turnStart = events.find((e: { type: string }) => e.type === "turn/start");

@@ -1197,8 +1197,8 @@ describe("SessionManager.appendUserMessage", () => {
     expect(runner?.currentEvents).toHaveLength(1);
   });
 
-  it("throws NotFoundError for unknown sessions", () => {
-    expect(() =>
+  it("throws NotFoundError for unknown sessions", async () => {
+    await expect(
       runtime.sessionRuntime.appendUserMessage(agentId, "no-session", "hi"),
     ).rejects.toThrow("not found");
   });
