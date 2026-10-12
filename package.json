@@ -26,6 +26,7 @@
     "check:i18n": "npm run check -w @spherse/i18n",
     "dev": "npm run dev -w @spherse/desktop",
     "dist": "npm run dist -w @spherse/desktop",
+    "dist:alpha": "node scripts/sync-desktop-version.mjs --channel=alpha && npm run dist -w @spherse/desktop",
     "dist:mac": "npm run dist:mac -w @spherse/desktop",
     "dist:win": "npm run dist:win -w @spherse/desktop",
     "dev:landing": "npm run dev -w @spherse/landing",

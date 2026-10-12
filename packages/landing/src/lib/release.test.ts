@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { GITHUB_API_REPO_URL } from "./urls";
 
-const MANIFEST_URL = "https://mirror.example.com/spherse/latest.json";
-const FALLBACK_URL = "https://github.com/mengrru/Spherse/releases/latest";
+const API_URL = `${GITHUB_API_REPO_URL}/releases/latest`;
+const FALLBACK_URL = "https://github.com/Thys1a/Spherse-extended/releases/latest";
 
 const fullManifest = {
   version: "1.2.3",
@@ -10,21 +11,62 @@ const fullManifest = {
   linux: { x64: "https://m/spherse-x64.AppImage" },
 };
 
-function stubManifest(manifest: unknown) {
+function stubRelease(manifest: {
+  mac?: { arm64?: string; intel?: string };
+  win?: { x64?: string; arm64?: string };
+  linux?: { x64?: string };
+}) {
+  const assets: Array<{ name: string; browser_download_url: string }> = [];
+  if (manifest.mac?.arm64)
+    assets.push({
+      name: "Spherse-1.2.3-arm64.dmg",
+      browser_download_url: manifest.mac.arm64,
+    });
+  if (manifest.mac?.intel)
+    assets.push({
+      name: "Spherse-1.2.3-intel.dmg",
+      browser_download_url: manifest.mac.intel,
+    });
+  if (manifest.win?.x64)
+    assets.push({
+      name: "Spherse-Setup-1.2.3-x64.exe",
+      browser_download_url: manifest.win.x64,
+    });
+  if (manifest.win?.arm64)
+    assets.push({
+      name: "Spherse-Setup-1.2.3-arm64.exe",
+      browser_download_url: manifest.win.arm64,
+    });
+  if (manifest.linux?.x64)
+    assets.push({
+      name: "Spherse-1.2.3-x64.AppImage",
+      browser_download_url: manifest.linux.x64,
+    });
   vi.stubGlobal(
     "fetch",
-    vi.fn(async () => ({ ok: true, json: async () => manifest })),
+    vi.fn(async (url: unknown) => {
+      if (url !== API_URL) throw new Error(`unexpected url: ${String(url)}`);
+      return {
+        ok: true,
+        json: async () => ({
+          tag_name: "v1.2.3",
+          draft: false,
+          prerelease: false,
+          assets,
+        }),
+      };
+    }),
   );
 }
 
-function stubManifestHttpError() {
+function stubReleaseHttpError() {
   vi.stubGlobal(
     "fetch",
     vi.fn(async () => ({ ok: false, status: 500, json: async () => ({}) })),
   );
 }
 
-function stubManifestNetworkError() {
+function stubReleaseNetworkError() {
   vi.stubGlobal(
     "fetch",
     vi.fn(async () => {
@@ -61,7 +103,6 @@ function stubWinArchProbeFailure() {
 }
 
 async function loadReleaseModule() {
-  vi.stubEnv("VITE_OSS_MANIFEST_URL", MANIFEST_URL);
   return import("./release");
 }
 
@@ -86,49 +127,35 @@ afterEach(() => {
 
 describe("resolveDownloadUrl (windows arch selection)", () => {
   it("returns win.arm64 url for ARM64 devices when manifest provides it", async () => {
-    stubManifest(fullManifest);
+    stubRelease(fullManifest);
     stubWinArch("arm");
     const { resolveDownloadUrl } = await loadReleaseModule();
     await expect(resolveDownloadUrl("win")).resolves.toBe("https://m/win-arm64.exe");
   });
 
-  it("falls back to win.setup on ARM64 devices when manifest lacks arm64 (legacy manifest)", async () => {
-    stubManifest({ ...fullManifest, win: { setup: "https://m/win-x64.exe" } });
-    stubWinArch("arm");
-    const { resolveDownloadUrl } = await loadReleaseModule();
-    await expect(resolveDownloadUrl("win")).resolves.toBe("https://m/win-x64.exe");
-  });
-
-  it("falls back to win.setup (legacy key) for x64 devices when manifest only has setup", async () => {
-    stubManifest({ ...fullManifest, win: { setup: "https://m/win-x64.exe" } });
-    stubWinArch("x86");
-    const { resolveDownloadUrl } = await loadReleaseModule();
-    await expect(resolveDownloadUrl("win")).resolves.toBe("https://m/win-x64.exe");
-  });
-
   it("returns win.x64 for x64 devices even when manifest has arm64", async () => {
-    stubManifest(fullManifest);
+    stubRelease(fullManifest);
     stubWinArch("x86");
     const { resolveDownloadUrl } = await loadReleaseModule();
     await expect(resolveDownloadUrl("win")).resolves.toBe("https://m/win-x64.exe");
   });
 
   it("defaults to win.x64 when userAgentData is unavailable (non-Chromium browsers)", async () => {
-    stubManifest(fullManifest);
+    stubRelease(fullManifest);
     stubUserAgentData(undefined);
     const { resolveDownloadUrl } = await loadReleaseModule();
     await expect(resolveDownloadUrl("win")).resolves.toBe("https://m/win-x64.exe");
   });
 
   it("defaults to win.x64 when the architecture probe rejects", async () => {
-    stubManifest(fullManifest);
+    stubRelease(fullManifest);
     stubWinArchProbeFailure();
     const { resolveDownloadUrl } = await loadReleaseModule();
     await expect(resolveDownloadUrl("win")).resolves.toBe("https://m/win-x64.exe");
   });
 
   it("falls back to the GitHub releases page when manifest win object has no usable url", async () => {
-    stubManifest({ ...fullManifest, win: {} });
+    stubRelease({ ...fullManifest, win: {} });
     stubWinArch("arm");
     const { resolveDownloadUrl } = await loadReleaseModule();
     await expect(resolveDownloadUrl("win")).resolves.toBe(FALLBACK_URL);
@@ -137,21 +164,21 @@ describe("resolveDownloadUrl (windows arch selection)", () => {
 
 describe("resolveDownloadUrl (fallbacks)", () => {
   it("returns the GitHub releases fallback when the manifest fetch fails", async () => {
-    stubManifestHttpError();
+    stubReleaseHttpError();
     stubWinArch("x86");
     const { resolveDownloadUrl } = await loadReleaseModule();
     await expect(resolveDownloadUrl("win")).resolves.toBe(FALLBACK_URL);
   });
 
   it("returns the GitHub releases fallback when the fetch rejects (network error)", async () => {
-    stubManifestNetworkError();
+    stubReleaseNetworkError();
     stubWinArch("x86");
     const { resolveDownloadUrl } = await loadReleaseModule();
     await expect(resolveDownloadUrl("win")).resolves.toBe(FALLBACK_URL);
   });
 
   it("resolves mac downloads to the arm64 dmg when WebGL detection is unavailable", async () => {
-    stubManifest(fullManifest);
+    stubRelease(fullManifest);
     const { resolveDownloadUrl } = await loadReleaseModule();
     await expect(resolveDownloadUrl("mac")).resolves.toBe("https://m/mac-arm64.dmg");
   });
@@ -159,14 +186,14 @@ describe("resolveDownloadUrl (fallbacks)", () => {
 
 describe("resolveDownloadUrl (linux)", () => {
   it("returns the linux.x64 AppImage url when manifest provides it", async () => {
-    stubManifest(fullManifest);
+    stubRelease(fullManifest);
     const { resolveDownloadUrl } = await loadReleaseModule();
     await expect(resolveDownloadUrl("linux")).resolves.toBe("https://m/spherse-x64.AppImage");
   });
 
   it("falls back to the GitHub releases page for legacy manifests without a linux section", async () => {
     const { linux: _linux, ...legacyManifest } = fullManifest;
-    stubManifest(legacyManifest);
+    stubRelease(legacyManifest);
     const { resolveDownloadUrl } = await loadReleaseModule();
     await expect(resolveDownloadUrl("linux")).resolves.toBe(FALLBACK_URL);
   });

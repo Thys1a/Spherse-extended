@@ -6,27 +6,89 @@ type CancellationTokenType = electronUpdater.CancellationToken;
 import type { UpdateState, UpdateEvent } from "./types.js";
 import { getMainWindow } from "./window.js";
 
-// 更新检测源：CI publish-oss job 每次发版自动维护的 OSS 清单（国内可达，
-// 与 landing page 下载按钮同源）。替代此前 GitHub API / electron-updater
-// GitHub feed（后者 latest.yml 自 ba8c049 起不再上传，检测必然 404）。
-const OSS_BUCKET_BASE_URL =
-  "https://mengru-open-source.oss-cn-beijing.aliyuncs.com/spherse";
-const OSS_UPDATE_MANIFEST_URL = `${OSS_BUCKET_BASE_URL}/latest.json`;
+// 更新检测源：本仓库的 GitHub Releases（latest 非预发布）。
+// 不再使用上游的 OSS 清单（上游渠道，已下线）。
+const GITHUB_RELEASES_LATEST_URL =
+  "https://api.github.com/repos/Thys1a/Spherse-extended/releases/latest";
 
 /**
- * OSS latest.json 清单结构（与 landing `resolveDownloadUrl` / CI `publish-oss`
- * 生成端对齐；`win.setup` 为旧版清单键名，保留兼容回退；`linux.x64` 与 `win.arm64`
- * 为可选键——旧版本 release 缺失时 CI 省略，读取端回退）。
+ * 更新清单结构（与 landing `resolveDownloadUrl` 对齐；`win.setup` 为旧版清单键名，
+ * 保留兼容回退；`linux.x64` 与 `win.arm64` 为可选键——旧版本 release 缺失时省略，
+ * 读取端回退）。
  */
-export interface OssUpdateManifest {
+export interface UpdateManifest {
   version: string;
   mac?: { arm64?: string; intel?: string };
   win?: { x64?: string; arm64?: string; setup?: string };
   linux?: { x64?: string };
 }
 
+interface GithubReleaseAsset {
+  name?: unknown;
+  browser_download_url?: unknown;
+}
+
+interface GithubRelease {
+  tag_name?: unknown;
+  draft?: unknown;
+  prerelease?: unknown;
+  assets?: unknown;
+}
+
+function assetUrl(
+  assets: GithubReleaseAsset[],
+  predicate: (name: string) => boolean,
+): string | undefined {
+  const found = assets.find(
+    (a) => typeof a.name === "string" && predicate(a.name),
+  );
+  return typeof found?.browser_download_url === "string"
+    ? found.browser_download_url
+    : undefined;
+}
+
+/**
+ * GitHub latest release → 更新清单。命名约定见 CI（dmg 按 arm64/intel 后缀，
+ * exe 按 arch 后缀，AppImage 为 linux 包）。draft/prerelease 返回 null
+ * （调用方视为无更新，不报错）。
+ */
+export function manifestFromGithubRelease(
+  release: GithubRelease,
+): UpdateManifest | null {
+  if (release.draft === true || release.prerelease === true) return null;
+  const version =
+    typeof release.tag_name === "string"
+      ? release.tag_name.replace(/^v/, "")
+      : "";
+  if (!version) return null;
+  const assets = Array.isArray(release.assets)
+    ? (release.assets as GithubReleaseAsset[])
+    : [];
+  const manifest: UpdateManifest = { version };
+  const arm64Dmg = assetUrl(assets, (n) => n.endsWith("-arm64.dmg"));
+  const intelDmg = assetUrl(assets, (n) => n.endsWith("-intel.dmg"));
+  if (arm64Dmg !== undefined || intelDmg !== undefined) {
+    manifest.mac = {};
+    if (arm64Dmg !== undefined) manifest.mac.arm64 = arm64Dmg;
+    if (intelDmg !== undefined) manifest.mac.intel = intelDmg;
+  }
+  const x64Exe = assetUrl(
+    assets,
+    (n) => n.endsWith("-x64.exe") && !n.includes("arm64"),
+  );
+  const arm64Exe = assetUrl(assets, (n) => n.endsWith("-arm64.exe"));
+  if (x64Exe !== undefined || arm64Exe !== undefined) {
+    manifest.win = {};
+    if (x64Exe !== undefined) manifest.win.x64 = x64Exe;
+    if (arm64Exe !== undefined) manifest.win.arm64 = arm64Exe;
+  }
+  const appImage = assetUrl(assets, (n) => n.endsWith(".AppImage"));
+  if (appImage !== undefined) manifest.linux = { x64: appImage };
+  return manifest;
+}
+
 export function resolveDownloadUrlFromManifest(
-  manifest: OssUpdateManifest,
+  manifest: UpdateManifest,
   platform: NodeJS.Platform = process.platform,
   arch: string = process.arch,
 ): string | undefined {
@@ -131,21 +193,21 @@ export function createUpdater(getWindow: () => BrowserWindow | null): Updater {
     sendEvent({ type: "update-error", message: errorMessage });
   });
 
-  async function checkForUpdatesViaOss(silent: boolean): Promise<void> {
+  async function checkForUpdatesViaGithub(silent: boolean): Promise<void> {
     if (!silent) currentState = { status: "checking" };
     try {
-      const res = await fetch(OSS_UPDATE_MANIFEST_URL);
+      const res = await fetch(GITHUB_RELEASES_LATEST_URL);
       if (!res.ok) {
-        throw new Error(`OSS manifest responded ${res.status}`);
+        throw new Error(`GitHub release responded ${res.status}`);
       }
-      const data = (await res.json()) as Partial<OssUpdateManifest>;
-      const version = typeof data.version === "string" ? data.version : "";
+      const manifest = manifestFromGithubRelease(
+        (await res.json()) as GithubRelease,
+      );
+      const version = manifest?.version ?? "";
       const current = app.getVersion();
-      if (compareVersions(version, current) > 0) {
-        const downloadUrl = resolveDownloadUrlFromManifest(
-          data as OssUpdateManifest,
-        );
-        // OSS 清单无 release notes，留空由 UI 自动隐藏
+      if (manifest && compareVersions(version, current) > 0) {
+        const downloadUrl = resolveDownloadUrlFromManifest(manifest);
+        // GitHub body 为 markdown，UI 按纯文本展示会有噪音，留空由 UI 自动隐藏
         const releaseNotes = "";
         if (!silent) {
           currentState = {
@@ -184,10 +246,10 @@ export function createUpdater(getWindow: () => BrowserWindow | null): Updater {
         sendEvent({ type: "update-not-available" });
         return;
       }
-      // mac/win 统一走 OSS 清单检测 + 引导浏览器下载（前往下载）。
+      // mac/win 统一走 GitHub Releases 检测 + 引导浏览器下载（前往下载）。
       // electron-updater 的 GitHub feed 自 ba8c049 起无 latest.yml，不再使用；
       // 其 in-app 下载 API 保留给未来恢复 feed（backlog #149）。
-      await checkForUpdatesViaOss(opts.silent);
+      await checkForUpdatesViaGithub(opts.silent);
     },
 
     async downloadUpdate(): Promise<void> {

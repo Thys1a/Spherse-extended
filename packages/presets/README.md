@@ -34,7 +34,8 @@
     { "dir": "spherse-embed-chat" },
     { "dir": "spherse-build-data-app" },
     { "dir": "spherse-write-html" },
-    { "dir": "spherse-create-skill" }
+    { "dir": "spherse-create-skill" },
+    { "dir": "spherse-create-command" }
   ],
   "presetAgents": [
     { "dir": "assistant", "slugBase": "assistant" }

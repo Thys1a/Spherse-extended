@@ -1,6 +1,4 @@
-import { GITHUB_RELEASES_LATEST_URL } from "./urls";
-
-const MANIFEST_URL: string | undefined = import.meta.env.VITE_OSS_MANIFEST_URL;
+import { GITHUB_API_REPO_URL, GITHUB_RELEASES_LATEST_URL } from "./urls";
 
 export type Platform = "mac" | "win" | "linux";
 
@@ -31,11 +29,60 @@ export interface Manifest {
   linux?: { x64?: string };
 }
 
+interface GithubReleaseAsset {
+  name?: unknown;
+  browser_download_url?: unknown;
+}
+
+interface GithubRelease {
+  tag_name?: unknown;
+  draft?: unknown;
+  prerelease?: unknown;
+  assets?: unknown;
+}
+
+function assetUrl(
+  assets: GithubReleaseAsset[],
+  predicate: (name: string) => boolean,
+): string {
+  const found = assets.find(
+    (a) => typeof a.name === "string" && predicate(a.name),
+  );
+  return typeof found?.browser_download_url === "string"
+    ? found.browser_download_url
+    : "";
+}
+
 export async function fetchLatestManifest(): Promise<Manifest> {
-  if (!MANIFEST_URL) throw new Error("VITE_OSS_MANIFEST_URL not configured");
-  const res = await fetch(MANIFEST_URL);
-  if (!res.ok) throw new Error(`OSS manifest responded ${res.status}`);
-  return (await res.json()) as Manifest;
+  // 直接读本仓库的 GitHub Releases（latest 为最近正式版）。
+  // 缺资产时填空串，由 platformCards 过滤、resolveDownloadUrl 兜底。
+  const res = await fetch(`${GITHUB_API_REPO_URL}/releases/latest`);
+  if (!res.ok) throw new Error(`GitHub releases responded ${res.status}`);
+  const release = (await res.json()) as GithubRelease;
+  const version =
+    typeof release.tag_name === "string"
+      ? release.tag_name.replace(/^v/, "")
+      : "";
+  if (!version || release.draft === true || release.prerelease === true) {
+    throw new Error("No stable release found");
+  }
+  const assets = Array.isArray(release.assets)
+    ? (release.assets as GithubReleaseAsset[])
+    : [];
+  return {
+    version,
+    mac: {
+      arm64: assetUrl(assets, (n) => n.endsWith("-arm64.dmg")),
+      intel: assetUrl(assets, (n) => n.endsWith("-intel.dmg")),
+    },
+    win: {
+      x64: assetUrl(assets, (n) => n.endsWith("-x64.exe")),
+      arm64: assetUrl(assets, (n) => n.endsWith("-arm64.exe")),
+    },
+    linux: {
+      x64: assetUrl(assets, (n) => n.endsWith(".AppImage")),
+    },
+  };
 }
 
 async function detectWinArch(): Promise<"arm64" | "x64"> {

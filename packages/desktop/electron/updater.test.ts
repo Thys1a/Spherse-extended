@@ -41,17 +41,18 @@ vi.mock("./window.js", () => ({
 import {
   compareVersions,
   createUpdater,
+  manifestFromGithubRelease,
   resolveDownloadUrlFromManifest,
   startAutoUpdateChecks,
   updater,
-  type OssUpdateManifest,
+  type UpdateManifest,
   type Updater,
 } from "./updater.js";
 
-const MANIFEST_URL =
-  "https://mengru-open-source.oss-cn-beijing.aliyuncs.com/spherse/latest.json";
+const RELEASES_URL =
+  "https://api.github.com/repos/Thys1a/Spherse-extended/releases/latest";
 
-const manifest: OssUpdateManifest = {
+const manifest: UpdateManifest = {
   version: "0.2.0",
   mac: {
     arm64: "https://oss/spherse/releases/0.2.0/Spherse-0.2.0-arm64.dmg",
@@ -67,6 +68,36 @@ const manifest: OssUpdateManifest = {
 };
 
 const fetchMock = vi.fn();
+
+function releaseBody(tag = "v0.2.0"): Record<string, unknown> {
+  return {
+    tag_name: tag,
+    draft: false,
+    prerelease: false,
+    assets: [
+      {
+        name: "Spherse-0.2.0-arm64.dmg",
+        browser_download_url: manifest.mac?.arm64,
+      },
+      {
+        name: "Spherse-0.2.0-intel.dmg",
+        browser_download_url: manifest.mac?.intel,
+      },
+      {
+        name: "Spherse-Setup-0.2.0-x64.exe",
+        browser_download_url: manifest.win?.x64,
+      },
+      {
+        name: "Spherse-Setup-0.2.0-arm64.exe",
+        browser_download_url: manifest.win?.arm64,
+      },
+      {
+        name: "Spherse-0.2.0-x64.AppImage",
+        browser_download_url: manifest.linux?.x64,
+      },
+    ],
+  };
+}
 
 beforeEach(() => {
   events.length = 0;
@@ -156,6 +187,37 @@ describe("compareVersions", () => {
   });
 });
 
+describe("manifestFromGithubRelease", () => {
+  it("strips the v prefix and maps dmg/exe/AppImage assets by suffix", () => {
+    expect(manifestFromGithubRelease(releaseBody() as never)).toEqual(manifest);
+  });
+
+  it("returns null for draft or prerelease (treated as no update, not an error)", () => {
+    expect(
+      manifestFromGithubRelease({ ...releaseBody(), draft: true } as never),
+    ).toBeNull();
+    expect(
+      manifestFromGithubRelease({ ...releaseBody(), prerelease: true } as never),
+    ).toBeNull();
+  });
+
+  it("returns null when tag_name is missing", () => {
+    const { tag_name: _tag, ...rest } = releaseBody();
+    expect(manifestFromGithubRelease(rest as never)).toBeNull();
+  });
+
+  it("omits platform sections with no matching assets", () => {
+    expect(
+      manifestFromGithubRelease({
+        tag_name: "v0.2.0",
+        draft: false,
+        prerelease: false,
+        assets: [],
+      }),
+    ).toEqual({ version: "0.2.0" });
+  });
+});
+
 describe("resolveDownloadUrlFromManifest", () => {
   it("darwin arm64 selects mac.arm64", () => {
     expect(
@@ -170,7 +232,7 @@ describe("resolveDownloadUrlFromManifest", () => {
   });
 
   it("darwin falls back to the other arch key when the preferred one is missing", () => {
-    const m: OssUpdateManifest = {
+    const m: UpdateManifest = {
       version: "0.2.0",
       mac: { intel: "https://oss/intel.dmg" },
     };
@@ -202,7 +264,7 @@ describe("resolveDownloadUrlFromManifest", () => {
     expect(
       resolveDownloadUrlFromManifest(manifest, "win32", "arm64"),
     ).toBe(manifest.win?.arm64);
-    const noArm64: OssUpdateManifest = {
+    const noArm64: UpdateManifest = {
       version: "0.2.0",
       win: { x64: "https://oss/x64.exe" },
     };
@@ -212,7 +274,7 @@ describe("resolveDownloadUrlFromManifest", () => {
   });
 
   it("win32 falls back to legacy win.setup key", () => {
-    const legacy: OssUpdateManifest = {
+    const legacy: UpdateManifest = {
       version: "0.2.0",
       win: { setup: "https://oss/setup.exe" },
     };
@@ -240,7 +302,7 @@ describe("resolveDownloadUrlFromManifest", () => {
   });
 });
 
-describe("updater.checkForUpdates (OSS manifest source)", () => {
+describe("updater.checkForUpdates (GitHub Releases source)", () => {
   it("dev mode short-circuits to upToDate without fetching", async () => {
     appMock.isPackaged = false;
     const { u, localEvents } = createTestUpdater();
@@ -259,12 +321,12 @@ describe("updater.checkForUpdates (OSS manifest source)", () => {
     expect(u.getState()).toEqual({ status: "idle" });
   });
 
-  it("darwin: newer manifest version emits update-available with OSS downloadUrl", async () => {
-    mockManifestResponse(manifest);
+  it("darwin: newer release emits update-available with the mapped dmg url", async () => {
+    mockManifestResponse(releaseBody());
     await withProcess("darwin", "arm64", () =>
       updater.checkForUpdates({ silent: false }),
     );
-    expect(fetchMock).toHaveBeenCalledWith(MANIFEST_URL);
+    expect(fetchMock).toHaveBeenCalledWith(RELEASES_URL);
     expect(events).toEqual([
       {
         type: "update-available",
@@ -283,7 +345,7 @@ describe("updater.checkForUpdates (OSS manifest source)", () => {
   });
 
   it("win32 x64: emits update-available with x64 installer URL", async () => {
-    mockManifestResponse(manifest);
+    mockManifestResponse(releaseBody());
     await withProcess("win32", "x64", () =>
       updater.checkForUpdates({ silent: false }),
     );
@@ -299,14 +361,14 @@ describe("updater.checkForUpdates (OSS manifest source)", () => {
   });
 
   it("equal or older manifest version emits update-not-available", async () => {
-    mockManifestResponse({ ...manifest, version: "0.1.0" });
+    mockManifestResponse({ ...releaseBody(), tag_name: "v0.1.0" });
     await updater.checkForUpdates({ silent: false });
     expect(events).toEqual([{ type: "update-not-available" }]);
     expect(updater.getState()).toEqual({ status: "upToDate" });
   });
 
   it("manifest missing version degrades safely to update-not-available", async () => {
-    mockManifestResponse({ mac: manifest.mac, win: manifest.win });
+    mockManifestResponse({ draft: false, prerelease: false, assets: releaseBody().assets });
     await updater.checkForUpdates({ silent: false });
     expect(events).toEqual([{ type: "update-not-available" }]);
   });
@@ -315,11 +377,11 @@ describe("updater.checkForUpdates (OSS manifest source)", () => {
     mockManifestResponse(null, false, 503);
     await updater.checkForUpdates({ silent: false });
     expect(events).toEqual([
-      { type: "update-error", message: "OSS manifest responded 503" },
+      { type: "update-error", message: "GitHub release responded 503" },
     ]);
     expect(updater.getState()).toEqual({
       status: "error",
-      errorMessage: "OSS manifest responded 503",
+      errorMessage: "GitHub release responded 503",
     });
   });
 
@@ -339,7 +401,7 @@ describe("updater.checkForUpdates (OSS manifest source)", () => {
     // available 即使 silent 也通知（自动检测的目的就是发现新版 toast），
     // silent 只吞掉 not-available / error 噪音
     const { u, localEvents } = createTestUpdater();
-    mockManifestResponse(manifest);
+    mockManifestResponse(releaseBody());
     await withProcess("darwin", "arm64", () =>
       u.checkForUpdates({ silent: true }),
     );
@@ -355,7 +417,7 @@ describe("updater.checkForUpdates (OSS manifest source)", () => {
     expect(u.getState()).toEqual({ status: "idle" });
 
     localEvents.length = 0;
-    mockManifestResponse({ ...manifest, version: "0.1.0" });
+    mockManifestResponse({ ...releaseBody(), tag_name: "v0.1.0" });
     await u.checkForUpdates({ silent: true });
     expect(localEvents).toEqual([]);
     expect(u.getState()).toEqual({ status: "idle" });
@@ -368,20 +430,20 @@ describe("updater.checkForUpdates (OSS manifest source)", () => {
 
   it("silent check never overwrites an in-flight interactive state", async () => {
     const { u, localEvents } = createTestUpdater();
-    mockManifestResponse(manifest);
+    mockManifestResponse(releaseBody());
     await withProcess("darwin", "arm64", () =>
       u.checkForUpdates({ silent: false }),
     );
     expect(u.getState().status).toBe("available");
 
-    mockManifestResponse({ ...manifest, version: "0.1.0" });
+    mockManifestResponse({ ...releaseBody(), tag_name: "v0.1.0" });
     await u.checkForUpdates({ silent: true });
     expect(localEvents).toHaveLength(1);
     expect(u.getState().status).toBe("available");
   });
 
-  it("never calls electron-updater's GitHub feed (regression guard)", async () => {
-    mockManifestResponse(manifest);
+  it("never calls electron-updater's feed (uses the GitHub Releases API directly)", async () => {
+    mockManifestResponse(releaseBody());
     await updater.checkForUpdates({ silent: false });
     expect(autoUpdaterMock.checkForUpdates).not.toHaveBeenCalled();
   });
@@ -418,7 +480,7 @@ describe("startAutoUpdateChecks", () => {
   });
 
   it("checks once shortly after startup, then at most once per 24h", async () => {
-    mockManifestResponse(manifest);
+    mockManifestResponse(releaseBody());
     startAutoUpdateChecks();
     expect(fetchMock).not.toHaveBeenCalled();
 
@@ -428,19 +490,19 @@ describe("startAutoUpdateChecks", () => {
     await vi.advanceTimersByTimeAsync(24 * 60 * 60 * 1000);
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
-    mockManifestResponse(manifest);
+    mockManifestResponse(releaseBody());
     await vi.advanceTimersByTimeAsync(60 * 60 * 1000);
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("skips the check while the user is idle and retries on a later tick", async () => {
-    mockManifestResponse(manifest);
+    mockManifestResponse(releaseBody());
     startAutoUpdateChecks();
     await vi.advanceTimersByTimeAsync(5_000);
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
     powerMonitorMock.getSystemIdleTime.mockReturnValue(600);
-    mockManifestResponse(manifest);
+    mockManifestResponse(releaseBody());
     await vi.advanceTimersByTimeAsync(25 * 60 * 60 * 1000);
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
@@ -450,7 +512,7 @@ describe("startAutoUpdateChecks", () => {
   });
 
   it("does not schedule a startup toast for up-to-date results (no events)", async () => {
-    mockManifestResponse({ ...manifest, version: "0.1.0" });
+    mockManifestResponse({ ...releaseBody(), tag_name: "v0.1.0" });
     startAutoUpdateChecks();
     await vi.advanceTimersByTimeAsync(5_000);
     expect(fetchMock).toHaveBeenCalledTimes(1);

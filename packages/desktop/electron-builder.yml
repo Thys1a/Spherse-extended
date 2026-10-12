@@ -10,8 +10,8 @@ directories:
   output: release
 publish:
   provider: github
-  owner: mengrru
-  repo: Spherse
+  owner: Thys1a
+  repo: Spherse-extended
 files:
   - dist/**/*
   - package.json
