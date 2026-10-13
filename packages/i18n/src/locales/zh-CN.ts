@@ -932,6 +932,8 @@ export const zhCN = {
   "content-browser.taskToggleStale": "文件已被外部修改，请刷新后重试",
   // 点击 markdown 内部链接指向的文件不存在时的 toast 错误提示，{path} 为目标文件相对项目根的路径
   "content-browser.linkNotFound": "找不到文件：{path}",
+  // 回主窗口按钮（分窗 Header，图标按钮 title/aria-label）：结束分窗并将该文件打开回主区域
+  "content-browser.unsplit": "回到主窗口",
   // 文件加载失败时按错误原因区分的提示：文件不存在
   "content-browser.loadError.notFound": "文件不存在",
   // 文件加载失败时按错误原因区分的提示：无访问权限

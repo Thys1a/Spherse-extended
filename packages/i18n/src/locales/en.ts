@@ -461,6 +461,7 @@ export const en: Record<TranslationKey, string> = {
   "content-browser.copyPath": "Copy path",
   "content-browser.pathCopied": "Path copied",
   "content-browser.refresh": "Refresh",
+  "content-browser.unsplit": "Return to main window",
   "content-browser.toc.title": "Outline",
   "content-browser.taskToggleDirty": "You have unsaved changes. Save or discard them before toggling tasks.",
   "content-browser.taskToggleStale": "The file was modified externally. Refresh and try again.",

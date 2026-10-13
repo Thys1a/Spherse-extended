@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import { translate } from "@spherse/i18n";
 import { renderWithProviders } from "../../test/render";
 import { Header } from "./Header";
@@ -45,6 +45,27 @@ describe("Header split entry", () => {
     renderWithProviders(<Header {...baseProps()} />);
 
     expect(screen.queryByTitle(translate("zh-CN", "tabs.splitRight"))).toBeNull();
+  });
+
+  it("shows the unsplit button when onUnsplit is provided and not editing", () => {
+    const onUnsplit = vi.fn();
+    renderWithProviders(<Header {...baseProps({ onUnsplit })} />, { locale: "en" });
+
+    const unsplit = screen.getByRole("button", { name: "Return to main window" });
+    expect(screen.queryByRole("button", { name: "Split right" })).toBeNull();
+    expect(unsplit.compareDocumentPosition(screen.getByRole("button", { name: "Close" })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    fireEvent.click(unsplit);
+    expect(onUnsplit).toHaveBeenCalledTimes(1);
+  });
+
+  it("hides the unsplit button while editing or without onUnsplit", () => {
+    renderWithProviders(<Header {...baseProps({ onUnsplit: vi.fn(), isEditing: true })} />);
+
+    expect(screen.queryByTitle(translate("zh-CN", "content-browser.unsplit"))).toBeNull();
+
+    renderWithProviders(<Header {...baseProps()} />);
+
+    expect(screen.queryByTitle(translate("zh-CN", "content-browser.unsplit"))).toBeNull();
   });
 
   it("places split before all text buttons for html files", () => {

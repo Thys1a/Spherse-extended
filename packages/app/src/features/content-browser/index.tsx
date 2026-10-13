@@ -21,6 +21,7 @@ export interface ContentBrowserProps {
   onClose: () => void;
   onNavigate?: (filePath: string) => void;
   onSplit?: () => void;
+  onUnsplit?: () => void;
 }
 
 export function ContentBrowser({
@@ -29,6 +30,7 @@ export function ContentBrowser({
   onClose,
   onNavigate,
   onSplit,
+  onUnsplit,
 }: ContentBrowserProps) {
   const { t } = useI18n();
   const { projectId } = useProjectCtx();
@@ -122,6 +124,7 @@ export function ContentBrowser({
           else setFindOpen((v) => !v);
         }}
         onSplit={onSplit}
+        onUnsplit={onUnsplit}
       />
       {editor.conflict && editor.isEditing && (
         <ConflictBanner

@@ -465,6 +465,7 @@ export const zhTW: Record<TranslationKey, string> = {
   "content-browser.taskToggleDirty": "有未儲存的修改，請先儲存或取消後再勾選",
   "content-browser.taskToggleStale": "檔案已被外部修改，請重新整理後再試",
   "content-browser.linkNotFound": "找不到檔案：{path}",
+  "content-browser.unsplit": "回到主視窗",
   "content-browser.loadError.notFound": "找不到檔案",
   "content-browser.loadError.accessDenied": "無權存取此檔案",
   "content-browser.loadError.unavailable": "專案暫時無法使用，請稍後重新整理",

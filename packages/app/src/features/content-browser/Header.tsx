@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useI18n } from "@spherse/i18n/react";
 import { Button } from "../../components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "../../components/ui/toggle-group";
-import { ArrowLeftIcon, CheckIcon, CopyIcon, ListIcon, PanelRightOpenIcon, RefreshCwIcon, SearchIcon, XIcon } from "lucide-react";
+import { ArrowLeftIcon, ArrowLeftFromLineIcon, CheckIcon, CopyIcon, ListIcon, PanelRightOpenIcon, RefreshCwIcon, SearchIcon, XIcon } from "lucide-react";
 
 interface HeaderProps {
   filePath: string;
@@ -24,6 +24,7 @@ interface HeaderProps {
   onFindToggle: () => void;
   onTocToggle: () => void;
   onSplit?: () => void;
+  onUnsplit?: () => void;
 }
 
 export function Header({
@@ -46,6 +47,7 @@ export function Header({
   onFindToggle,
   onTocToggle,
   onSplit,
+  onUnsplit,
 }: HeaderProps) {
   const { t } = useI18n();
   const [copied, setCopied] = useState(false);
@@ -114,6 +116,17 @@ export function Header({
             aria-label={t("tabs.splitRight")}
           >
             <PanelRightOpenIcon />
+          </Button>
+        )}
+        {onUnsplit && !isEditing && (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={onUnsplit}
+            title={t("content-browser.unsplit")}
+            aria-label={t("content-browser.unsplit")}
+          >
+            <ArrowLeftFromLineIcon />
           </Button>
         )}
         {isHtml && !isEditing && (
