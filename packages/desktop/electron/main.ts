@@ -122,9 +122,7 @@ app.whenReady().then(async () => {
   restoreEnvFromSettings();
   setGlobalDispatcher(new EnvHttpProxyAgent());
   await ensureServer();
-  const mainWindow = createWindow();
-  setupContextMenu(mainWindow);
-  attachCloseToTray(mainWindow);
+  setupMainWindow(createWindow());
   registerAllIpc(getMainWindow);
   syncTray();
   startAutoUpdateChecks();
@@ -142,10 +140,16 @@ app.whenReady().then(async () => {
 const TUNNEL_STOP_TIMEOUT_MS = 5_000;
 const GRACEFUL_SHUTDOWN_HARD_EXIT_MS = 30_000;
 
+function setupMainWindow(win: BrowserWindow): void {
+  setupContextMenu(win);
+  attachCloseToTray(win);
+}
+
 async function gracefulShutdown(): Promise<void> {
   if (!beginQuit()) return;
   setTimeout(() => {
     console.error("[main] graceful shutdown timed out, forcing app exit");
+    destroyTray();
     app.exit(1);
   }, GRACEFUL_SHUTDOWN_HARD_EXIT_MS).unref();
   await settleWithin(getTunnelManager().stop(), TUNNEL_STOP_TIMEOUT_MS, (outcome, detail) => {
@@ -172,6 +176,7 @@ app.on("window-all-closed", () => {
   lastCrashAt = null;
   if (decision.recreate) {
     const win = createWindow();
+    setupMainWindow(win);
     if (decision.showErrorPage) showCrashErrorPage(win);
     return;
   }

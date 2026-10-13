@@ -76,7 +76,9 @@ export async function showMainWindow(): Promise<void> {
 
 function hideToTray(win: BrowserWindow): void {
   if (win.isFullScreen()) {
-    win.once("leave-full-screen", () => hideToTray(win));
+    win.once("leave-full-screen", () => {
+      if (!win.isDestroyed()) hideToTray(win);
+    });
     win.setFullScreen(false);
     return;
   }
