@@ -91,12 +91,39 @@ describe("syncAllowedHosts", () => {
     expect(addedHosts).toEqual(["https://abc.trycloudflare.com"]);
   });
 
-  it("registers publicDomain in manual mode when enabled", () => {
+  it("registers publicDomain in manual mode regardless of enabled", () => {
+    mobileStore.mode = "manual";
+    mobileStore.publicDomain = "https://spherse.example.com";
+    mobileStore.enabled = false;
+    syncAllowedHosts();
+    expect(addedHosts).toEqual(["https://spherse.example.com"]);
+
     mobileStore.enabled = true;
+    addedHosts.length = 0;
+    syncAllowedHosts();
+    expect(addedHosts).toEqual(["https://spherse.example.com"]);
+  });
+
+  it("removes manual domain after switching to disabled quick mode", () => {
     mobileStore.mode = "manual";
     mobileStore.publicDomain = "https://spherse.example.com";
     syncAllowedHosts();
-    expect(addedHosts).toEqual(["https://spherse.example.com"]);
+    expect(currentDynamicHosts()).toEqual(["https://spherse.example.com"]);
+
+    mobileStore.mode = "quick";
+    mobileStore.enabled = false;
+    syncAllowedHosts();
+    expect(currentDynamicHosts()).toEqual([]);
+  });
+
+  it("replaces manual domain when publicDomain changes", () => {
+    mobileStore.mode = "manual";
+    mobileStore.publicDomain = "https://old.example.com";
+    syncAllowedHosts();
+    mobileStore.publicDomain = "https://new.example.com";
+    syncAllowedHosts();
+    expect(removedHosts).toEqual(["https://old.example.com"]);
+    expect(currentDynamicHosts()).toEqual(["https://new.example.com"]);
   });
 
   it("replaces previous hosts when tunnel url changes", () => {
@@ -121,7 +148,6 @@ describe("syncAllowedHosts", () => {
   });
 
   it("replays desired hosts on a fresh server instance after restart (manual regenerate path)", async () => {
-    mobileStore.enabled = true;
     mobileStore.mode = "manual";
     mobileStore.publicDomain = "https://spherse.example.com";
     await restartServer();
