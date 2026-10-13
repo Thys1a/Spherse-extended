@@ -11,6 +11,7 @@ import { dataCapability } from "./data/index.js";
 import { rollbackCapability } from "./rollback/index.js";
 import type { CardStore } from "./card/index.js";
 import { cardCapability } from "./card/index.js";
+import { webSearchCapability } from "./web-search/index.js";
 
 export interface BuiltinToolCapabilitiesOptions {
   dataStore?: DataStore;
@@ -29,5 +30,6 @@ export function builtinToolCapabilities(opts?: BuiltinToolCapabilitiesOptions): 
     dataCapability(opts?.dataStore),
     cardCapability(opts?.cardStore),
     rollbackCapability({ dataStore: opts?.dataStore, cardStore: opts?.cardStore }),
+    webSearchCapability(),
   ];
 }
