@@ -14,6 +14,7 @@ const WEB_CAPABILITIES: HostCapabilities = {
   openFileExternal: false,
   proxy: false,
   notification: true,
+  tray: false,
   content: { editable: false },
 };
 

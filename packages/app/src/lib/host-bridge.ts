@@ -68,6 +68,7 @@ export interface HostSettings {
   };
   customProviders?: CustomProviderDef[];
   debugToolsEnabled?: boolean;
+  closeToTray?: boolean;
   theme?: ThemeMode;
   tts?: TtsSettings;
   proxy?: ProxySettings;
@@ -117,6 +118,7 @@ export interface HostCapabilities {
   openFileExternal: boolean;
   proxy: boolean;
   notification: boolean;
+  tray: boolean;
   content: { editable: boolean };
 }
 

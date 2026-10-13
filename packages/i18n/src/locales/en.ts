@@ -593,6 +593,8 @@ export const en: Record<TranslationKey, string> = {
   "settings.appearance.system": "System",
   "settings.debugTools": "Debug Tools",
   "settings.debugToolsDesc": "Show the debug menu entry in the side panel",
+  "settings.closeToTray": "Close to tray",
+  "settings.closeToTrayDesc": "Keep Spherse running in the background when the window is closed; reopen it from the tray icon",
   "settings.notifications.title": "System notifications",
   "settings.notifications.desc": "Show OS-level notifications for approvals and trigger runs when the window is not focused",
   "settings.notifications.approval": "Approval notifications",
@@ -757,6 +759,8 @@ export const en: Record<TranslationKey, string> = {
   "contextMenu.copy": "Copy",
   "contextMenu.paste": "Paste",
   "contextMenu.selectAll": "Select All",
+  "tray.show": "Open Spherse",
+  "tray.quit": "Quit",
 
   "ui-sdk.sessionNotFound": "Session not found. It may have been deleted.",
 };

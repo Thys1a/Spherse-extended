@@ -14,7 +14,7 @@ function createApi(overrides: Partial<SettingsApi> = {}): SettingsApi {
 
 describe("useSettingsStore", () => {
   beforeEach(() => {
-    useSettingsStore.setState({ locale: "zh-CN", debugToolsEnabled: false, theme: "system", tts: {}, proxy: {}, webSearch: {}, notifications: {} });
+    useSettingsStore.setState({ locale: "zh-CN", debugToolsEnabled: false, closeToTray: true, theme: "system", tts: {}, proxy: {}, webSearch: {}, notifications: {} });
   });
 
   it("loads locale from settings", async () => {
@@ -55,6 +55,7 @@ describe("useSettingsStore", () => {
       theme: "system",
       tts: {},
       proxy: {},
+      closeToTray: true,
       webSearch: {},
       notifications: {},
     });
@@ -94,6 +95,7 @@ describe("useSettingsStore", () => {
       theme: "system",
       tts: {},
       proxy: {},
+      closeToTray: true,
       webSearch: {},
       notifications: {},
     });
@@ -133,6 +135,7 @@ describe("useSettingsStore", () => {
       theme: "dark",
       tts: {},
       proxy: {},
+      closeToTray: true,
       webSearch: {},
       notifications: {},
     });
@@ -153,6 +156,7 @@ describe("useSettingsStore", () => {
       theme: "light",
       tts: {},
       proxy: {},
+      closeToTray: true,
       webSearch: {},
       notifications: {},
     });
@@ -184,6 +188,7 @@ describe("useSettingsStore", () => {
       theme: "system",
       tts: { autoRead: true },
       proxy: {},
+      closeToTray: true,
       webSearch: {},
       notifications: {},
     });
@@ -215,6 +220,7 @@ describe("useSettingsStore", () => {
       theme: "system",
       tts: {},
       proxy: { url: "http://127.0.0.1:7890" },
+      closeToTray: true,
       webSearch: {},
       notifications: {},
     });
@@ -235,6 +241,7 @@ describe("useSettingsStore", () => {
       theme: "dark",
       tts: {},
       proxy: { url: "http://127.0.0.1:7890" },
+      closeToTray: true,
       webSearch: {},
       notifications: {},
     });
@@ -287,6 +294,7 @@ describe("useSettingsStore", () => {
       theme: "dark",
       tts: { autoRead: true },
       proxy: {},
+      closeToTray: true,
       webSearch: {},
       notifications: { trigger: false },
     });
@@ -318,6 +326,7 @@ describe("useSettingsStore", () => {
       theme: "system",
       tts: {},
       proxy: {},
+      closeToTray: true,
       webSearch: { apiKey: "sk-live-key" },
       notifications: {},
     });
@@ -351,7 +360,61 @@ describe("useSettingsStore", () => {
       theme: "dark",
       tts: {},
       proxy: {},
+      closeToTray: true,
       webSearch: { apiKey: "sk-live-key" },
+      notifications: {},
+    });
+  });
+
+  it("loads closeToTray from settings", async () => {
+    const api = createApi({
+      getSettings: vi.fn().mockResolvedValue({ closeToTray: false }),
+    });
+
+    await useSettingsStore.getState().loadLocale(api);
+
+    expect(useSettingsStore.getState().closeToTray).toBe(false);
+  });
+
+  it("setCloseToTray updates state and persists", async () => {
+    const api = createApi({
+      getSettings: vi.fn().mockResolvedValue({ models: undefined }),
+    });
+
+    const ok = await useSettingsStore.getState().setCloseToTray(api, false);
+
+    expect(ok).toBe(true);
+    expect(useSettingsStore.getState().closeToTray).toBe(false);
+    expect(api.saveSettings).toHaveBeenCalledWith({
+      locale: "zh-CN",
+      models: undefined,
+      debugToolsEnabled: false,
+      closeToTray: false,
+      theme: "system",
+      tts: {},
+      proxy: {},
+      webSearch: {},
+      notifications: {},
+    });
+  });
+
+  it("old setters preserve pre-existing closeToTray", async () => {
+    useSettingsStore.setState({ closeToTray: false });
+    const api = createApi({
+      getSettings: vi.fn().mockResolvedValue({ locale: "zh-CN", models: undefined }),
+    });
+
+    await useSettingsStore.getState().setTheme(api, "dark");
+
+    expect(api.saveSettings).toHaveBeenCalledWith({
+      locale: "zh-CN",
+      models: undefined,
+      debugToolsEnabled: false,
+      closeToTray: false,
+      theme: "dark",
+      tts: {},
+      proxy: {},
+      webSearch: {},
       notifications: {},
     });
   });

@@ -13,6 +13,7 @@ const ELECTRON_CAPABILITIES: HostCapabilities = {
   openFileExternal: true,
   proxy: true,
   notification: true,
+  tray: true,
   content: { editable: true },
 };
 

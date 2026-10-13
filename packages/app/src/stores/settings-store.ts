@@ -8,6 +8,7 @@ export type SettingsStoreApi = Pick<HostBridge, "getSettings" | "saveSettings">;
 interface SettingsStore {
   locale: Locale;
   debugToolsEnabled: boolean;
+  closeToTray: boolean;
   theme: ThemeMode;
   tts: TtsSettings;
   proxy: ProxySettings;
@@ -16,6 +17,7 @@ interface SettingsStore {
   loadLocale: (api: SettingsStoreApi) => Promise<void>;
   changeLocale: (api: SettingsStoreApi, locale: Locale) => Promise<boolean>;
   setDebugToolsEnabled: (api: SettingsStoreApi, enabled: boolean) => Promise<boolean>;
+  setCloseToTray: (api: SettingsStoreApi, enabled: boolean) => Promise<boolean>;
   setTheme: (api: SettingsStoreApi, theme: ThemeMode) => Promise<boolean>;
   setTts: (api: SettingsStoreApi, patch: Partial<TtsSettings>) => Promise<boolean>;
   setProxy: (api: SettingsStoreApi, patch: Partial<ProxySettings>) => Promise<boolean>;
@@ -26,6 +28,7 @@ interface SettingsStore {
 export const useSettingsStore = create<SettingsStore>((set, get) => ({
   locale: "zh-CN",
   debugToolsEnabled: false,
+  closeToTray: true,
   theme: "system",
   tts: {},
   proxy: {},
@@ -37,6 +40,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     set({
       locale: normalizeLocale(settings?.locale),
       debugToolsEnabled: settings?.debugToolsEnabled ?? false,
+      closeToTray: settings?.closeToTray ?? true,
       theme: settings?.theme ?? "system",
       tts: settings?.tts ?? {},
       proxy: settings?.proxy ?? {},
@@ -52,6 +56,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
       locale,
       models: settings?.models,
       debugToolsEnabled: get().debugToolsEnabled,
+      closeToTray: get().closeToTray,
       theme: get().theme,
       tts: get().tts,
       proxy: get().proxy,
@@ -68,6 +73,24 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
       locale: settings?.locale ?? get().locale,
       models: settings?.models,
       debugToolsEnabled: enabled,
+      closeToTray: get().closeToTray,
+      theme: get().theme,
+      tts: get().tts,
+      proxy: get().proxy,
+      webSearch: get().webSearch,
+      notifications: get().notifications,
+    });
+    return true;
+  },
+
+  async setCloseToTray(api, enabled) {
+    set({ closeToTray: enabled });
+    const settings = await api.getSettings();
+    await api.saveSettings({
+      locale: settings?.locale ?? get().locale,
+      models: settings?.models,
+      debugToolsEnabled: get().debugToolsEnabled,
+      closeToTray: enabled,
       theme: get().theme,
       tts: get().tts,
       proxy: get().proxy,
@@ -84,6 +107,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
       locale: settings?.locale ?? get().locale,
       models: settings?.models,
       debugToolsEnabled: get().debugToolsEnabled,
+      closeToTray: get().closeToTray,
       theme,
       tts: get().tts,
       proxy: get().proxy,
@@ -101,6 +125,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
       locale: settings?.locale ?? get().locale,
       models: settings?.models,
       debugToolsEnabled: get().debugToolsEnabled,
+      closeToTray: get().closeToTray,
       theme: get().theme,
       tts: next,
       proxy: get().proxy,
@@ -121,6 +146,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
       locale: settings?.locale ?? get().locale,
       models: settings?.models,
       debugToolsEnabled: get().debugToolsEnabled,
+      closeToTray: get().closeToTray,
       theme: get().theme,
       tts: get().tts,
       proxy: next,
@@ -141,6 +167,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
       locale: settings?.locale ?? get().locale,
       models: settings?.models,
       debugToolsEnabled: get().debugToolsEnabled,
+      closeToTray: get().closeToTray,
       theme: get().theme,
       tts: get().tts,
       proxy: get().proxy,
@@ -158,6 +185,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
       locale: settings?.locale ?? get().locale,
       models: settings?.models,
       debugToolsEnabled: get().debugToolsEnabled,
+      closeToTray: get().closeToTray,
       theme: get().theme,
       tts: get().tts,
       proxy: get().proxy,

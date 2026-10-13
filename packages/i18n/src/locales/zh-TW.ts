@@ -593,6 +593,8 @@ export const zhTW: Record<TranslationKey, string> = {
   "settings.appearance.system": "跟隨系統",
   "settings.debugTools": "除錯工具",
   "settings.debugToolsDesc": "在側邊欄顯示除錯選單入口",
+  "settings.closeToTray": "關閉至系統匣",
+  "settings.closeToTrayDesc": "關閉視窗時讓 Spherse 保持在背景執行，可透過系統匣圖示重新開啟",
   "settings.notifications.title": "系統通知",
   "settings.notifications.desc": "視窗未聚焦時，為審批與觸發器完成彈出系統通知",
   "settings.notifications.approval": "審批通知",
@@ -757,6 +759,8 @@ export const zhTW: Record<TranslationKey, string> = {
   "contextMenu.copy": "複製",
   "contextMenu.paste": "貼上",
   "contextMenu.selectAll": "全選",
+  "tray.show": "開啟 Spherse",
+  "tray.quit": "結束",
 
   "ui-sdk.sessionNotFound": "找不到該對話，可能已被刪除",
 };

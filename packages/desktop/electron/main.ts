@@ -15,6 +15,8 @@ import {
   resolveCrashLogDir,
   safeAppendCrashLog,
 } from "./crash-log.js";
+import { beginQuit, isQuitting } from "./lifecycle.js";
+import { attachCloseToTray, destroyTray, showMainWindow, syncTray } from "./tray.js";
 
 if (process.platform === "win32") {
   app.setAppUserModelId("com.spherse.app");
@@ -57,14 +59,14 @@ app.on("render-process-gone", (_event, webContents, details) => {
   const now = Date.now();
   const decision = decideRendererRecovery({
     cleanExit,
-    quitting,
+    quitting: isQuitting(),
     windowDestroyed: destroyed,
     crashTimes: rendererCrashTimes,
     now,
   });
   rendererCrashTimes = decision.crashTimes;
   if (decision.action === "none") {
-    if (cleanExit || quitting) return;
+    if (cleanExit || isQuitting()) return;
     if (!destroyed && main) {
       showCrashErrorPage(main);
     } else {
@@ -120,9 +122,11 @@ app.whenReady().then(async () => {
   restoreEnvFromSettings();
   setGlobalDispatcher(new EnvHttpProxyAgent());
   await ensureServer();
-  createWindow();
-  setupContextMenu(getMainWindow()!);
+  const mainWindow = createWindow();
+  setupContextMenu(mainWindow);
+  attachCloseToTray(mainWindow);
   registerAllIpc(getMainWindow);
+  syncTray();
   startAutoUpdateChecks();
 
   const mobile = getMobileAccess();
@@ -138,10 +142,8 @@ app.whenReady().then(async () => {
 const TUNNEL_STOP_TIMEOUT_MS = 5_000;
 const GRACEFUL_SHUTDOWN_HARD_EXIT_MS = 30_000;
 
-let quitting = false;
 async function gracefulShutdown(): Promise<void> {
-  if (quitting) return;
-  quitting = true;
+  if (!beginQuit()) return;
   setTimeout(() => {
     console.error("[main] graceful shutdown timed out, forcing app exit");
     app.exit(1);
@@ -160,7 +162,7 @@ async function gracefulShutdown(): Promise<void> {
 app.on("window-all-closed", () => {
   const main = getMainWindow();
   const decision = decideWindowsClosed({
-    quitting,
+    quitting: isQuitting(),
     lastCrashAt,
     backoffExhausted,
     hasLiveWindow: !!main && !main.isDestroyed(),
@@ -177,8 +179,20 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", (event) => {
-  if (!quitting) {
+  if (!isQuitting()) {
     event.preventDefault();
     void gracefulShutdown();
   }
+});
+
+app.on("will-quit", () => {
+  destroyTray();
+});
+
+app.on("activate", () => {
+  void showMainWindow();
+});
+
+app.on("second-instance", () => {
+  void showMainWindow();
 });

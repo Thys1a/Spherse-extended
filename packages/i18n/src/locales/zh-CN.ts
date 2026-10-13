@@ -1204,6 +1204,10 @@ export const zhCN = {
   "settings.debugTools": "调试工具",
   // 设置 > 通用：调试工具开关下方的说明文案
   "settings.debugToolsDesc": "在侧边栏显示调试菜单入口",
+  // 设置 > 通用：关闭至托盘开关的标题（仅桌面端显示）
+  "settings.closeToTray": "关闭至托盘",
+  // 设置 > 通用：关闭至托盘开关下方的说明文案
+  "settings.closeToTrayDesc": "关闭窗口时保持 Spherse 在后台运行，可通过托盘图标重新打开",
   // 设置 > 通用：系统通知小节标题（窗口未聚焦时弹出 OS 级通知）
   "settings.notifications.title": "系统通知",
   // 设置 > 通用：系统通知小节说明
@@ -1554,6 +1558,10 @@ export const zhCN = {
   "contextMenu.paste": "粘贴",
   // 文本框右键菜单「全选」
   "contextMenu.selectAll": "全选",
+  // 系统托盘右键菜单：显示主窗口
+  "tray.show": "打开 Spherse",
+  // 系统托盘右键菜单：退出应用
+  "tray.quit": "退出",
 
   // --- UI SDK ---
   // sendMessage action 收到失效/未知 sessionId 时弹出的 toast 提示

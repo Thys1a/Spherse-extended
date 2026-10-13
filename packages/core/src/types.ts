@@ -154,8 +154,9 @@ export interface AppSettings {
     image: ModelGroupSettings;
   };
   customProviders?: CustomProviderDef[];
-  debugToolsEnabled?: boolean;
-  theme?: ThemeMode;
+    debugToolsEnabled?: boolean;
+    closeToTray?: boolean;
+    theme?: ThemeMode;
   mobileAccess?: MobileAccessSettings;
   tts?: TtsSettings;
   proxy?: ProxySettings;

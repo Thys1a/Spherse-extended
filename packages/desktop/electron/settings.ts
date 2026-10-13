@@ -94,6 +94,7 @@ export function getMaskedSettings(): AppSettings | null {
     },
     customProviders: settings.customProviders ?? [],
     debugToolsEnabled: settings.debugToolsEnabled ?? false,
+    closeToTray: settings.closeToTray ?? true,
     theme: settings.theme ?? "system",
     tts: settings.tts,
     proxy: settings.proxy,
@@ -135,6 +136,7 @@ export function saveSettings(incoming: AppSettings): void {
     },
     customProviders: incoming.customProviders ?? prev?.customProviders ?? [],
     debugToolsEnabled: incoming.debugToolsEnabled ?? prev?.debugToolsEnabled ?? false,
+    closeToTray: incoming.closeToTray ?? prev?.closeToTray ?? true,
     theme: incoming.theme ?? prev?.theme ?? "system",
     mobileAccess: prev?.mobileAccess,
     tts: incoming.tts ?? prev?.tts,
@@ -315,6 +317,10 @@ export function getLastActiveProject(): string | null {
 
 export function setLastActiveProject(projectPath: string | null): void {
   settingsStore.set("lastActiveProject", projectPath);
+}
+
+export function getCloseToTray(): boolean {
+  return settingsStore.get("settings")?.closeToTray ?? true;
 }
 
 export function getLocale(): string {

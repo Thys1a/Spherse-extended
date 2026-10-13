@@ -15,6 +15,7 @@ export function createMockHostBridge(overrides: HostBridgeOverrides = {}): HostB
       openFileExternal: true,
       proxy: false,
       notification: true,
+      tray: false,
       content: { editable: true },
       ...capabilities,
     },

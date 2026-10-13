@@ -220,9 +220,12 @@ function SettingsTabs() {
   const setWebSearch = useSettingsStore((s) => s.setWebSearch);
   const notifications = useSettingsStore((s) => s.notifications);
   const setNotifications = useSettingsStore((s) => s.setNotifications);
+  const closeToTray = useSettingsStore((s) => s.closeToTray);
+  const setCloseToTray = useSettingsStore((s) => s.setCloseToTray);
   const proxyEnabled = bridge.capabilities.proxy;
   const mobileAccessEnabled = bridge.capabilities.mobileAccess;
   const notificationEnabled = bridge.capabilities.notification;
+  const trayEnabled = bridge.capabilities.tray;
   const settingsApi = useMemo<SettingsApi>(() => ({
     getSettings: bridge.getSettings,
     saveSettings: bridge.saveSettings,
@@ -312,6 +315,21 @@ function SettingsTabs() {
           </FieldGroup>
           <TtsSettingsPanel tts={tts} onChange={(patch) => { void setTts(settingsApi, patch); }} />
           <WebSearchPanel webSearch={webSearch} onChange={(patch) => { void setWebSearch(settingsApi, patch); }} />
+          {trayEnabled && (
+            <FieldGroup className="mt-5">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex flex-col gap-1">
+                  <span className="text-sm font-medium leading-none">{t("settings.closeToTray")}</span>
+                  <span className="text-xs text-muted-foreground">{t("settings.closeToTrayDesc")}</span>
+                </div>
+                <Switch
+                  checked={closeToTray}
+                  aria-label={t("settings.closeToTray")}
+                  onCheckedChange={(checked) => { void setCloseToTray(settingsApi, checked); }}
+                />
+              </div>
+            </FieldGroup>
+          )}
           {proxyEnabled && (
             <ProxyPanel proxy={proxy} onChange={(patch) => { void setProxy(settingsApi, patch); }} />
           )}
