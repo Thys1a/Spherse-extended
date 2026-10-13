@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useI18n } from "@spherse/i18n/react";
-import type { AgentSummary, ActiveSessionInfo } from "../../lib/types";
 import { useProjectCtx } from "../../context/project-context";
 import { useApiClient } from "../../lib/use-connection";
 import { useHostBridge } from "../../context/host-bridge-context";
@@ -20,9 +19,6 @@ export interface ContentBrowserProps {
   filePath: string;
   onBack: () => void;
   onClose: () => void;
-  agents: AgentSummary[];
-  activeSessions?: ActiveSessionInfo[];
-  onStartSession?: (agentId: string, selectedText: string, sourcePath: string, comment?: string) => void;
   onNavigate?: (filePath: string) => void;
   onSplit?: () => void;
 }
@@ -31,9 +27,6 @@ export function ContentBrowser({
   filePath,
   onBack,
   onClose,
-  agents,
-  activeSessions,
-  onStartSession,
   onNavigate,
   onSplit,
 }: ContentBrowserProps) {
@@ -145,10 +138,6 @@ export function ContentBrowser({
         <TextSelectionSession
           disabled={editor.isEditing}
           sourcePath={filePath}
-          agents={agents}
-          projectId={projectId}
-          activeSessions={activeSessions}
-          onStartSession={onStartSession}
         >
           {(contentRef) => (
             <ContentView
