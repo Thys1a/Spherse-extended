@@ -3,6 +3,7 @@ import { useDataLinkedRefresh } from "../chat/hooks/useDataLinkedRefresh";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router";
 import { FloatingFrame } from "../../components/floating-frame";
+import { FindScopeRoot } from "../content-browser";
 import { ContentView } from "../content-browser/ContentView";
 import { classifyFileKind } from "../content-browser/file-kind";
 import { useContentFile } from "../content-browser/hooks/useContentFile";
@@ -66,7 +67,7 @@ export function FloatingContentBrowserContainer({
         navigate(`/project/${projectId}/content?path=${encodeURIComponent(filePath)}`);
       }}
     >
-      <div className="flex h-full flex-col">
+      <FindScopeRoot className="flex h-full flex-col">
         <ContentView
           filePath={filePath}
           content={content}
@@ -82,7 +83,7 @@ export function FloatingContentBrowserContainer({
           onEditedContentChange={() => {}}
           refreshKey={refreshKey}
         />
-      </div>
+      </FindScopeRoot>
     </FloatingFrame>,
     document.body,
   );

@@ -72,6 +72,7 @@ export type {
   SummonMetaContract,
 } from "./sessions.js";
 
+export { CONTENT_ERROR_CODES } from "./content.js";
 export type {
   FileEntryContract,
   FileEntriesResponse,
