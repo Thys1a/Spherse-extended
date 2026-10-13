@@ -10,6 +10,7 @@ export type FeatureName =
   | "browser"
   | "text-selection-session"
   | "open-project"
+  | "open-project-folder"
   | "tts"
   | "embedded-chat"
   | "tabs"
@@ -28,6 +29,7 @@ export const FEATURE_HOST_MATRIX: Record<FeatureName, ReadonlySet<HostKind>> = {
   browser: ELECTRON_ONLY,
   "text-selection-session": ELECTRON_ONLY,
   "open-project": ELECTRON_ONLY,
+  "open-project-folder": ELECTRON_ONLY,
   tts: ELECTRON_ONLY,
   "embedded-chat": ALL_HOSTS,
   tabs: ALL_HOSTS,

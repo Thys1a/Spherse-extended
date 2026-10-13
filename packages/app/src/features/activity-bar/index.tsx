@@ -37,6 +37,7 @@ export function ActivityBar({ pinToggle }: ActivityBarProps) {
   const activeProjectId = useAppStore((state) => state.activeProjectId);
   const settingsEnabled = useFeature("settings");
   const openProjectEnabled = useFeature("open-project");
+  const openProjectFolderEnabled = useFeature("open-project-folder");
   const openSettings = useAppUiStore((s) => s.openSettings);
   const canEditProject = useHostBridge().capabilities.content.editable;
   const { handleAddProject, handleSelectProject, handleCloseProject, handleOpenProjectFolder } =
@@ -84,9 +85,11 @@ export function ActivityBar({ pinToggle }: ActivityBarProps) {
                     </ContextMenuSubContent>
                   </ContextMenuSub>
                 )}
-                <ContextMenuItem onClick={() => handleOpenProjectFolder(projectId)}>
-                  {t("activity-bar.openProjectFolder")}
-                </ContextMenuItem>
+                {openProjectFolderEnabled && (
+                  <ContextMenuItem onClick={() => handleOpenProjectFolder(projectId)}>
+                    {t("activity-bar.openProjectFolder")}
+                  </ContextMenuItem>
+                )}
                 <ContextMenuItem onClick={() => handleCloseProject(projectId)}>
                   {t("activity-bar.closeProject")}
                 </ContextMenuItem>
