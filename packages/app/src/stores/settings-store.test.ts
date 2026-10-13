@@ -14,7 +14,7 @@ function createApi(overrides: Partial<SettingsApi> = {}): SettingsApi {
 
 describe("useSettingsStore", () => {
   beforeEach(() => {
-    useSettingsStore.setState({ locale: "zh-CN", debugToolsEnabled: false, theme: "system", tts: {}, proxy: {}, notifications: {} });
+    useSettingsStore.setState({ locale: "zh-CN", debugToolsEnabled: false, theme: "system", tts: {}, proxy: {}, webSearch: {}, notifications: {} });
   });
 
   it("loads locale from settings", async () => {
@@ -55,6 +55,7 @@ describe("useSettingsStore", () => {
       theme: "system",
       tts: {},
       proxy: {},
+      webSearch: {},
       notifications: {},
     });
   });
@@ -93,6 +94,7 @@ describe("useSettingsStore", () => {
       theme: "system",
       tts: {},
       proxy: {},
+      webSearch: {},
       notifications: {},
     });
   });
@@ -131,6 +133,7 @@ describe("useSettingsStore", () => {
       theme: "dark",
       tts: {},
       proxy: {},
+      webSearch: {},
       notifications: {},
     });
   });
@@ -150,6 +153,7 @@ describe("useSettingsStore", () => {
       theme: "light",
       tts: {},
       proxy: {},
+      webSearch: {},
       notifications: {},
     });
   });
@@ -180,6 +184,7 @@ describe("useSettingsStore", () => {
       theme: "system",
       tts: { autoRead: true },
       proxy: {},
+      webSearch: {},
       notifications: {},
     });
   });
@@ -210,6 +215,7 @@ describe("useSettingsStore", () => {
       theme: "system",
       tts: {},
       proxy: { url: "http://127.0.0.1:7890" },
+      webSearch: {},
       notifications: {},
     });
   });
@@ -229,6 +235,7 @@ describe("useSettingsStore", () => {
       theme: "dark",
       tts: {},
       proxy: { url: "http://127.0.0.1:7890" },
+      webSearch: {},
       notifications: {},
     });
   });
@@ -280,7 +287,71 @@ describe("useSettingsStore", () => {
       theme: "dark",
       tts: { autoRead: true },
       proxy: {},
+      webSearch: {},
       notifications: { trigger: false },
+    });
+  });
+
+  it("loads webSearch settings from settings", async () => {
+    const api = createApi({
+      getSettings: vi.fn().mockResolvedValue({ webSearch: { apiKey: "sk-****-key", baseUrl: "https://gateway.test/anthropic", model: "custom/search-1" } }),
+    });
+
+    await useSettingsStore.getState().loadLocale(api);
+
+    expect(useSettingsStore.getState().webSearch).toEqual({ apiKey: "sk-****-key", baseUrl: "https://gateway.test/anthropic", model: "custom/search-1" });
+  });
+
+  it("setWebSearch merges patch and persists", async () => {
+    const api = createApi({
+      getSettings: vi.fn().mockResolvedValue({ models: undefined }),
+    });
+
+    const ok = await useSettingsStore.getState().setWebSearch(api, { apiKey: "sk-live-key" });
+
+    expect(ok).toBe(true);
+    expect(useSettingsStore.getState().webSearch).toEqual({ apiKey: "sk-live-key" });
+    expect(api.saveSettings).toHaveBeenCalledWith({
+      locale: "zh-CN",
+      models: undefined,
+      debugToolsEnabled: false,
+      theme: "system",
+      tts: {},
+      proxy: {},
+      webSearch: { apiKey: "sk-live-key" },
+      notifications: {},
+    });
+  });
+
+  it("setWebSearch drops undefined keys", async () => {
+    useSettingsStore.setState({ webSearch: { apiKey: "sk-live-key", model: "custom/search-1" } });
+    const api = createApi({
+      getSettings: vi.fn().mockResolvedValue({ models: undefined }),
+    });
+
+    await useSettingsStore.getState().setWebSearch(api, { apiKey: undefined });
+
+    expect(useSettingsStore.getState().webSearch).toEqual({ model: "custom/search-1" });
+    expect("apiKey" in useSettingsStore.getState().webSearch).toBe(false);
+  });
+
+  it("old setters preserve pre-existing webSearch", async () => {
+    useSettingsStore.setState({ webSearch: { apiKey: "sk-live-key" } });
+    const api = createApi({
+      getSettings: vi.fn().mockResolvedValue({ locale: "zh-CN", models: undefined }),
+    });
+
+    await useSettingsStore.getState().setTheme(api, "dark");
+
+    expect(api.saveSettings).toHaveBeenCalledWith({
+      locale: "zh-CN",
+      models: undefined,
+      debugToolsEnabled: false,
+      theme: "dark",
+      tts: {},
+      proxy: {},
+      webSearch: { apiKey: "sk-live-key" },
+      notifications: {},
     });
   });
 });

@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { normalizeLocale, type Locale } from "@spherse/i18n";
-import type { TtsSettings, ProxySettings } from "@spherse/core";
+import type { TtsSettings, ProxySettings, WebSearchSettings } from "@spherse/core";
 import type { HostBridge, NotificationSettings, ThemeMode } from "../lib/host-bridge";
 
 export type SettingsStoreApi = Pick<HostBridge, "getSettings" | "saveSettings">;
@@ -11,6 +11,7 @@ interface SettingsStore {
   theme: ThemeMode;
   tts: TtsSettings;
   proxy: ProxySettings;
+  webSearch: WebSearchSettings;
   notifications: NotificationSettings;
   loadLocale: (api: SettingsStoreApi) => Promise<void>;
   changeLocale: (api: SettingsStoreApi, locale: Locale) => Promise<boolean>;
@@ -18,6 +19,7 @@ interface SettingsStore {
   setTheme: (api: SettingsStoreApi, theme: ThemeMode) => Promise<boolean>;
   setTts: (api: SettingsStoreApi, patch: Partial<TtsSettings>) => Promise<boolean>;
   setProxy: (api: SettingsStoreApi, patch: Partial<ProxySettings>) => Promise<boolean>;
+  setWebSearch: (api: SettingsStoreApi, patch: Partial<WebSearchSettings>) => Promise<boolean>;
   setNotifications: (api: SettingsStoreApi, patch: Partial<NotificationSettings>) => Promise<boolean>;
 }
 
@@ -27,6 +29,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   theme: "system",
   tts: {},
   proxy: {},
+  webSearch: {},
   notifications: {},
 
   async loadLocale(api) {
@@ -37,6 +40,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
       theme: settings?.theme ?? "system",
       tts: settings?.tts ?? {},
       proxy: settings?.proxy ?? {},
+      webSearch: settings?.webSearch ?? {},
       notifications: settings?.notifications ?? {},
     });
   },
@@ -51,6 +55,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
       theme: get().theme,
       tts: get().tts,
       proxy: get().proxy,
+      webSearch: get().webSearch,
       notifications: get().notifications,
     });
     return true;
@@ -66,6 +71,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
       theme: get().theme,
       tts: get().tts,
       proxy: get().proxy,
+      webSearch: get().webSearch,
       notifications: get().notifications,
     });
     return true;
@@ -81,6 +87,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
       theme,
       tts: get().tts,
       proxy: get().proxy,
+      webSearch: get().webSearch,
       notifications: get().notifications,
     });
     return true;
@@ -97,6 +104,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
       theme: get().theme,
       tts: next,
       proxy: get().proxy,
+      webSearch: get().webSearch,
       notifications: get().notifications,
     });
     return true;
@@ -116,6 +124,27 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
       theme: get().theme,
       tts: get().tts,
       proxy: next,
+      webSearch: get().webSearch,
+      notifications: get().notifications,
+    });
+    return true;
+  },
+
+  async setWebSearch(api, patch) {
+    const next = { ...get().webSearch, ...patch };
+    for (const key of Object.keys(next) as (keyof typeof next)[]) {
+      if (next[key] === undefined) delete next[key];
+    }
+    set({ webSearch: next });
+    const settings = await api.getSettings();
+    await api.saveSettings({
+      locale: settings?.locale ?? get().locale,
+      models: settings?.models,
+      debugToolsEnabled: get().debugToolsEnabled,
+      theme: get().theme,
+      tts: get().tts,
+      proxy: get().proxy,
+      webSearch: next,
       notifications: get().notifications,
     });
     return true;
@@ -132,6 +161,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
       theme: get().theme,
       tts: get().tts,
       proxy: get().proxy,
+      webSearch: get().webSearch,
       notifications: next,
     });
     return true;

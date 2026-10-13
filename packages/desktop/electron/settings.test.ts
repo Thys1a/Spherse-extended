@@ -610,3 +610,61 @@ describe("provider API keys in process env", () => {
     expect(process.env.MOONSHOT_API_KEY).toBeUndefined();
   });
 });
+
+describe("webSearch settings", () => {
+  const empty = { defaultModel: "", providers: {} };
+
+  function saveWebSearch(webSearch: { apiKey?: string; baseUrl?: string; model?: string }) {
+    saveSettings({ locale: "zh-CN", models: { text: empty, image: empty }, webSearch });
+  }
+
+  function clearSearchEnv() {
+    delete process.env.SPHERSE_WEB_SEARCH_API_KEY;
+    delete process.env.SPHERSE_WEB_SEARCH_BASE_URL;
+    delete process.env.SPHERSE_WEB_SEARCH_MODEL;
+  }
+
+  it("round-trips the section through save and masked read", () => {
+    settingsStore.set("settings", undefined);
+    clearSearchEnv();
+    saveWebSearch({ apiKey: "sk-live-key", baseUrl: "https://gateway.test/anthropic", model: "custom/search-1" });
+    expect(getMaskedSettings()?.webSearch).toEqual({
+      apiKey: "sk-l****-key",
+      baseUrl: "https://gateway.test/anthropic",
+      model: "custom/search-1",
+    });
+    expect(process.env.SPHERSE_WEB_SEARCH_API_KEY).toBe("sk-live-key");
+    expect(process.env.SPHERSE_WEB_SEARCH_BASE_URL).toBe("https://gateway.test/anthropic");
+    expect(process.env.SPHERSE_WEB_SEARCH_MODEL).toBe("custom/search-1");
+    clearSearchEnv();
+  });
+
+  it("keeps the previous key when the incoming key is masked", () => {
+    settingsStore.set("settings", undefined);
+    clearSearchEnv();
+    saveWebSearch({ apiKey: "sk-live-key" });
+    saveWebSearch({ apiKey: "sk-l****-key", model: "custom/search-1" });
+    expect(settingsStore.get("settings")?.webSearch).toEqual({ apiKey: "sk-live-key", model: "custom/search-1" });
+    expect(process.env.SPHERSE_WEB_SEARCH_API_KEY).toBe("sk-live-key");
+    clearSearchEnv();
+  });
+
+  it("clears the key and env when the incoming key is blank", () => {
+    settingsStore.set("settings", undefined);
+    clearSearchEnv();
+    saveWebSearch({ apiKey: "sk-live-key" });
+    saveWebSearch({ apiKey: "" });
+    expect(settingsStore.get("settings")?.webSearch?.apiKey).toBeUndefined();
+    expect(process.env.SPHERSE_WEB_SEARCH_API_KEY).toBeUndefined();
+  });
+
+  it("preserves the section across partial saves without it", () => {
+    settingsStore.set("settings", undefined);
+    clearSearchEnv();
+    saveWebSearch({ apiKey: "sk-live-key" });
+    saveSettings({ locale: "zh-CN", models: { text: empty, image: empty } });
+    expect(settingsStore.get("settings")?.webSearch?.apiKey).toBe("sk-live-key");
+    expect(process.env.SPHERSE_WEB_SEARCH_API_KEY).toBe("sk-live-key");
+    clearSearchEnv();
+  });
+});

@@ -1242,6 +1242,28 @@ export const zhCN = {
   "settings.proxy.noProxyDesc": "多个主机用英文逗号分隔",
   // 设置 > 通用：不走代理输入框占位提示
   "settings.proxy.noProxyPlaceholder": "localhost, 127.0.0.1",
+  // 设置 > 通用：联网搜索小节标题
+  "settings.webSearch.title": "联网搜索",
+  // 设置 > 通用：联网搜索小节说明
+  "settings.webSearch.desc": "为智能体提供联网搜索能力，Key 仅用于搜索请求",
+  // 设置 > 通用：搜索 Key 输入框标签
+  "settings.webSearch.apiKey": "搜索 API Key",
+  // 设置 > 通用：搜索 Key 输入框说明
+  "settings.webSearch.apiKeyDesc": "搜索请求使用的 Key，留空则禁用联网搜索",
+  // 设置 > 通用：搜索 Key 输入框占位提示
+  "settings.webSearch.apiKeyPlaceholder": "sk-...",
+  // 设置 > 通用：搜索服务地址输入框标签
+  "settings.webSearch.baseUrl": "搜索服务地址",
+  // 设置 > 通用：搜索服务地址输入框说明
+  "settings.webSearch.baseUrlDesc": "Anthropic Messages 兼容的搜索端点，留空使用默认服务",
+  // 设置 > 通用：搜索服务地址输入框占位提示
+  "settings.webSearch.baseUrlPlaceholder": "https://api.deepseek.com/anthropic",
+  // 设置 > 通用：搜索模型输入框标签
+  "settings.webSearch.model": "搜索模型",
+  // 设置 > 通用：搜索模型输入框说明
+  "settings.webSearch.modelDesc": "执行搜索的模型，留空使用默认模型",
+  // 设置 > 通用：搜索模型输入框占位提示
+  "settings.webSearch.modelPlaceholder": "deepseek-v4-flash",
   // 标签页栏的无障碍标签
   "tabs.list": "打开的标签页",
   // 无标题标签页的回退显示
@@ -1311,7 +1333,7 @@ export const zhCN = {
   // 独立工具标签：网页搜索（通过 DeepSeek API 的内置搜索能力）
   "tool.web_search": "网页搜索",
   // 独立工具 tooltip：网页搜索的作用说明与前置条件
-  "tool.web_search_hint": "允许智能体联网搜索最新信息。需在设置中配置 DeepSeek API Key；搜索词会发送给 DeepSeek 并产生额外 token 费用（与智能体所用模型无关）",
+  "tool.web_search_hint": "允许智能体联网搜索最新信息。需在设置中配置搜索 API Key；搜索会产生额外 token 费用（与智能体所用模型无关）",
   // 独立工具标签：触发事件（emit trigger event，agent 在对话中调用，触发其它 agent 的事件触发器）
   "tool.emit_trigger_event": "触发事件",
   // 独立工具 tooltip：触发事件的作用说明

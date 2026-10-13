@@ -1,4 +1,4 @@
-import type { ProviderCatalogItem, ModelGroupSettings, CustomProviderDef, TtsSettings, ProxySettings } from "@spherse/core";
+import type { ProviderCatalogItem, ModelGroupSettings, CustomProviderDef, TtsSettings, ProxySettings, WebSearchSettings } from "@spherse/core";
 import type { ReactNode } from "react";
 
 export interface RestoredProject {
@@ -71,6 +71,7 @@ export interface HostSettings {
   theme?: ThemeMode;
   tts?: TtsSettings;
   proxy?: ProxySettings;
+  webSearch?: WebSearchSettings;
   notifications?: NotificationSettings;
 }
 

@@ -8,6 +8,7 @@ export type {
   MobileAccessSettings,
   TtsSettings,
   ProxySettings,
+  WebSearchSettings,
   AppSettings,
   ProviderCatalog,
   ProviderCatalogItem,

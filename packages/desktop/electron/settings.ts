@@ -3,7 +3,7 @@ import crypto from "node:crypto";
 import { nativeTheme } from "electron";
 import Store from "electron-store";
 import { setGlobalDispatcher, EnvHttpProxyAgent } from "undici";
-import type { AppSettings, ModelGroupSettings, ProviderCredentials, MobileAccessSettings, ProxySettings } from "@spherse/core";
+import type { AppSettings, ModelGroupSettings, ProviderCredentials, MobileAccessSettings, ProxySettings, WebSearchSettings } from "@spherse/core";
 import { getAppModelCatalog } from "./model-catalog.js";
 
 export interface OpenProjectEntry {
@@ -51,6 +51,38 @@ export function maskModelGroup(group: ModelGroupSettings | undefined): ModelGrou
   return { defaultModel: group?.defaultModel ?? "", providers, sampling: group?.sampling, thinkingLevel: group?.thinkingLevel };
 }
 
+function maskWebSearch(search: WebSearchSettings | undefined): WebSearchSettings | undefined {
+  if (!search) return undefined;
+  const masked: WebSearchSettings = {};
+  if (search.apiKey) masked.apiKey = maskApiKey(search.apiKey);
+  if (search.baseUrl) masked.baseUrl = search.baseUrl;
+  if (search.model) masked.model = search.model;
+  return masked;
+}
+
+function mergeWebSearchApiKey(incoming: string | undefined, prev: string | undefined): string | undefined {
+  if (incoming === undefined) return prev;
+  if (incoming.trim() === "") return undefined;
+  if (incoming.includes("****")) return prev;
+  return incoming;
+}
+
+function mergeWebSearch(
+  incoming: WebSearchSettings | undefined,
+  prev: WebSearchSettings | undefined,
+): WebSearchSettings | undefined {
+  if (!incoming) return prev;
+  const blank = (value: string | undefined): string | undefined => {
+    const trimmed = value?.trim();
+    return trimmed ? trimmed : undefined;
+  };
+  return {
+    apiKey: mergeWebSearchApiKey(incoming.apiKey, prev?.apiKey),
+    baseUrl: incoming.baseUrl === undefined ? prev?.baseUrl : blank(incoming.baseUrl),
+    model: incoming.model === undefined ? prev?.model : blank(incoming.model),
+  };
+}
+
 export function getMaskedSettings(): AppSettings | null {
   const settings = settingsStore.get("settings");
   if (!settings) return null;
@@ -65,6 +97,7 @@ export function getMaskedSettings(): AppSettings | null {
     theme: settings.theme ?? "system",
     tts: settings.tts,
     proxy: settings.proxy,
+    webSearch: maskWebSearch(settings.webSearch),
     notifications: settings.notifications,
   };
 }
@@ -106,6 +139,7 @@ export function saveSettings(incoming: AppSettings): void {
     mobileAccess: prev?.mobileAccess,
     tts: incoming.tts ?? prev?.tts,
     proxy: incoming.proxy ?? prev?.proxy,
+    webSearch: mergeWebSearch(incoming.webSearch, prev?.webSearch),
     notifications: incoming.notifications ?? prev?.notifications,
   };
   settingsStore.set("settings", merged);
@@ -179,9 +213,22 @@ function applyProviderKeysToEnv(settings: AppSettings): void {
   }
 }
 
+function applyWebSearchEnv(search: WebSearchSettings | undefined): void {
+  const apiKey = search?.apiKey?.trim();
+  if (apiKey) process.env.SPHERSE_WEB_SEARCH_API_KEY = apiKey;
+  else delete process.env.SPHERSE_WEB_SEARCH_API_KEY;
+  const baseUrl = search?.baseUrl?.trim();
+  if (baseUrl) process.env.SPHERSE_WEB_SEARCH_BASE_URL = baseUrl;
+  else delete process.env.SPHERSE_WEB_SEARCH_BASE_URL;
+  const model = search?.model?.trim();
+  if (model) process.env.SPHERSE_WEB_SEARCH_MODEL = model;
+  else delete process.env.SPHERSE_WEB_SEARCH_MODEL;
+}
+
 function applySettingsToEnv(settings: AppSettings): void {
   applyThemeSource(settings.theme);
   applyProviderKeysToEnv(settings);
+  applyWebSearchEnv(settings.webSearch);
 
   const imageGroup = settings.models?.image;
   if (imageGroup?.defaultModel) {
