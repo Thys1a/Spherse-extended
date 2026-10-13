@@ -29,6 +29,7 @@ interface TabStore {
   byProject: Record<string, ProjectTabs>;
   openTab: (projectId: string, spec: OpenTabSpec, opts?: { force?: boolean }) => string;
   closeTab: (projectId: string, id: string) => void;
+  closeDeletedTabs: (projectId: string, path: string) => void;
   closeOthers: (projectId: string, keepId: string) => void;
   closeAll: (projectId: string) => void;
   remapPaths: (projectId: string, oldPath: string, newPath: string) => void;
@@ -194,6 +195,30 @@ export const useTabStore = create<TabStore>((set, get) => ({
         activeTabId = home.id;
       }
       const byProject = { ...s.byProject, [projectId]: { tabs, activeTabId } };
+      persist(byProject);
+      return { byProject };
+    });
+  },
+
+  closeDeletedTabs(projectId, path) {
+    set((s) => {
+      const entry = s.byProject[projectId];
+      if (!entry) return s;
+      const prefix = `${path}/`;
+      const tabs = entry.tabs.filter((t) => !(t.filePath === path || t.filePath?.startsWith(prefix)));
+      if (tabs.length === entry.tabs.length) return s;
+      let activeTabId = entry.activeTabId;
+      if (!tabs.some((t) => t.id === activeTabId)) {
+        activeTabId = tabs[0]?.id ?? null;
+      }
+      let finalTabs = tabs;
+      let finalActive = activeTabId;
+      if (finalTabs.length === 0) {
+        const home: Tab = { id: crypto.randomUUID(), kind: "home", projectId, label: "" };
+        finalTabs = [home];
+        finalActive = home.id;
+      }
+      const byProject = { ...s.byProject, [projectId]: { tabs: finalTabs, activeTabId: finalActive } };
       persist(byProject);
       return { byProject };
     });

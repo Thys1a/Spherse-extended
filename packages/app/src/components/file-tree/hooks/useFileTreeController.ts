@@ -15,6 +15,7 @@ import {
 } from "../tree-model";
 import { invalidateProjectFileQueries } from "../../../queries/content";
 import { useTabStore } from "../../../features/tabs/tab-store";
+import { useSplitStore } from "../../../features/tabs/split-store";
 
 export interface FileTreeController {
   expandedPaths: ReadonlySet<string>;
@@ -148,6 +149,7 @@ export function useFileTreeController(
           return changed ? next : prev;
         });
         useTabStore.getState().remapPaths(projectId, source, destination);
+        useSplitStore.getState().remapSplit(projectId, source, destination);
         useDirtyPathsStore.getState().remapPaths(projectId, source, destination);
         onRenamed?.(source, destination);
         await invalidateProjectFileQueries(projectId, source);

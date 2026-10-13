@@ -218,6 +218,48 @@ describe("useTabStore", () => {
     expect(useTabStore.getState().byProject["nope"]).toBeUndefined();
   });
 
+  it("closeDeletedTabs closes tabs of the deleted file", () => {
+    const a = useTabStore.getState().openTab("p1", { kind: "content", label: "a.md", filePath: "docs/a.md" }, { force: true });
+    const b = useTabStore.getState().openTab("p1", { kind: "content", label: "b.md", filePath: "docs/b.md" }, { force: true });
+
+    useTabStore.getState().closeDeletedTabs("p1", "docs/a.md");
+
+    const ids = useTabStore.getState().byProject["p1"].tabs.map((t) => t.id);
+    expect(ids).not.toContain(a);
+    expect(ids).toContain(b);
+  });
+
+  it("closeDeletedTabs closes tabs under a deleted directory", () => {
+    useTabStore.getState().openTab("p1", { kind: "content", label: "a.md", filePath: "docs/sub/a.md" }, { force: true });
+    const chat = useTabStore.getState().openTab("p1", { kind: "chat", label: "s", sessionId: "s" });
+
+    useTabStore.getState().closeDeletedTabs("p1", "docs");
+
+    const entry = useTabStore.getState().byProject["p1"];
+    expect(entry.tabs.map((t) => t.id)).toEqual([chat]);
+    expect(entry.activeTabId).toBe(chat);
+  });
+
+  it("closeDeletedTabs seeds home when every tab is deleted", () => {
+    useTabStore.getState().openTab("p1", { kind: "content", label: "a.md", filePath: "docs/a.md" }, { force: true });
+
+    useTabStore.getState().closeDeletedTabs("p1", "docs/a.md");
+
+    const entry = useTabStore.getState().byProject["p1"];
+    expect(entry.tabs).toHaveLength(1);
+    expect(entry.tabs[0].kind).toBe("home");
+    expect(entry.activeTabId).toBe(entry.tabs[0].id);
+  });
+
+  it("closeDeletedTabs ignores unmatched paths", () => {
+    const a = useTabStore.getState().openTab("p1", { kind: "content", label: "a.md", filePath: "docs/a.md" }, { force: true });
+
+    useTabStore.getState().closeDeletedTabs("p1", "other.md");
+    useTabStore.getState().closeDeletedTabs("p1", "docs-extra");
+
+    expect(useTabStore.getState().byProject["p1"].tabs.map((t) => t.id)).toEqual([a]);
+  });
+
   it("reorder moves tabs", () => {
     const a = useTabStore.getState().openTab("p1", { kind: "chat", label: "a", sessionId: "a" });
     const b = useTabStore.getState().openTab("p1", { kind: "chat", label: "b", sessionId: "b" });

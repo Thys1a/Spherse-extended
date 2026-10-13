@@ -115,6 +115,32 @@ describe("useSplitStore", () => {
 
     expect(useSplitStore.getState().byProject).toBe(before);
   });
+
+  it("remapSplit follows renames of the open file", () => {
+    useSplitStore.getState().openSplit("p1", "docs/a.md");
+
+    useSplitStore.getState().remapSplit("p1", "docs/a.md", "notes/a.md");
+
+    expect(useSplitStore.getState().byProject["p1"]).toMatchObject({ filePath: "notes/a.md", ratio: 0.5 });
+  });
+
+  it("remapSplit follows renames of a parent directory", () => {
+    useSplitStore.getState().openSplit("p1", "docs/sub/a.md");
+
+    useSplitStore.getState().remapSplit("p1", "docs", "notes");
+
+    expect(useSplitStore.getState().byProject["p1"]).toMatchObject({ filePath: "notes/sub/a.md" });
+  });
+
+  it("remapSplit ignores unrelated paths", () => {
+    useSplitStore.getState().openSplit("p1", "docs/a.md");
+    const before = useSplitStore.getState().byProject;
+
+    useSplitStore.getState().remapSplit("p1", "other", "new");
+    useSplitStore.getState().remapSplit("p1", "docs-extra", "new");
+
+    expect(useSplitStore.getState().byProject).toBe(before);
+  });
 });
 
 describe("clampRatioForWidth", () => {
@@ -131,6 +157,12 @@ describe("clampRatioForWidth", () => {
   it("snaps back to the default ratio on narrow containers", () => {
     expect(clampRatioForWidth(0.6, 700)).toBe(0.5);
     expect(clampRatioForWidth(0.2, 320)).toBe(0.5);
+  });
+
+  it("holds the default ratio at the narrow-width boundary", () => {
+    expect(clampRatioForWidth(0.6, 719)).toBe(0.5);
+    expect(clampRatioForWidth(0.9, 720)).toBe(0.8);
+    expect(clampRatioForWidth(0.6, -100)).toBe(0.6);
   });
 });
 

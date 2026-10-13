@@ -36,6 +36,27 @@ describe("TabPanel content split", () => {
 
     const tabs = useTabStore.getState().byProject["p1"]?.tabs ?? [];
     expect(tabs.find((t) => t.id === "t1")).toBeUndefined();
+    expect(tabs).toHaveLength(1);
+    expect(tabs[0]).toMatchObject({ kind: "home" });
+    expect(useSplitStore.getState().byProject["p1"]).toMatchObject({ filePath: "a.md" });
+  });
+
+  it("only closes the split file tab and keeps the others", () => {
+    const tab = { id: "t1", kind: "content", projectId: "p1", label: "a.md", filePath: "a.md" } as const;
+    useTabStore.setState({
+      byProject: {
+        p1: {
+          tabs: [{ ...tab }, { id: "t2", kind: "content", projectId: "p1", label: "b.md", filePath: "b.md" }],
+          activeTabId: "t1",
+        },
+      },
+    });
+    renderWithProviders(<TabPanel projectId="p1" tab={{ ...tab }} />);
+
+    fireEvent.click(screen.getByLabelText("split"));
+
+    const tabs = useTabStore.getState().byProject["p1"]?.tabs ?? [];
+    expect(tabs.map((t) => t.id)).toEqual(["t2"]);
     expect(useSplitStore.getState().byProject["p1"]).toMatchObject({ filePath: "a.md" });
   });
 });

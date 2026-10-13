@@ -11,6 +11,7 @@ interface SplitStore {
   setFile: (projectId: string, filePath: string) => void;
   closeSplit: (projectId: string) => void;
   closeDeletedSplit: (projectId: string, path: string) => void;
+  remapSplit: (projectId: string, oldPath: string, newPath: string) => void;
   setRatio: (projectId: string, ratio: number) => void;
   clearProject: (projectId: string) => void;
 }
@@ -111,6 +112,22 @@ export const useSplitStore = create<SplitStore>((set) => ({
       if (!filePath || (filePath !== path && !filePath.startsWith(`${path}/`))) return s;
       const byProject = { ...s.byProject };
       delete byProject[projectId];
+      persist(byProject);
+      return { byProject };
+    });
+  },
+
+  remapSplit(projectId, oldPath, newPath) {
+    set((s) => {
+      const entry = s.byProject[projectId];
+      if (!entry) return s;
+      const prefix = `${oldPath}/`;
+      const { filePath } = entry;
+      if (filePath !== oldPath && !filePath.startsWith(prefix)) return s;
+      const byProject = {
+        ...s.byProject,
+        [projectId]: { ...entry, filePath: filePath === oldPath ? newPath : newPath + filePath.slice(oldPath.length) },
+      };
       persist(byProject);
       return { byProject };
     });

@@ -43,6 +43,7 @@ export function UserFilePanel() {
     if (!projectId) return;
     for (const deletedPath of deletedPaths) {
       useSplitStore.getState().closeDeletedSplit(projectId, deletedPath);
+      useTabStore.getState().closeDeletedTabs(projectId, deletedPath);
     }
   };
 
