@@ -333,6 +333,7 @@ describe("useSettingsStore", () => {
 
     expect(useSettingsStore.getState().webSearch).toEqual({ model: "custom/search-1" });
     expect("apiKey" in useSettingsStore.getState().webSearch).toBe(false);
+    expect(api.saveSettings).toHaveBeenCalledWith(expect.objectContaining({ webSearch: { model: "custom/search-1" } }));
   });
 
   it("old setters preserve pre-existing webSearch", async () => {

@@ -7,6 +7,7 @@
 
 - Env 名沿用 `SPHERSE_IMAGE_*` 前缀惯例：`SPHERSE_WEB_SEARCH_API_KEY / _BASE_URL / _MODEL`。
 - **无 deepseek key 回退**：`webSearch.apiKey` 未配则工具不可用，不再读 `DEEPSEEK_API_KEY`。
+- **不做一次性迁移**：web_search 随本次分支首次合入、尚未发布，无老数据需要迁移；配过 DeepSeek key 的用户需在新设置节重填。
 - 默认 baseUrl `https://api.deepseek.com/anthropic`、默认 model `deepseek-v4-flash` 是默认值（可换任意 Anthropic Messages 兼容搜索端点），不是写死 vendor。
 - baseUrl/model 未配时 settings 删 env，tool 内回退默认值；API key 增删直写直删（沿用 `IMAGE_*` 先例，不做 shell 原值 save/restore）。
 

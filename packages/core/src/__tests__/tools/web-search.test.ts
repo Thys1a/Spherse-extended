@@ -217,6 +217,19 @@ describe("createWebSearchTool", () => {
     expect(result.details).toMatchObject({ query: "node lts", searchCount: 1 });
   });
 
+  it("strips a pasted /v1/messages suffix from the backend baseUrl", async () => {
+    const fetchMock = vi.fn(async () => jsonResponse(FIXTURE));
+    const tool = createWebSearchTool({
+      fetch: fetchMock as unknown as typeof fetch,
+      getApiKey: () => KEY,
+      backend: { baseUrl: "https://gateway.test/anthropic/v1/messages/" },
+    });
+    await tool.execute("tc1", { query: "node lts" });
+
+    const [url] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe("https://gateway.test/anthropic/v1/messages");
+  });
+
   it("reports HTTP errors without leaking the key", async () => {
     const fetchMock = vi.fn(async () =>
       jsonResponse({ error: { message: `Authentication Fails, your api key: ${KEY} is invalid` } }, 401),

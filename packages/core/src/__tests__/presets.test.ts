@@ -54,6 +54,7 @@ describe("initPresets", () => {
     const profile = projectStore.listAgents().find((p) => p.name === "小助手");
     expect(profile).toBeDefined();
     expect(profile!.tools).not.toContain("run_command");
+    expect(profile!.tools).not.toContain("web_search");
     for (const tool of profile!.tools ?? []) {
       expect(tool).not.toMatch(/^mcp__/);
     }

@@ -98,4 +98,5 @@ export type { ManageTriggerDetails } from "./tools/manage-trigger.js";
 export type { AgentChangePayload, AgentChangeAction } from "./store/project.js";
 export { isValidCron, isReservedEventName, requiresTargetSession } from "./trigger/validation.js";
 export type { Attachment } from "./attachments/index.js";
+export { WEB_SEARCH_API_KEY_ENV, WEB_SEARCH_BASE_URL_ENV, WEB_SEARCH_MODEL_ENV } from "./tools/web-search.js";
 export type { McpTransportType } from "./mcp/index.js";

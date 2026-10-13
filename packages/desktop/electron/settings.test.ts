@@ -658,6 +658,18 @@ describe("webSearch settings", () => {
     expect(process.env.SPHERSE_WEB_SEARCH_API_KEY).toBeUndefined();
   });
 
+  it("deletes fields absent from a present section", () => {
+    settingsStore.set("settings", undefined);
+    clearSearchEnv();
+    saveWebSearch({ apiKey: "sk-live-key", baseUrl: "https://gateway.test/anthropic", model: "custom/search-1" });
+    saveWebSearch({ model: "custom/search-2" });
+    expect(settingsStore.get("settings")?.webSearch).toEqual({ model: "custom/search-2" });
+    expect(process.env.SPHERSE_WEB_SEARCH_API_KEY).toBeUndefined();
+    expect(process.env.SPHERSE_WEB_SEARCH_BASE_URL).toBeUndefined();
+    expect(process.env.SPHERSE_WEB_SEARCH_MODEL).toBe("custom/search-2");
+    clearSearchEnv();
+  });
+
   it("preserves the section across partial saves without it", () => {
     settingsStore.set("settings", undefined);
     clearSearchEnv();

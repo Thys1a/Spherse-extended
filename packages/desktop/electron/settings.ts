@@ -4,6 +4,7 @@ import { nativeTheme } from "electron";
 import Store from "electron-store";
 import { setGlobalDispatcher, EnvHttpProxyAgent } from "undici";
 import type { AppSettings, ModelGroupSettings, ProviderCredentials, MobileAccessSettings, ProxySettings, WebSearchSettings } from "@spherse/core";
+import { WEB_SEARCH_API_KEY_ENV, WEB_SEARCH_BASE_URL_ENV, WEB_SEARCH_MODEL_ENV } from "@spherse/core";
 import { getAppModelCatalog } from "./model-catalog.js";
 
 export interface OpenProjectEntry {
@@ -61,8 +62,7 @@ function maskWebSearch(search: WebSearchSettings | undefined): WebSearchSettings
 }
 
 function mergeWebSearchApiKey(incoming: string | undefined, prev: string | undefined): string | undefined {
-  if (incoming === undefined) return prev;
-  if (incoming.trim() === "") return undefined;
+  if (incoming === undefined || incoming.trim() === "") return undefined;
   if (incoming.includes("****")) return prev;
   return incoming;
 }
@@ -78,8 +78,8 @@ function mergeWebSearch(
   };
   return {
     apiKey: mergeWebSearchApiKey(incoming.apiKey, prev?.apiKey),
-    baseUrl: incoming.baseUrl === undefined ? prev?.baseUrl : blank(incoming.baseUrl),
-    model: incoming.model === undefined ? prev?.model : blank(incoming.model),
+    baseUrl: blank(incoming.baseUrl),
+    model: blank(incoming.model),
   };
 }
 
@@ -215,14 +215,14 @@ function applyProviderKeysToEnv(settings: AppSettings): void {
 
 function applyWebSearchEnv(search: WebSearchSettings | undefined): void {
   const apiKey = search?.apiKey?.trim();
-  if (apiKey) process.env.SPHERSE_WEB_SEARCH_API_KEY = apiKey;
-  else delete process.env.SPHERSE_WEB_SEARCH_API_KEY;
+  if (apiKey) process.env[WEB_SEARCH_API_KEY_ENV] = apiKey;
+  else delete process.env[WEB_SEARCH_API_KEY_ENV];
   const baseUrl = search?.baseUrl?.trim();
-  if (baseUrl) process.env.SPHERSE_WEB_SEARCH_BASE_URL = baseUrl;
-  else delete process.env.SPHERSE_WEB_SEARCH_BASE_URL;
+  if (baseUrl) process.env[WEB_SEARCH_BASE_URL_ENV] = baseUrl;
+  else delete process.env[WEB_SEARCH_BASE_URL_ENV];
   const model = search?.model?.trim();
-  if (model) process.env.SPHERSE_WEB_SEARCH_MODEL = model;
-  else delete process.env.SPHERSE_WEB_SEARCH_MODEL;
+  if (model) process.env[WEB_SEARCH_MODEL_ENV] = model;
+  else delete process.env[WEB_SEARCH_MODEL_ENV];
 }
 
 function applySettingsToEnv(settings: AppSettings): void {

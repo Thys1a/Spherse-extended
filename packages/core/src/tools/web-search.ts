@@ -167,7 +167,7 @@ function extractErrorMessage(raw: string): string | undefined {
   return undefined;
 }
 
-export function buildWebSearchRequest(query: string, now: Date, model: string) {
+export function buildWebSearchRequest(query: string, now: Date, model: string = DEFAULT_MODEL) {
   return {
     model,
     max_tokens: MAX_TOKENS,
@@ -185,7 +185,7 @@ export function createWebSearchTool(deps: WebSearchDeps = {}): AgentTool<typeof 
   const getApiKey = deps.getApiKey ?? (() => readWebSearchApiKey(backend));
   const now = deps.now ?? (() => new Date());
   const timeoutMs = deps.timeoutMs ?? TIMEOUT_MS;
-  const messagesUrl = `${backend.baseUrl.replace(/\/+$/, "")}/v1/messages`;
+  const messagesUrl = `${backend.baseUrl.replace(/\/+$/, "").replace(/\/v1(\/messages)?$/, "")}/v1/messages`;
 
   return {
     name: WEB_SEARCH_TOOL_NAME,
