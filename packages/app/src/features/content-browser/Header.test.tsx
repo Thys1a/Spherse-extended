@@ -46,4 +46,14 @@ describe("Header split entry", () => {
 
     expect(screen.queryByTitle(translate("zh-CN", "tabs.splitRight"))).toBeNull();
   });
+
+  it("places split before all text buttons for html files", () => {
+    renderWithProviders(<Header {...baseProps({ isHtml: true, onSplit: vi.fn() })} />, { locale: "en" });
+
+    const split = screen.getByRole("button", { name: "Split right" });
+    for (const name of ["Preview", "Source", "Edit"]) {
+      const other = screen.getByRole("button", { name });
+      expect(split.compareDocumentPosition(other) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    }
+  });
 });
