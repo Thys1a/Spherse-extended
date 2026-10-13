@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("electron-store", () => ({
   default: class MockStore {
@@ -190,6 +190,19 @@ describe("theme persistence", () => {
 
 describe("closeToTray persistence", () => {
   const models = { text: { defaultModel: "", providers: {} }, image: { defaultModel: "", providers: {} } };
+
+  beforeEach(() => {
+    vi.stubEnv("NODE_ENV", "test");
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("returns null from getMaskedSettings on fresh install", () => {
+    settingsStore.set("settings", undefined);
+    expect(getMaskedSettings()).toBeNull();
+  });
 
   it("defaults closeToTray to true when absent", () => {
     settingsStore.set("settings", { locale: "zh-CN", models });

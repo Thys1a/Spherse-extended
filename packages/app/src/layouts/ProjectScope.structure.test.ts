@@ -29,4 +29,14 @@ describe("ProjectScope structure", () => {
     expect(source).not.toContain("FloatingContentBrowserManager");
     expect(source).not.toContain("BrowserManager");
   });
+
+  it("wraps only the fallback Outlet in a shrinkable flex container", () => {
+    const source = readFileSync(join(currentDir, "ProjectScope.tsx"), "utf8");
+    const wrapper = '<div className="flex min-h-0 flex-1 flex-col overflow-hidden">';
+
+    expect(source.split(wrapper).length - 1).toBe(1);
+    expect(source.indexOf(wrapper)).toBeLessThan(source.indexOf("<Outlet />"));
+    expect(source).toContain("<TabStrip projectId={projectId} />");
+    expect(source).toContain("<TabContainer projectId={projectId} />");
+  });
 });
