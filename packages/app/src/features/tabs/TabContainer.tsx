@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from "react";
 import { useTabStore } from "./tab-store";
-import { useSplitStore, SPLIT_MIN_RATIO, SPLIT_MAX_RATIO } from "./split-store";
+import { useSplitStore, SPLIT_MIN_RATIO, SPLIT_MAX_RATIO, clampRatioForWidth } from "./split-store";
 import { TabPanel } from "./TabPanel";
 import { SplitContentPane } from "./SplitContentPane";
 
@@ -33,10 +33,7 @@ function SplitDivider({
     const st = dragRef.current;
     const container = containerRef.current;
     if (!st || !container) return;
-    const next = Math.min(
-      SPLIT_MAX_RATIO,
-      Math.max(SPLIT_MIN_RATIO, st.startRatio + (e.clientX - st.startX) / st.width),
-    );
+    const next = clampRatioForWidth(st.startRatio + (e.clientX - st.startX) / st.width, st.width);
     container.style.setProperty("--split-ratio", String(next));
   };
 
@@ -52,7 +49,8 @@ function SplitDivider({
   const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
     e.preventDefault();
-    onCommit(ratio + (e.key === "ArrowRight" ? 0.05 : -0.05));
+    const width = containerRef.current?.getBoundingClientRect().width ?? 0;
+    onCommit(clampRatioForWidth(ratio + (e.key === "ArrowRight" ? 0.05 : -0.05), width));
   };
 
   return (

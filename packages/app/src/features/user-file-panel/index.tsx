@@ -40,6 +40,10 @@ export function UserFilePanel() {
     if (contentPath && deletedPaths.some((p) => contentPath === p || contentPath.startsWith(`${p}/`))) {
       if (projectId) navigate(`/project/${projectId}`);
     }
+    if (!projectId) return;
+    for (const deletedPath of deletedPaths) {
+      useSplitStore.getState().closeDeletedSplit(projectId, deletedPath);
+    }
   };
 
   const handleRenamed = (oldPath: string, newPath: string) => {
