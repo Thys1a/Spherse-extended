@@ -77,4 +77,17 @@ describe("Header split entry", () => {
       expect(split.compareDocumentPosition(other) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     }
   });
+
+  it("orders split before unsplit before text buttons and close", () => {
+    renderWithProviders(
+      <Header {...baseProps({ isHtml: true, onSplit: vi.fn(), onUnsplit: vi.fn() })} />,
+      { locale: "en" },
+    );
+
+    const names = ["Split right", "Return to main window", "Preview", "Source", "Edit", "Close"];
+    const buttons = names.map((name) => screen.getByRole("button", { name }));
+    for (let i = 0; i + 1 < buttons.length; i += 1) {
+      expect(buttons[i].compareDocumentPosition(buttons[i + 1]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    }
+  });
 });

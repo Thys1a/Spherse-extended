@@ -94,4 +94,34 @@ describe("SplitContentPane", () => {
     expect(entry.activeTabId).toBe(id);
     expect(useSplitStore.getState().byProject["p1"]).toBeUndefined();
   });
+
+  it("never rewrites another tab when returning to main", () => {
+    const a = useTabStore.getState().openTab("p1", { kind: "content", label: "a.md", filePath: "a.md" }, { force: true });
+    useSplitStore.getState().openSplit("p1", "b.md");
+    renderWithProviders(<SplitContentPane projectId="p1" filePath="b.md" />);
+
+    seenProps[0].onUnsplit?.();
+
+    const entry = useTabStore.getState().byProject["p1"];
+    expect(entry.tabs.find((t) => t.id === a)).toMatchObject({ filePath: "a.md", label: "a.md" });
+    const opened = entry.tabs.find((t) => t.filePath === "b.md");
+    expect(opened).toBeDefined();
+    expect(opened?.id).not.toBe(a);
+    expect(entry.activeTabId).toBe(opened?.id);
+    expect(useSplitStore.getState().byProject["p1"]).toBeUndefined();
+  });
+
+  it("prefers the active tab when the file is open twice", () => {
+    useTabStore.getState().openTab("p1", { kind: "content", label: "b.md", filePath: "b.md" }, { force: true });
+    const second = useTabStore.getState().openTab("p1", { kind: "content", label: "b.md", filePath: "b.md" }, { force: true });
+    useSplitStore.getState().openSplit("p1", "b.md");
+    renderWithProviders(<SplitContentPane projectId="p1" filePath="b.md" />);
+
+    seenProps[0].onUnsplit?.();
+
+    const entry = useTabStore.getState().byProject["p1"];
+    expect(entry.tabs.filter((t) => t.filePath === "b.md")).toHaveLength(2);
+    expect(entry.activeTabId).toBe(second);
+    expect(useSplitStore.getState().byProject["p1"]).toBeUndefined();
+  });
 });

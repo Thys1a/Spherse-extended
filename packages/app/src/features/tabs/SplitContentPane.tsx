@@ -7,8 +7,11 @@ export function SplitContentPane({ projectId, filePath }: { projectId: string; f
   const setFile = useSplitStore((s) => s.setFile);
 
   const returnToMain = () => {
-    const tabs = useTabStore.getState().byProject[projectId]?.tabs ?? [];
-    const existing = tabs.find((t) => t.kind === "content" && t.filePath === filePath);
+    const entry = useTabStore.getState().byProject[projectId];
+    const tabs = entry?.tabs ?? [];
+    const existing =
+      tabs.find((t) => t.id === entry?.activeTabId && t.kind === "content" && t.filePath === filePath) ??
+      tabs.find((t) => t.kind === "content" && t.filePath === filePath);
     if (existing) {
       useTabStore.getState().activate(projectId, existing.id);
     } else {
