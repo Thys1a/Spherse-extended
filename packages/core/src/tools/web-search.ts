@@ -1,11 +1,14 @@
 import { Type } from "@sinclair/typebox";
 import type { AgentTool } from "@earendil-works/pi-agent-core";
-import { providerEnvKey } from "../model-providers/catalog.js";
 
 export const WEB_SEARCH_TOOL_NAME = "web_search";
 
-const DEEPSEEK_MESSAGES_URL = "https://api.deepseek.com/anthropic/v1/messages";
-const SEARCH_MODEL = "deepseek-v4-flash";
+export const WEB_SEARCH_API_KEY_ENV = "SPHERSE_WEB_SEARCH_API_KEY";
+export const WEB_SEARCH_BASE_URL_ENV = "SPHERSE_WEB_SEARCH_BASE_URL";
+export const WEB_SEARCH_MODEL_ENV = "SPHERSE_WEB_SEARCH_MODEL";
+
+const DEFAULT_BASE_URL = "https://api.deepseek.com/anthropic";
+const DEFAULT_MODEL = "deepseek-v4-flash";
 const MAX_USES = 5;
 const MAX_TOKENS = 4096;
 const TIMEOUT_MS = 90_000;
@@ -35,18 +38,31 @@ export interface WebSearchDetails {
   searchCount: number;
 }
 
+export interface WebSearchBackend {
+  baseUrl: string;
+  model: string;
+  apiKeyEnv: string;
+}
+
+export function defaultWebSearchBackend(): WebSearchBackend {
+  return {
+    baseUrl: process.env[WEB_SEARCH_BASE_URL_ENV]?.trim() || DEFAULT_BASE_URL,
+    model: process.env[WEB_SEARCH_MODEL_ENV]?.trim() || DEFAULT_MODEL,
+    apiKeyEnv: WEB_SEARCH_API_KEY_ENV,
+  };
+}
+
 export interface WebSearchDeps {
   fetch?: typeof fetch;
   getApiKey?: () => string | undefined;
+  backend?: Partial<WebSearchBackend>;
   now?: () => Date;
   timeoutMs?: number;
 }
 
-export function readDeepSeekApiKey(): string | undefined {
-  const envName = providerEnvKey("deepseek");
-  const value = envName ? process.env[envName] : undefined;
-  const trimmed = value?.trim();
-  return trimmed ? trimmed : undefined;
+export function readWebSearchApiKey(backend?: Pick<WebSearchBackend, "apiKeyEnv">): string | undefined {
+  const value = process.env[backend?.apiKeyEnv ?? WEB_SEARCH_API_KEY_ENV]?.trim();
+  return value ? value : undefined;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -151,9 +167,9 @@ function extractErrorMessage(raw: string): string | undefined {
   return undefined;
 }
 
-export function buildWebSearchRequest(query: string, now: Date) {
+export function buildWebSearchRequest(query: string, now: Date, model: string) {
   return {
-    model: SEARCH_MODEL,
+    model,
     max_tokens: MAX_TOKENS,
     stream: false,
     thinking: { type: "disabled" },
@@ -165,9 +181,11 @@ export function buildWebSearchRequest(query: string, now: Date) {
 
 export function createWebSearchTool(deps: WebSearchDeps = {}): AgentTool<typeof WebSearchParams> {
   const doFetch = deps.fetch ?? fetch;
-  const getApiKey = deps.getApiKey ?? readDeepSeekApiKey;
+  const backend = { ...defaultWebSearchBackend(), ...deps.backend };
+  const getApiKey = deps.getApiKey ?? (() => readWebSearchApiKey(backend));
   const now = deps.now ?? (() => new Date());
   const timeoutMs = deps.timeoutMs ?? TIMEOUT_MS;
+  const messagesUrl = `${backend.baseUrl.replace(/\/+$/, "")}/v1/messages`;
 
   return {
     name: WEB_SEARCH_TOOL_NAME,
@@ -178,7 +196,7 @@ export function createWebSearchTool(deps: WebSearchDeps = {}): AgentTool<typeof 
     async execute(_toolCallId, params, signal) {
       const apiKey = getApiKey();
       if (!apiKey) {
-        throw new Error("Web search is not available: DeepSeek API Key is not configured in settings.");
+        throw new Error("Web search is not available: search API key is not configured in settings.");
       }
 
       const timeoutSignal = AbortSignal.timeout(timeoutMs);
@@ -193,14 +211,14 @@ export function createWebSearchTool(deps: WebSearchDeps = {}): AgentTool<typeof 
 
       let response: Response;
       try {
-        response = await doFetch(DEEPSEEK_MESSAGES_URL, {
+        response = await doFetch(messagesUrl, {
           method: "POST",
           headers: {
             "x-api-key": apiKey,
             "anthropic-version": "2023-06-01",
             "content-type": "application/json",
           },
-          body: JSON.stringify(buildWebSearchRequest(params.query, now())),
+          body: JSON.stringify(buildWebSearchRequest(params.query, now(), backend.model)),
           signal: combined,
         });
       } catch (err) {

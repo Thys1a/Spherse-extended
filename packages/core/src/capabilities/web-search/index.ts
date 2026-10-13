@@ -1,6 +1,6 @@
 import type { StreamFn } from "@earendil-works/pi-agent-core";
 import type { Capability, StreamDecorator } from "../../kernel/capability.js";
-import { WEB_SEARCH_TOOL_NAME, createWebSearchTool, readDeepSeekApiKey } from "../../tools/web-search.js";
+import { WEB_SEARCH_TOOL_NAME, createWebSearchTool, defaultWebSearchBackend, readWebSearchApiKey } from "../../tools/web-search.js";
 import type { WebSearchDeps } from "../../tools/web-search.js";
 
 function hideWebSearchWithoutKey(base: StreamFn, getApiKey: () => string | undefined): StreamFn {
@@ -14,7 +14,8 @@ function hideWebSearchWithoutKey(base: StreamFn, getApiKey: () => string | undef
 }
 
 export function webSearchCapability(deps: WebSearchDeps = {}): Capability {
-  const getApiKey = deps.getApiKey ?? readDeepSeekApiKey;
+  const backend = { ...defaultWebSearchBackend(), ...deps.backend };
+  const getApiKey = deps.getApiKey ?? (() => readWebSearchApiKey(backend));
   const streamDecorator: StreamDecorator = (view) => {
     if (!view.profile.tools?.includes(WEB_SEARCH_TOOL_NAME)) return undefined;
     return (base) => hideWebSearchWithoutKey(base, getApiKey);

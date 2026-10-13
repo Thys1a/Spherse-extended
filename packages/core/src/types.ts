@@ -141,6 +141,12 @@ export interface ProxySettings {
   noProxy?: string;
 }
 
+export interface WebSearchSettings {
+  apiKey?: string;
+  baseUrl?: string;
+  model?: string;
+}
+
 export interface AppSettings {
   locale: string;
   models: {
@@ -153,6 +159,7 @@ export interface AppSettings {
   mobileAccess?: MobileAccessSettings;
   tts?: TtsSettings;
   proxy?: ProxySettings;
+  webSearch?: WebSearchSettings;
   notifications?: {
     approval?: boolean;
     trigger?: boolean;

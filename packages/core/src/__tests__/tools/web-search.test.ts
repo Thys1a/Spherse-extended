@@ -1,10 +1,14 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import {
+  WEB_SEARCH_API_KEY_ENV,
+  WEB_SEARCH_BASE_URL_ENV,
+  WEB_SEARCH_MODEL_ENV,
   buildWebSearchRequest,
   createWebSearchTool,
+  defaultWebSearchBackend,
   formatWebSearchResult,
   parseWebSearchResponse,
-  readDeepSeekApiKey,
+  readWebSearchApiKey,
 } from "../../tools/web-search.js";
 
 const FIXTURE = {
@@ -118,32 +122,61 @@ describe("formatWebSearchResult", () => {
 
 describe("buildWebSearchRequest", () => {
   it("uses the server web_search tool with thinking disabled and the local date", () => {
-    const body = buildWebSearchRequest("hello world", new Date(2026, 8, 24, 3, 0, 0));
+    const body = buildWebSearchRequest("hello world", new Date(2026, 8, 24, 3, 0, 0), "deepseek-v4-flash");
     expect(body.model).toBe("deepseek-v4-flash");
     expect(body.thinking).toEqual({ type: "disabled" });
     expect(body.tools).toEqual([{ type: "web_search_20250305", name: "web_search", max_uses: 5 }]);
     expect(body.system).toContain("2026-09-24");
     expect(body.messages[0].content).toContain("hello world");
   });
+
+  it("uses the injected backend model", () => {
+    const body = buildWebSearchRequest("hello world", new Date(2026, 8, 24, 3, 0, 0), "custom/search-1");
+    expect(body.model).toBe("custom/search-1");
+  });
 });
 
-describe("readDeepSeekApiKey", () => {
+describe("defaultWebSearchBackend", () => {
   afterEach(() => {
-    delete process.env.DEEPSEEK_API_KEY;
+    delete process.env[WEB_SEARCH_BASE_URL_ENV];
+    delete process.env[WEB_SEARCH_MODEL_ENV];
   });
 
-  it("reads DEEPSEEK_API_KEY, trims it and ignores blank values", () => {
-    process.env.DEEPSEEK_API_KEY = "  ";
-    expect(readDeepSeekApiKey()).toBeUndefined();
-    process.env.DEEPSEEK_API_KEY = " sk-abc\n";
-    expect(readDeepSeekApiKey()).toBe("sk-abc");
+  it("falls back to the built-in endpoint and model", () => {
+    expect(defaultWebSearchBackend()).toEqual({
+      baseUrl: "https://api.deepseek.com/anthropic",
+      model: "deepseek-v4-flash",
+      apiKeyEnv: WEB_SEARCH_API_KEY_ENV,
+    });
+  });
+
+  it("picks up endpoint and model overrides from the environment", () => {
+    process.env[WEB_SEARCH_BASE_URL_ENV] = "https://gateway.test/anthropic";
+    process.env[WEB_SEARCH_MODEL_ENV] = "custom/search-1";
+    expect(defaultWebSearchBackend()).toMatchObject({
+      baseUrl: "https://gateway.test/anthropic",
+      model: "custom/search-1",
+    });
+  });
+});
+
+describe("readWebSearchApiKey", () => {
+  afterEach(() => {
+    delete process.env[WEB_SEARCH_API_KEY_ENV];
+  });
+
+  it("reads the search key, trims it and ignores blank values", () => {
+    process.env[WEB_SEARCH_API_KEY_ENV] = "  ";
+    expect(readWebSearchApiKey()).toBeUndefined();
+    process.env[WEB_SEARCH_API_KEY_ENV] = " sk-abc\n";
+    expect(readWebSearchApiKey()).toBe("sk-abc");
   });
 });
 
 describe("createWebSearchTool", () => {
   const KEY = "sk-secret-123";
 
-  it("posts to the DeepSeek anthropic endpoint and returns summary + sources", async () => {
+  it("posts to the default backend endpoint and returns summary + sources", async () => {
     const fetchMock = vi.fn(async () => jsonResponse(FIXTURE));
     const tool = createWebSearchTool({ fetch: fetchMock as unknown as typeof fetch, getApiKey: () => KEY });
     const result = await tool.execute("tc1", { query: "node lts" });
@@ -165,8 +198,23 @@ describe("createWebSearchTool", () => {
   it("throws when no API key is configured", async () => {
     const fetchMock = vi.fn();
     const tool = createWebSearchTool({ fetch: fetchMock as unknown as typeof fetch, getApiKey: () => undefined });
-    await expect(tool.execute("tc1", { query: "x y" })).rejects.toThrow(/DeepSeek API Key/);
+    await expect(tool.execute("tc1", { query: "x y" })).rejects.toThrow(/search API key/);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("honours an injected backend", async () => {
+    const fetchMock = vi.fn(async () => jsonResponse(FIXTURE));
+    const tool = createWebSearchTool({
+      fetch: fetchMock as unknown as typeof fetch,
+      getApiKey: () => KEY,
+      backend: { baseUrl: "https://gateway.test/anthropic/", model: "custom/search-1" },
+    });
+    const result = await tool.execute("tc1", { query: "node lts" });
+
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe("https://gateway.test/anthropic/v1/messages");
+    expect(JSON.parse(init.body as string).model).toBe("custom/search-1");
+    expect(result.details).toMatchObject({ query: "node lts", searchCount: 1 });
   });
 
   it("reports HTTP errors without leaking the key", async () => {

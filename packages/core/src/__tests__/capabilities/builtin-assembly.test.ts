@@ -88,9 +88,9 @@ describe("builtin tool capabilities via real assembly path", () => {
     expect(tools).toEqual([]);
   });
 
-  describe("web_search visibility follows the DeepSeek key", () => {
+  describe("web_search visibility follows the search API key", () => {
     afterEach(() => {
-      delete process.env.DEEPSEEK_API_KEY;
+      delete process.env.SPHERSE_WEB_SEARCH_API_KEY;
     });
 
     async function llmToolNames(): Promise<{ sent: string[]; state: string[] }> {
@@ -113,14 +113,14 @@ describe("builtin tool capabilities via real assembly path", () => {
     }
 
     it("hides web_search from the request without a key but keeps it executable", async () => {
-      delete process.env.DEEPSEEK_API_KEY;
+      delete process.env.SPHERSE_WEB_SEARCH_API_KEY;
       const { sent, state } = await llmToolNames();
       expect(sent).toEqual(["read_file"]);
       expect(state).toEqual(["read_file", "web_search"]);
     });
 
     it("sends web_search when the key is configured", async () => {
-      process.env.DEEPSEEK_API_KEY = "sk-test-key";
+      process.env.SPHERSE_WEB_SEARCH_API_KEY = "sk-test-key";
       const { sent } = await llmToolNames();
       expect(sent).toEqual(["read_file", "web_search"]);
     });
