@@ -1,6 +1,6 @@
 ---
 name: spherse-guide
-description: 当用户询问 Spherse 是什么、能做什么、如何开始或如何使用项目、Agent、会话、工具、Skill、MCP、触发器、HTML Workspace、数据应用、主题、图片、移动端与设置时使用；提供准确的产品能力介绍
+description: 当用户询问 Spherse 是什么、能做什么、如何开始或如何使用项目、Agent、会话、快捷链接、工具、Skill、MCP、触发器、HTML Workspace、数据应用、主题、图片、移动端与设置时使用；提供准确的产品能力介绍
 ---
 
 # Spherse 使用指南
@@ -39,12 +39,12 @@ project-root/
 - 启用的工具
 - 预加载上下文文件
 - 会话历史
-- 聊天主题
+- 聊天主题和快捷链接
 - MCP 连接器
 - 触发器
 - 私有 Skill 和记忆数据
 
-Agent 创建界面可配置 Prompt、工具、上下文文件、时间感知、聊天主题和 YOLO 模式。工具必须显式启用；未启用的工具不会交给模型。
+Agent 创建界面可配置 Prompt、工具、上下文文件、时间感知、快捷链接、聊天主题和 YOLO 模式。工具必须显式启用；未启用的工具不会交给模型。
 
 想给 Agent 加自动生效的背景设定（人物、世界观、术语），见下文「世界书自动注入」——把 `.card.json` 放进该 Agent 目录即可，无需写进 Prompt。
 
@@ -161,6 +161,13 @@ MCP Server 可能执行本地程序或接收敏感 headers/env，只配置可信
 - 最近的记忆会自动注入后续会话，无需每次重读
 - 记忆是 Agent 私有的，保存在该 Agent 自己的目录下
 
+### 快捷链接
+
+每个 Agent 可以配置一组快捷链接（项目内文件路径），显示为聊天窗口顶部的按钮，一键打开常用文件。
+- 配置入口：Agent 配置界面「个性化」标签页，选择项目内文件
+- 按钮文本显示文件名（不含扩展名），悬浮显示完整路径
+- 桌面端在浮窗或主区域中打开，移动端从聊天窗口顶部滑出文件面板
+
 ### HTML Workspace 与 UI SDK
 
 HTML 可作为项目欢迎页、Content Browser 页面或聊天 HtmlCard。Spherse 会自动注入 `window.spherse`，页面不需要加载 SDK 脚本，也不应手写 `postMessage` wrapper。
@@ -261,6 +268,7 @@ Debug Tools（开发模式直接可用，生产版从设置开启）提供 DevTo
 | 创建项目首页或交互卡片 | 加载 `spherse-write-html` 和 `spherse-use-ui-sdk` |
 | 创建论坛、看板、游戏等数据应用 | 加载 `spherse-build-data-app`，设计 manifest 后同源生成数据、页面和 Agent |
 | 定制项目或聊天外观 | 加载对应主题 Skill，写入项目或 Agent 的 `theme.css` |
+| 一键打开常用文件 | Agent 配置界面「个性化」→ 添加快捷链接 → 聊天窗口顶部点击按钮打开 |
 | 在手机上继续聊天 | 桌面端启用移动访问 → 扫码连接 → 保持桌面应用运行 |
 
 ## 常见问题
