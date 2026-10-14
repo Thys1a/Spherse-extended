@@ -287,6 +287,11 @@ export function Composer({ streaming, loading = false, panicLocked = false, sess
   };
 
   useEffect(() => {
+    const textarea = textareaRef.current;
+    if (textarea) textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+  }, []);
+
+  useEffect(() => {
     if (!streaming && !loading) textareaRef.current?.focus();
   }, [streaming, loading]);
 
