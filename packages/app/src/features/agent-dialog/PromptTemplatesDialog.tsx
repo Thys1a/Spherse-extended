@@ -12,7 +12,6 @@ import { useGlobalApiClient } from "../../lib/use-connection";
 import { ApiError } from "../../lib/api";
 import { deriveCategories, filterByCategory } from "../../lib/categories";
 import {
-  invalidateMarketplacePromptQueries,
   promptLanguageFromLocale,
   useMarketplacePrompts,
 } from "../../queries/marketplace-prompts";
@@ -60,9 +59,8 @@ export function PromptTemplatesDialog({
     if (open) {
       setSelectedId(null);
       setSelectedCategory(null);
-      void invalidateMarketplacePromptQueries(language);
     }
-  }, [open, language]);
+  }, [open]);
 
   const entries = useMemo(() => promptsQuery.data?.prompts ?? [], [promptsQuery.data]);
   const categories = useMemo(() => deriveCategories(entries), [entries]);

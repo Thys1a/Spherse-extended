@@ -19,7 +19,7 @@ vi.mock("../../lib/use-connection", () => ({
     listAgents: vi.fn(async () => []),
     searchFiles: vi.fn(async () => []),
   }),
-  useGlobalApiClient: () => ({ getSupportedProviders, listMarketplacePrompts }),
+  useGlobalApiClient: () => ({ listMarketplacePrompts }),
   useConnection: () => ({ baseUrl: "http://localhost:5173", accessToken: null }),
 }));
 

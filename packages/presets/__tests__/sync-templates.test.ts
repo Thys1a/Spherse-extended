@@ -12,6 +12,18 @@ describe("sync-templates", () => {
     fs.readFileSync(path.join(rootDir, "presets.json"), "utf-8"),
   );
 
+  it("does not ship built-in prompt templates (OSS marketplace only)", async () => {
+    expect(presetsConfig).not.toHaveProperty("presetPromptTemplates");
+    expect(
+      fs.existsSync(path.join(rootDir, "templates", "prompt-templates", "roleplay.md")),
+    ).toBe(false);
+    expect(
+      fs.existsSync(path.join(rootDir, "templates", "prompt-templates", "worldview-assistant.md")),
+    ).toBe(false);
+    const indexSource = fs.readFileSync(path.join(rootDir, "src", "index.ts"), "utf-8");
+    expect(indexSource).not.toContain("PRESET_PROMPT_TEMPLATES");
+  });
+
   it("generates presets.ts with PRESET_SKILLS and PRESET_AGENTS matching presets.json", async () => {
     const content = fs.readFileSync(
       path.join(generatedDir, "presets.ts"),
