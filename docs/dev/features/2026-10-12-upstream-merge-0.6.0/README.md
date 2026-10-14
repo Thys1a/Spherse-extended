@@ -85,3 +85,8 @@
 - 提交 59f288f fix: merge upstream mobile cold-start fallback to connect page (f4d172b)，8 文件（上游 11 − backlog − design.md − frontend.md）。
 - 跳过 #147 多标签开关下放：本 fork 无 `tabsEnabled` 设置项（标签页由自有 feature flag + TabStrip 架构控制，与此前各域剔除口径一致），无法移植。
 - #147 版本显示推迟到 #117：需全局 API 工厂面（`createGlobalApiClient`/`useGlobalApiClient`，未合入），待 #117 合入时重评。
+- 跳过 #124：fork 已有等价且更强的自研实现（结构化行编辑器 + fetch 层透传），上游 7 个 wire 级测试在未改代码下全绿，无缺口。
+- dbc3304：#115 拖拽上传 + #130 SDK action + #132 web 开放 + #142 右键入口，按依赖顺序叠入
+- 提交 b807024 feat: merge upstream web dev environment and dev deploy (975f010)，7 文件（上游 12 − design.md − official×4）。
+- 提交 f12080f feat: merge upstream mobile connect UX, scan plus payload plus disconnect (a76c3e3)，20 文件（上游 24 − design.md − plan.md − official×2）
+- 提交 9f7cf43 feat: merge upstream mobile file editing and dialog host gating (3fb6cf8)，3 文件（+45/-14，上游 5 − backlog − frontend.md）。
