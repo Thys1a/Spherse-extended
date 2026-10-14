@@ -4,7 +4,6 @@ import type {
   HostSettings,
   ProjectHostApi,
   RestoredProject,
-  SampleManifestEntry,
 } from "@spherse/app/host-bridge";
 import { MobileConnectPage } from "./pages/MobileConnectPage";
 
@@ -157,12 +156,6 @@ function createWebProjectApi(
       } catch {
         return null;
       }
-    },
-    async openSampleProject() {
-      return null;
-    },
-    async getSampleManifest(): Promise<SampleManifestEntry[]> {
-      return [];
     },
   };
 }

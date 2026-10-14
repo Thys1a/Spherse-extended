@@ -30,8 +30,6 @@ function createMockHostBridge(overrides: Partial<HostBridge> = {}): HostBridge {
       openFileExternal: vi.fn(),
       setLastActiveProject: vi.fn(),
       getLastActiveProject: vi.fn(),
-      openSampleProject: vi.fn(),
-      getSampleManifest: vi.fn(),
     },
     ...overrides,
   } as HostBridge;
@@ -93,8 +91,6 @@ describe("useAppStore lastRoute", () => {
         openFileExternal: vi.fn(),
         setLastActiveProject: vi.fn(),
         getLastActiveProject: vi.fn().mockResolvedValue("project-a"),
-        openSampleProject: vi.fn(),
-        getSampleManifest: vi.fn(),
       },
     });
     localStorage.setItem(LAST_ROUTE_KEY, "/chat/session-1");
@@ -187,105 +183,6 @@ describe("useAppStore refreshConnection", () => {
   });
 });
 
-describe("useAppStore openSampleProject", () => {
-  beforeEach(() => {
-    setupStoreTest(false);
-  });
-
-  it("registers the project on success and returns its id", async () => {
-    const addOpenProject = vi.fn();
-    const setLastActiveProject = vi.fn();
-    const bridge = createMockHostBridge({
-      project: {
-        selectDirectory: vi.fn(),
-        selectSkillZip: vi.fn(),
-        openProject: vi.fn(),
-        restoreProjects: vi.fn(),
-        addOpenProject,
-        closeProject: vi.fn(),
-        openProjectFolder: vi.fn(),
-        openFileExternal: vi.fn(),
-        setLastActiveProject,
-        getLastActiveProject: vi.fn(),
-        openSampleProject: vi.fn().mockResolvedValue({
-          projectId: "sample-1",
-          path: "/tmp/sample-world",
-        }),
-        getSampleManifest: vi.fn(),
-      },
-    });
-
-    const result = await useAppStore.getState().openSampleProject(bridge, "starter");
-
-    expect(bridge.project?.openSampleProject).toHaveBeenCalledWith({
-      sampleId: "starter",
-    });
-    expect(result).toEqual({ projectId: "sample-1" });
-    expect(useAppStore.getState().projects.get("sample-1")).toMatchObject({
-      id: "sample-1",
-      path: "/tmp/sample-world",
-      name: "sample-world",
-    });
-    expect(useAppStore.getState().activeProjectId).toBe("sample-1");
-    expect(addOpenProject).toHaveBeenCalledWith(
-      "sample-1",
-      "/tmp/sample-world",
-    );
-    expect(setLastActiveProject).toHaveBeenCalledWith("sample-1");
-  });
-
-  it("returns the error and writes nothing when main reports an error", async () => {
-    const addOpenProject = vi.fn();
-    const bridge = createMockHostBridge({
-      project: {
-        selectDirectory: vi.fn(),
-        selectSkillZip: vi.fn(),
-        openProject: vi.fn(),
-        restoreProjects: vi.fn(),
-        addOpenProject,
-        closeProject: vi.fn(),
-        openProjectFolder: vi.fn(),
-        openFileExternal: vi.fn(),
-        setLastActiveProject: vi.fn(),
-        getLastActiveProject: vi.fn(),
-        openSampleProject: vi.fn().mockResolvedValue({ error: "sample.missing" }),
-        getSampleManifest: vi.fn(),
-      },
-    });
-
-    const result = await useAppStore.getState().openSampleProject(bridge, "starter");
-
-    expect(result).toEqual({ projectId: null, error: "sample.missing" });
-    expect(useAppStore.getState().projects.size).toBe(0);
-    expect(addOpenProject).not.toHaveBeenCalled();
-  });
-
-  it("returns a null id and writes nothing when the user cancels", async () => {
-    const addOpenProject = vi.fn();
-    const bridge = createMockHostBridge({
-      project: {
-        selectDirectory: vi.fn(),
-        selectSkillZip: vi.fn(),
-        openProject: vi.fn(),
-        restoreProjects: vi.fn(),
-        addOpenProject,
-        closeProject: vi.fn(),
-        openProjectFolder: vi.fn(),
-        openFileExternal: vi.fn(),
-        setLastActiveProject: vi.fn(),
-        getLastActiveProject: vi.fn(),
-        openSampleProject: vi.fn().mockResolvedValue(null),
-        getSampleManifest: vi.fn(),
-      },
-    });
-
-    const result = await useAppStore.getState().openSampleProject(bridge, "starter");
-
-    expect(result).toEqual({ projectId: null });
-    expect(useAppStore.getState().projects.size).toBe(0);
-  });
-});
-
 describe("useAppStore openProjectAtPath", () => {
   beforeEach(() => {
     setupStoreTest(false);
@@ -306,8 +203,6 @@ describe("useAppStore openProjectAtPath", () => {
         openFileExternal: vi.fn(),
         setLastActiveProject,
         getLastActiveProject: vi.fn(),
-        openSampleProject: vi.fn(),
-        getSampleManifest: vi.fn(),
       },
     });
     const projectId = await useAppStore.getState().openProjectAtPath(bridge, "/tmp/market-world");
@@ -344,8 +239,6 @@ describe("useAppStore openProjectAtPath", () => {
         openFileExternal: vi.fn(),
         setLastActiveProject,
         getLastActiveProject: vi.fn(),
-        openSampleProject: vi.fn(),
-        getSampleManifest: vi.fn(),
       },
     });
 
@@ -371,8 +264,6 @@ describe("useAppStore openProjectAtPath", () => {
         openFileExternal: vi.fn(),
         setLastActiveProject: vi.fn(),
         getLastActiveProject: vi.fn(),
-        openSampleProject: vi.fn(),
-        getSampleManifest: vi.fn(),
       },
     });
 
@@ -435,8 +326,6 @@ describe("useAppStore refreshProjects", () => {
         openFileExternal: vi.fn(),
         setLastActiveProject: vi.fn(),
         getLastActiveProject: vi.fn(),
-        openSampleProject: vi.fn(),
-        getSampleManifest: vi.fn(),
       },
     });
   }
@@ -503,8 +392,6 @@ describe("useAppStore refreshProjects", () => {
         openFileExternal: vi.fn(),
         setLastActiveProject,
         getLastActiveProject: vi.fn(),
-        openSampleProject: vi.fn(),
-        getSampleManifest: vi.fn(),
       },
     });
 
@@ -537,8 +424,6 @@ describe("useAppStore refreshProjects", () => {
         openFileExternal: vi.fn(),
         setLastActiveProject: vi.fn(),
         getLastActiveProject: vi.fn(),
-        openSampleProject: vi.fn(),
-        getSampleManifest: vi.fn(),
       },
     });
 
@@ -583,8 +468,6 @@ describe("useAppStore refreshProjects", () => {
         openFileExternal: vi.fn(),
         setLastActiveProject: vi.fn(),
         getLastActiveProject: vi.fn(),
-        openSampleProject: vi.fn(),
-        getSampleManifest: vi.fn(),
       },
     });
 
@@ -607,8 +490,6 @@ describe("useAppStore refreshProjects", () => {
         openFileExternal: vi.fn(),
         setLastActiveProject: vi.fn(),
         getLastActiveProject: vi.fn(),
-        openSampleProject: vi.fn(),
-        getSampleManifest: vi.fn(),
       },
     });
     await useAppStore.getState().refreshProjects(bridge);
@@ -642,8 +523,6 @@ describe("useAppStore restoreProjects initialGate", () => {
         openFileExternal: vi.fn(),
         setLastActiveProject: vi.fn(),
         getLastActiveProject: vi.fn().mockResolvedValue("project-a"),
-        openSampleProject: vi.fn(),
-        getSampleManifest: vi.fn(),
       },
     });
   }

@@ -94,3 +94,5 @@
 - 提交 aa8faa7 feat: merge upstream sdk navigate event and search fix (f5004e6)，17 文件（上游 20 − design.md − ui-sdk.md − project-structure.md）。
 - 468bbd9（#127，3 文件全自动合入，28 用例过）+ a4675a0（#145 快捷链接文档，11+/3-，全局搜索/管理参数按核实剔除）
 - 域二十合入完成（4f05fea，30 文件）。
+- 域二十一合入完成（8547002，32 文件）。
+- 域二十二合入完成（0bfd859，31 文件）。执行情况：contracts/server/路由/测试、对话框新旧替换、分类改道、presets 生成管线直取；i18n 取 dialog 键并删 picker 死键；手合 6 处（api import+4 方法、contracts صادرات、README 1 行、测试 mock 并集）。另修正两处：上游 GlobalApiClient 里附带的 settings 方法 fork 无契约已剔除；createDataStore 导出误删一次已补回（教训：并集改完 grep 导出名）。
