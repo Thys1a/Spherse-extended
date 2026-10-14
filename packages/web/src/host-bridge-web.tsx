@@ -15,7 +15,7 @@ const WEB_CAPABILITIES: HostCapabilities = {
   proxy: false,
   notification: true,
   tray: false,
-  content: { editable: false },
+  content: { editable: true },
 };
 
 const IS_DEV_DEPLOY =

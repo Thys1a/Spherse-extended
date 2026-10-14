@@ -1,12 +1,15 @@
-import { describe, expect, it, vi, afterEach } from "vitest";
+import { describe, expect, it, vi, afterEach, beforeEach } from "vitest";
 import { cleanup, fireEvent, screen, within } from "@testing-library/react";
+import { translate } from "@spherse/i18n";
 import { createMockHostBridge } from "../../test/host-bridge";
 import { createTestQueryClient, renderWithProviders } from "../../test/render";
 import { AgentDialogForm } from "./AgentDialogForm";
 
+const getSupportedProviders = vi.fn(async () => ({}));
+
 vi.mock("../../lib/use-connection", () => ({
   useApiClient: () => ({
-    getSupportedProviders: vi.fn(async () => ({})),
+    getSupportedProviders,
     listAgents: vi.fn(async () => []),
   }),
   useConnection: () => ({ baseUrl: "http://localhost:5173", accessToken: null }),
@@ -29,6 +32,7 @@ const RAW = [
 
 function renderForm(
   onSubmit = vi.fn(async (_slug: string, _content: string, _theme: string) => {}),
+  bridgeKind?: "web",
 ) {
   renderWithProviders(
     <AgentDialogForm
@@ -37,7 +41,10 @@ function renderForm(
       onSubmit={onSubmit}
       onCancel={vi.fn()}
     />,
-    { queryClient: createTestQueryClient(), bridge: createMockHostBridge() },
+    {
+      queryClient: createTestQueryClient(),
+      bridge: createMockHostBridge(bridgeKind === "web" ? { kind: "web" } : {}),
+    },
   );
   return onSubmit;
 }
@@ -116,5 +123,26 @@ describe("AgentDialogForm allowInlineHtml switch", () => {
       expect(onSubmit).toHaveBeenCalledTimes(1);
     });
     expect(onSubmit.mock.calls[0]?.[1] as unknown as string).not.toContain("allowInlineHtml");
+  });
+});
+
+describe("AgentDialogForm host gating", () => {
+  beforeEach(() => {
+    getSupportedProviders.mockClear();
+  });
+
+  it("hides model and thinking level config on web host and skips provider fetching", () => {
+    renderForm(undefined, "web");
+
+    expect(screen.queryByText(translate("zh-CN", "agent-dialog.modelLabel"))).toBeNull();
+    expect(screen.queryByText(translate("zh-CN", "settings.models.thinkingLevel"))).toBeNull();
+    expect(getSupportedProviders).not.toHaveBeenCalled();
+  });
+
+  it("renders model and thinking level config on electron host", () => {
+    renderForm();
+
+    expect(screen.getByText(translate("zh-CN", "agent-dialog.modelLabel"))).toBeVisible();
+    expect(screen.getByText(translate("zh-CN", "settings.models.thinkingLevel"))).toBeVisible();
   });
 });

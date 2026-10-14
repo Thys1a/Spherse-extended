@@ -62,6 +62,7 @@ export function AgentDialogForm({ initial, mode, agentId, onSubmit, onCancel }: 
   const [apiKeys, setApiKeys] = useState<Record<string, string>>({});
 
   useEffect(() => {
+    if (bridge.kind === "web") return;
     let cancelled = false;
     Promise.all([
       client.getSupportedProviders().catch(() => null),
@@ -170,16 +171,18 @@ export function AgentDialogForm({ initial, mode, agentId, onSubmit, onCancel }: 
                 placeholder={t("agent-dialog.namePlaceholder")}
               />
             </Field>
-            <ModelConfigField
-              providers={providers ?? {}}
-              apiKeys={apiKeys}
-              model={formData.model}
-              thinkingLevel={formData.thinkingLevel}
-              onModelChange={(model) => setFormData((prev) => ({ ...prev, model }))}
-              onThinkingLevelChange={(thinkingLevel) =>
-                setFormData((prev) => ({ ...prev, thinkingLevel }))
-              }
-            />
+            {bridge.kind !== "web" && (
+              <ModelConfigField
+                providers={providers ?? {}}
+                apiKeys={apiKeys}
+                model={formData.model}
+                thinkingLevel={formData.thinkingLevel}
+                onModelChange={(model) => setFormData((prev) => ({ ...prev, model }))}
+                onThinkingLevelChange={(thinkingLevel) =>
+                  setFormData((prev) => ({ ...prev, thinkingLevel }))
+                }
+              />
+            )}
             <Field>
               <FieldLabel>{t("agent-dialog.placeholderLabel")}</FieldLabel>
               <Input
