@@ -648,6 +648,7 @@ export const en: Record<TranslationKey, string> = {
   "welcome-page-settings.saveFailed": "Save failed: {message}",
   "welcome-page-settings.loadFailed": "Failed to load welcome page settings: {message}",
   "pages.projectNotFound": "Project not found",
+  "pages.projectNotFoundBackToConnect": "Back to connect page",
 "tool.data_access": "Data File Access",
   "tool.data_access_hint": "Allows the agent to read and write page data files (*.data.json) entry-wise: inspect the structure outline, query and mutate via named entries, and interact with page data without loading whole files",
   "tool.card_access": "Card File Access",

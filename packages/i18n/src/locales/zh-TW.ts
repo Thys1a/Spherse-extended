@@ -648,6 +648,7 @@ export const zhTW: Record<TranslationKey, string> = {
   "welcome-page-settings.saveFailed": "儲存失敗：{message}",
   "welcome-page-settings.loadFailed": "讀取歡迎頁設定失敗：{message}",
   "pages.projectNotFound": "專案不存在",
+  "pages.projectNotFoundBackToConnect": "返回連接頁",
 "tool.data_access": "資料檔案讀寫",
   "tool.data_access_hint": "允許智慧代理人按入口讀寫頁面資料檔案（*.data.json）：查看結構大綱、按業務入口查詢與變更，與頁面資料連動而無需讀取整個檔案",
   "tool.card_access": "卡檔案讀寫",
