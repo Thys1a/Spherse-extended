@@ -37,6 +37,7 @@ SDK 已由 App 注入，**不要**再自己写 `<script>` 加载它，也**不�
 | 请求型（Promise） | `api.call(op, args)` 及 `api.*` 命名方法 | 只读查询项目信息（agents / sessions / content / fileTree） |
 | 请求型（Promise） | `dockChat(params?)` → `Promise` | 在占位元素位置叠加真实聊天面板（仅聊天 HtmlCard） |
 | 事件型 | `events.on("file:update", filter, handler)` | 订阅指定项目文件的变化信号 |
+| 事件型 | `events.on("navigate", handler)` | 感知宿主主视图跳转（订阅即回放当前页面） |
 | 运行时 | `spherse.runtime`（同步读）/ `spherse.getRuntime()`（Promise） | 获取当前会话上下文（仅 HtmlCard 有值） |
 
 所有请求型方法都返回 Promise，内部已处理 `requestId` 匹配与超时（默认 10 秒，`uploadFile` 为 60 秒），失败时 reject。
@@ -453,6 +454,31 @@ await spherse.uploadFile({ dirPath: "media", name: "chart.png", data: blob });
 - `dirPath` 不允许指向 `.spherse/` 内部目录，不允许 `..` / 绝对路径 / 反斜杠
 - 错误码：`bad_request`（参数非法）/ `unsupported_type` / `file_too_large`（>100MB）/ `forbidden`（`.spherse` 子树）/ `upload_failed`（目标目录不存在等）
 - 上传成功后文件面板自动刷新；其它页面可通过 `events.on("file:update")` 感知新文件
+
+## 事件订阅 — 宿主导航
+
+### `spherse.events.on("navigate", handler)` → `unsubscribe`
+
+感知宿主 App 主视图的跳转。**订阅成功时立即收到一条当前页面状态**（无需等待下次跳转），之后每次主视图变化再推送；返回的 `unsubscribe()` 同样幂等。
+
+handler 收到的 payload 按当前页面类型带不同字段：
+
+| 当前主视图 | payload |
+|---|---|
+| 欢迎页 | `{ kind: "welcome" }` |
+| 聊天 | `{ kind: "chat", sessionId }` |
+| 文件预览（Content Browser） | `{ kind: "file", path }`（`path` 为项目相对路径） |
+| 内置浏览器 | `{ kind: "browser", url }` |
+
+```javascript
+spherse.events.on("navigate", (e) => {
+  if (e.kind === "file" && e.path === "todo/事务簿.html") {
+    highlightTodoTab();
+  }
+});
+```
+
+注意 `kind: "file"` 指文件预览视图，与 `file:update`（文件内容变化信号）语义不同。聊天内定位消息（`?messageId=`）、应用内浮窗、split pane 的开关与切换不构成导航，不会推送事件。
 
 ## 请求型 Action — 只读项目信息（HTTP bridge）
 
