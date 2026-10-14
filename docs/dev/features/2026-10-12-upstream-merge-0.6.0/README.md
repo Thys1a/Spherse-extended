@@ -62,7 +62,26 @@
 
 1. 先合低风险：`docs/`（11+4+2+5）、`packages/i18n`、`packages/presets/skills`（4）、`templates`（2）、landing 非 lib 文件（15 中除 lib 外）
     > 文档先不要合并，等代码合并结束后再检查文档是否需要修改
+    
 2. 再合功能域（逐个 cherry-pick 或小步 merge，逐个跑对应单测）：托盘/标签页壳 → 移动端/web → MCP/SDK → 市场/模板（注意本 fork 已移除内置 sample 与 OSS，外链一律改本仓库）
 3. 高风险最后：`app/src` 聊天区（66）、更新器下载弹窗/自动更新移植评估、settings server 化（与本 fork 设置体系对照）、Agent 记忆（与 08 方向决策对照：内核单系统，**不**引入第二套记忆）
+    > 拉取上游记忆相关的实现和决策以判断是否采纳
 4. 全程红线：发版流程、更新源、下载页数据源三处已切到本仓库，任何合入不得改回上游地址；`contracts` 先行
 5. 步骤：逐域分析冲突-提供合并方案-用户审核后开始合并
+
+- 提交 d55aa12：landing 记忆功能卡片（文案按 fork 实际改写）+ 删 worldbook coming-soon（upcoming 只剩 roundtable）+ 三语同步
+- 提交 e815469：server.ts 两行对调 + 3 个用例（开关无关注册、切模式摘除、换域名替换），docs 已按规则剥离
+- 提交 5d33be7：只含 theme-settings/index.tsx 三行（min-w-0 + wrap="off" + field-sizing-fixed overflow-x-auto）；同提交的两处 skill 文档按规则剥离未合入
+- 提交 6595d75：TabStrip.tsx 移植（home 固定 + data-tab-scroll 滚动区 + id 化拖拽，跨区 no-op）+ 3 个分区用例；skill/docs 按规则剥离
+- 提交 3b93a82：DeepSeek web_search 工具，backlog hunk、design.md 新文件、official×4、guide SKILL 全部还原，只留代码+测试（与方案一致，上游 22 文件 → 合入 15 个）。
+- 095acf5 不默认使用：assistant.md 去掉 web_search，presets.test.ts 期望同步。
+- c7662c4 解耦 A（core）：WebSearchBackend { baseUrl, model, apiKeyEnv } 经 deps 注入，defaultWebSearchBackend() 读 SPHERSE_WEB_SEARCH_* env（默认仍指向 DeepSeek 地址/模型，但只是默认值）；readDeepSeekApiKey 改为通用 readWebSearchApiKey；catalog.ts 删 providerEnvKey（唯一消费者消失）；缺 key 报错去 vendor 名。
+- 7f3d862 解耦 B（设置独立）：AppSettings/HostSettings 新增 webSearch { apiKey, baseUrl, model }；desktop 落 SPHERSE_WEB_SEARCH_* env、掩码读写沿用 **** 惯例；app 通用页新增面板（key 用 password 框，不做 capability 门禁，web 宿主 localStorage 透传）；i18n 新增 settings.webSearch.* 三语、tool.web_search_hint 三语去 DeepSeek 化；plan 落盘 docs/dev/features/2026-10-13-web-search-decoupling/plan.md。
+- 提交 e2addcd fix: merge upstream tab height overflow and dev tray default (5e6e283)，3 文件（上游 5 文件 − desktop.md 剥离 − e2e spec 跳过）。
+- 提交：内容区分窗（9abf029，#107）。bcfaf92（拆分取）+ f97a326（修复）+ 63cbba3（吸收）
+- 109 结论：零产品差异，无需合入。fork 的 split 按钮本就在文本按钮（Preview/Source/Edit）之前，与上游修完的顺序一致。转成移植了一条顺序断言
+- 提交 711bf46 feat: merge upstream split return-to-main button (23418e7)，8 文件（+91/-2）。
+- 提交 e49261f fix: merge upstream cross-client session list sync (49bf1db)，17 文件（上游 20 − design.md − official×4 + 回补 1 个测试断言文件计数差）。
+- 提交 59f288f fix: merge upstream mobile cold-start fallback to connect page (f4d172b)，8 文件（上游 11 − backlog − design.md − frontend.md）。
+- 跳过 #147 多标签开关下放：本 fork 无 `tabsEnabled` 设置项（标签页由自有 feature flag + TabStrip 架构控制，与此前各域剔除口径一致），无法移植。
+- #147 版本显示推迟到 #117：需全局 API 工厂面（`createGlobalApiClient`/`useGlobalApiClient`，未合入），待 #117 合入时重评。
