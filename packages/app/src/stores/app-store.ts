@@ -15,12 +15,16 @@ export interface ProjectState {
   lastOpened: string;
 }
 
+interface RestoreProjectsOptions {
+  initialGate?: boolean;
+}
+
 interface AppStore {
   connection: ConnectionConfig;
   projects: Map<string, ProjectState>;
   activeProjectId: string | null;
   initializing: boolean;
-  restoreProjects: (bridge: HostBridge) => Promise<string | null>;
+  restoreProjects: (bridge: HostBridge, opts?: RestoreProjectsOptions) => Promise<string | null>;
   refreshProjects: (bridge: HostBridge) => Promise<void>;
   refreshConnection: (bridge: HostBridge) => Promise<void>;
   openProject: (bridge: HostBridge) => Promise<string | null>;
@@ -77,12 +81,16 @@ export const useAppStore = create<AppStore>((set, get) => ({
   activeProjectId: null,
   initializing: true,
 
-  async restoreProjects(bridge) {
-    set({ initializing: true });
+  async restoreProjects(bridge, opts) {
+    const initialGate = opts?.initialGate !== false;
+    if (initialGate) set({ initializing: true });
     try {
       const connection = await fetchConnection(bridge);
       if (!connection.baseUrl) {
-        set({ initializing: false, connection });
+        set((state) => ({
+          ...(initialGate ? { initializing: false } : {}),
+          ...(connectionEquals(state.connection, connection) ? {} : { connection }),
+        }));
         return null;
       }
       const restored = (await bridge.project?.restoreProjects()) ?? [];
@@ -101,10 +109,15 @@ export const useAppStore = create<AppStore>((set, get) => ({
       const lastActiveId = (await bridge.project?.getLastActiveProject()) ?? null;
       const fallbackId = projects.keys().next().value ?? null;
       const nextActiveId = lastActiveId && projects.has(lastActiveId) ? lastActiveId : fallbackId;
-      set({ connection, projects, activeProjectId: nextActiveId, initializing: false });
+      set({
+        connection,
+        projects,
+        activeProjectId: nextActiveId,
+        ...(initialGate ? { initializing: false } : {}),
+      });
       return nextActiveId;
     } catch (err) {
-      set({ initializing: false });
+      if (initialGate) set({ initializing: false });
       throw err;
     }
   },

@@ -8,11 +8,15 @@
     "./host-bridge-context": "./src/context/host-bridge-context.tsx",
     "./web-resume-probe": "./src/lib/web-resume-probe.ts",
     "./version-compat": "./src/lib/version-compat.ts",
+    "./connect-payload": "./src/lib/connect-payload.ts",
+    "./web-disconnect": "./src/features/web-disconnect/index.tsx",
     "./stores/app": "./src/stores/app-store.ts",
+    "./stores/bus": "./src/stores/bus-store.ts",
     "./stores/settings": "./src/stores/settings-store.ts",
     "./ui/button": "./src/components/ui/button.tsx",
     "./ui/input": "./src/components/ui/input.tsx",
-    "./ui/field": "./src/components/ui/field.tsx"
+    "./ui/field": "./src/components/ui/field.tsx",
+    "./ui/alert-dialog": "./src/components/ui/alert-dialog.tsx"
   },
   "scripts": {
     "pretest": "npm run build --workspace=@spherse/i18n",

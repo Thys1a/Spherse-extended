@@ -15,6 +15,7 @@ import {
 } from "../../components/ui/context-menu";
 import { PanelLeftCloseIcon, PinIcon, PlusIcon, SettingsIcon } from "lucide-react";
 import { DebugTools } from "../debug-tools";
+import { WebDisconnectButton } from "../web-disconnect";
 import { WelcomePageSettingsDialog } from "../project-settings/welcome-page-settings";
 import { ThemeSettingsDialog } from "../project-settings/theme-settings";
 import { useFeature } from "../../lib/use-feature";
@@ -39,7 +40,8 @@ export function ActivityBar({ pinToggle }: ActivityBarProps) {
   const openProjectEnabled = useFeature("open-project");
   const openProjectFolderEnabled = useFeature("open-project-folder");
   const openSettings = useAppUiStore((s) => s.openSettings);
-  const canEditProject = useHostBridge().capabilities.content.editable;
+  const bridge = useHostBridge();
+  const canEditProject = bridge.capabilities.content.editable;
   const { handleAddProject, handleSelectProject, handleCloseProject, handleOpenProjectFolder } =
     useProjectActions();
   const [settingsProjectId, setSettingsProjectId] = useState<string | null>(null);
@@ -100,6 +102,7 @@ export function ActivityBar({ pinToggle }: ActivityBarProps) {
         </div>
         <div className="mt-auto flex flex-col items-center gap-2 pb-3">
           <DebugTools />
+          <WebDisconnectButton variant="icon" />
           {pinToggle && (
             <Button
               variant="ghost"

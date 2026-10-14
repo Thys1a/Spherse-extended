@@ -164,6 +164,7 @@ export interface HostBridge {
   readonly kind: HostKind;
   getServerBaseUrl(): Promise<string>;
   getServerAccessToken?(): Promise<string | null>;
+  clearConnection?(): Promise<void>;
   readonly capabilities: HostCapabilities;
   getSettings(): Promise<HostSettings | null>;
   saveSettings(settings: HostSettings): Promise<{ success: boolean }>;
