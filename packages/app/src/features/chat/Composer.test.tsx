@@ -2,6 +2,7 @@ import { act, cleanup, fireEvent, screen } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
+import { translate } from "@spherse/i18n";
 import { createMockHostBridge } from "../../test/host-bridge";
 import { createTestQueryClient, renderWithProviders } from "../../test/render";
 import { Composer } from "./Composer";
@@ -33,10 +34,17 @@ vi.mock("./utils/compress-image", () => ({
   compressImage: vi.fn(),
 }));
 
+vi.mock("../../hooks/use-mobile", () => ({
+  useIsMobile: vi.fn(),
+}));
+
+import { useIsMobile } from "../../hooks/use-mobile";
+
 let user: ReturnType<typeof userEvent.setup>;
 
 beforeEach(() => {
   user = userEvent.setup();
+  vi.mocked(useIsMobile).mockReturnValue(false);
 });
 
 afterEach(() => {
@@ -99,6 +107,10 @@ function mockPointerCoarse(matches: boolean) {
     removeEventListener: vi.fn(),
     dispatchEvent: vi.fn(),
   })) as unknown as typeof window.matchMedia);
+}
+
+function setMobile(mobile: boolean) {
+  vi.mocked(useIsMobile).mockReturnValue(mobile);
 }
 
 describe("Composer input availability", () => {
@@ -196,6 +208,57 @@ describe("Composer enter key behavior", () => {
     await user.type(screen.getByRole("textbox"), "touch draft");
     await user.click(screen.getByRole("button", { name: "发送" }));
     expect(onSend).toHaveBeenCalledWith("touch draft", undefined);
+  });
+});
+
+describe("Composer mobile layout", () => {
+  it("renders a compact floating composer with inline actions on mobile", async () => {
+    setMobile(true);
+    const { onSend } = renderComposer({ streaming: false });
+
+    const composer = document.querySelector("[data-chat-composer]");
+    expect(composer?.className).toContain("bg-transparent");
+    expect(composer?.className).toContain("safe-area-inset-bottom");
+    expect(composer?.className).toContain("safe-area-inset-left");
+
+    const inputFrame = document.querySelector("[data-chat-composer-input]");
+    expect(inputFrame?.className).toContain("rounded-2xl");
+    expect(inputFrame?.className).toContain("shadow-lg");
+
+    expect(screen.getByRole("textbox")).toHaveStyle({ height: "36px" });
+    expect(screen.getByRole("button", { name: translate("zh-CN", "chat.attachFile") })).toBeInTheDocument();
+
+    await user.type(screen.getByRole("textbox"), "移动端输入");
+    await user.click(screen.getByRole("button", { name: "发送" }));
+    expect(onSend).toHaveBeenCalledWith("移动端输入", undefined);
+  });
+
+  it("keeps the desktop layout on wide viewports", () => {
+    setMobile(false);
+    renderComposer({ streaming: false });
+
+    const composer = document.querySelector("[data-chat-composer]");
+    expect(composer?.className).toContain("bg-background");
+    expect(composer?.className).not.toContain("bg-transparent");
+
+    const inputFrame = document.querySelector("[data-chat-composer-input]");
+    expect(inputFrame?.className).not.toContain("rounded-2xl");
+
+    expect(screen.getByRole("textbox")).toHaveStyle({ height: "56px" });
+  });
+
+  it("recomputes the textarea height when crossing the mobile breakpoint", () => {
+    setMobile(true);
+    const { view, onSend, onAbort } = renderComposer({ streaming: false });
+    expect(screen.getByRole("textbox")).toHaveStyle({ height: "36px" });
+
+    setMobile(false);
+    rerenderComposer(view, { streaming: false }, onSend, onAbort);
+    expect(screen.getByRole("textbox")).toHaveStyle({ height: "56px" });
+
+    setMobile(true);
+    rerenderComposer(view, { streaming: false }, onSend, onAbort);
+    expect(screen.getByRole("textbox")).toHaveStyle({ height: "36px" });
   });
 });
 

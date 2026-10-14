@@ -88,7 +88,7 @@ export function Chat({ sessionId, agent, onNavigateToPath, onOpenSession, initia
     initialMessage,
     accessToken,
   });
-  const { containerRef, isAtBottom, scrollToBottom } = useChatScroll(entries, sessionId, loadingMore);
+  const { containerRef, isAtBottom, scrollToBottom } = useChatScroll(entries, sessionId, loadingMore, thinking);
   const themeCss = useAgentTheme(client, agent.id, agent.slug, projectId);
   const scopedThemeCss = useMemo(
     () =>

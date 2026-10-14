@@ -181,7 +181,7 @@ export function MarkdownContent({ children, variant = "document", plain, resolve
     <div
       ref={docRef}
       onChangeCapture={onTaskToggle ? handleTaskChange : undefined}
-      className={variant === "chat" ? "text-sm leading-6" : "text-sm leading-7"}
+      className={variant === "chat" ? "break-words text-sm leading-6" : "break-words text-sm leading-7"}
     >
       <Markdown
         remarkPlugins={plain ? [remarkGfm, remarkPlainStructure, remarkBreaks] : [remarkGfm]}

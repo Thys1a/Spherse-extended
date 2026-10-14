@@ -9,6 +9,7 @@ import { compressImage } from "./utils/compress-image";
 import { AttachmentBar } from "./AttachmentBar";
 import { useProjectCtx } from "../../context/project-context";
 import { useApiClient } from "../../lib/use-connection";
+import { cn } from "../../lib/utils";
 import { useIsCoarsePointer } from "../../hooks/use-coarse-pointer";
 import { useComposerInsertStore } from "./composer-insert-store";
 import { SessionModelPill } from "./SessionModelPill";
@@ -21,12 +22,17 @@ import {
   matchSlashToken,
   type SlashMenuItem,
 } from "./lib/slash-menu";
+import { useIsMobile } from "../../hooks/use-mobile";
 
 const LINE_HEIGHT = 20;
 const PADDING_Y = 16;
 const MIN_HEIGHT = 2 * LINE_HEIGHT + PADDING_Y;
+const MOBILE_MIN_HEIGHT = LINE_HEIGHT + PADDING_Y;
+const MOBILE_EXPAND_THRESHOLD = 3 * LINE_HEIGHT + PADDING_Y + 4;
 const MID_HEIGHT = 10 * LINE_HEIGHT + PADDING_Y;
+const MOBILE_MID_HEIGHT = 5 * LINE_HEIGHT + PADDING_Y;
 const MAX_HEIGHT = 20 * LINE_HEIGHT + PADDING_Y;
+const MOBILE_MAX_HEIGHT = 12 * LINE_HEIGHT + PADDING_Y;
 
 interface ComposerProps {
   streaming: boolean;
@@ -43,6 +49,11 @@ export function Composer({ streaming, loading = false, panicLocked = false, sess
   const { projectId } = useProjectCtx();
   const client = useApiClient(projectId);
   const isTouchKeyboard = useIsCoarsePointer();
+  const isMobile = useIsMobile();
+  const minHeight = isMobile ? MOBILE_MIN_HEIGHT : MIN_HEIGHT;
+  const midHeight = isMobile ? MOBILE_MID_HEIGHT : MID_HEIGHT;
+  const maxHeight = isMobile ? MOBILE_MAX_HEIGHT : MAX_HEIGHT;
+  const expandThreshold = isMobile ? MOBILE_EXPAND_THRESHOLD : MIN_HEIGHT + 4;
   const draftKey = `spherse:draft:${sessionId}`;
   const [input, setInput] = useState(() => localStorage.getItem(draftKey) ?? "");
   const [manualExpanded, setManualExpanded] = useState(false);
@@ -96,22 +107,22 @@ export function Composer({ streaming, loading = false, panicLocked = false, sess
     const prevScrollTop = textarea.scrollTop;
     textarea.style.height = "auto"; // collapse to measure scrollHeight
     const natural = textarea.scrollHeight;
-    const exceeds = natural > MIN_HEIGHT + 4;
+    const exceeds = natural > expandThreshold;
     setContentExceeds3Lines(exceeds);
     if (!exceeds && manualExpanded) {
       setManualExpanded(false);
       return;
     }
     if (manualExpanded) {
-      textarea.style.height = `${MAX_HEIGHT}px`;
-      textarea.style.overflowY = natural > MAX_HEIGHT ? "auto" : "hidden";
+      textarea.style.height = `${maxHeight}px`;
+      textarea.style.overflowY = natural > maxHeight ? "auto" : "hidden";
     } else {
-      const targetHeight = Math.max(MIN_HEIGHT, Math.min(natural, MID_HEIGHT));
+      const targetHeight = Math.max(minHeight, Math.min(natural, midHeight));
       textarea.style.height = `${targetHeight}px`;
-      textarea.style.overflowY = natural > MID_HEIGHT ? "auto" : "hidden";
+      textarea.style.overflowY = natural > midHeight ? "auto" : "hidden";
     }
     textarea.scrollTop = prevScrollTop; // prevent scroll-to-top after height change
-  }, [input, manualExpanded]);
+  }, [input, manualExpanded, minHeight, midHeight, maxHeight, expandThreshold]);
 
   useEffect(() => {
     if (input) {
@@ -280,14 +291,28 @@ export function Composer({ streaming, loading = false, panicLocked = false, sess
   }, [streaming, loading]);
 
   return (
-    <div className="border-t border-border bg-background p-3" data-chat-composer>
+    <div
+      className={cn(
+        "border-t border-border bg-background p-3",
+        isMobile &&
+          "border-t-0 bg-transparent ps-[calc(0.625rem+env(safe-area-inset-left))] pe-[calc(0.625rem+env(safe-area-inset-right))] pt-1.5 pb-[calc(1rem+env(safe-area-inset-bottom))]",
+      )}
+      data-chat-composer
+    >
       <div className="flex items-center gap-2 px-1 pb-2">
         <SessionModelPill sessionId={sessionId} />
       </div>
       {(files.length > 0 || attachBusy) && (
         <AttachmentBar files={files} uploading={attachBusy} onRemove={handleRemoveFile} />
       )}
-      <div className="relative rounded-lg border border-input bg-background transition-colors focus-within:border-ring" data-chat-composer-input>
+      <div
+        className={cn(
+          "relative rounded-lg border border-input bg-background transition-colors focus-within:border-ring",
+          isMobile &&
+            "flex items-end gap-0.5 rounded-2xl px-1 pb-1 shadow-lg shadow-black/5",
+        )}
+        data-chat-composer-input
+      >
         {panicLocked && (
           <div className="flex items-center gap-1.5 px-3 pt-2 text-xs text-muted-foreground">
             <WifiOffIcon className="size-3.5" />
@@ -322,8 +347,11 @@ export function Composer({ streaming, loading = false, panicLocked = false, sess
         )}
         <Textarea
           ref={textareaRef}
-          className="min-h-0 w-full resize-none border-none bg-transparent py-2 ps-3 pe-8 text-sm md:text-sm leading-5 shadow-none focus-visible:ring-0"
-          style={{ height: `${MIN_HEIGHT}px`, overflowY: "hidden" }}
+          className={cn(
+            "min-h-0 w-full flex-1 min-w-0 resize-none border-none bg-transparent py-2 ps-3 pe-8 text-sm md:text-sm leading-5 shadow-none focus-visible:ring-0",
+            isMobile && "pe-2",
+          )}
+          style={{ height: `${minHeight}px`, overflowY: "hidden" }}
           value={input}
           onChange={(event) => {
             setInput(event.target.value);
@@ -394,7 +422,12 @@ export function Composer({ streaming, loading = false, panicLocked = false, sess
             {manualExpanded ? <ChevronsDownIcon /> : <ChevronsUpIcon />}
           </Button>
         )}
-        <div className="flex items-center justify-between px-2 pb-2 pt-0.5">
+        <div
+          className={cn(
+            "flex items-center",
+            isMobile ? "shrink-0 gap-0.5 pe-1" : "justify-between px-2 pb-2 pt-0.5",
+          )}
+        >
           <Button
             variant="ghost"
             size="icon"
