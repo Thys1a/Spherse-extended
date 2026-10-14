@@ -85,8 +85,11 @@
 - 提交 59f288f fix: merge upstream mobile cold-start fallback to connect page (f4d172b)，8 文件（上游 11 − backlog − design.md − frontend.md）。
 - 跳过 #147 多标签开关下放：本 fork 无 `tabsEnabled` 设置项（标签页由自有 feature flag + TabStrip 架构控制，与此前各域剔除口径一致），无法移植。
 - #147 版本显示推迟到 #117：需全局 API 工厂面（`createGlobalApiClient`/`useGlobalApiClient`，未合入），待 #117 合入时重评。
+- 暂缓 #111：`assembleGroups` 两边按不同架构重写（fork 用 bubblesByEntryId+owner 合并，上游用 entries+fold 气泡），`AssistantBubble.tools` 存废方向相反，机械合入不可行；待聊天区收敛后单立 design doc（ThoughtBlock/ToolCards 组件可直接取，只需重写 model 层）。
 - 跳过 #124：fork 已有等价且更强的自研实现（结构化行编辑器 + fetch 层透传），上游 7 个 wire 级测试在未改代码下全绿，无缺口。
 - dbc3304：#115 拖拽上传 + #130 SDK action + #132 web 开放 + #142 右键入口，按依赖顺序叠入
 - 提交 b807024 feat: merge upstream web dev environment and dev deploy (975f010)，7 文件（上游 12 − design.md − official×4）。
 - 提交 f12080f feat: merge upstream mobile connect UX, scan plus payload plus disconnect (a76c3e3)，20 文件（上游 24 − design.md − plan.md − official×2）
 - 提交 9f7cf43 feat: merge upstream mobile file editing and dialog host gating (3fb6cf8)，3 文件（+45/-14，上游 5 − backlog − frontend.md）。
+- 提交 aa8faa7 feat: merge upstream sdk navigate event and search fix (f5004e6)，17 文件（上游 20 − design.md − ui-sdk.md − project-structure.md）。
+- 468bbd9（#127，3 文件全自动合入，28 用例过）+ a4675a0（#145 快捷链接文档，11+/3-，全局搜索/管理参数按核实剔除）
