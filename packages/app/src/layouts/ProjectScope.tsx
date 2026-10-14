@@ -3,7 +3,7 @@ import { Outlet, useLocation, useParams } from "react-router";
 import { useI18n } from "@spherse/i18n/react";
 import { SidePanel } from "../features/side-panel";
 import { useCustomTheme } from "../hooks/useCustomTheme";
-import { useAgentBusRefresh } from "../hooks/useAgentBusRefresh";
+import { useAgentBusRefresh, useSessionBusRefresh } from "../hooks/useAgentBusRefresh";
 import { useSidePanel } from "../hooks/use-side-panel";
 import { useAppStore } from "../stores/app-store";
 import { useProjectNavHistory } from "../lib/use-project-navigation";
@@ -38,6 +38,7 @@ export function ProjectScope() {
   );
   useProjectNavHistory(projectId ?? "");
   useAgentBusRefresh(projectId, client);
+  useSessionBusRefresh(projectId);
   useEffect(() => {
     if (projectId) void setActiveProject(bridge, projectId);
   }, [projectId, setActiveProject, bridge]);

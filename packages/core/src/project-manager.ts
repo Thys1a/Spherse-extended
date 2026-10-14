@@ -3,6 +3,7 @@ import type { CommandInput, CommandPatch } from "./store/command.js";
 import type { AgentMcpConfig } from "./mcp/index.js";
 import { ProjectStore } from "./store/project.js";
 import type { ChangelogEntry, AgentChangePayload } from "./store/project.js";
+import type { SessionChangePayload } from "./store/session.js";
 import { FileWriteMutex } from "./utils/file-write-mutex.js";
 import { resolveProjectPath } from "./utils/path-safety.js";
 import { serverAccessPolicy } from "./access/access-policy.js";
@@ -100,6 +101,14 @@ export class ProjectManager {
 
   offAgentChange(listener: (payload: AgentChangePayload) => void): void {
     this.projectStore.off("agent_updated", listener);
+  }
+
+  onSessionChange(listener: (payload: SessionChangePayload) => void): void {
+    this.projectStore.on("session_updated", listener);
+  }
+
+  offSessionChange(listener: (payload: SessionChangePayload) => void): void {
+    this.projectStore.off("session_updated", listener);
   }
 
   async deleteAgent(agentId: string): Promise<void> {
