@@ -447,7 +447,7 @@ const blob = await canvas.convertToBlob({ type: "image/png" });
 await spherse.uploadFile({ dirPath: "media", name: "chart.png", data: blob });
 ```
 
-约束：
+约束（以下白名单与 100MB 限制仅 `spherse.uploadFile` 本 action 执行；文件面板拖拽/右键上传与原始 HTTP 端点不限文件类型）：
 
 - **扩展名白名单**（大小写不敏感）：图片 `png jpg jpeg gif webp svg bmp avif ico` · 音频 `mp3 wav ogg m4a flac aac opus` · 视频 `mp4 webm mov avi mkv` · 文本 `txt json md`。之外的类型 reject `unsupported_type`
 - `dirPath` 不允许指向 `.spherse/` 内部目录，不允许 `..` / 绝对路径 / 反斜杠
