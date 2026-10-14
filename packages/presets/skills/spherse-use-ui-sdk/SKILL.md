@@ -33,12 +33,13 @@ SDK 已由 App 注入，**不要**再自己写 `<script>` 加载它，也**不�
 | 请求型（Promise） | `sendMessage(params)` → `Promise` | 等待发送结果 |
 | 请求型（Promise） | `data.get` / `data.set` / `data.delete` / `data.keys` / `data.entries` / `data.mutate` | key-value 持久化 + manifest 结构性变更 |
 | 请求型（Promise） | `card.list` / `card.meta` / `card.entries` / `card.search` / `card.entry` / `card.many` / `card.update` / `card.bulk` / `card.add` / `card.remove` | `.card.json` 世界书读写（条目清单不带正文，写操作返回错误码） |
+| 请求型（Promise） | `uploadFile(params)` → `Promise<{ path, bytes, renamed }>` | 把 Blob/File 上传到项目目录 |
 | 请求型（Promise） | `api.call(op, args)` 及 `api.*` 命名方法 | 只读查询项目信息（agents / sessions / content / fileTree） |
 | 请求型（Promise） | `dockChat(params?)` → `Promise` | 在占位元素位置叠加真实聊天面板（仅聊天 HtmlCard） |
 | 事件型 | `events.on("file:update", filter, handler)` | 订阅指定项目文件的变化信号 |
 | 运行时 | `spherse.runtime`（同步读）/ `spherse.getRuntime()`（Promise） | 获取当前会话上下文（仅 HtmlCard 有值） |
 
-所有请求型方法都返回 Promise，内部已处理 `requestId` 匹配与 10 秒超时，失败时 reject。
+所有请求型方法都返回 Promise，内部已处理 `requestId` 匹配与超时（默认 10 秒，`uploadFile` 为 60 秒），失败时 reject。
 
 ## 运行时上下文（聊天 HtmlCard 专属）
 
@@ -422,6 +423,36 @@ handler 收到的事件结构：
 handler 中的 `path` 始终是归一化后的项目根目录相对路径，即使订阅时传入的是 `./atlas.data.json`。
 
 `file:update` 的语义是“该文件可能已经变化”。handler 应重新读取目标文件并处理读取失败；短时间内同一路径的连续变化会被合并。操作系统底层的文件事件类型不会暴露给用户 HTML，因为它无法可靠区分创建、删除和编辑器的原子替换。
+
+## 请求型 Action — 上传文件
+
+### `spherse.uploadFile(params)` → `Promise<{ path, bytes, renamed }>`
+
+把页面内的 `Blob` / `File` 上传到项目目录（与文件面板拖拽上传同路径：单文件上限 100MB，同名自动重命名 `name (1).ext`）。
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| data | `Blob \| File` | 是 | 待上传内容；`File` 自带文件名时可省 `name` |
+| name | string | Blob 时必填 | 最终落盘文件名（显式给出时优先于 `File.name`） |
+| dirPath | string | 否 | 目标目录（项目根相对路径），省略 = 项目根 |
+
+```javascript
+// 用户在页面里选了张图
+const file = document.querySelector("input[type=file]").files[0];
+const res = await spherse.uploadFile({ dirPath: "media", data: file });
+// res → { path: "media/photo.png", bytes: 20480, renamed: false }
+
+// 页面内生成的 Blob（如 canvas 导出）
+const blob = await canvas.convertToBlob({ type: "image/png" });
+await spherse.uploadFile({ dirPath: "media", name: "chart.png", data: blob });
+```
+
+约束：
+
+- **扩展名白名单**（大小写不敏感）：图片 `png jpg jpeg gif webp svg bmp avif ico` · 音频 `mp3 wav ogg m4a flac aac opus` · 视频 `mp4 webm mov avi mkv` · 文本 `txt json md`。之外的类型 reject `unsupported_type`
+- `dirPath` 不允许指向 `.spherse/` 内部目录，不允许 `..` / 绝对路径 / 反斜杠
+- 错误码：`bad_request`（参数非法）/ `unsupported_type` / `file_too_large`（>100MB）/ `forbidden`（`.spherse` 子树）/ `upload_failed`（目标目录不存在等）
+- 上传成功后文件面板自动刷新；其它页面可通过 `events.on("file:update")` 感知新文件
 
 ## 请求型 Action — 只读项目信息（HTTP bridge）
 

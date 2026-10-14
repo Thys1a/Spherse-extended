@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { screen, fireEvent } from "@testing-library/react";
+import { userEvent } from "@testing-library/user-event";
 import { translate } from "@spherse/i18n";
 import { renderWithProviders } from "../../test/render";
 import { FileTreeContextMenu } from "./FileTreeContextMenu";
@@ -217,5 +218,43 @@ describe("FileTreeContextMenu", () => {
     expect(screen.getByText(translate("zh-CN", "file-tree.newFile"))).toBeInTheDocument();
     expect(screen.getByText(translate("zh-CN", "file-tree.copyPath"))).toBeInTheDocument();
     expect(screen.getByText(translate("zh-CN", "common.delete"))).toBeInTheDocument();
+  });
+});
+
+describe("FileTreeContextMenu upload item", () => {
+  const dir = { name: "docs", path: "docs", type: "directory" as const };
+  const file = { name: "a.md", path: "docs/a.md", type: "file" as const };
+
+  function open(
+    node: typeof dir | typeof file,
+    props: { onUploadFiles?: (dirPath: string) => void } = {},
+  ) {
+    renderWithProviders(
+      <FileTreeContextMenu node={node} onCreate={() => {}} onDelete={() => {}} {...props}>
+        <div>row</div>
+      </FileTreeContextMenu>,
+      { locale: "en" },
+    );
+    fireEvent.contextMenu(screen.getByText("row"));
+  }
+
+  it("uploads to the directory itself for directories", async () => {
+    const onUploadFiles = vi.fn();
+    open(dir, { onUploadFiles });
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Upload Files" }));
+    expect(onUploadFiles).toHaveBeenCalledWith("docs");
+  });
+
+  it("uploads to the parent directory for files", async () => {
+    const onUploadFiles = vi.fn();
+    open(file, { onUploadFiles });
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Upload Files" }));
+    expect(onUploadFiles).toHaveBeenCalledWith("docs");
+  });
+
+  it("does not offer upload when no handler is provided", async () => {
+    open(file);
+    await screen.findByRole("menuitem", { name: "New File" });
+    expect(screen.queryByRole("menuitem", { name: "Upload Files" })).toBeNull();
   });
 });

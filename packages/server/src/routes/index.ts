@@ -19,6 +19,7 @@ import { registerDebugRoutes } from "./debug.js";
 import { registerTriggerRoutes } from "./trigger.js";
 import { registerImagesRoutes } from "./images.js";
 import { registerAttachmentsRoutes } from "./attachments.js";
+import { registerUploadRoutes } from "./upload.js";
 import { registerConnectionRoutes } from "./connection.js";
 
 declare module "fastify" {
@@ -63,4 +64,5 @@ export function registerAllRoutes(
   registerTriggerRoutes(fastify, registry);
   registerImagesRoutes(fastify, registry);
   registerAttachmentsRoutes(fastify, registry);
+  registerUploadRoutes(fastify, registry);
 }

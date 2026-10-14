@@ -44,6 +44,7 @@ import type {
   EntryPatchContract,
   CardLinkListResponse,
   CardLinkAddResponse,
+  UploadResponse,
 } from "@spherse/contracts";
 import { parseApiResponse, schemas } from "@spherse/contracts";
 import { Type } from "@sinclair/typebox";
@@ -765,6 +766,17 @@ export function createApiClient(baseUrl: string, projectId: string, accessToken?
         body: JSON.stringify({ path }),
       });
       await assertOk(res);
+    },
+
+    async uploadFile(dirPath: string, file: File): Promise<UploadResponse> {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await authedFetch(`${apiBase}/upload/${encodeURIComponent(dirPath)}`, {
+        method: "POST",
+        body: form,
+      });
+      await assertOk(res);
+      return parseJsonResponse<UploadResponse>(res, schemas.uploadResponse);
     },
 
     async getAiAccessSettings(): Promise<AiAccessSettingsResponse> {

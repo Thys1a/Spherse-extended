@@ -107,6 +107,7 @@ export function UserFilePanel() {
                   : undefined
               }
               readOnly={!canMutate}
+              uploadsEnabled={canMutate}
             />
           </SidebarGroupContent>
         </SidebarGroup>

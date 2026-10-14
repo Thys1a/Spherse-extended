@@ -956,6 +956,8 @@ export const zhCN = {
   "file-tree.newFile": "新建文件",
   // 新建文件夹按钮
   "file-tree.newFolder": "新建文件夹",
+  // 右键菜单：从设备上传文件到该目录
+  "file-tree.uploadFiles": "上传文件",
   // 删除确认弹窗标题
   "file-tree.confirmDeleteTitle": "确认删除",
   // 删除目录确认弹窗内容，{name} 为目录名
@@ -972,6 +974,10 @@ export const zhCN = {
   "file-tree.createFailed": "创建失败：{message}",
   // 删除失败提示，{message} 为错误信息
   "file-tree.deleteFailed": "删除失败：{message}",
+  "file-tree.uploadFailed": "上传失败：{message}",
+  "file-tree.uploadNoFiles": "仅支持拖入文件，文件夹将被忽略",
+  "file-tree.uploadedCount": "已上传 {count} 个文件",
+  "file-tree.uploadedRenamed": "同名文件已自动重命名：{names}",
   // 文件树右键菜单：复制路径
   "file-tree.copyPath": "复制路径",
   // 文件右键菜单：在新标签页中打开
