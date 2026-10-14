@@ -7,6 +7,7 @@ import matter from "gray-matter";
 import { nanoid } from "nanoid";
 import { PRESET_SKILL_SOURCES, AGENTS_INDEX_TEMPLATE } from "@spherse/presets";
 import type { AgentProfile } from "../types.js";
+import type { AgentMcpConfig } from "../mcp/types.js";
 import { PROJECT_META_DIR } from "../types.js";
 import { ProjectConfigStore } from "./project-config.js";
 import { SkillStore } from "./skill.js";
@@ -228,6 +229,28 @@ export class ProjectStore extends EventEmitter {
     }
     this.emitAgentChange(agentId, "updated");
     return agentStore;
+  }
+
+  async updateAgentFrontmatter(
+    agentId: string,
+    mutate: (data: Record<string, unknown>) => void,
+  ): Promise<AgentStore> {
+    const agentStore = this._agents.get(agentId);
+    if (!agentStore) throw new NotFoundError(`Agent "${agentId}" not found`);
+    await agentStore.mutateProfileFrontmatter(mutate);
+    this.emitAgentChange(agentId, "updated");
+    return agentStore;
+  }
+
+  async updateAgentMcp(
+    agentId: string,
+    config: { servers: ReadonlyArray<Record<string, unknown>> },
+  ): Promise<AgentMcpConfig> {
+    const agentStore = this._agents.get(agentId);
+    if (!agentStore) throw new NotFoundError(`Agent "${agentId}" not found`);
+    const normalized = await agentStore.mcp.saveConfig(config);
+    this.emitAgentChange(agentId, "updated");
+    return normalized;
   }
 
   async deleteAgent(agentId: string): Promise<void> {

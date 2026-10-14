@@ -62,14 +62,6 @@ const mcpServerConfig = Type.Union([
     url: Type.String(),
     headers: Type.Optional(Type.Record(Type.String(), Type.String())),
   }),
-  Type.Object({
-    id: Type.String(),
-    name: Type.String(),
-    enabled: Type.Boolean(),
-    transport: Type.Literal("sse"),
-    url: Type.String(),
-    headers: Type.Optional(Type.Record(Type.String(), Type.String())),
-  }),
 ]);
 
 const agentSummary = Type.Object(

@@ -332,6 +332,7 @@ export class AgentRunner {
 
       this.ensureModel();
       await this.maybePreCompact();
+      await this.turnHooks.beforeTurn?.(this.agent);
       const [, retryStartEvent] = this.eventLog!.appendBatch([
         { type: "turn/retried", data: { abandonedSeqs: [lastEvent.seq] } },
         { type: "turn/start", data: {} },

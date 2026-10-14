@@ -3,7 +3,6 @@ import type {
   AgentMcpConfig,
   McpServerConfig,
   McpServerConfigBase,
-  McpSseServerConfig,
   McpHttpServerConfig,
   McpStdioServerConfig,
   McpTransportType,
@@ -12,8 +11,9 @@ import type {
 const SUPPORTED_TRANSPORTS: ReadonlySet<McpTransportType> = new Set([
   "stdio",
   "http",
-  "sse",
 ]);
+
+export type McpNormalizeWarnFn = (entry: unknown, reason: string) => void;
 
 export function generateMcpServerId(): string {
   return crypto.randomUUID();
@@ -92,12 +92,10 @@ export function normalizeMcpServer(raw: unknown): McpServerConfig | null {
     return cfg;
   }
 
-  const cfg: McpSseServerConfig = { ...base, transport: "sse", url };
-  if (headers) cfg.headers = headers;
-  return cfg;
+  return null;
 }
 
-export function normalizeMcpConfig(raw: unknown): AgentMcpConfig {
+export function normalizeMcpConfig(raw: unknown, onWarn?: McpNormalizeWarnFn): AgentMcpConfig {
   if (!isRecord(raw) || !Array.isArray(raw.servers)) {
     return { servers: [] };
   }
@@ -105,7 +103,12 @@ export function normalizeMcpConfig(raw: unknown): AgentMcpConfig {
   const servers: McpServerConfig[] = [];
   for (const entry of raw.servers) {
     const normalized = normalizeMcpServer(entry);
-    if (!normalized) continue;
+    if (!normalized) {
+      if (isRecord(entry) && entry.transport === "sse") {
+        onWarn?.(entry, "sse transport was removed; dropping server (migrate the server to streamable http)");
+      }
+      continue;
+    }
     if (seenIds.has(normalized.id)) continue;
     seenIds.add(normalized.id);
     servers.push(normalized);
@@ -114,6 +117,8 @@ export function normalizeMcpConfig(raw: unknown): AgentMcpConfig {
 }
 
 const TOOL_NAME_INVALID_CHARS = /[^a-zA-Z0-9_]/g;
+
+export const MCP_TOOL_NAME_PREFIX = "mcp__";
 
 export function sanitizeMcpToolSegment(name: string): string {
   const trimmed = name.trim().toLowerCase();
@@ -130,5 +135,5 @@ export function makeMcpToolName(
   const shortId = serverId.replace(/-/g, "").slice(0, 8);
   const server = readable ? `${readable}_${shortId}` : shortId;
   const tool = sanitizeMcpToolSegment(toolName) || "tool";
-  return `mcp__${server}__${tool}`;
+  return `${MCP_TOOL_NAME_PREFIX}${server}__${tool}`;
 }
