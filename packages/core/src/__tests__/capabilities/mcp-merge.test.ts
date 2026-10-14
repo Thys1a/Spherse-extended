@@ -108,10 +108,13 @@ describe("mcp capability beforeTurn self-healing merge", () => {
     const capability = await initCapability([STDIO]);
     const hooks = capability.turnHooks!("agent-1", "session-1");
     const agent = makeAgent();
+    const state = (agent as { state: { tools: AgentTool[]; systemPrompt: string } }).state;
+    state.tools.push({ ...makeTool("mcp__fixture_srv1__b"), label: "not-mcp" });
 
     await hooks.beforeTurn!(agent);
-    const state = (agent as { state: { tools: AgentTool[]; systemPrompt: string } }).state;
-    state.tools.push({ ...makeTool("mcp__fixture_srv1__b__2") });
+    expect(state.tools.map((t) => t.name).sort()).toEqual(
+      ["builtin_tool", "mcp__fixture_srv1__a", "mcp__fixture_srv1__b", "mcp__fixture_srv1__b__2"].sort(),
+    );
     const promptAfterFirst = state.systemPrompt;
     expect(promptAfterFirst).toContain('prompt name="p1"');
 
@@ -119,7 +122,11 @@ describe("mcp capability beforeTurn self-healing merge", () => {
     await capability.onAgentConfigChanged!("agent-1", "mcp");
     await hooks.beforeTurn!(agent);
 
-    expect(state.tools.map((t) => t.name)).toEqual(["builtin_tool", "mcp__fixture_srv1__c"]);
+    expect(state.tools.map((t) => t.name)).toEqual([
+      "builtin_tool",
+      "mcp__fixture_srv1__b",
+      "mcp__fixture_srv1__c",
+    ]);
     expect(state.systemPrompt).not.toBe(promptAfterFirst);
     expect(state.systemPrompt).not.toContain('prompt name="p1"');
     expect(state.systemPrompt).toContain('prompt name="p2"');
@@ -156,5 +163,24 @@ describe("mcp capability beforeTurn self-healing merge", () => {
 
     const state = (agent as { state: { tools: AgentTool[] } }).state;
     expect(state.tools.map((t) => t.name)).toEqual(["builtin_tool", "mcp__fixture_srv1__a"]);
+  });
+
+  it("keeps user text between stale context blocks when re-merging", async () => {
+    connectMock.mockResolvedValueOnce(okConnect([makeTool("mcp__fixture_srv1__a")], { prompts: [{ name: "p1" }] }));
+    const capability = await initCapability([STDIO]);
+    const hooks = capability.turnHooks!("agent-1", "session-1");
+    const agent = makeAgent();
+    const state = (agent as { state: { tools: AgentTool[]; systemPrompt: string } }).state;
+
+    await hooks.beforeTurn!(agent);
+    state.systemPrompt += "\nUSER NOTES\n<!-- spherse:mcp-context:start -->stale<!-- spherse:mcp-context:end -->";
+
+    connectMock.mockResolvedValueOnce(okConnect([makeTool("mcp__fixture_srv1__a")], { prompts: [{ name: "p2" }] }));
+    await capability.onAgentConfigChanged!("agent-1", "mcp");
+    await hooks.beforeTurn!(agent);
+
+    expect(state.systemPrompt).toContain("USER NOTES");
+    expect(state.systemPrompt).not.toContain("stale");
+    expect((state.systemPrompt.match(/<!-- spherse:mcp-context:start -->/g) ?? []).length).toBe(1);
   });
 });

@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -58,7 +58,16 @@ describe("agent mcp facade contract: real ProjectRuntime through real routes", (
   afterAll(async () => {
     await app.close();
     await runtime.shutdown();
-    fs.rmSync(tmpDir, { recursive: true, force: true });
+    for (let attempt = 0; ; attempt++) {
+      try {
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+        return;
+      } catch (err) {
+        const code = (err as { code?: unknown })?.code;
+        if ((code !== "EPERM" && code !== "EBUSY" && code !== "ENOTEMPTY") || attempt >= 5) throw err;
+        await new Promise((resolve) => setTimeout(resolve, 250));
+      }
+    }
   });
 
   it("PUT /mcp persists through the runtime facade and broadcasts agent_updated", async () => {
@@ -112,5 +121,25 @@ describe("agent mcp facade contract: real ProjectRuntime through real routes", (
       payload: { servers: [] },
     });
     expect(res.statusCode).toBe(404);
+  });
+
+  it("PUT /mcp invalidates live mcp connections through the runtime", async () => {
+    const mcp = runtime.capabilities.find((c) => c.id === "mcp") as unknown as {
+      manager: { invalidate: (agentId: string) => Promise<void> };
+    };
+    const invalidateSpy = vi.spyOn(mcp.manager, "invalidate");
+    try {
+      const res = await app.inject({
+        method: "PUT",
+        url: `/api/projects/p1/agents/${agentId}/mcp`,
+        payload: {
+          servers: [{ id: "s1", name: "fs", enabled: true, transport: "stdio", command: "npx" }],
+        },
+      });
+      expect(res.statusCode).toBe(200);
+      expect(invalidateSpy).toHaveBeenCalledWith(agentId);
+    } finally {
+      invalidateSpy.mockRestore();
+    }
   });
 });

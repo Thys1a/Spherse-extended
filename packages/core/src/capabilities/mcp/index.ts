@@ -1,6 +1,5 @@
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import { McpConnectionManager } from "../../mcp/mcp-connection-manager.js";
-import { MCP_TOOL_NAME_PREFIX } from "../../mcp/config.js";
 import type { Capability } from "../../kernel/capability.js";
 import type { KernelServices } from "../../kernel/ports.js";
 import type { TurnHooksFactory } from "../../kernel/turn-hooks.js";
@@ -8,7 +7,7 @@ import type { ProjectStore } from "../../store/project.js";
 import type { Logger } from "../../logger.js";
 import { mcpContextBlock } from "./block.js";
 
-const MCP_CONTEXT_BLOCK_RE = /\n*<!-- spherse:mcp-context:start -->[\s\S]*<!-- spherse:mcp-context:end -->/g;
+const MCP_CONTEXT_BLOCK_RE = /\n*<!-- spherse:mcp-context:start -->[\s\S]*?<!-- spherse:mcp-context:end -->/g;
 
 function dedupeToolNames(existing: AgentTool[], incoming: AgentTool[]): AgentTool[] {
   const used = new Set<string>();
@@ -68,6 +67,7 @@ export function createMcpCapability(deps: McpCapabilityDeps): McpCapability {
 
   const turnHooks: TurnHooksFactory = (agentId, sessionId) => {
     let mergedAtRevision: number | null = null;
+    let lastMerged: ReadonlySet<string> = new Set();
     return {
       async beforeTurn(agent) {
         try {
@@ -75,8 +75,10 @@ export function createMcpCapability(deps: McpCapabilityDeps): McpCapability {
           if (mergedAtRevision === revision) return;
           mergedAtRevision = revision;
 
-          const baseTools = agent.state.tools.filter((t) => !t.name.startsWith(MCP_TOOL_NAME_PREFIX));
-          const nextTools = [...baseTools, ...dedupeToolNames(baseTools, mcpTools)];
+          const baseTools = agent.state.tools.filter((t) => !lastMerged.has(t.name));
+          const mergedTools = dedupeToolNames(baseTools, mcpTools);
+          const nextTools = [...baseTools, ...mergedTools];
+          lastMerged = new Set(mergedTools.map((t) => t.name));
           agent.state.tools = nextTools;
 
           agent.state.systemPrompt = agent.state.systemPrompt.replace(MCP_CONTEXT_BLOCK_RE, "");

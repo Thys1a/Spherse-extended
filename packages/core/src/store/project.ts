@@ -231,17 +231,6 @@ export class ProjectStore extends EventEmitter {
     return agentStore;
   }
 
-  async updateAgentFrontmatter(
-    agentId: string,
-    mutate: (data: Record<string, unknown>) => void,
-  ): Promise<AgentStore> {
-    const agentStore = this._agents.get(agentId);
-    if (!agentStore) throw new NotFoundError(`Agent "${agentId}" not found`);
-    await agentStore.mutateProfileFrontmatter(mutate);
-    this.emitAgentChange(agentId, "updated");
-    return agentStore;
-  }
-
   async updateAgentMcp(
     agentId: string,
     config: { servers: ReadonlyArray<Record<string, unknown>> },
