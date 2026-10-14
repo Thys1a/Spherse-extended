@@ -14,6 +14,7 @@ import { registerPreviewRoutes } from "./preview.js";
 import { registerSkillRoutes } from "./skills.js";
 import { registerCommandRoutes } from "./commands.js";
 import { registerMarketplaceRoutes } from "./marketplace.js";
+import { registerProjectMarketplaceRoutes } from "./project-marketplace.js";
 import { registerFileTreeRoutes } from "./file-tree.js";
 import { registerDebugRoutes } from "./debug.js";
 import { registerTriggerRoutes } from "./trigger.js";
@@ -59,6 +60,7 @@ export function registerAllRoutes(
   registerSkillRoutes(fastify, registry);
   registerCommandRoutes(fastify, registry);
   registerMarketplaceRoutes(fastify, registry);
+  registerProjectMarketplaceRoutes(fastify);
   registerFileTreeRoutes(fastify, registry);
   registerDebugRoutes(fastify, registry);
   registerTriggerRoutes(fastify, registry);

@@ -36,6 +36,7 @@ export { createProject } from "./factory.js";
 export type { DataStore, DataChangeEvent, ManifestFieldRule, ManifestFieldType, OutlineResult, ReadResult, QueryResult, MutateResult, WriteResult } from "./capabilities/data/index.js";
 export type { SideEffectRef, UndoOp, UndoRecord, TurnSideEffectSource } from "./tool-attribution.js";
 export { TURN_SIDE_EFFECTS_STORE_KEY } from "./tool-attribution.js";
+export { installMarketplaceProjectZip } from "./marketplace-project.js";
 export { createDataStore } from "./capabilities/data/index.js";
 export type {
   CardStore,

@@ -20,3 +20,7 @@ export const projectQueryKeys = {
   themeSettings: (projectId: string) => ["projects", projectId, "theme-settings"] as const,
   triggers: (projectId: string) => ["projects", projectId, "triggers"] as const,
 };
+
+export const marketplaceQueryKeys = {
+  projects: () => ["marketplace", "projects"] as const,
+};
