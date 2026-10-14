@@ -46,6 +46,7 @@ import type {
   CardLinkAddResponse,
   UploadResponse,
   MarketplaceProjectManifestResponse,
+  MarketplacePromptManifestResponse,
   ProjectMarketplaceInstallRequest,
   ProjectMarketplaceInstallResponse,
 } from "@spherse/contracts";
@@ -946,6 +947,29 @@ export function createGlobalApiClient(baseUrl: string, accessToken?: string | nu
       return parseJsonResponse<ProjectMarketplaceInstallResponse>(
         res,
         schemas.projectMarketplaceInstallResponse,
+      );
+    },
+
+    async getSupportedProviders(): Promise<ProviderCatalogContract> {
+      const res = await authedFetch(`${baseUrl}/api/settings/providers`);
+      await assertOk(res);
+      return parseJsonResponse<ProviderCatalogContract>(res, schemas.providerCatalog);
+    },
+
+    async getImageProviders(): Promise<ProviderCatalogContract> {
+      const res = await authedFetch(`${baseUrl}/api/settings/image-providers`);
+      await assertOk(res);
+      return parseJsonResponse<ProviderCatalogContract>(res, schemas.providerCatalog);
+    },
+
+    async listMarketplacePrompts(language: string): Promise<MarketplacePromptManifestResponse> {
+      const res = await authedFetch(
+        `${baseUrl}/api/marketplace/prompts?language=${encodeURIComponent(language)}`,
+      );
+      await assertOk(res);
+      return parseJsonResponse<MarketplacePromptManifestResponse>(
+        res,
+        schemas.marketplacePromptManifestResponse,
       );
     },
   };

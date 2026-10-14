@@ -6,12 +6,20 @@ import { createTestQueryClient, renderWithProviders } from "../../test/render";
 import { AgentDialogForm } from "./AgentDialogForm";
 
 const getSupportedProviders = vi.fn(async () => ({}));
+const listMarketplacePrompts = vi.fn(async () => ({
+  schemaVersion: 1,
+  generatedAt: "2026-10-11T00:00:00Z",
+  language: "zh-cn",
+  prompts: [],
+}));
 
 vi.mock("../../lib/use-connection", () => ({
   useApiClient: () => ({
     getSupportedProviders,
     listAgents: vi.fn(async () => []),
+    searchFiles: vi.fn(async () => []),
   }),
+  useGlobalApiClient: () => ({ getSupportedProviders, listMarketplacePrompts }),
   useConnection: () => ({ baseUrl: "http://localhost:5173", accessToken: null }),
 }));
 

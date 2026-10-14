@@ -8,16 +8,6 @@ import { useProjectCtx } from "../../context/project-context";
 import { useHostBridge } from "../../context/host-bridge-context";
 import { useApiClient } from "../../lib/use-connection";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../../components/ui/tabs";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "../../components/ui/alert-dialog";
 import { Button } from "../../components/ui/button";
 import { DialogFooter } from "../../components/ui/dialog";
 import { Field, FieldGroup, FieldLabel } from "../../components/ui/field";
@@ -32,7 +22,7 @@ import { PathListField } from "./PathListField";
 import { AgentCardLinksField } from "./AgentCardLinksField";
 import { TimePerceptionField } from "./TimePerceptionField";
 import { HintLabel } from "./HintLabel";
-import { PromptTemplatePicker, type PromptTemplate } from "./PromptTemplatePicker";
+import { PromptTemplatesDialog } from "./PromptTemplatesDialog";
 import type { LoadedAgentData } from "./AgentDialog";
 
 function getErrorMessage(err: unknown, t: (key: TranslationKey) => string): string {
@@ -57,7 +47,7 @@ export function AgentDialogForm({ initial, mode, agentId, onSubmit, onCancel }: 
   const [themeContent, setThemeContent] = useState(initial.theme);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [confirmTemplate, setConfirmTemplate] = useState<PromptTemplate | null>(null);
+  const [templatesOpen, setTemplatesOpen] = useState(false);
   const [providers, setProviders] = useState<Record<string, ProviderCatalogItem> | null>(null);
   const [apiKeys, setApiKeys] = useState<Record<string, string>>({});
 
@@ -90,21 +80,6 @@ export function AgentDialogForm({ initial, mode, agentId, onSubmit, onCancel }: 
       return { ...prev, model: undefined };
     });
   }, [providers]);
-
-  const handleSelectTemplate = (template: PromptTemplate) => {
-    if (formData.systemPrompt.trim() === "") {
-      setFormData((prev) => ({ ...prev, systemPrompt: template.prompt }));
-    } else {
-      setConfirmTemplate(template);
-    }
-  };
-
-  const applyTemplate = () => {
-    if (confirmTemplate) {
-      setFormData((prev) => ({ ...prev, systemPrompt: confirmTemplate.prompt }));
-      setConfirmTemplate(null);
-    }
-  };
 
   const addContext = (path: string) => {
     if (!formData.context.includes(path)) {
@@ -241,7 +216,17 @@ export function AgentDialogForm({ initial, mode, agentId, onSubmit, onCancel }: 
                 placeholder={t("agent-dialog.promptPlaceholder")}
                 spellCheck={false}
               />
-              <PromptTemplatePicker onSelect={handleSelectTemplate} />
+              <div className="flex flex-wrap items-center gap-1.5">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setTemplatesOpen(true)}
+                  data-prompt-templates-entry
+                >
+                  {t("agent-dialog.templates.browse")}
+                </Button>
+              </div>
             </Field>
             <TimePerceptionField
               value={formData.timePerception}
@@ -296,22 +281,7 @@ export function AgentDialogForm({ initial, mode, agentId, onSubmit, onCancel }: 
           {saving ? t("common.saving") : mode === "create" ? t("common.create") : t("common.save")}
         </Button>
       </DialogFooter>
-      <AlertDialog open={confirmTemplate !== null} onOpenChange={(open) => { if (!open) setConfirmTemplate(null); }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t("agent-dialog.templateConfirmTitle")}</AlertDialogTitle>
-            <AlertDialogDescription>{t("agent-dialog.templateConfirmDesc")}</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>
-              {t("agent-dialog.templateConfirmCancel")}
-            </AlertDialogCancel>
-            <AlertDialogAction onClick={applyTemplate}>
-              {t("agent-dialog.templateConfirmApply")}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <PromptTemplatesDialog open={templatesOpen} onOpenChange={setTemplatesOpen} />
     </>
   );
 }
