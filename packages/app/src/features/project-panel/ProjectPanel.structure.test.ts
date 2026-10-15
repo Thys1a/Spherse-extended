@@ -13,5 +13,8 @@ describe("ProjectPanel structure", () => {
     expect(source).not.toContain("-translate-x");
     expect(source).not.toContain("absolute");
     expect(source).toContain("data-project-panel");
+    expect(source).toContain("CustomSidePanel");
+    expect(source).toContain("CommandPanel");
+    expect(source).toContain("overflow-hidden");
   });
 });

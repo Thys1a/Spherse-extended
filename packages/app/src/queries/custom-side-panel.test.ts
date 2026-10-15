@@ -77,6 +77,18 @@ describe("custom side panel query", () => {
     ).rejects.toThrow("offline");
   });
 
+  it("rejects when the reachability probe throws so callers see isError", async () => {
+    const client = fakeClient({ path: "panel/index.html" });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockRejectedValue(new Error("net down")),
+    );
+
+    await expect(
+      queryClient.fetchQuery(customSidePanelQueryOptions("p1", client)),
+    ).rejects.toThrow("net down");
+  });
+
   it("refetches after the settings dialog invalidates the cache", async () => {
     const client = fakeClient({ path: "panel/index.html" });
     vi.stubGlobal("fetch", stubProbeFetch({ "http://preview/panel/index.html": true }));
