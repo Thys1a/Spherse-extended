@@ -1,7 +1,7 @@
 # Design：合入上游 #144（settings server 化）
 
 - 日期：2026-10-16，2026-10-17 修订（C1 定 A 真多端；按 review I1–I6/M1–M4 重构）
-- 状态：C1 已定 A；D2/D3/D4/D5/D6 待定（D4 已重开，见 §5）
+- 状态：C1/D4/D5 已定 A；D2/D3/D6 待定
 - 上游：`e85db12`（69 文件，+2443/−1350）
 - 前置对照：`high-risk-comparison.md` §二
 
@@ -33,8 +33,8 @@
 | webSearch | 不进 ModelSettings；独立 `web-search-settings.json` + 独立路由（D2-B），复用原子写 + sanitize 模式；`applyWebSearchEnv` 搬 server 后 desktop `restoreEnvFromSettings` 不再应用 webSearch（避双写） |
 | tts/proxy/notifications/closeToTray/theme/locale | 进 hostPrefs 扩展（D3-A）；proxy 热应用单独立项（需重启/热应用机制，另议） |
 | tabs | 剥离（无消费开关，违反前端守则；并删上游 `defaultHostPrefs`/`migrate` 中的 `tabsEnabled` 读写） |
-| catalog | 维持现状（D5-B）：desktop 单例继续传入 server，不跟上游"server 自建"；图片目录保持 core 静态 |
-| web 接入（D4 重开） | bridge 收敛为 prefs（仅 locale）；模型读写走新增 REST client（复 `createWebProjectApi` 的 baseUrl+token fetch 模式）；`settings` 矩阵翻为 `ALL_HOSTS`；设置页做 web 兼容审计（capability 门控逐项：proxy/mobile/tray 面板在 web 下隐藏是否符合预期，`getSupportedProviders/getImageProviders` 改走 REST `/api/settings/providers`） |
+| catalog | server 自建（D5-A）：渲染端走 REST 拿目录 + env 应用搬 server 后 desktop 单例无消费者；删 `desktop/electron/model-catalog.ts`（上游实证）；图片目录保持 core 静态 |
+| web 接入（D4-A） | bridge 收敛为 prefs（仅 locale）；模型/目录走 app `ApiClient`（`useGlobalApiClient`，宿主无关，复 `authedFetch`+`parseJsonResponse` 模式，非 fetchJson helper）；`settings` 矩阵翻为 `ALL_HOSTS`；设置页做 web 兼容审计（capability 门控逐项：proxy/mobile/tray 面板在 web 下隐藏是否符合预期） |
 | legacy 迁移 | 移植 `migrate-legacy-settings.ts` 并扩展 fork 字段（models/hostPrefs/mobileAccess/token/**tts/proxy/webSearch/notifications/theme/locale**，缺一即静默丢，R1），单向 |
 | 测试 | 新增 model-settings/store/routes/contracts 测试；**合并** desktop 现有掩码/webSearch 断言（不 replace）；`registerSettingsRoutes` 加参同步 #113 side-panel 测试全部调用点 |
 | mask 语义 | 整链一次切换：`****` 合并 → 空串=删除/undefined=保留，不可混用（R2）；renderer 已配 key 输入框同步改为禁用态（抄上游） |
@@ -69,8 +69,8 @@
 - D1 范围：A 全量（含表单重写）/ B 小步（先读后写）。倾向 B。
 - D2 webSearch 归属：A 并入 ModelSettings / B 独立文件+路由 / C 留 desktop 本地。倾向 B（与模型语义不同，独立迁移互不阻塞；A 省一路迁移但混合关注点）。
 - D3 杂项去向：A 进 hostPrefs / B 留旧 key。倾向 A（proxy 热应用另立项）。
-- D4 web 接入形态：A REST 直连（复 fetchJson 模式，倾向）/ B bridge 转发。注：原"已关闭"结论作废（C1=A 要求 web 有设置 UI）。
-- D5 catalog：A server 自建 / B desktop 单例继续传入。倾向 B（现状即 B，零改动）。
+- D4 web 接入形态：已定 A——模型/目录走 app ApiClient（useGlobalApiClient，宿主无关），prefs 走 bridge。
+- D5 catalog：已定 A——server 自建（`new ModelCatalog`），删 `desktop/electron/model-catalog.ts`；渲染端目录走 REST，上游实证。
 - D6 迁移：A 单向全字段 + 备份幂等 / B 双读兼容。倾向 A。
 
 ## 6. 分阶段
@@ -78,7 +78,7 @@
 - P0 对照冻结：本文件 + `high-risk-comparison.md` 即冻结口径；先写 §4.3 迁移表逐字段认领，无孤儿才开工。
 - P1 读链整切：contracts schema + store + GET + desktop 装配传参（旧 options 保留）+ `registerSettingsRoutes` 加参（含 side-panel 测试同步）+ desktop/web 渲染端切 REST 读 + 已配 key 输入框禁用态；验证 desktop 表单显示脱敏值 + REST 直调 GET + 现有测试全绿（P1 即有消费者，不存在无产出阶段）。
 - P2 写链整切：PUT + settings-store 8 setter 去 `models` + `use-settings-form` 改 REST + mask 语义切换 + `syncTray` 重挂；验证 key 轮换/删除/空串语义 + 回滚（迁移前备份旧 settings）。
-- P3 桥接+迁移+开 web：bridge 瘦身 + `ALL_HOSTS` + 设置页 web 兼容审计 + legacy 迁移（含 fork 字段、备份、幂等）+ `getServerToken`/`getMobileAccess` 改造；验证 web 设置页冒烟 + 无白屏 + 老版本升级演练（备份比对逐字段）。
+- P3 桥接+迁移+开 web：bridge 瘦身 + `ALL_HOSTS` + 设置页 web 兼容审计 + legacy 迁移（含 fork 字段、备份、幂等）+ `getServerToken`/`getMobileAccess` 改造 + 删 desktop `model-catalog.ts` 与 `ipc/settings.ts`（无消费者后，上游实证）；验证 web 设置页冒烟 + 无白屏 + 老版本升级演练（备份比对逐字段）。
 - P4 webSearch 独立分区（可与 P2 并行，另一人/分支）。
 
 ## 7. 验证链
