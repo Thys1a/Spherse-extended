@@ -24,14 +24,14 @@ function CodeBlock({ children, copyLabel, copiedLabel }: { children: ReactNode; 
   const [copied, setCopied] = useState(false);
   const command = extractText(children).trim();
 
-  const handleCopy = () => {
-    void navigator.clipboard
-      .writeText(command)
-      .then(() => {
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-      })
-      .catch(() => undefined);
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(command);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // ignore clipboard errors — user can still read and type the command
+    }
   };
 
   return (
@@ -91,17 +91,20 @@ function createComponents(copyLabel: string, copiedLabel: string): Components {
         </CodeBlock>
       </div>
     ),
-    a: ({ className, href, children, ...props }) => (
-      <a
-        href={href}
-        target={href?.startsWith("http") ? "_blank" : undefined}
-        rel={href?.startsWith("http") ? "noopener noreferrer" : undefined}
-        className={cn("text-foreground underline underline-offset-4", className)}
-        {...props}
-      >
-        {children}
-      </a>
-    ),
+    a: ({ className, href, children, ...props }) => {
+      const safe = href === undefined || /^(https?:\/\/|\/|#)/.test(href);
+      return (
+        <a
+          href={safe ? href : undefined}
+          target={href?.startsWith("http") ? "_blank" : undefined}
+          rel={href?.startsWith("http") ? "noopener noreferrer" : undefined}
+          className={cn("text-foreground underline underline-offset-4", className)}
+          {...props}
+        >
+          {children}
+        </a>
+      );
+    },
   };
 }
 

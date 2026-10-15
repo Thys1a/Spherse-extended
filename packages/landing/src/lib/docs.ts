@@ -1,8 +1,10 @@
-import { DEFAULT_LOCALE, type Locale } from "@spherse/i18n";
+import { DEFAULT_LOCALE, SUPPORTED_LOCALES, type Locale } from "@spherse/i18n";
 
 export type DocId = string;
 
-const DOC_FILENAME_PATTERN = /^(?<id>[a-z0-9-]+)\.(?<locale>zh-CN|zh-TW|en)\.md$/;
+const DOC_FILENAME_PATTERN = new RegExp(
+  `^(?<id>[a-z0-9-]+)\\.(?<locale>${SUPPORTED_LOCALES.join("|")})\\.md$`,
+);
 
 const rawDocs = import.meta.glob("../content/docs/*.md", {
   query: "?raw",

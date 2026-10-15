@@ -99,7 +99,7 @@
 - 提交 d991541：上游 938b1a5 全链（contracts schema → core search → server 路由 → app dialog/locate/route-params → i18n 三语），41 文件。fork 差异保留：自有 tab 系统、nav-history 内联逻辑 + strip、e2e 延期。验证：build/typecheck 全过、lint 0 error、check:i18n 过；core 1568、server 404、contracts 98、app chat 513 全绿（core mcp、server fs-watcher 各 1 个失败，经查与本合并无 import 链，为预存 flake/env 问题）。
 - 提交 3478eb9：d991541 的 review 修复（tab-sync/messageId 竞态、C1；真实贯通契约测试替代 mock；searchMessages 排除 compaction 折叠；PM limit 钳制；useLocateMessage seen-then-gone 终局），9 文件。
 - #113 合并完成，三笔提交已落盘。040c1cd 合并本体（33 文件）：core（ProjectConfig.sidePanel + 共享校验 + PM 门面）→ contracts（request/response schema）→ server（GET/PUT 两条路由）→ app（CustomSidePanel 自治组件 + query/store/bridge + 设置 dialog + ActivityBar 菜单/dialog + ProjectPanel 包裹 + lifecycle 级联）→ i18n 三语 14 key。fork 差异保留：lifecycle/bridges 内上游旧 tab 名全部弃用、CommandPanel 留在包裹内、ContextMenu 保留、docs 全剥离。
-- #135（78057b4，3 skill 文件全自动合入，14/4/8 与上游一致）+#137（c2ab3ee，landing 三语 md 文档子系统 + Tailscale 教程）批量合入：剥离 project-structure 与 lock 噪音；手合 Header（保留 explore 回退块）与 landing i18n（保留 cases.backHome，删 docs.construction）；landing README 新文件去上游自定义域名；package.json 加 react-markdown/remark-gfm 后 npm install 重建 lock；验证 landing build/typecheck/test/lint 全过，presets 生成物重建后测试过。
+- #135（78057b4，3 skill 文件全自动合入，语义段与上游一致：侧边面板窄栏/透明、runtime 恒 null 勿 await getRuntime、无滚动兜底、文件模式表；行数与上游 stat 差异系 fork 基线上下文不同）+#137（c2ab3ee，landing 三语 md 文档子系统 + Tailscale 教程）批量合入：剥离 project-structure 与 lock 噪音；手合 Header（保留 explore 回退块）与 landing i18n（保留 cases.backHome，删 docs.construction）；landing README 新文件去上游自定义域名；package.json 加 react-markdown/remark-gfm 后 npm install 重建 lock；验证 landing build/typecheck/test/lint 全过，presets 生成物重建后测试过。
 
 ## 待办（8 项未合入）
 

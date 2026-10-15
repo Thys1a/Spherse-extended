@@ -392,12 +392,13 @@ spherse/
 │   │   │   └── themes/              # 轮播切换时动态加载的主题 CSS（覆盖 --sp-* 变量）
 │   │   └── src/
 │   │       ├── styles.css            # Tailwind v4 + --sp-* token 体系（从 app 精简复制）
-│   │       ├── lib/                  # release.ts（GitHub Releases 解析 + 平台/架构检测选安装包）、changelog.ts（GitHub releases 列表拉取）、urls.ts（GitHub 仓库 URL 常量派生）及单测
+│   │       ├── lib/                  # release.ts（GitHub Releases 解析 + 平台/架构检测选安装包）、changelog.ts（GitHub releases 列表拉取）、urls.ts（GitHub 仓库 URL 常量派生）、docs.ts（content/docs 三语 md 加载 + locale 回退）及单测
 │   │       ├── i18n/                 # landing 专属 i18n（复用 @spherse/i18n 类型与 locale 工具，自建 catalog）
 │   │       │   ├── index.ts          # useLandingI18n hook + localStorage 持久化
 │   │       │   └── locales/          # zh-CN / zh-TW / en 三语
-│   │       ├── components/           # 页面组件（Hero、Carousel、FeatureCards、DownloadPage、FeatureModal、LanguageSwitcher 等）
+│   │       ├── components/           # 页面组件（Hero、Carousel、FeatureCards、DownloadPage、FeatureModal、LanguageSwitcher、DocsPage、DocsArticlePage、DocMarkdown 等）
 │   │       │   └── ui/              # 从 app 复制的 shadcn 组件（button、dialog）
+│   │       ├── content/docs/          # 三语 md 教程（<id>.<locale>.md，以 # 标题开头，/docs 列表自动收录）
 │   │       └── data/                # 轮播与 feature 配置数据
 ├── scripts/
 │   ├── rebuild-native.mjs            # Electron native dependency rebuild

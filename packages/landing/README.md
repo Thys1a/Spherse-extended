@@ -17,4 +17,4 @@ GitHub Pages 项目介绍页。Vite + React SPA，Tailwind v4 + `--sp-*` token �
 2. 文件以 `# 标题` 开头（用作文章标题），标题后的首段会作为列表页摘要
 3. 无需改代码：`/docs` 列表与 `/docs/<id>` 文章页由 `DocsPage` / `DocsArticlePage` 自动收录
 
-约束由 `src/lib/docs.test.ts` 保证：三语齐全、以 `# ` 开头、摘要可提取、已发布 URL 的 id 不失效；locale 缺失时 `docs.ts` 的 `getDoc` 回退到默认 locale（该回退分支在测试中被三语齐全约束排除，不单独覆盖）。
+约束由 `src/lib/docs.test.ts` 保证：三语齐全、以 `# ` 开头、摘要可提取、已发布 URL 的 id 不失效；locale 缺失时 `docs.ts` 的 `getDoc` 回退到默认 locale（该回退分支在测试中被三语齐全约束排除，不单独覆盖；列表页同样显示默认语言标题/摘要，属预期行为）。

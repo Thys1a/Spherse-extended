@@ -12,7 +12,7 @@ interface HeaderProps {
 export function Header({ locale, onLocaleChange, t }: HeaderProps) {
   const location = useLocation();
   const isExplore = location.pathname === "/explore";
-  const isDocsArticle = /^\/docs\/.+/.test(location.pathname);
+  const isDocsArticle = /^\/docs\/[^/]+$/.test(location.pathname);
 
   return (
     <header className="flex items-center px-6 py-3">
