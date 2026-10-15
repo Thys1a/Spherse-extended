@@ -8,6 +8,7 @@ import { UiSdkBridge } from "../ui-sdk";
 import { ContentQueryBridge } from "../features/content-browser/ContentQueryBridge";
 import { ThemeQueryBridge } from "../features/project-settings/theme-settings/ThemeQueryBridge";
 import { WelcomePageQueryBridge } from "../features/welcome-page/WelcomePageQueryBridge";
+import { CustomSidePanelQueryBridge } from "../features/custom-side-panel/CustomSidePanelQueryBridge";
 
 export function ProjectRuntimeBridges() {
   return (
@@ -29,6 +30,7 @@ export function ProjectRuntimeBridges() {
       <ContentQueryBridge />
       <ThemeQueryBridge />
       <WelcomePageQueryBridge />
+      <CustomSidePanelQueryBridge />
     </>
   );
 }

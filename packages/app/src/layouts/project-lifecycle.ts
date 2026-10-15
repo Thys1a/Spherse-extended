@@ -13,6 +13,7 @@ import { useBrowserStore } from "../features/browser/store";
 import { useTabStore } from "../features/tabs/tab-store";
 import { useSplitStore } from "../features/tabs/split-store";
 import { useDirtyPathsStore } from "../lib/dirty-paths";
+import { useCustomSidePanelStore } from "../stores/custom-side-panel-store";
 
 export async function closeProjectCascade(
   bridge: HostBridge,
@@ -29,6 +30,7 @@ export async function closeProjectCascade(
   useTabStore.getState().clearProject(projectId);
   useSplitStore.getState().clearProject(projectId);
   useDirtyPathsStore.getState().clearProject(projectId);
+  useCustomSidePanelStore.getState().clearProject(projectId);
   useProjectDataStore.getState().clearProjectData(projectId);
   clearProjectNavHistory(projectId);
   clearLastRoute(projectId);

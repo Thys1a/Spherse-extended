@@ -129,6 +129,8 @@ export type {
   AiAccessSettingsResponse,
   WelcomePageSettingsRequest,
   WelcomePageSettingsResponse,
+  SidePanelSettingsRequest,
+  SidePanelSettingsResponse,
   ThemeSettingsRequest,
   ThemeSettingsResponse,
 } from "./settings.js";
