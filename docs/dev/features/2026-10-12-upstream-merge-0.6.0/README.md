@@ -1,7 +1,7 @@
 # 合并上游 v0.6.0
 
 - 日期：2026-10-12
-- 状态：已立项，待方案
+- 状态：合并中，剩余 10 项（见文末待办）
 - 版本：v1.0.1（新增项）
 - 来源：上游 `mengrru/Spherse` v0.6.0（2026-10-11 发布）；本 fork README「未来计划」
 
@@ -35,7 +35,7 @@
 | 移动端/web | web dev 环境 #116、扫码连接 #117、ask 面板移动端 #120、manual 域名 403 #121、mobile 文件编辑 #131、web SDK 上传 #132、流式滚动 #133、长文本折行 #136、session 同步 #138、冷启动 #140、文件树上传 #142 |
 | MCP/SDK/工具 | MCP hardening + SDK v2 + 去 sse #118、navigate 事件 #122、uploadFile #130、自定义 Header #124、骰子式工具调用折叠 #111、文件拖拽上传 #115 |
 | 更新机制 | mac/Linux 更新日志弹窗 #126、Windows 应用内自动更新 #129 |
-| 调试/杂项 | turn context 查看器 #125、草稿光标 #127、主题 #128、Tailscale 教程 #137、guide 快捷链接 #145、settings server 化 #144、多标签开关 #147、DeepSeek web_search #105 |
+| 调试/杂项 | turn context 查看器 #123、草稿光标 #127、主题 #128、Tailscale 教程 #137、guide 快捷链接 #145、settings server 化 #144、多标签开关 #147、DeepSeek web_search #105 |
 | 陪伴/沉浸 | 自定侧边面板 #113 |
 
 ### 冲突热点（双边同改文件数）
@@ -96,3 +96,11 @@
 - 域二十合入完成（4f05fea，30 文件）。
 - 域二十一合入完成（8547002，32 文件）。
 - 域二十二合入完成（0bfd859，31 文件）。执行情况：contracts/server/路由/测试、对话框新旧替换、分类改道、presets 生成管线直取；i18n 取 dialog 键并删 picker 死键；手合 6 处（api import+4 方法、contracts صادرات、README 1 行、测试 mock 并集）。另修正两处：上游 GlobalApiClient 里附带的 settings 方法 fork 无契约已剔除；createDataStore 导出误删一次已补回（教训：并集改完 grep 导出名）。
+- 提交 d991541：上游 938b1a5 全链（contracts schema → core search → server 路由 → app dialog/locate/route-params → i18n 三语），41 文件。fork 差异保留：自有 tab 系统、nav-history 内联逻辑 + strip、e2e 延期。验证：build/typecheck 全过、lint 0 error、check:i18n 过；core 1568、server 404、contracts 98、app chat 513 全绿（core mcp、server fs-watcher 各 1 个失败，经查与本合并无 import 链，为预存 flake/env 问题）。
+- 提交 3478eb9：d991541 的 review 修复（tab-sync/messageId 竞态、C1；真实贯通契约测试替代 mock；searchMessages 排除 compaction 折叠；PM limit 钳制；useLocateMessage seen-then-gone 终局），9 文件。
+
+## 待办（10 项未合入）
+
+- 高风险最后：#112 Agent 记忆、#148 memory guide 改写（对照 08 记忆方向决策）、#144 settings server 化
+- 待分析：#104 内容区多标签（fork 自研 tab 架构，机械合入不可行，leave-guard 等单点价值待评估）、#113 自定义侧边面板（分析中）、#123 turn context 查看器（fork 只有旧 turn-context 端点）、#135（依赖 #113，skill 侧边面板描述）、#137 Tailscale 教程（landing 架构差异大）
+- 待评估：#126 mac/Linux 更新日志弹窗、#129 Windows 应用内自动更新（updater 受保护文件，fork 已切 GitHub Releases 源）
