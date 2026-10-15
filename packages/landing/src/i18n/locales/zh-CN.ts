@@ -68,8 +68,11 @@ export const zhCN = {
   "upcoming.label": "即将到来",
 
   "home.moreCases": "探索更多可能",
+  "nav.home": "首页",
   "nav.explore": "探索",
   "nav.download": "下载",
+  // 顶部导航「文档」链接
+  "nav.docs": "文档",
 
   // 下载页（/download）标题与副标题。
   "download.pageTitle": "下载 Spherse",
@@ -98,10 +101,12 @@ export const zhCN = {
   // 案例卡片截图的无障碍标签：点击放大查看
   "cases.viewLarger": "查看大图",
   "cases.backHome": "返回首页",
-  // 文档页（/docs）标题，当前为施工中占位页
+  // 文档页（/docs）标题；文章内容在 src/content/docs/ 下的三语 md 中维护，不走本 catalog
   "docs.title": "文档",
-  // 文档页施工中占位提示
-  "docs.construction": "施工中…",
+  // 文档页副标题
+  "docs.subtitle": "指南与教程",
+  // 文章页（/docs/:id）Header 中的返回列表链接
+  "docs.backToList": "返回文档",
   "cases.item1.title": "哈利波特",
   "cases.item1.desc": "走进霍格沃茨的魔法世界——预言家日报社、冥想盆等多个 Agent 协同演绎，展示如何用 Spherse 构建一个鲜活的交互式故事宇宙。",
   // 案例页第二张卡片，在 Spherse 中原生打造的世界观创作应用。

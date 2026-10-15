@@ -98,9 +98,11 @@
 - 域二十二合入完成（0bfd859，31 文件）。执行情况：contracts/server/路由/测试、对话框新旧替换、分类改道、presets 生成管线直取；i18n 取 dialog 键并删 picker 死键；手合 6 处（api import+4 方法、contracts صادرات、README 1 行、测试 mock 并集）。另修正两处：上游 GlobalApiClient 里附带的 settings 方法 fork 无契约已剔除；createDataStore 导出误删一次已补回（教训：并集改完 grep 导出名）。
 - 提交 d991541：上游 938b1a5 全链（contracts schema → core search → server 路由 → app dialog/locate/route-params → i18n 三语），41 文件。fork 差异保留：自有 tab 系统、nav-history 内联逻辑 + strip、e2e 延期。验证：build/typecheck 全过、lint 0 error、check:i18n 过；core 1568、server 404、contracts 98、app chat 513 全绿（core mcp、server fs-watcher 各 1 个失败，经查与本合并无 import 链，为预存 flake/env 问题）。
 - 提交 3478eb9：d991541 的 review 修复（tab-sync/messageId 竞态、C1；真实贯通契约测试替代 mock；searchMessages 排除 compaction 折叠；PM limit 钳制；useLocateMessage seen-then-gone 终局），9 文件。
+- #113 合并完成，三笔提交已落盘。040c1cd 合并本体（33 文件）：core（ProjectConfig.sidePanel + 共享校验 + PM 门面）→ contracts（request/response schema）→ server（GET/PUT 两条路由）→ app（CustomSidePanel 自治组件 + query/store/bridge + 设置 dialog + ActivityBar 菜单/dialog + ProjectPanel 包裹 + lifecycle 级联）→ i18n 三语 14 key。fork 差异保留：lifecycle/bridges 内上游旧 tab 名全部弃用、CommandPanel 留在包裹内、ContextMenu 保留、docs 全剥离。
+- #135（78057b4，3 skill 文件全自动合入，14/4/8 与上游一致）+#137（c2ab3ee，landing 三语 md 文档子系统 + Tailscale 教程）批量合入：剥离 project-structure 与 lock 噪音；手合 Header（保留 explore 回退块）与 landing i18n（保留 cases.backHome，删 docs.construction）；landing README 新文件去上游自定义域名；package.json 加 react-markdown/remark-gfm 后 npm install 重建 lock；验证 landing build/typecheck/test/lint 全过，presets 生成物重建后测试过。
 
-## 待办（10 项未合入）
+## 待办（8 项未合入）
 
 - 高风险最后：#112 Agent 记忆、#148 memory guide 改写（对照 08 记忆方向决策）、#144 settings server 化
-- 待分析：#104 内容区多标签（fork 自研 tab 架构，机械合入不可行，leave-guard 等单点价值待评估）、#113 自定义侧边面板（分析中）、#123 turn context 查看器（fork 只有旧 turn-context 端点）、#135（依赖 #113，skill 侧边面板描述）、#137 Tailscale 教程（landing 架构差异大）
+- 待分析：#104 内容区多标签（fork 自研 tab 架构，机械合入不可行，leave-guard 等单点价值待评估）、#123 turn context 查看器（fork 只有旧 turn-context 端点）
 - 待评估：#126 mac/Linux 更新日志弹窗、#129 Windows 应用内自动更新（updater 受保护文件，fork 已切 GitHub Releases 源）
