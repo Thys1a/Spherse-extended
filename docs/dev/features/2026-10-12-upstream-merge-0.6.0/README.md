@@ -109,5 +109,5 @@
 
 ## 待办（3 项未合入）
 
-- 高风险最后：#112 Agent 记忆、#148 memory guide 改写（对照 08 记忆方向决策）、#144 settings server 化
+- 高风险：#112 Agent 记忆、#148 memory guide 改写、#144 settings server 化 → 对照分析见 `high-risk-comparison.md`（待决策后立 design doc）
 - project-structure.md 385–392 行还写着上游自定义域名 + CNAME
