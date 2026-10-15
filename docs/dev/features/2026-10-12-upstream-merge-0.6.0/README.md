@@ -103,10 +103,11 @@
 - 提交 4448284：docs 批的 review 修复（project-structure 落地索引、DocMarkdown 链接白名单、docs.ts locale 正则改动态、README 回退语义说明、clipboard 对齐、Header 正则收紧、台账口径澄清），6 文件。
 - #123 合并：上游 630291a（turn context 事件日志查看器）cherry-pick，剥离 backlog/arch×2/project-structure；DebugMenu 下载 handler 改开 dialog（fork logs 抽屉保留）；contracts 新增 sessionEventLog schema、server 新增 /debug/sessions/:id/events（复用 readSessionEventsAfter）、app 新增 dialog + query 方法；i18n debug.* 照单取（含英文值）；contracts README 取 Unknown 清单半句。
 - 72af0d9 的 review 修复：arch desktop/server 与 server README 补新路由半句；EventLogRow 剪贴板对齐 try/catch；菜单项无 client 时置灰；contracts 加多余字段通过用例（Value.Check 允许未知字段，mock 测试无害的依据）；downloadTurnContextNoSession 孤儿 key 跟随上游保留；zh-CN 注释沿文件惯例保留；事件路由无分页跟随上游（debug 本地链）。
+- 跳过 #104 整域：fork 自研 tab 架构互斥；leave-guard fork 有等价但覆盖窄（切 tab 疑似静默丢失，已记 backlog 待真机确认）；session-title 与 #110 文件一致；去扩展名被 fork 测试钉死不做；开关同 #147；e2e defer。
+- 跳过 #126：机制经 OSS changelog.json，fork 无 OSS 前提不存在；GitHub 源重做已记 backlog。
+- 跳过 #129：依赖 electron-updater feed（latest.yml），fork CI 不产出该文件，链路第一步即 404；等 backlog #149 feed 恢复再重估；且动受保护发版测试。
 
-## 待办（7 项未合入）
+## 待办（3 项未合入）
 
 - 高风险最后：#112 Agent 记忆、#148 memory guide 改写（对照 08 记忆方向决策）、#144 settings server 化
-- 待分析：#104 内容区多标签（fork 自研 tab 架构，机械合入不可行，leave-guard 等单点价值待评估）
-- 待评估：#126 mac/Linux 更新日志弹窗、#129 Windows 应用内自动更新（updater 受保护文件，fork 已切 GitHub Releases 源）
 - project-structure.md 385–392 行还写着上游自定义域名 + CNAME

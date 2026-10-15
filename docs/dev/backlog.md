@@ -87,6 +87,8 @@
 - [ ] **实现 swipe 多候选（R6.2）**：方向已锁定（分支带走 active 版、切换记新事件，见 `docs/dev/features/2026-09-23-swipe/plan.md`），实现零代码，4 个开放问题未关。方向：reducer 分支状态 + 持久化 + WS 事件（contracts + chat-wire-projector）+ swipe UI；前置：先与本节「会话分支」项定义关系（合并/复用其虚拟 seq 映射/并行两套），否则两套分支语义冲突。
 - [ ] **原生子窗口浮窗（native-float 拆分之一）**：当前两浮窗域是主窗口内 Portal overlay（`FloatingContentBrowserContainer`/`FloatingChatContainer`），`pinned` 只是 z-index，拖拽钳在窗口内。方向：Electron 原生子窗口（`parent: mainWindow` + `alwaysOnTop`）+ `http://localhost:{serverPort}` 承载；renderer 新增顶层浮窗路由（上提至 ProjectScope 之外）；IPC 改多窗口；关闭策略（`window-all-closed` 即退，主窗关后浮窗孤儿）；位置持久化复用现有 `byProject` store。参见 `docs/dev/features/2026-09-19-native-float/design.md` §一§三。
 - [ ] **接通 File System Access API（native-float 拆分之二）**：打包版 `file://` opaque origin、跨源 iframe、零权限放行三层拦截（见 design §二）。方向：与原生子窗口同载体（localhost 安全上下文）；主进程 `session.setPermissionRequestHandler` 按路径/来源白名单放行 `fileSystem` 权限；HtmlCard/srcDoc 场景另需 `allow-modals` 沙箱安全评估；简易浏览器内跨源页仍不可用（spec 硬限制，只能走顶层/子窗口打开）。参见同上 §二§三。
+- [ ] **脏文件切 tab 疑似静默丢失（先真机确认）**：`useContentEditor` 的 requestLeave 只保 Back/Close 两个按钮，切 tab/点侧栏/换项目等导航路径无人问 dirty 态（dirty-paths store 只被文件树删除/移动消费）；editor state 随 unmount 消失。方向：先真机确认（脏文件→点别的 tab 看是否丢），确认后按上游 #104 的 `useBlocker` 方案收敛（fork 为 createHashRouter，data router 可用），替换 requestLeave 机制。参见上游 `ca3059b` design「未保存编辑守卫」节。
+- [ ] **更新弹窗显示目标版本更新日志（GitHub 源重做）**：上游 #126 经 OSS `changelog.json` 取 notes，fork 无 OSS 不可直接合（`df36455` 机制前提不存在）。方向：desktop 更新检查改经 GitHub Releases API 取目标版本 notes，填入既有 `releaseNotes` 槽位（`packages/desktop/electron/updater.ts` 已有字段透传、当前恒空），mac/Linux 对话框展示；主进程出网失败留空。landing 已有 releases 拉取解析 precedent（`packages/landing/src/lib/release.ts`、`changelog.ts）。
 
 ## 基础设施
 
