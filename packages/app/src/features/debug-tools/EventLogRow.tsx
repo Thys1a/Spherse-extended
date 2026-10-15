@@ -25,14 +25,14 @@ export const EventLogRow = memo(function EventLogRow({ event }: EventLogRowProps
   );
   const time = useMemo(() => new Date(event.time).toLocaleString(), [event.time]);
 
-  const handleCopy = useCallback(() => {
-    navigator.clipboard
-      .writeText(JSON.stringify(event, null, 2))
-      .then(() => {
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-      })
-      .catch(() => {});
+  const handleCopy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(event, null, 2));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // ignore clipboard errors — user can still read the expanded JSON
+    }
   }, [event]);
 
   return (

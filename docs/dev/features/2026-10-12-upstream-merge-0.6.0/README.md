@@ -102,7 +102,7 @@
 - #135（78057b4，3 skill 文件全自动合入，语义段与上游一致：侧边面板窄栏/透明、runtime 恒 null 勿 await getRuntime、无滚动兜底、文件模式表；行数与上游 stat 差异系 fork 基线上下文不同）+#137（c2ab3ee，landing 三语 md 文档子系统 + Tailscale 教程）批量合入：剥离 project-structure 与 lock 噪音；手合 Header（保留 explore 回退块）与 landing i18n（保留 cases.backHome，删 docs.construction）；landing README 新文件去上游自定义域名；package.json 加 react-markdown/remark-gfm 后 npm install 重建 lock；验证 landing build/typecheck/test/lint 全过，presets 生成物重建后测试过。
 - 提交 4448284：docs 批的 review 修复（project-structure 落地索引、DocMarkdown 链接白名单、docs.ts locale 正则改动态、README 回退语义说明、clipboard 对齐、Header 正则收紧、台账口径澄清），6 文件。
 - #123 合并：上游 630291a（turn context 事件日志查看器）cherry-pick，剥离 backlog/arch×2/project-structure；DebugMenu 下载 handler 改开 dialog（fork logs 抽屉保留）；contracts 新增 sessionEventLog schema、server 新增 /debug/sessions/:id/events（复用 readSessionEventsAfter）、app 新增 dialog + query 方法；i18n debug.* 照单取（含英文值）；contracts README 取 Unknown 清单半句。
-- 
+- 72af0d9 的 review 修复：arch desktop/server 与 server README 补新路由半句；EventLogRow 剪贴板对齐 try/catch；菜单项无 client 时置灰；contracts 加多余字段通过用例（Value.Check 允许未知字段，mock 测试无害的依据）；downloadTurnContextNoSession 孤儿 key 跟随上游保留；zh-CN 注释沿文件惯例保留；事件路由无分页跟随上游（debug 本地链）。
 
 ## 待办（7 项未合入）
 

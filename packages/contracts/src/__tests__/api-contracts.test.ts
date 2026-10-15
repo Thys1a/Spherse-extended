@@ -624,6 +624,17 @@ describe("api contracts", () => {
     ).toThrow(/Invalid payload/);
   });
 
+  it("ignores extra core fields in session event log entries", () => {
+    const log = {
+      sessionId: "s1",
+      events: [{ seq: 0, type: "user/message", time: 1, data: {}, schemaVersion: 2 }],
+    };
+    expect(parseApiResponse(schemas.sessionEventLog, log)).toEqual({
+      sessionId: "s1",
+      events: [{ seq: 0, type: "user/message", time: 1, data: {} }],
+    });
+  });
+
   it("serializes the mcp discriminated-union response without dropping variant fields", async () => {
     const app = Fastify();
     app.get<{ Params: { id: string } }>(

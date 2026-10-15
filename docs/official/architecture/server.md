@@ -58,7 +58,7 @@
 | skills / marketplace | skill 列表/详情/创建/zip 安装；市场 manifest 代理与远程安装 |
 | file-tree | UI 用文件树（过滤 dotfile / node_modules / .git / .spherse） |
 | trigger | CRUD、手动触发、reset-binding、运行日志 |
-| debug | turn-context 导出 |
+| debug | turn-context 导出、session 事件日志 |
 | images / attachments | 生成图片导出；附件上传（png/jpeg/webp，5MB）与删除 |
 
 **错误映射**（全局 errorHandler）：

@@ -98,7 +98,7 @@ export function DebugMenu() {
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={() => setOverlay("turnContext")}
-            disabled={!sessionId}
+            disabled={!sessionId || !client}
           >
             <FileJsonIcon />
             {t("debug.turnContext")}
