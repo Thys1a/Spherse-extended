@@ -1,5 +1,9 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import Fastify from "fastify";
+import { createProject, type ProjectRuntime, type SessionEvent } from "@spherse/core";
 import { registerSessionRoutes } from "../routes/sessions.js";
 import type { FastifyRequest } from "fastify";
 import type { ProjectRegistry } from "../registry.js";
@@ -75,17 +79,76 @@ describe("GET /api/projects/:projectId/sessions/search route", () => {
     expect(searchProjectMessages).toHaveBeenLastCalledWith("a", 50);
   });
 
-  it("maps null session titles to undefined so the contract parses", async () => {
-    searchProjectMessages.mockReturnValue([
-      hit({ sessionTitle: undefined, snippet: "needle" }),
-    ]);
+});
+
+const TEST_AGENT_PROFILE = `---
+name: Search Agent
+tools:
+  - read_file
+---
+
+Test agent for search contracts.`;
+
+describe("GET /api/projects/:projectId/sessions/search core contract", () => {
+  let tmpDir: string;
+  let runtime: ProjectRuntime;
+  let agentId: string;
+  let sessionId: string;
+  let app: Fastify.FastifyInstance;
+
+  beforeAll(async () => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "spherse-search-contract-"));
+    runtime = await createProject(tmpDir, { projectName: "SearchContract" });
+    const projectStore = runtime.projectManager.projectStore;
+    agentId = (await projectStore.createAgent("search-agent", TEST_AGENT_PROFILE)).getProfile().id;
+    const sessions = projectStore.getAgent(agentId)!.sessions;
+    sessionId = sessions.createSession();
+    sessions.appendEvents(
+      sessionId,
+      [
+        {
+          type: "user/message",
+          seq: 0,
+          time: 100,
+          data: { message: { role: "user", content: "needle in the haystack", timestamp: 100 } },
+        } as SessionEvent,
+      ],
+      1,
+    );
+
+    app = Fastify();
+    app.addHook("preHandler", async (req: FastifyRequest) => {
+      req.projectCtx = { projectManager: runtime.projectManager };
+    });
+    registerSessionRoutes(app, {} as ProjectRegistry, {} as ChatSessionHub);
+    await app.ready();
+  });
+
+  afterAll(async () => {
+    await app.close();
+    runtime.timerService.stop();
+    await runtime.shutdown();
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("serves real store hits through the wire contract without sessionTitle", async () => {
     const res = await app.inject({
       method: "GET",
       url: "/api/projects/p1/sessions/search?q=needle",
     });
+
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({
-      results: [{ agentId: "a1", sessionId: "s1", seq: 3, role: "user", snippet: "needle", time: 100 }],
+      results: [
+        {
+          agentId,
+          sessionId,
+          seq: 0,
+          role: "user",
+          snippet: "needle in the haystack",
+          time: 100,
+        },
+      ],
     });
   });
 });

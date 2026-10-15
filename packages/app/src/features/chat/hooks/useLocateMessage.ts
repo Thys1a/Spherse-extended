@@ -27,6 +27,7 @@ export function useLocateMessage({
 }: UseLocateMessageParams) {
   const handledSeqRef = useRef<number | null>(null);
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const seenSessionRef = useRef(false);
   const onLocatedRef = useRef(onLocated);
 
   useEffect(() => {
@@ -52,6 +53,14 @@ export function useLocateMessage({
 
   useEffect(() => {
     if (locateSeq === null || handledSeqRef.current === locateSeq) return;
+
+    if (session === undefined) {
+      if (!seenSessionRef.current) return;
+      handledSeqRef.current = locateSeq;
+      onLocatedRef.current();
+      return;
+    }
+    seenSessionRef.current = true;
 
     if (targetLoaded) {
       const seq = locateSeq;

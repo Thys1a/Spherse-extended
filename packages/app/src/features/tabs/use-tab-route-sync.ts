@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router";
+import { stripMessageId } from "../../lib/route-params";
 import { useTabStore } from "./tab-store";
 import { tabToRoute, routeToTabSpec } from "./tab-route";
 
@@ -25,8 +26,7 @@ export function useTabRouteSync(projectId: string | undefined, enabled: boolean)
     const tab = useTabStore.getState().byProject[projectId]?.tabs.find((t) => t.id === activeTabId);
     if (!tab) return;
     const route = tabToRoute(tab);
-    const current = location.pathname + location.search;
-    if (route !== current) {
+    if (stripMessageId(location.pathname, location.search) !== route) {
       projectedRoute.current = route;
       navigate(route, { replace: true });
     }

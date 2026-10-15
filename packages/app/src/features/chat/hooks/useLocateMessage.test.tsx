@@ -116,6 +116,16 @@ describe("useLocateMessage", () => {
     await waitFor(() => expect(onLocated).toHaveBeenCalledTimes(1));
   });
 
+  it("gives up when the session disappears mid-locate", async () => {
+    const loadMore = vi.fn();
+    seedSession({ hasMore: true, oldestSeq: 5 }, [5, 6]);
+    vi.spyOn(useChatSessionStore.getState(), "loadMore").mockImplementation(loadMore);
+    const { onLocated } = setup(2);
+    await waitFor(() => expect(useChatSessionStore.getState().sessions["s1"]).toBeDefined());
+    useChatSessionStore.setState({ sessions: {} });
+    await waitFor(() => expect(onLocated).toHaveBeenCalledTimes(1));
+  });
+
   it("re-arms for a new target after a previous locate", async () => {
     seedSession({ hasMore: true, oldestSeq: 0 }, [0, 1, 2]);
     const { onLocated, container, locateRef, rerender } = setup(1);

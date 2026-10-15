@@ -73,4 +73,11 @@ describe("ProjectManager.searchProjectMessages", () => {
     expect(pm.searchProjectMessages("   ", 50)).toEqual([]);
     expect(pm.searchProjectMessages("needle", 1)).toHaveLength(1);
   });
+
+  it("sanitizes non-positive limits to empty", () => {
+    seedMessage(agentA, 100, "needle one");
+    expect(pm.searchProjectMessages("needle", 0)).toEqual([]);
+    expect(pm.searchProjectMessages("needle", -5)).toEqual([]);
+    expect(pm.searchProjectMessages("needle", Number.NaN)).toEqual([]);
+  });
 });

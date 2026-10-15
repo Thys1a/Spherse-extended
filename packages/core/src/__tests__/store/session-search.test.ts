@@ -140,4 +140,20 @@ describe("SessionStore.searchMessages", () => {
     expect(hit.sessionTitle).toBeUndefined();
     expect("sessionTitle" in hit).toBe(false);
   });
+
+  it("excludes messages folded by compaction", () => {
+    const id = store.createSession();
+    append(id, [
+      { type: "user/message", time: 1, data: { message: userMsg("needle alpha", 1) } },
+      { type: "assistant/message", time: 2, data: { message: assistantMsg("needle beta", 2) } },
+      {
+        type: "compaction/applied",
+        time: 3,
+        data: { anchorSeq: 0, digestContent: "digest", excludedSeqs: [1] },
+      },
+      { type: "user/message", time: 4, data: { message: userMsg("needle fresh", 4) } },
+    ]);
+
+    expect(store.searchMessages("needle", 100).map((hit) => hit.seq)).toEqual([3]);
+  });
 });

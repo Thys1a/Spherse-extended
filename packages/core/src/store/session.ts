@@ -353,7 +353,15 @@ export class SessionStore {
     if (hits.length === 0) return [];
 
     const abandonedBySession = this.readAbandonedSeqs([...sessionsWithHits]);
-    return hits.filter((hit) => !abandonedBySession.get(hit.sessionId)?.has(hit.seq));
+    const compactedBySession = this.readCompactionExclusions([...sessionsWithHits]);
+    return hits.filter((hit) => {
+      if (abandonedBySession.get(hit.sessionId)?.has(hit.seq)) return false;
+      const compacted = compactedBySession.get(hit.sessionId);
+      if (compacted && (hit.seq <= compacted.anchorSeq || compacted.excludedSeqs.has(hit.seq))) {
+        return false;
+      }
+      return true;
+    });
   }
 
   private readAbandonedSeqs(sessionIds: string[]): Map<string, Set<number>> {
@@ -363,6 +371,34 @@ export class SessionStore {
     );
     for (const sessionId of sessionIds) {
       result.set(sessionId, collectAbandonedSeqs(SessionStore.rowsToEvents(stmt.all(sessionId))));
+    }
+    return result;
+  }
+
+  private readCompactionExclusions(
+    sessionIds: string[],
+  ): Map<string, { anchorSeq: number; excludedSeqs: Set<number> }> {
+    const result = new Map<string, { anchorSeq: number; excludedSeqs: Set<number> }>();
+    const stmt = this.db.prepare<[string], { data: string }>(
+      "SELECT data FROM events WHERE session_id = ? AND type = 'compaction/applied' ORDER BY seq DESC LIMIT 1",
+    );
+    for (const sessionId of sessionIds) {
+      const row = stmt.get(sessionId);
+      if (!row) continue;
+      let data: unknown;
+      try {
+        data = JSON.parse(row.data);
+      } catch {
+        continue;
+      }
+      if (typeof data !== "object" || data === null || typeof (data as { anchorSeq?: unknown }).anchorSeq !== "number") {
+        continue;
+      }
+      const rawExcluded = (data as { excludedSeqs?: unknown }).excludedSeqs;
+      const excludedSeqs = new Set(
+        (Array.isArray(rawExcluded) ? rawExcluded : []).filter((seq): seq is number => typeof seq === "number"),
+      );
+      result.set(sessionId, { anchorSeq: (data as { anchorSeq: number }).anchorSeq, excludedSeqs });
     }
     return result;
   }

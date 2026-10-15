@@ -282,6 +282,7 @@ export class ProjectManager {
   searchProjectMessages(query: string, limit: number): ProjectMessageSearchHit[] {
     const trimmed = query.trim();
     if (!trimmed) return [];
+    const count = Number.isFinite(limit) ? Math.max(0, Math.floor(limit)) : 0;
     const hits: ProjectMessageSearchHit[] = [];
     for (const [agentId, agentStore] of this.projectStore.agents) {
       for (const hit of agentStore.sessions.searchMessages(trimmed, SEARCH_PREFETCH_LIMIT)) {
@@ -289,7 +290,7 @@ export class ProjectManager {
       }
     }
     hits.sort((a, b) => b.time - a.time || b.seq - a.seq);
-    return hits.slice(0, limit);
+    return hits.slice(0, count);
   }
 
   async listSkills(): Promise<SkillDefinition[]> {
