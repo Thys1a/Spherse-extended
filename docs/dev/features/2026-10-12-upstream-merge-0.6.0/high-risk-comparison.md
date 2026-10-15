@@ -27,6 +27,8 @@ fork 现状：旧方案——per-agent `memory.jsonl`（`core/src/store/memory.t
 
 上游迁移策略（明确）：**旧 jsonl 不迁移、不兼容读、不删文件、不清理**，残留变死文件；旧 profile 工具名成无害 no-op。
 
+补充（2026-10-16 实测）：`sqlite FTS5` **作为检索引擎可吸收**——fork 现有 better-sqlite3 编译已带 `ENABLE_FTS5`，trigram 分词器可用，零新依赖，满足 08 §五"零 provider 依赖"硬约束。吸收形态须守 §6.3 三条件：JSONL 仍是唯一真相源，FTS 索引只是派生缓存（随 save/update/delete 同步、可整体 rebuild），`memory_save/recall` API 不变。这正是 §三/§6.2 早就写下的"混合检索 + RRF"里的 trigram/BM25 引擎位，不用等 sqlite-vec。界限：只取引擎，不取"sqlite 升主存储 + core.md + featureTools"（那部分才和 08 冲突）。时机按 §五方案 C：先落 Phase 1 零依赖排序/上限（真缺口），FTS5 作 Phase 1.5 替换子串检索。
+
 ### 待决策
 
 - D1 老数据：A 遵上游不迁不读不删 / B 一次性迁移脚本 / C 合并时删除残留。倾向 A（无已发布用户数据则零成本；fork 若有 alpha 真实数据选 B）。
