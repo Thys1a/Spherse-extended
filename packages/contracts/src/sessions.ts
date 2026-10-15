@@ -23,6 +23,16 @@ const summonMeta = Type.Object({
   agentName: Type.String(),
 });
 
+const sessionSearchHit = Type.Object({
+  agentId: Type.String(),
+  sessionId: Type.String(),
+  sessionTitle: Type.Optional(Type.String()),
+  seq: Type.Integer(),
+  role: Type.Union([Type.Literal("user"), Type.Literal("assistant")]),
+  snippet: Type.String(),
+  time: Type.Number(),
+});
+
 export const schemas = {
   sessionInfo,
   sessionListResponse: Type.Array(sessionInfo),
@@ -73,6 +83,9 @@ export const schemas = {
     currentTokens: Type.Number(),
     contextWindowLimit: Type.Union([Type.Number(), Type.Null()]),
   }),
+  sessionSearchResponse: Type.Object({
+    results: Type.Array(sessionSearchHit),
+  }),
 } as const;
 
 export type SessionInfoContract = Static<typeof sessionInfo>;
@@ -92,3 +105,5 @@ export type SessionMessagesPageResponse = Static<typeof schemas.sessionMessagesP
 export type SessionStatusResponse = Static<typeof schemas.sessionStatus>;
 export type SlashMetaContract = Static<typeof slashMeta>;
 export type SummonMetaContract = Static<typeof summonMeta>;
+export type SessionSearchHit = Static<typeof sessionSearchHit>;
+export type SessionSearchResponse = Static<typeof schemas.sessionSearchResponse>;

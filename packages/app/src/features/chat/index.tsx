@@ -27,6 +27,7 @@ import { useChatSession } from "./hooks/useChatSession";
 import type { AttachedFile } from "./types";
 import { useSummonSend } from "./lib/use-summon-send";
 import { FindBar } from "../../components/find-bar/FindBar";
+import { useLocateMessage } from "./hooks/useLocateMessage";
 
 export interface ChatProps {
   sessionId: string;
@@ -36,9 +37,11 @@ export interface ChatProps {
   initialMessage?: string;
   onClose?: () => void;
   hideHeader?: boolean;
+  locateSeq?: number | null;
+  onLocated?: () => void;
 }
 
-export function Chat({ sessionId, agent, onNavigateToPath, onOpenSession, initialMessage, onClose, hideHeader }: ChatProps) {
+export function Chat({ sessionId, agent, onNavigateToPath, onOpenSession, initialMessage, onClose, hideHeader, locateSeq = null, onLocated }: ChatProps) {
   const { projectId } = useProjectCtx();
   const client = useApiClient(projectId);
   const { baseUrl, accessToken } = useConnection();
@@ -89,6 +92,14 @@ export function Chat({ sessionId, agent, onNavigateToPath, onOpenSession, initia
     accessToken,
   });
   const { containerRef, isAtBottom, scrollToBottom } = useChatScroll(entries, sessionId, loadingMore, thinking);
+  useLocateMessage({
+    containerRef,
+    client,
+    sessionId,
+    agentId: agent.id,
+    locateSeq,
+    onLocated: onLocated ?? (() => {}),
+  });
   const themeCss = useAgentTheme(client, agent.id, agent.slug, projectId);
   const scopedThemeCss = useMemo(
     () =>
@@ -275,6 +286,7 @@ export function Chat({ sessionId, agent, onNavigateToPath, onOpenSession, initia
           hasMore={hasMore}
           loadingMore={loadingMore}
           onLoadMore={loadMore}
+          locateSeq={locateSeq}
         />
         <Composer
           streaming={streaming}

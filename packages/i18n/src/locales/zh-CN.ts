@@ -1104,6 +1104,14 @@ export const zhCN = {
   "command-panel.delete.success": "命令「{name}」已删除",
   // 删除命令失败提示，{message} 为错误信息
   "command-panel.delete.failed": "删除命令失败：{message}",
+  "global-search.search": "搜索",
+  "global-search.placeholder": "搜索聊天与文件…",
+  "global-search.initialHint": "输入关键词，搜索当前项目的聊天记录与文件名",
+  "global-search.searching": "搜索中…",
+  "global-search.noResults": "没有找到结果",
+  "global-search.searchFailed": "搜索失败，请稍后重试",
+  "global-search.chatResults": "聊天",
+  "global-search.fileResults": "文件",
 
   // --- Skill Panel ---
   // 技能面板右上角三点菜单的「创建技能」项

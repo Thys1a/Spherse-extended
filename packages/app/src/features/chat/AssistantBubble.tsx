@@ -35,6 +35,7 @@ interface AssistantBubbleProps {
   thinkingTruncated?: boolean;
   diagnostics?: EntryDiagnostics;
   showTime?: boolean;
+  entrySeq?: number;
   supersededToolCallIds?: Set<string>;
   onNavigateToPath?: (path: string) => void;
   onRespondApproval?: (requestId: string, approved: boolean) => void;
@@ -56,6 +57,7 @@ export function AssistantBubble({
   thinkingTruncated,
   diagnostics,
   showTime,
+  entrySeq,
   supersededToolCallIds,
   onNavigateToPath,
   onRespondApproval,
@@ -108,6 +110,7 @@ export function AssistantBubble({
       className="group max-w-[90%] min-w-0 flex items-start gap-1.5 self-start flex-row"
       data-chat-message
       data-role="assistant"
+      data-entry-seq={entrySeq}
     >
       <div className="flex min-w-0 flex-col gap-1 items-start md:flex-row md:items-end md:gap-1.5">
         <div

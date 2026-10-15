@@ -24,6 +24,7 @@ export {
   renameProjectSession,
   updateProjectSessionModel,
   useProjectSession,
+  useSessionSearch,
 } from "./sessions";
 
 export function useProjectCatalog(projectId: string, client: ApiClient | null) {

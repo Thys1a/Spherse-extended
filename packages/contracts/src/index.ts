@@ -76,6 +76,8 @@ export type {
   SessionStatusResponse,
   SlashMetaContract,
   SummonMetaContract,
+  SessionSearchHit,
+  SessionSearchResponse,
 } from "./sessions.js";
 
 export { CONTENT_ERROR_CODES } from "./content.js";

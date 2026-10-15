@@ -3,14 +3,17 @@ import { Outlet, useLocation, useNavigate, useParams } from "react-router";
 import { useI18n } from "@spherse/i18n/react";
 import { SidePanel } from "../features/side-panel";
 import { Button } from "../components/ui/button";
+import { GlobalSearchDialog } from "../features/global-search";
 import { useCustomTheme } from "../hooks/useCustomTheme";
 import { useAgentBusRefresh, useSessionBusRefresh } from "../hooks/useAgentBusRefresh";
 import { useSidePanel } from "../hooks/use-side-panel";
 import { useAppStore } from "../stores/app-store";
+import { useAppUiStore } from "../stores/app-ui-store";
 import { useProjectNavHistory } from "../lib/use-project-navigation";
 import { useFeature } from "../lib/use-feature";
 import { TabStrip, TabContainer } from "../features/tabs";
 import { useTabRouteSync } from "../features/tabs/use-tab-route-sync";
+import { stripMessageId } from "../lib/route-params";
 import { ProjectProvider } from "../context/project-context";
 import { useHostBridge } from "../context/host-bridge-context";
 import { useApiClient } from "../lib/use-connection";
@@ -31,6 +34,8 @@ export function ProjectScope() {
   const initializing = useAppStore((s) => s.initializing);
   const setActiveProject = useAppStore((s) => s.setActiveProject);
   const setProjectLastRoute = useAppStore((s) => s.setProjectLastRoute);
+  const globalSearchOpen = useAppUiStore((s) => s.globalSearchOpen);
+  const setGlobalSearchOpen = useAppUiStore((s) => s.setGlobalSearchOpen);
   const { clickAwayProps } = useSidePanel();
   useCustomTheme(
     project?.path,
@@ -46,8 +51,27 @@ export function ProjectScope() {
   }, [projectId, setActiveProject, bridge]);
 
   useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (
+        (event.metaKey || event.ctrlKey) &&
+        !event.altKey &&
+        !event.shiftKey &&
+        event.key.toLowerCase() === "p"
+      ) {
+        event.preventDefault();
+        setGlobalSearchOpen(true);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      setGlobalSearchOpen(false);
+    };
+  }, [setGlobalSearchOpen]);
+
+  useEffect(() => {
     if (!projectId) return;
-    const fullPath = location.pathname + location.search;
+    const fullPath = stripMessageId(location.pathname, location.search);
     const prefix = `/project/${projectId}`;
     const subRoute = fullPath.startsWith(prefix) ? fullPath.slice(prefix.length) || "/" : "/";
     void setProjectLastRoute(projectId, subRoute);
@@ -85,6 +109,7 @@ export function ProjectScope() {
             </div>
           )}
         </main>
+        {globalSearchOpen && <GlobalSearchDialog />}
         <ProjectRuntimeBridges />
       </div>
     </ProjectProvider>
