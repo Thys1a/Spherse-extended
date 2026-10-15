@@ -100,9 +100,13 @@
 - 提交 3478eb9：d991541 的 review 修复（tab-sync/messageId 竞态、C1；真实贯通契约测试替代 mock；searchMessages 排除 compaction 折叠；PM limit 钳制；useLocateMessage seen-then-gone 终局），9 文件。
 - #113 合并完成，三笔提交已落盘。040c1cd 合并本体（33 文件）：core（ProjectConfig.sidePanel + 共享校验 + PM 门面）→ contracts（request/response schema）→ server（GET/PUT 两条路由）→ app（CustomSidePanel 自治组件 + query/store/bridge + 设置 dialog + ActivityBar 菜单/dialog + ProjectPanel 包裹 + lifecycle 级联）→ i18n 三语 14 key。fork 差异保留：lifecycle/bridges 内上游旧 tab 名全部弃用、CommandPanel 留在包裹内、ContextMenu 保留、docs 全剥离。
 - #135（78057b4，3 skill 文件全自动合入，语义段与上游一致：侧边面板窄栏/透明、runtime 恒 null 勿 await getRuntime、无滚动兜底、文件模式表；行数与上游 stat 差异系 fork 基线上下文不同）+#137（c2ab3ee，landing 三语 md 文档子系统 + Tailscale 教程）批量合入：剥离 project-structure 与 lock 噪音；手合 Header（保留 explore 回退块）与 landing i18n（保留 cases.backHome，删 docs.construction）；landing README 新文件去上游自定义域名；package.json 加 react-markdown/remark-gfm 后 npm install 重建 lock；验证 landing build/typecheck/test/lint 全过，presets 生成物重建后测试过。
+- 提交 4448284：docs 批的 review 修复（project-structure 落地索引、DocMarkdown 链接白名单、docs.ts locale 正则改动态、README 回退语义说明、clipboard 对齐、Header 正则收紧、台账口径澄清），6 文件。
+- #123 合并：上游 630291a（turn context 事件日志查看器）cherry-pick，剥离 backlog/arch×2/project-structure；DebugMenu 下载 handler 改开 dialog（fork logs 抽屉保留）；contracts 新增 sessionEventLog schema、server 新增 /debug/sessions/:id/events（复用 readSessionEventsAfter）、app 新增 dialog + query 方法；i18n debug.* 照单取（含英文值）；contracts README 取 Unknown 清单半句。
+- 
 
-## 待办（8 项未合入）
+## 待办（7 项未合入）
 
 - 高风险最后：#112 Agent 记忆、#148 memory guide 改写（对照 08 记忆方向决策）、#144 settings server 化
-- 待分析：#104 内容区多标签（fork 自研 tab 架构，机械合入不可行，leave-guard 等单点价值待评估）、#123 turn context 查看器（fork 只有旧 turn-context 端点）
+- 待分析：#104 内容区多标签（fork 自研 tab 架构，机械合入不可行，leave-guard 等单点价值待评估）
 - 待评估：#126 mac/Linux 更新日志弹窗、#129 Windows 应用内自动更新（updater 受保护文件，fork 已切 GitHub Releases 源）
+- project-structure.md 385–392 行还写着上游自定义域名 + CNAME
