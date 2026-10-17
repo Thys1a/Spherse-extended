@@ -13,7 +13,7 @@
   - hook 注册在根实例（`fastify.register` 封装上下文内不生效）
 - **端口**：默认固定 53972、只绑 `127.0.0.1`；`EADDRINUSE` 才回退 OS 随机端口
 - desktop 启动链：`app.whenReady` → `ensureServer()`（恒传 `auth.accessToken = getServerToken()`）→ 重放已注册项目 → 重放动态 host
-  - `ensureServer` 以 settings 的 model/sampling/thinkingLevel、server token、`getAppModelCatalog()` 单例与 app 版本建服务
+  - `ensureServer` 取 `model-settings.json` / `web-search-settings.json` 路径、server token、app 版本建服务（模型 env 与 registry 默认值由 server 启动时从 store 读取应用，不再经参数传入）
   - server 重建（regenerate token）后由 `syncAllowedHosts()` 按当前 mobileAccess 状态重放动态 host
 - shutdown：tunnel stop → `server.close(options?)`（唯一关停入口，幂等共享 Promise；顺序 `chatHub.close()` → `registry.removeAll()`（allSettled）→ `fastify.close()`，阶段各自 `settleWithin` 超时/失败隔离，缺省 10s 与 logger 上报；desktop 只注入超时与日志策略，见 [ADR-0012](../../dev/decisions/0012-chat-hub-lifecycle-ownership.md)）
 

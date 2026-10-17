@@ -150,7 +150,15 @@ describe("migrateLegacySettings", () => {
     expect(settingsStore.get("settings")).toBeUndefined();
   });
 
-  it("preserves unknown hostPrefs fields instead of dropping them", () => {
+  it("drops unknown legacy top-level fields instead of carrying them over", () => {
+    settingsStore.set("settings", { ...legacySettings(), futureField: "gone" });
+    migrateLegacySettings();
+
+    expect((getHostPrefs() as Record<string, unknown>).futureField).toBeUndefined();
+    expect(settingsStore.get("settings")).toBeUndefined();
+  });
+
+  it("preserves unknown fields already present in hostPrefs", () => {
     settingsStore.set("hostPrefs", { locale: "en", theme: "dark", futureField: "keep-me" });
     expect(getHostPrefs()).toMatchObject({ futureField: "keep-me" });
   });

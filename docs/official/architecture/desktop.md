@@ -9,7 +9,7 @@
 - 入口 `electron/bootstrap.ts`：dev（`!app.isPackaged` 且非 test）将 userData 重定向 `Spherse-Dev/`
   - dev 与 prod 的 electron-store / localStorage 完全隔离，可同时运行
   - E2E 由 Playwright 传 `--user-data-dir` + `NODE_ENV=test` 跳过重定向
-- `app.whenReady` 顺序：`fixPath` → `restoreEnvFromSettings` → `ensureServer()`（恒带 server token）→ 创建窗口与右键菜单 → 注册全部 IPC → quick 模式启动 tunnel；更新检查另以 `setTimeout` 5s 调度，与 tunnel 无先后依赖
+- `app.whenReady` 顺序：`fixPath` → `migrateLegacySettings`（备份旧 `settings` → 分区落盘 → 删旧键）→ `ensureServer()`（恒传 server token）→ 创建窗口与右键菜单 → 注册全部 IPC → quick 模式启动 tunnel；更新检查另起 `setTimeout` 5s 调度，与 tunnel 无先后依赖
 - BrowserWindow：1200×800、`contextIsolation: true`、`nodeIntegration: false`、preload 白名单桥
 - `fixPath` 仅 packaged + darwin/linux：spawn 登录 shell 取 `$PATH` 去重合并，保证 GUI 启动拿到 CLI 环境
 - 优雅退出：`window-all-closed` / `before-quit`（幂等标记）→ tunnel stop → `stopServer()` → quit；`stopServer` / `restartServer` 委托 `MultiProjectServer.close()`（注入 10s 阶段超时与日志回调），不再手工编排 registry/fastify 顺序
@@ -32,21 +32,14 @@
 
 ## settings 持久化
 
-- electron-store 落 userData 下 `settings.json`；`AppSettings` schema：
-  - `locale` + `models: { text, image }`——每 group 含 `defaultModel`、per-provider `apiKey`，text 另含可选 `sampling` 与 `thinkingLevel`（off/low/medium/high，缺省 medium）
-  - 可选 `customProviders` / `debugToolsEnabled` / `theme` / `mobileAccess`
-  - 自定义供应商定义可带 `sanitizeEmptySchemas`（为严格 schema 的 Gemini 中转清洗 tool 参数里的无类型空节点，见 `docs/dev/bugfix/2026-09-14-gemini-relay-400/design.md`）
-- **serverToken 是 settingsStore 顶层 key，不是 AppSettings 字段**（`saveSettings` 会从零重建 AppSettings）。`getServerToken()` 迁移链：`serverToken` → legacy `mobileAccess.token` → 生成并持久化；它是 server 鉴权唯一凭据来源（见 [server.md](server.md)「鉴权模型」）
-- **API key 掩码与合并**：显示前 4 + `****` + 后 4；保存时空串跳过、含 `****` 保留旧值
-  - `saveSettings` 强制保留 `mobileAccess` 旧值，防 renderer 覆写
-- `applySettingsToEnv`（保存后立即执行）：
-  - `applyThemeSource` → 文本 provider key 按 `PROVIDER_ENV_KEYS` 映射 env → 图片写 `SPHERSE_IMAGE_MODEL` / `SPHERSE_IMAGE_API_KEY`
-  - 末尾 `syncCustomProviders`（core 删除消失项 + `setProvider` 重建，原样使用 def.id；`custom-` 前缀由 renderer 创建供应商时生成）
-- 启动时 `restoreEnvFromSettings` 在 `ensureServer` 之前——custom provider 注册先于 server 捕获同一 catalog 单例
+- electron-store 落 userData 下 `settings.json`，键：`hostPrefs`（locale + theme/debugToolsEnabled/closeToTray/tts/proxy/notifications）、`mobileAccess`、`openProjects`、`lastActiveProject`、`serverToken`
+- 模型配置在 server 侧：`model-settings.json`（`ModelSettingsStore`，原子写，0600）与 `web-search-settings.json`；GET 回脱敏版（key 只露 `configured`，custom headers 不出边界），PUT 全量语义（`undefined`=保留、空串=删除、custom 缺 `headers` 回填旧值）
+- **serverToken 是 settingsStore 顶层 key**。`getServerToken()`：`serverToken` → 生成并持久化；legacy `mobileAccess.token` 读取兼容已随旧 `settings` 键删除而终止（迁移时一次性搬运）
+- 启动顺序：`migrateLegacySettings()`（备份旧 `settings` → 分区落盘 → 删旧键）→ `ensureServer()`（server 读 store 并应用 env）；desktop 侧只应用 theme/proxy（`applyHostPrefsToEnv`）
 
 ## 模型与采样配置传播
 
-- save-settings 链：`if (defaultModel)` 才 `updateDefaultModel()`；`updateSampling()` / `updateThinkingLevel()` 无条件（undefined 即「恢复默认」需要传播）→ registry fan-out 各项目并缓存供后续 register → `SessionManager`
+- PUT `/api/settings/models` 内同步 registry：`setDefaultModel`（空串按 undefined 清除）、`setSampling` / `setThinkingLevel`（无条件推送）→ registry fan-out 各项目并缓存供后续 register → `SessionManager`
 - 热替换：`setDefaultModel` 遍历活跃会话，仅在解析结果变化时重赋 `agent.state.model`（下一轮生效）；未配置的 agent 跳过不抛错；profile 显式指定 `model` 者优先，但所选模型已不可解析（过期）时回退全局默认（`model-resolver` 按候选序尝试）
 - `setThinkingLevel` 重赋各 agent 的 `state.thinkingLevel`（下一轮生效），profile `thinkingLevel` 覆盖全局值（见 [`../data-conventions.md`](../data-conventions.md)「Agent 定义」）；`off` 即关闭思考，实际档位由 pi-ai 按模型 `clampThinkingLevel` 就近取档（不支持推理的模型忽略）
 - `setSampling` 重赋各 agent 的 `streamFn`；注入点 `getChatStreamFn`：
@@ -54,12 +47,11 @@
   - `topP` 经 `onPayload` 按 `model.api` 分支——openai 系 / anthropic 根级 `top_p`，google 走 `config.topP`，未知 no-op
 - 模型解析延迟到 send 路径：无模型时可打开会话存活，`sendMessage` 前 `ensureModel` 抛 `ModelNotConfiguredError`
   - 转为 `MODEL_NOT_CONFIGURED` error 事件，不关连接；空串 model 在 profile 解析层即归一为未配置
-- 已知边界：清空 defaultModel 后运行时旧默认保留至重启（`if` 守卫 + registry 缓存）
-- **provider catalog**：core `ModelCatalog` 类实例由 desktop `getAppModelCatalog()` 持有单例，经 `CreateServerOptions` 注入 server；文本 17 个内置 provider，图片 3 家（openrouter / zhipu / openai）
+- **provider catalog**：server 自建 `ModelCatalog` 单例（renderer 经 REST `/api/settings/providers` 读取）；文本 17 个内置 provider，图片 3 家（openrouter / zhipu / openai）
 
 ## 外观模式
 
-`AppSettings.theme`（light / dark / system，默认 system）：启动 `restoreEnvFromSettings` 与每次保存时设 `nativeTheme.themeSource`——renderer 的 `prefers-color-scheme` 媒体查询与 `dark:` 工具类据此跟随应用选择。
+`hostPrefs.theme`（light / dark / system，默认 system）：启动迁移与每次保存桌面偏好时设 `nativeTheme.themeSource`——renderer 的 `prefers-color-scheme` 媒体查询与 `dark:` 工具类据此跟随应用选择。
 
 ## mobile access / tunnel
 
