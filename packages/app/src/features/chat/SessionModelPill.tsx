@@ -4,8 +4,7 @@ import { useI18n } from "@spherse/i18n/react";
 import type { ProviderCatalogContract } from "@spherse/contracts";
 import { ChevronDownIcon } from "lucide-react";
 import { useProjectCtx } from "../../context/project-context";
-import { useHostBridge } from "../../context/host-bridge-context";
-import { useApiClient } from "../../lib/use-connection";
+import { useApiClient, useGlobalApiClient } from "../../lib/use-connection";
 import { Button } from "../../components/ui/button";
 import {
   DropdownMenu,
@@ -48,7 +47,7 @@ export function SessionModelPill({ sessionId }: { sessionId: string }) {
   const { t } = useI18n();
   const { projectId } = useProjectCtx();
   const client = useApiClient(projectId);
-  const bridge = useHostBridge();
+  const globalClient = useGlobalApiClient();
   const sessionQuery = useProjectSession(projectId, client, sessionId);
   const { agents } = useProjectAgents(projectId, client);
   const [catalog, setCatalog] = useState<ProviderCatalogContract | null>(null);
@@ -62,13 +61,13 @@ export function SessionModelPill({ sessionId }: { sessionId: string }) {
       try {
         const [providers, settings] = await Promise.all([
           client.getSupportedProviders(),
-          bridge.getSettings(),
+          globalClient?.getModelSettings(),
         ]);
         if (cancelled) return;
         setCatalog(providers ?? null);
         const entries = Object.entries(settings?.models?.text?.providers ?? {});
         setConfiguredIds(
-          new Set(entries.filter(([, def]) => def.apiKey?.trim()).map(([id]) => id)),
+          new Set(entries.filter(([, def]) => def.configured).map(([id]) => id)),
         );
         setGlobalDefault(settings?.models?.text?.defaultModel ?? "");
       } catch {
@@ -78,7 +77,7 @@ export function SessionModelPill({ sessionId }: { sessionId: string }) {
     return () => {
       cancelled = true;
     };
-  }, [client, bridge]);
+  }, [client, globalClient]);
 
   const session = sessionQuery.data ?? null;
   const agent = session ? agents.find((a) => a.id === session.agentId) : undefined;

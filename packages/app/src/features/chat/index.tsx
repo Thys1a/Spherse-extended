@@ -12,7 +12,6 @@ import { useI18n } from "@spherse/i18n/react";
 import { stopIfSession } from "./tts/tts-controller";
 import { speak } from "./tts/tts-controller";
 import { onAssistantTurnComplete } from "./tts/bridge";
-import { useHostBridge } from "../../context/host-bridge-context";
 import { useSettingsStore } from "../../stores/settings-store";
 import { Composer } from "./Composer";
 import { Header } from "./Header";
@@ -46,7 +45,6 @@ export function Chat({ sessionId, agent, onNavigateToPath, onOpenSession, initia
   const client = useApiClient(projectId);
   const { baseUrl, accessToken } = useConnection();
   const { t, locale } = useI18n();
-  const bridge = useHostBridge();
   const autoRead = useSettingsStore((s) => s.tts.autoRead ?? false);
   const navigate = useNavigate();
   const isMobile = useIsMobile();
@@ -218,16 +216,14 @@ export function Chat({ sessionId, agent, onNavigateToPath, onOpenSession, initia
     if (!autoRead) return;
     return onAssistantTurnComplete((sid, text) => {
       if (sid !== sessionId || document.hidden) return;
-      void (async () => {
-        const settings = await bridge.getSettings();
-        speak(`${sessionId}:auto`, sessionId, text, {
-          voiceURI: settings?.tts?.voiceURI,
-          rate: settings?.tts?.rate,
-          locale,
-        });
-      })();
+      const tts = useSettingsStore.getState().tts;
+      speak(`${sessionId}:auto`, sessionId, text, {
+        voiceURI: tts?.voiceURI,
+        rate: tts?.rate,
+        locale,
+      });
     });
-  }, [autoRead, sessionId, bridge, locale]);
+  }, [autoRead, sessionId, locale]);
 
   return (
     <ChatAgentProvider agent={agentScope}>

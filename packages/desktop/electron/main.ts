@@ -1,7 +1,8 @@
 import { app, crashReporter, type BrowserWindow } from "electron";
 import { setGlobalDispatcher, EnvHttpProxyAgent } from "undici";
 import { createWindow, getMainWindow } from "./window.js";
-import { restoreEnvFromSettings, getMobileAccess } from "./settings.js";
+import { getMobileAccess } from "./settings.js";
+import { migrateLegacySettings } from "./migrate-legacy-settings.js";
 import { fixPath } from "./fix-path.js";
 import { ensureServer, stopServer, getServerPort } from "./server.js";
 import { registerAllIpc } from "./ipc/index.js";
@@ -119,7 +120,7 @@ process.on("unhandledRejection", (reason) => {
 
 app.whenReady().then(async () => {
   await fixPath();
-  restoreEnvFromSettings();
+  migrateLegacySettings();
   setGlobalDispatcher(new EnvHttpProxyAgent());
   await ensureServer();
   setupMainWindow(createWindow());

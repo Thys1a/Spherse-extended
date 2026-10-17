@@ -39,6 +39,8 @@ export const en: Record<TranslationKey, string> = {
   "settings.models.topPReset": "Reset to default",
   "settings.provider.apiKeyProvided": "API Key provided",
   "settings.provider.apiKeyPlaceholder": "API Key",
+  "settings.provider.apiKeyConfigured": "Configured",
+  "settings.models.loadFailed": "Failed to load model settings: check the connection to the desktop app, or update the desktop app to the latest version.",
   "settings.provider.notConnected": "Not connected",
   "settings.provider.searchPlaceholder": "Search providers…",
   "settings.provider.noResults": "No matching providers found",

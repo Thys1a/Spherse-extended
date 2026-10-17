@@ -29,7 +29,7 @@ export function App() {
   const settingsModalOpen = useAppUiStore((state) => state.settingsModalOpen);
   const setSettingsModalOpen = useAppUiStore((state) => state.setSettingsModalOpen);
   const locale = useSettingsStore((state) => state.locale);
-  const loadSettings = useSettingsStore((state) => state.loadLocale);
+  const loadSettings = useSettingsStore((state) => state.loadPrefs);
   const inProject = useMatch("/project/:projectId/*") !== null;
 
   // Connection-recovered compensation: re-read the project list (may have

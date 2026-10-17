@@ -633,6 +633,18 @@ describe("api contracts", () => {
     ).toThrow(/Invalid payload/);
   });
 
+  it("validates web search settings request and response shapes", () => {
+    const request = { apiKey: "sk-1", baseUrl: "https://x.example", model: null };
+    expect(parseApiResponse(schemas.webSearchSettingsRequest, request)).toEqual(request);
+    expect(parseApiResponse(schemas.webSearchSettingsRequest, {})).toEqual({});
+
+    const response = { apiKey: { configured: true }, baseUrl: "https://x.example", model: null };
+    expect(parseApiResponse(schemas.webSearchSettingsResponse, response)).toEqual(response);
+    expect(() =>
+      parseApiResponse(schemas.webSearchSettingsResponse, { apiKey: { configured: true } }),
+    ).toThrow(/Invalid payload/);
+  });
+
   it("validates turn context snapshot", () => {
     const snapshot = {
       sessionId: "s1",

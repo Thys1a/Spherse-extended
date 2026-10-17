@@ -6,6 +6,7 @@ import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
 import { ModelCatalog, createProject } from "@spherse/core";
 import { registerSettingsRoutes } from "../routes/settings.js";
 import { ModelSettingsStore } from "../model-settings.js";
+import { WebSearchSettingsStore } from "../web-search-settings.js";
 import type { ProjectRegistry } from "../registry.js";
 import { createSilentLoggerForTests } from "./test-logger.js";
 
@@ -32,6 +33,7 @@ describe("side-panel settings routes", () => {
     registerSettingsRoutes(app, registry, {
       modelSettingsStore: new ModelSettingsStore(),
       modelCatalog: new ModelCatalog(),
+      webSearchSettingsStore: new WebSearchSettingsStore(),
     });
     await app.ready();
   });

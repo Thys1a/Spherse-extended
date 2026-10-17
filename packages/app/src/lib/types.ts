@@ -20,6 +20,8 @@ export type {
   AiAccessSettingsResponse,
   ModelSettingsRequest,
   ModelSettingsResponse,
+  WebSearchSettingsRequest,
+  WebSearchSettingsResponse,
   WelcomePageSettingsResponse,
   SidePanelSettingsResponse,
   ThemeSettingsResponse,

@@ -1,7 +1,6 @@
 import type {
   HostBridge,
   HostCapabilities,
-  HostSettings,
   ProjectHostApi,
   RestoredProject,
 } from "@spherse/app/host-bridge";
@@ -24,27 +23,41 @@ function scopedStorageKey(key: string): string {
   return IS_DEV_DEPLOY ? `${key}:dev` : key;
 }
 
-const SETTINGS_STORAGE_KEY = scopedStorageKey("spherse:settings");
+const PREFS_STORAGE_KEY = scopedStorageKey("spherse:prefs");
+const LEGACY_SETTINGS_KEY = scopedStorageKey("spherse:settings");
 export const WEB_CONNECTION_STORAGE_KEY = scopedStorageKey("spherse:connection");
 const LAST_ACTIVE_PROJECT_KEY = scopedStorageKey("spherse:last-active-project");
 
 const PLACEHOLDER_LAST_OPENED = new Date(0).toISOString();
 
-async function loadSettings(): Promise<HostSettings | null> {
+async function loadPrefs(): Promise<{ locale: string }> {
   try {
-    const raw = localStorage.getItem(SETTINGS_STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as HostSettings) : null;
+    const raw = localStorage.getItem(PREFS_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as { locale?: unknown };
+      const locale = typeof parsed?.locale === "string" ? parsed.locale : "zh-CN";
+      return { locale };
+    }
+    const legacy = localStorage.getItem(LEGACY_SETTINGS_KEY);
+    if (legacy) {
+      const parsed = JSON.parse(legacy) as { locale?: unknown };
+      const locale = typeof parsed?.locale === "string" ? parsed.locale : "zh-CN";
+      localStorage.setItem(PREFS_STORAGE_KEY, JSON.stringify({ locale }));
+      localStorage.removeItem(LEGACY_SETTINGS_KEY);
+      return { locale };
+    }
+    return { locale: "zh-CN" };
   } catch {
-    return null;
+    return { locale: "zh-CN" };
   }
 }
 
-async function persistSettings(settings: HostSettings): Promise<{ success: boolean }> {
+async function persistPrefs(prefs: { locale: string }): Promise<boolean> {
   try {
-    localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
-    return { success: true };
+    localStorage.setItem(PREFS_STORAGE_KEY, JSON.stringify({ locale: prefs.locale }));
+    return true;
   } catch {
-    return { success: false };
+    return false;
   }
 }
 
@@ -175,8 +188,10 @@ export function createWebHostBridge(): HostBridge {
     clearConnection: async () => {
       localStorage.removeItem(WEB_CONNECTION_STORAGE_KEY);
     },
-    getSettings: loadSettings,
-    saveSettings: persistSettings,
+    prefs: {
+      getPrefs: loadPrefs,
+      savePrefs: persistPrefs,
+    },
     openExternal: async (url: string) => {
       window.open(url, "_blank", "noopener,noreferrer");
     },

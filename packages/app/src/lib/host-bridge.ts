@@ -1,4 +1,4 @@
-import type { ProviderCatalogItem, ModelGroupSettings, CustomProviderDef, TtsSettings, ProxySettings, WebSearchSettings } from "@spherse/core";
+import type { TtsSettings, ProxySettings } from "@spherse/core";
 import type { ReactNode } from "react";
 
 export interface RestoredProject {
@@ -54,20 +54,27 @@ export interface NotificationSettings {
   trigger?: boolean;
 }
 
-export interface HostSettings {
-  locale?: string;
-  models?: {
-    text?: ModelGroupSettings;
-    image?: ModelGroupSettings;
-  };
-  customProviders?: CustomProviderDef[];
-  debugToolsEnabled?: boolean;
-  closeToTray?: boolean;
-  theme?: ThemeMode;
+export interface GeneralPrefs {
+  locale: string;
+}
+
+export interface DesktopPrefs {
+  theme: ThemeMode;
+  debugToolsEnabled: boolean;
+  closeToTray: boolean;
   tts?: TtsSettings;
   proxy?: ProxySettings;
-  webSearch?: WebSearchSettings;
   notifications?: NotificationSettings;
+}
+
+export interface HostPrefsApi {
+  getPrefs(): Promise<GeneralPrefs>;
+  savePrefs(prefs: GeneralPrefs): Promise<boolean>;
+}
+
+export interface DesktopPrefsApi {
+  getPrefs(): Promise<DesktopPrefs>;
+  savePrefs(prefs: DesktopPrefs): Promise<boolean>;
 }
 
 export type TunnelStatus = "stopped" | "starting" | "running" | "error";
@@ -158,15 +165,13 @@ export interface HostBridge {
   getServerAccessToken?(): Promise<string | null>;
   clearConnection?(): Promise<void>;
   readonly capabilities: HostCapabilities;
-  getSettings(): Promise<HostSettings | null>;
-  saveSettings(settings: HostSettings): Promise<{ success: boolean }>;
+  readonly prefs: HostPrefsApi;
+  readonly desktopPrefs?: DesktopPrefsApi;
   openExternal(url: string): Promise<void>;
   notify(title: string, body: string, opts?: NotificationOptions): void;
   onNotificationClicked?(callback: (route: string) => void): () => void;
   saveBlob?(filename: string, blob: Blob): Promise<void>;
   showSaveDialog?(options: SaveDialogOptions): Promise<string | null>;
-  getSupportedProviders?(): Promise<Record<string, ProviderCatalogItem>>;
-  getImageProviders?(): Promise<Record<string, ProviderCatalogItem>>;
   readonly project?: ProjectHostApi;
   readonly updater?: UpdaterHostApi;
   readonly devTools?: DevToolsHostApi;

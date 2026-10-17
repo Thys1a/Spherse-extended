@@ -1,16 +1,19 @@
 import fs from "node:fs/promises";
 import type { FastifyInstance } from "fastify";
 import type { ModelCatalog } from "@spherse/core";
-import type { ModelSettingsRequest } from "@spherse/contracts";
+import type { ModelSettingsRequest, WebSearchSettingsRequest } from "@spherse/contracts";
 import type { ProjectRegistry } from "../registry.js";
 import { getImageSupportedProviders, resolveProjectPath } from "@spherse/core";
 import { schemas } from "@spherse/contracts";
 import type { ModelSettingsStore } from "../model-settings.js";
 import { applyModelSettingsToEnv } from "../model-settings.js";
+import type { WebSearchSettingsStore } from "../web-search-settings.js";
+import { applyWebSearchEnv } from "../web-search-settings.js";
 
 interface SettingsRouteOptions {
   modelSettingsStore: ModelSettingsStore;
   modelCatalog: ModelCatalog;
+  webSearchSettingsStore: WebSearchSettingsStore;
 }
 
 export function registerSettingsRoutes(
@@ -37,6 +40,25 @@ export function registerSettingsRoutes(
       registry.setSampling(next.text.sampling);
       registry.setThinkingLevel(next.text.thinkingLevel);
       return options.modelSettingsStore.sanitize();
+    },
+  });
+
+  fastify.get("/api/settings/web-search", {
+    schema: { response: { 200: schemas.webSearchSettingsResponse } },
+    async handler() {
+      return options.webSearchSettingsStore.sanitize();
+    },
+  });
+
+  fastify.put<{ Body: WebSearchSettingsRequest }>("/api/settings/web-search", {
+    schema: {
+      body: schemas.webSearchSettingsRequest,
+      response: { 200: schemas.webSearchSettingsResponse },
+    },
+    async handler(req) {
+      const next = options.webSearchSettingsStore.applyUpdate(req.body);
+      applyWebSearchEnv(next);
+      return options.webSearchSettingsStore.sanitize();
     },
   });
 

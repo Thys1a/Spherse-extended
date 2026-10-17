@@ -76,6 +76,18 @@ const imageGroupWrite = Type.Object({
   providers: Type.Optional(Type.Record(Type.String(), providerCredentialsWrite)),
 });
 
+const webSearchSettingsRequest = Type.Object({
+  apiKey: Type.Optional(Type.Union([Type.Null(), Type.String()])),
+  baseUrl: Type.Optional(Type.Union([Type.Null(), Type.String()])),
+  model: Type.Optional(Type.Union([Type.Null(), Type.String()])),
+});
+
+const webSearchSettingsResponse = Type.Object({
+  apiKey: Type.Object({ configured: Type.Boolean() }),
+  baseUrl: Type.Union([Type.Null(), Type.String()]),
+  model: Type.Union([Type.Null(), Type.String()]),
+});
+
 export const schemas = {
   providerCatalogItem,
   providerCatalog: Type.Record(Type.String(), providerCatalogItem),
@@ -93,6 +105,8 @@ export const schemas = {
     }),
     customProviders: Type.Array(customProviderDef),
   }),
+  webSearchSettingsRequest,
+  webSearchSettingsResponse,
   aiAccessSettingsRequest: Type.Object({
     deniedPaths: Type.Array(Type.String()),
   }),
@@ -128,6 +142,8 @@ export type ProviderCatalogContract = Static<typeof schemas.providerCatalog>;
 export type CustomProviderDefContract = Static<typeof customProviderDef>;
 export type ModelSettingsRequest = Static<typeof schemas.modelSettingsRequest>;
 export type ModelSettingsResponse = Static<typeof schemas.modelSettingsResponse>;
+export type WebSearchSettingsRequest = Static<typeof schemas.webSearchSettingsRequest>;
+export type WebSearchSettingsResponse = Static<typeof schemas.webSearchSettingsResponse>;
 export type AiAccessSettingsRequest = Static<typeof schemas.aiAccessSettingsRequest>;
 export type AiAccessSettingsResponse = Static<typeof schemas.aiAccessSettingsResponse>;
 export type WelcomePageSettingsRequest = Static<typeof schemas.welcomePageSettingsRequest>;

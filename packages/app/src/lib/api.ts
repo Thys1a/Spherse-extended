@@ -18,6 +18,8 @@ import type {
   AiAccessSettingsResponse,
   ModelSettingsRequest,
   ModelSettingsResponse,
+  WebSearchSettingsRequest,
+  WebSearchSettingsResponse,
   WelcomePageSettingsResponse,
   SidePanelSettingsResponse,
   ThemeSettingsResponse,
@@ -980,6 +982,22 @@ export function createGlobalApiClient(baseUrl: string, accessToken?: string | nu
       });
       await assertOk(res);
       return parseJsonResponse<ModelSettingsResponse>(res, schemas.modelSettingsResponse);
+    },
+
+    async getWebSearchSettings(): Promise<WebSearchSettingsResponse> {
+      const res = await authedFetch(`${baseUrl}/api/settings/web-search`);
+      await assertOk(res);
+      return parseJsonResponse<WebSearchSettingsResponse>(res, schemas.webSearchSettingsResponse);
+    },
+
+    async updateWebSearchSettings(req: WebSearchSettingsRequest): Promise<WebSearchSettingsResponse> {
+      const res = await authedFetch(`${baseUrl}/api/settings/web-search`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(req),
+      });
+      await assertOk(res);
+      return parseJsonResponse<WebSearchSettingsResponse>(res, schemas.webSearchSettingsResponse);
     },
 
     async getSupportedProviders(): Promise<ProviderCatalogContract> {

@@ -128,6 +128,8 @@ export type {
   CustomProviderDefContract,
   ModelSettingsRequest,
   ModelSettingsResponse,
+  WebSearchSettingsRequest,
+  WebSearchSettingsResponse,
   AiAccessSettingsRequest,
   AiAccessSettingsResponse,
   WelcomePageSettingsRequest,

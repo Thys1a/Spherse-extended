@@ -1,13 +1,10 @@
 import path from "node:path";
-import fs from "node:fs";
 import crypto from "node:crypto";
 import { app, nativeTheme } from "electron";
 import Store from "electron-store";
 import { setGlobalDispatcher, EnvHttpProxyAgent } from "undici";
-import type { AppSettings, ModelGroupSettings, ProviderCredentials, MobileAccessSettings, ProxySettings, WebSearchSettings } from "@spherse/core";
-import { WEB_SEARCH_API_KEY_ENV, WEB_SEARCH_BASE_URL_ENV, WEB_SEARCH_MODEL_ENV } from "@spherse/core";
-import { ModelSettingsStore } from "@spherse/server";
-import { getAppModelCatalog } from "./model-catalog.js";
+import type { MobileAccessSettings, ModelGroupSettings, ProxySettings } from "@spherse/core";
+import type { DesktopPrefs, GeneralPrefs, ThemeMode } from "@spherse/app/host-bridge";
 
 export interface OpenProjectEntry {
   id: string;
@@ -16,8 +13,24 @@ export interface OpenProjectEntry {
   lastOpened: string;
 }
 
+export interface LegacySettings {
+  locale?: string;
+  models?: { text?: Partial<ModelGroupSettings>; image?: Partial<ModelGroupSettings> };
+  customProviders?: { id: string; name: string; baseUrl: string; models: string[]; keyless: boolean }[];
+  debugToolsEnabled?: boolean;
+  closeToTray?: boolean;
+  theme?: string;
+  mobileAccess?: { enabled?: boolean; token?: string; mode?: "quick" | "manual"; publicDomain?: string };
+  tts?: DesktopPrefs["tts"];
+  proxy?: DesktopPrefs["proxy"];
+  webSearch?: { apiKey?: string; baseUrl?: string; model?: string };
+  notifications?: DesktopPrefs["notifications"];
+}
+
 type SettingsSchema = {
-  settings?: AppSettings;
+  settings?: LegacySettings;
+  hostPrefs?: DesktopPrefs & GeneralPrefs;
+  mobileAccess?: MobileAccessSettings;
   openProjects?: OpenProjectEntry[];
   lastActiveProject?: string | null;
   serverToken?: string;
@@ -31,159 +44,52 @@ export function getModelSettingsPath(): string {
   return path.join(app.getPath("userData"), "model-settings.json");
 }
 
-export function seedModelSettingsFromLegacy(): void {
-  const filePath = getModelSettingsPath();
-  if (fs.existsSync(filePath)) return;
-  const models = settingsStore.get("settings")?.models;
-  if (!models) return;
-  new ModelSettingsStore({ filePath }).applyUpdate({
-    models: {
-      text: {
-        defaultModel: models.text?.defaultModel ?? "",
-        providers: models.text?.providers,
-        sampling: models.text?.sampling,
-        thinkingLevel: models.text?.thinkingLevel,
-      },
-      image: {
-        defaultModel: models.image?.defaultModel ?? "",
-        providers: models.image?.providers,
-      },
-    },
-    customProviders: settingsStore.get("settings")?.customProviders,
-  });
+export function getWebSearchSettingsPath(): string {
+  return path.join(app.getPath("userData"), "web-search-settings.json");
 }
 
-export function getSettings(): AppSettings | undefined {
-  return settingsStore.get("settings");
-}
-
-function extractProviderKeys(providers: Record<string, { apiKey?: string }> | undefined): Record<string, string> {
-  const keys: Record<string, string> = {};
-  for (const [id, c] of Object.entries(providers ?? {})) {
-    if (c?.apiKey) keys[id] = c.apiKey;
-  }
-  return keys;
-}
-
-function maskApiKey(key: string): string {
-  if (key.length <= 8) return "****";
-  return key.slice(0, 4) + "****" + key.slice(-4);
-}
-
-export function maskModelGroup(group: ModelGroupSettings | undefined): ModelGroupSettings {
-  const providers: Record<string, ProviderCredentials> = {};
-  for (const [id, creds] of Object.entries(group?.providers ?? {})) {
-    if (creds?.apiKey) {
-      providers[id] = { apiKey: maskApiKey(creds.apiKey) };
-    }
-  }
-  return { defaultModel: group?.defaultModel ?? "", providers, sampling: group?.sampling, thinkingLevel: group?.thinkingLevel };
-}
-
-function maskWebSearch(search: WebSearchSettings | undefined): WebSearchSettings | undefined {
-  if (!search) return undefined;
-  const masked: WebSearchSettings = {};
-  if (search.apiKey) masked.apiKey = maskApiKey(search.apiKey);
-  if (search.baseUrl) masked.baseUrl = search.baseUrl;
-  if (search.model) masked.model = search.model;
-  return masked;
-}
-
-function mergeWebSearchApiKey(incoming: string | undefined, prev: string | undefined): string | undefined {
-  if (incoming === undefined || incoming.trim() === "") return undefined;
-  if (incoming.includes("****")) return prev;
-  return incoming;
-}
-
-function mergeWebSearch(
-  incoming: WebSearchSettings | undefined,
-  prev: WebSearchSettings | undefined,
-): WebSearchSettings | undefined {
-  if (!incoming) return prev;
-  const blank = (value: string | undefined): string | undefined => {
-    const trimmed = value?.trim();
-    return trimmed ? trimmed : undefined;
-  };
+function defaultHostPrefs(): DesktopPrefs & GeneralPrefs {
   return {
-    apiKey: mergeWebSearchApiKey(incoming.apiKey, prev?.apiKey),
-    baseUrl: blank(incoming.baseUrl),
-    model: blank(incoming.model),
+    locale: "zh-CN",
+    theme: "system",
+    debugToolsEnabled: false,
+    closeToTray: defaultCloseToTray(),
   };
 }
 
-export function getMaskedSettings(): AppSettings | null {
-  const settings = settingsStore.get("settings");
-  if (!settings) return null;
+export function getHostPrefs(): DesktopPrefs & GeneralPrefs {
+  return { ...defaultHostPrefs(), ...settingsStore.get("hostPrefs") };
+}
+
+export function getGeneralPrefs(): GeneralPrefs {
+  return { locale: getHostPrefs().locale };
+}
+
+export function saveGeneralPrefs(prefs: GeneralPrefs): void {
+  const current = getHostPrefs();
+  settingsStore.set("hostPrefs", { ...current, locale: prefs.locale });
+}
+
+export function getDesktopPrefs(): DesktopPrefs {
+  const prefs = getHostPrefs();
   return {
-    locale: settings.locale ?? "zh-CN",
-    models: {
-      text: maskModelGroup(settings.models?.text),
-      image: maskModelGroup(settings.models?.image),
-    },
-    customProviders: settings.customProviders ?? [],
-    debugToolsEnabled: settings.debugToolsEnabled ?? false,
-    closeToTray: settings.closeToTray ?? defaultCloseToTray(),
-    theme: settings.theme ?? "system",
-    tts: settings.tts,
-    proxy: settings.proxy,
-    webSearch: maskWebSearch(settings.webSearch),
-    notifications: settings.notifications,
+    theme: prefs.theme,
+    debugToolsEnabled: prefs.debugToolsEnabled,
+    closeToTray: prefs.closeToTray,
+    tts: prefs.tts,
+    proxy: prefs.proxy,
+    notifications: prefs.notifications,
   };
 }
 
-export function mergeModelGroup(
-  incoming: ModelGroupSettings | undefined,
-  prev: ModelGroupSettings | undefined,
-): ModelGroupSettings {
-  if (!incoming) return prev ?? { defaultModel: "", providers: {} };
-  const defaultModel = incoming?.defaultModel ?? prev?.defaultModel ?? "";
-  const providers: Record<string, ProviderCredentials> = {};
-  const allIds = new Set([
-    ...Object.keys(incoming?.providers ?? {}),
-    ...Object.keys(prev?.providers ?? {}),
-  ]);
-  for (const id of allIds) {
-    const newKey = incoming?.providers?.[id]?.apiKey;
-    const prevKey = prev?.providers?.[id]?.apiKey;
-    if (!newKey || newKey.trim() === "") continue;
-    if (newKey.includes("****")) {
-      if (prevKey) providers[id] = { apiKey: prevKey };
-    } else {
-      providers[id] = { apiKey: newKey };
-    }
-  }
-  return { defaultModel, providers, sampling: incoming?.sampling, thinkingLevel: incoming?.thinkingLevel };
+export function saveDesktopPrefs(prefs: DesktopPrefs): void {
+  const current = getHostPrefs();
+  settingsStore.set("hostPrefs", { ...current, ...prefs });
+  applyThemeSource(prefs.theme);
+  if (prefs.proxy !== undefined) applyProxyEnv(prefs.proxy);
 }
 
-export function saveSettings(incoming: AppSettings): void {
-  const prev = settingsStore.get("settings");
-  const merged: AppSettings = {
-    locale: incoming.locale ?? prev?.locale ?? "zh-CN",
-    models: {
-      text: mergeModelGroup(incoming.models?.text, prev?.models?.text),
-      image: mergeModelGroup(incoming.models?.image, prev?.models?.image),
-    },
-    customProviders: incoming.customProviders ?? prev?.customProviders ?? [],
-    debugToolsEnabled: incoming.debugToolsEnabled ?? prev?.debugToolsEnabled ?? false,
-    closeToTray: incoming.closeToTray ?? prev?.closeToTray ?? defaultCloseToTray(),
-    theme: incoming.theme ?? prev?.theme ?? "system",
-    mobileAccess: prev?.mobileAccess,
-    tts: incoming.tts ?? prev?.tts,
-    proxy: incoming.proxy ?? prev?.proxy,
-    webSearch: mergeWebSearch(incoming.webSearch, prev?.webSearch),
-    notifications: incoming.notifications ?? prev?.notifications,
-  };
-  settingsStore.set("settings", merged);
-  applySettingsToEnv(merged);
-}
-
-export function restoreEnvFromSettings(): void {
-  const settings = settingsStore.get("settings");
-  if (!settings) return;
-  applySettingsToEnv(settings);
-}
-
-export function applyThemeSource(theme: AppSettings["theme"]): void {
+export function applyThemeSource(theme: ThemeMode): void {
   nativeTheme.themeSource = theme ?? "system";
 }
 
@@ -199,7 +105,7 @@ function parseHttpProxyUrl(raw: string | undefined): string | undefined {
   }
 }
 
-function applyProxyEnv(proxy: ProxySettings): void {
+export function applyProxyEnv(proxy: ProxySettings): void {
   const proxyUrl = parseHttpProxyUrl(proxy.url);
   if (proxyUrl) {
     process.env.HTTPS_PROXY = proxyUrl;
@@ -224,62 +130,10 @@ function applyProxyEnv(proxy: ProxySettings): void {
   setGlobalDispatcher(new EnvHttpProxyAgent());
 }
 
-const envOverrides = new Map<string, string | undefined>();
-
-function applyProviderKeysToEnv(settings: AppSettings): void {
-  const textCatalog = getAppModelCatalog().getSupportedProviders();
-  const applied = new Set<string>();
-  for (const [id, creds] of Object.entries(settings.models?.text?.providers ?? {})) {
-    const envName = textCatalog[id]?.auth.envKeys[0];
-    if (!creds?.apiKey || !envName) continue;
-    if (!envOverrides.has(envName)) envOverrides.set(envName, process.env[envName]);
-    process.env[envName] = creds.apiKey;
-    applied.add(envName);
-  }
-  for (const [envName, original] of envOverrides) {
-    if (applied.has(envName)) continue;
-    if (original === undefined) delete process.env[envName];
-    else process.env[envName] = original;
-    envOverrides.delete(envName);
-  }
-}
-
-function applyWebSearchEnv(search: WebSearchSettings | undefined): void {
-  const apiKey = search?.apiKey?.trim();
-  if (apiKey) process.env[WEB_SEARCH_API_KEY_ENV] = apiKey;
-  else delete process.env[WEB_SEARCH_API_KEY_ENV];
-  const baseUrl = search?.baseUrl?.trim();
-  if (baseUrl) process.env[WEB_SEARCH_BASE_URL_ENV] = baseUrl;
-  else delete process.env[WEB_SEARCH_BASE_URL_ENV];
-  const model = search?.model?.trim();
-  if (model) process.env[WEB_SEARCH_MODEL_ENV] = model;
-  else delete process.env[WEB_SEARCH_MODEL_ENV];
-}
-
-function applySettingsToEnv(settings: AppSettings): void {
-  applyThemeSource(settings.theme);
-  applyProviderKeysToEnv(settings);
-  applyWebSearchEnv(settings.webSearch);
-
-  const imageGroup = settings.models?.image;
-  if (imageGroup?.defaultModel) {
-    process.env.SPHERSE_IMAGE_MODEL = imageGroup.defaultModel;
-    const slashIdx = imageGroup.defaultModel.indexOf("/");
-    const provider = slashIdx > 0 ? imageGroup.defaultModel.slice(0, slashIdx) : "";
-    process.env.SPHERSE_IMAGE_API_KEY = imageGroup.providers[provider]?.apiKey ?? "";
-  } else {
-    delete process.env.SPHERSE_IMAGE_MODEL;
-    delete process.env.SPHERSE_IMAGE_API_KEY;
-  }
-
-  getAppModelCatalog().syncCustomProviders(
-    settings.customProviders ?? [],
-    extractProviderKeys(settings.models?.text?.providers),
-  );
-
-  if (settings.proxy !== undefined) {
-    applyProxyEnv(settings.proxy);
-  }
+export function applyHostPrefsToEnv(): void {
+  const prefs = getHostPrefs();
+  applyThemeSource(prefs.theme);
+  if (prefs.proxy !== undefined) applyProxyEnv(prefs.proxy);
 }
 
 export function getOpenProjects(): OpenProjectEntry[] {
@@ -348,24 +202,16 @@ export function setLastActiveProject(projectPath: string | null): void {
   settingsStore.set("lastActiveProject", projectPath);
 }
 
-function defaultCloseToTray(): boolean {
+export function defaultCloseToTray(): boolean {
   return app.isPackaged || process.env.NODE_ENV === "test";
 }
 
 export function getCloseToTray(): boolean {
-  return settingsStore.get("settings")?.closeToTray ?? defaultCloseToTray();
+  return getHostPrefs().closeToTray;
 }
 
 export function getLocale(): string {
-  return settingsStore.get("settings")?.locale ?? "zh-CN";
-}
-
-export function setLocale(locale: string): void {
-  const settings = settingsStore.get("settings");
-  if (settings) {
-    settings.locale = locale;
-    settingsStore.set("settings", settings);
-  }
+  return getHostPrefs().locale;
 }
 
 export function generateAccessToken(): string {
@@ -375,11 +221,6 @@ export function generateAccessToken(): string {
 export function getServerToken(): string {
   const existing = settingsStore.get("serverToken");
   if (existing) return existing;
-  const legacy = settingsStore.get("settings")?.mobileAccess?.token;
-  if (legacy) {
-    settingsStore.set("serverToken", legacy);
-    return legacy;
-  }
   const token = generateAccessToken();
   settingsStore.set("serverToken", token);
   return token;
@@ -390,25 +231,18 @@ export function setServerToken(token: string): void {
 }
 
 export function getMobileAccess(): MobileAccessSettings {
-  const settings = settingsStore.get("settings");
+  const stored = settingsStore.get("mobileAccess");
   return {
-    enabled: settings?.mobileAccess?.enabled ?? false,
-    token: settings?.mobileAccess?.token,
-    mode: settings?.mobileAccess?.mode ?? "quick",
-    publicDomain: settings?.mobileAccess?.publicDomain,
+    enabled: stored?.enabled ?? false,
+    token: stored?.token,
+    mode: stored?.mode ?? "quick",
+    publicDomain: stored?.publicDomain,
   };
 }
 
 export function setMobileAccess(patch: Partial<MobileAccessSettings>): MobileAccessSettings {
-  const settings = settingsStore.get("settings") ?? ({} as AppSettings);
-  const current: MobileAccessSettings = {
-    enabled: settings.mobileAccess?.enabled ?? false,
-    token: settings.mobileAccess?.token,
-    mode: settings.mobileAccess?.mode ?? "quick",
-    publicDomain: settings.mobileAccess?.publicDomain,
-  };
+  const current = getMobileAccess();
   const next: MobileAccessSettings = { ...current, ...patch };
-  settings.mobileAccess = next;
-  settingsStore.set("settings", settings);
+  settingsStore.set("mobileAccess", next);
   return next;
 }

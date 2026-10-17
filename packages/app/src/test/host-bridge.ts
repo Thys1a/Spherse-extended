@@ -20,8 +20,14 @@ export function createMockHostBridge(overrides: HostBridgeOverrides = {}): HostB
       ...capabilities,
     },
     getServerBaseUrl: vi.fn(async () => "http://localhost:5173"),
-    getSettings: vi.fn(async () => null),
-    saveSettings: vi.fn(async () => ({ success: true })),
+    prefs: {
+      getPrefs: vi.fn(async () => ({ locale: "zh-CN" })),
+      savePrefs: vi.fn(async () => true),
+    },
+    desktopPrefs: {
+      getPrefs: vi.fn(async () => ({ theme: "system" as const, debugToolsEnabled: false, closeToTray: true })),
+      savePrefs: vi.fn(async () => true),
+    },
     openExternal: vi.fn(async () => {}),
     notify: vi.fn(),
   };

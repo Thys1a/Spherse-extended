@@ -1,398 +1,106 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { SettingsApi } from "../features/settings/types";
+import type { HostBridge } from "../lib/host-bridge";
+import { createMockHostBridge } from "../test/host-bridge";
 import { useSettingsStore } from "./settings-store";
 
-function createApi(overrides: Partial<SettingsApi> = {}): SettingsApi {
+function createBridge(prefs: Record<string, unknown> = {}, desktop: Record<string, unknown> = {}): HostBridge {
+  const bridge = createMockHostBridge();
   return {
-    getSupportedProviders: vi.fn().mockResolvedValue({}),
-    getImageProviders: vi.fn().mockResolvedValue({}),
-    getSettings: vi.fn().mockResolvedValue(null),
-    saveSettings: vi.fn().mockResolvedValue({ success: true }),
-    ...overrides,
-  };
+    ...bridge,
+    prefs: {
+      getPrefs: vi.fn(async () => ({ locale: "zh-CN", ...prefs })),
+      savePrefs: vi.fn(async () => true),
+    },
+    desktopPrefs: {
+      getPrefs: vi.fn(async () => ({
+        theme: "system",
+        debugToolsEnabled: false,
+        closeToTray: true,
+        ...desktop,
+      })),
+      savePrefs: vi.fn(async () => true),
+    },
+  } as unknown as HostBridge;
 }
 
-describe("useSettingsStore", () => {
-  beforeEach(() => {
-    useSettingsStore.setState({ locale: "zh-CN", debugToolsEnabled: false, closeToTray: true, theme: "system", tts: {}, proxy: {}, webSearch: {}, notifications: {} });
+beforeEach(() => {
+  useSettingsStore.setState({
+    loaded: false,
+    locale: "zh-CN",
+    debugToolsEnabled: false,
+    closeToTray: true,
+    theme: "system",
+    tts: {},
+    proxy: {},
+    notifications: {},
+  });
+});
+
+describe("useSettingsStore prefs", () => {
+  it("loads locale and desktop prefs from the bridge", async () => {
+    const bridge = createBridge({ locale: "en" }, { theme: "dark", debugToolsEnabled: true, closeToTray: false });
+
+    await useSettingsStore.getState().loadPrefs(bridge);
+
+    const state = useSettingsStore.getState();
+    expect(state.loaded).toBe(true);
+    expect(state.locale).toBe("en");
+    expect(state.theme).toBe("dark");
+    expect(state.debugToolsEnabled).toBe(true);
+    expect(state.closeToTray).toBe(false);
   });
 
-  it("loads locale from settings", async () => {
-    const api = createApi({
-      getSettings: vi.fn().mockResolvedValue({ locale: "en" }),
-    });
+  it("falls back to defaults when the bridge has no desktop prefs", async () => {
+    const bridge = createMockHostBridge();
+    const webBridge = { ...bridge, desktopPrefs: undefined };
 
-    await useSettingsStore.getState().loadLocale(api);
+    await useSettingsStore.getState().loadPrefs(webBridge);
 
-    expect(useSettingsStore.getState().locale).toBe("en");
+    const state = useSettingsStore.getState();
+    expect(state.loaded).toBe(true);
+    expect(state.theme).toBe("system");
+    expect(state.debugToolsEnabled).toBe(false);
   });
 
-  it("defaults to zh-CN when no locale in settings", async () => {
-    const api = createApi();
+  it("changeLocale persists through prefs", async () => {
+    const bridge = createBridge();
+    await useSettingsStore.getState().loadPrefs(bridge);
 
-    await useSettingsStore.getState().loadLocale(api);
-
-    expect(useSettingsStore.getState().locale).toBe("zh-CN");
-  });
-
-  it("changeLocale updates locale and persists without models", async () => {
-    const api = createApi({
-      getSettings: vi.fn().mockResolvedValue({}),
-    });
-
-    const ok = await useSettingsStore.getState().changeLocale(api, "en");
+    const ok = await useSettingsStore.getState().changeLocale(bridge, "en");
 
     expect(ok).toBe(true);
     expect(useSettingsStore.getState().locale).toBe("en");
-    const saved = (api.saveSettings as ReturnType<typeof vi.fn>).mock.calls[0][0];
-    expect(saved.locale).toBe("en");
-    expect("models" in saved).toBe(false);
+    expect(bridge.prefs.savePrefs).toHaveBeenCalledWith({ locale: "en" });
   });
 
-  it("loads debugToolsEnabled from settings", async () => {
-    const api = createApi({
-      getSettings: vi.fn().mockResolvedValue({ debugToolsEnabled: true }),
-    });
+  it("desktop setters persist the full desktop object", async () => {
+    const bridge = createBridge();
+    await useSettingsStore.getState().loadPrefs(bridge);
 
-    await useSettingsStore.getState().loadLocale(api);
+    await useSettingsStore.getState().setTheme(bridge, "dark");
+    expect(bridge.desktopPrefs!.savePrefs).toHaveBeenCalledWith(
+      expect.objectContaining({ theme: "dark", debugToolsEnabled: false, closeToTray: true }),
+    );
 
-    expect(useSettingsStore.getState().debugToolsEnabled).toBe(true);
+    await useSettingsStore.getState().setTts(bridge, { autoRead: true });
+    expect(bridge.desktopPrefs!.savePrefs).toHaveBeenLastCalledWith(expect.objectContaining({ tts: { autoRead: true } }));
+
+    await useSettingsStore.getState().setProxy(bridge, { url: "http://127.0.0.1:7890" });
+    expect(bridge.desktopPrefs!.savePrefs).toHaveBeenLastCalledWith(
+      expect.objectContaining({ proxy: { url: "http://127.0.0.1:7890" } }),
+    );
+
+    await useSettingsStore.getState().setNotifications(bridge, { trigger: false });
+    expect(bridge.desktopPrefs!.savePrefs).toHaveBeenLastCalledWith(
+      expect.objectContaining({ notifications: { trigger: false } }),
+    );
   });
 
-  it("defaults debugToolsEnabled to false when absent", async () => {
-    const api = createApi();
+  it("desktop setters return false without desktop prefs", async () => {
+    const bridge = createMockHostBridge();
+    const webBridge = { ...bridge, desktopPrefs: undefined };
 
-    await useSettingsStore.getState().loadLocale(api);
-
-    expect(useSettingsStore.getState().debugToolsEnabled).toBe(false);
-  });
-
-  it("setDebugToolsEnabled updates state and persists", async () => {
-    const api = createApi({
-      getSettings: vi.fn().mockResolvedValue({ locale: "zh-CN", models: undefined }),
-    });
-
-    const ok = await useSettingsStore.getState().setDebugToolsEnabled(api, true);
-
-    expect(ok).toBe(true);
-    expect(useSettingsStore.getState().debugToolsEnabled).toBe(true);
-    expect(api.saveSettings).toHaveBeenCalledWith({
-      locale: "zh-CN",
-      debugToolsEnabled: true,
-      theme: "system",
-      tts: {},
-      proxy: {},
-      closeToTray: true,
-      webSearch: {},
-      notifications: {},
-    });
-  });
-
-  it("loads theme from settings", async () => {
-    const api = createApi({
-      getSettings: vi.fn().mockResolvedValue({ theme: "dark" }),
-    });
-
-    await useSettingsStore.getState().loadLocale(api);
-
+    expect(await useSettingsStore.getState().setTheme(webBridge, "dark")).toBe(false);
     expect(useSettingsStore.getState().theme).toBe("dark");
-  });
-
-  it("defaults theme to system when absent", async () => {
-    const api = createApi();
-
-    await useSettingsStore.getState().loadLocale(api);
-
-    expect(useSettingsStore.getState().theme).toBe("system");
-  });
-
-  it("setTheme updates state and persists", async () => {
-    const api = createApi({
-      getSettings: vi.fn().mockResolvedValue({ locale: "zh-CN", models: undefined }),
-    });
-
-    const ok = await useSettingsStore.getState().setTheme(api, "dark");
-
-    expect(ok).toBe(true);
-    expect(useSettingsStore.getState().theme).toBe("dark");
-    expect(api.saveSettings).toHaveBeenCalledWith({
-      locale: "zh-CN",
-      debugToolsEnabled: false,
-      theme: "dark",
-      tts: {},
-      proxy: {},
-      closeToTray: true,
-      webSearch: {},
-      notifications: {},
-    });
-  });
-
-  it("setTheme preserves existing debugToolsEnabled and locale", async () => {
-    useSettingsStore.setState({ locale: "en", debugToolsEnabled: true });
-    const api = createApi({
-      getSettings: vi.fn().mockResolvedValue({ locale: "en", models: undefined }),
-    });
-
-    await useSettingsStore.getState().setTheme(api, "light");
-
-    expect(api.saveSettings).toHaveBeenCalledWith({
-      locale: "en",
-      debugToolsEnabled: true,
-      theme: "light",
-      tts: {},
-      proxy: {},
-      closeToTray: true,
-      webSearch: {},
-      notifications: {},
-    });
-  });
-
-  it("loads tts settings from settings", async () => {
-    const api = createApi({
-      getSettings: vi.fn().mockResolvedValue({ tts: { voiceURI: "v1", rate: 1.2, autoRead: true } }),
-    });
-
-    await useSettingsStore.getState().loadLocale(api);
-
-    expect(useSettingsStore.getState().tts).toEqual({ voiceURI: "v1", rate: 1.2, autoRead: true });
-  });
-
-  it("setTts merges patch and persists", async () => {
-    const api = createApi({
-      getSettings: vi.fn().mockResolvedValue({ models: undefined }),
-    });
-
-    const ok = await useSettingsStore.getState().setTts(api, { autoRead: true });
-
-    expect(ok).toBe(true);
-    expect(useSettingsStore.getState().tts).toEqual({ autoRead: true });
-    expect(api.saveSettings).toHaveBeenCalledWith({
-      locale: "zh-CN",
-      debugToolsEnabled: false,
-      theme: "system",
-      tts: { autoRead: true },
-      proxy: {},
-      closeToTray: true,
-      webSearch: {},
-      notifications: {},
-    });
-  });
-
-  it("loads proxy settings from settings", async () => {
-    const api = createApi({
-      getSettings: vi.fn().mockResolvedValue({ proxy: { url: "http://127.0.0.1:7890", noProxy: "localhost" } }),
-    });
-
-    await useSettingsStore.getState().loadLocale(api);
-
-    expect(useSettingsStore.getState().proxy).toEqual({ url: "http://127.0.0.1:7890", noProxy: "localhost" });
-  });
-
-  it("setProxy merges patch and persists", async () => {
-    const api = createApi({
-      getSettings: vi.fn().mockResolvedValue({ models: undefined }),
-    });
-
-    const ok = await useSettingsStore.getState().setProxy(api, { url: "http://127.0.0.1:7890" });
-
-    expect(ok).toBe(true);
-    expect(useSettingsStore.getState().proxy).toEqual({ url: "http://127.0.0.1:7890" });
-    expect(api.saveSettings).toHaveBeenCalledWith({
-      locale: "zh-CN",
-      debugToolsEnabled: false,
-      theme: "system",
-      tts: {},
-      proxy: { url: "http://127.0.0.1:7890" },
-      closeToTray: true,
-      webSearch: {},
-      notifications: {},
-    });
-  });
-
-  it("old setters preserve pre-existing proxy", async () => {
-    useSettingsStore.setState({ proxy: { url: "http://127.0.0.1:7890" } });
-    const api = createApi({
-      getSettings: vi.fn().mockResolvedValue({ locale: "zh-CN", models: undefined }),
-    });
-
-    await useSettingsStore.getState().setTheme(api, "dark");
-
-    expect(api.saveSettings).toHaveBeenCalledWith({
-      locale: "zh-CN",
-      debugToolsEnabled: false,
-      theme: "dark",
-      tts: {},
-      proxy: { url: "http://127.0.0.1:7890" },
-      closeToTray: true,
-      webSearch: {},
-      notifications: {},
-    });
-  });
-
-  it("setProxy drops undefined keys", async () => {
-    useSettingsStore.setState({ proxy: { url: "http://127.0.0.1:7890", noProxy: "localhost" } });
-    const api = createApi({
-      getSettings: vi.fn().mockResolvedValue({ models: undefined }),
-    });
-
-    await useSettingsStore.getState().setProxy(api, { url: undefined });
-
-    expect(useSettingsStore.getState().proxy).toEqual({ noProxy: "localhost" });
-    expect("url" in useSettingsStore.getState().proxy).toBe(false);
-  });
-
-  it("loads notification prefs from settings", async () => {
-    const api = createApi({
-      getSettings: vi.fn().mockResolvedValue({ notifications: { approval: false } }),
-    });
-
-    await useSettingsStore.getState().loadLocale(api);
-
-    expect(useSettingsStore.getState().notifications).toEqual({ approval: false });
-  });
-
-  it("defaults notification prefs to empty when absent", async () => {
-    const api = createApi();
-
-    await useSettingsStore.getState().loadLocale(api);
-
-    expect(useSettingsStore.getState().notifications).toEqual({});
-  });
-
-  it("setNotifications merges patch and persists without dropping other fields", async () => {
-    useSettingsStore.setState({ theme: "dark", tts: { autoRead: true } });
-    const api = createApi({
-      getSettings: vi.fn().mockResolvedValue({ locale: "en", models: undefined }),
-    });
-
-    const ok = await useSettingsStore.getState().setNotifications(api, { trigger: false });
-
-    expect(ok).toBe(true);
-    expect(useSettingsStore.getState().notifications).toEqual({ trigger: false });
-    expect(api.saveSettings).toHaveBeenCalledWith({
-      locale: "en",
-      debugToolsEnabled: false,
-      theme: "dark",
-      tts: { autoRead: true },
-      proxy: {},
-      closeToTray: true,
-      webSearch: {},
-      notifications: { trigger: false },
-    });
-  });
-
-  it("loads webSearch settings from settings", async () => {
-    const api = createApi({
-      getSettings: vi.fn().mockResolvedValue({ webSearch: { apiKey: "sk-****-key", baseUrl: "https://gateway.test/anthropic", model: "custom/search-1" } }),
-    });
-
-    await useSettingsStore.getState().loadLocale(api);
-
-    expect(useSettingsStore.getState().webSearch).toEqual({ apiKey: "sk-****-key", baseUrl: "https://gateway.test/anthropic", model: "custom/search-1" });
-  });
-
-  it("setWebSearch merges patch and persists", async () => {
-    const api = createApi({
-      getSettings: vi.fn().mockResolvedValue({ models: undefined }),
-    });
-
-    const ok = await useSettingsStore.getState().setWebSearch(api, { apiKey: "sk-live-key" });
-
-    expect(ok).toBe(true);
-    expect(useSettingsStore.getState().webSearch).toEqual({ apiKey: "sk-live-key" });
-    expect(api.saveSettings).toHaveBeenCalledWith({
-      locale: "zh-CN",
-      debugToolsEnabled: false,
-      theme: "system",
-      tts: {},
-      proxy: {},
-      closeToTray: true,
-      webSearch: { apiKey: "sk-live-key" },
-      notifications: {},
-    });
-  });
-
-  it("setWebSearch drops undefined keys", async () => {
-    useSettingsStore.setState({ webSearch: { apiKey: "sk-live-key", model: "custom/search-1" } });
-    const api = createApi({
-      getSettings: vi.fn().mockResolvedValue({ models: undefined }),
-    });
-
-    await useSettingsStore.getState().setWebSearch(api, { apiKey: undefined });
-
-    expect(useSettingsStore.getState().webSearch).toEqual({ model: "custom/search-1" });
-    expect("apiKey" in useSettingsStore.getState().webSearch).toBe(false);
-    expect(api.saveSettings).toHaveBeenCalledWith(expect.objectContaining({ webSearch: { model: "custom/search-1" } }));
-  });
-
-  it("old setters preserve pre-existing webSearch", async () => {
-    useSettingsStore.setState({ webSearch: { apiKey: "sk-live-key" } });
-    const api = createApi({
-      getSettings: vi.fn().mockResolvedValue({ locale: "zh-CN", models: undefined }),
-    });
-
-    await useSettingsStore.getState().setTheme(api, "dark");
-
-    expect(api.saveSettings).toHaveBeenCalledWith({
-      locale: "zh-CN",
-      debugToolsEnabled: false,
-      theme: "dark",
-      tts: {},
-      proxy: {},
-      closeToTray: true,
-      webSearch: { apiKey: "sk-live-key" },
-      notifications: {},
-    });
-  });
-
-  it("loads closeToTray from settings", async () => {
-    const api = createApi({
-      getSettings: vi.fn().mockResolvedValue({ closeToTray: false }),
-    });
-
-    await useSettingsStore.getState().loadLocale(api);
-
-    expect(useSettingsStore.getState().closeToTray).toBe(false);
-  });
-
-  it("setCloseToTray updates state and persists", async () => {
-    const api = createApi({
-      getSettings: vi.fn().mockResolvedValue({ models: undefined }),
-    });
-
-    const ok = await useSettingsStore.getState().setCloseToTray(api, false);
-
-    expect(ok).toBe(true);
-    expect(useSettingsStore.getState().closeToTray).toBe(false);
-    expect(api.saveSettings).toHaveBeenCalledWith({
-      locale: "zh-CN",
-      debugToolsEnabled: false,
-      closeToTray: false,
-      theme: "system",
-      tts: {},
-      proxy: {},
-      webSearch: {},
-      notifications: {},
-    });
-  });
-
-  it("old setters preserve pre-existing closeToTray", async () => {
-    useSettingsStore.setState({ closeToTray: false });
-    const api = createApi({
-      getSettings: vi.fn().mockResolvedValue({ locale: "zh-CN", models: undefined }),
-    });
-
-    await useSettingsStore.getState().setTheme(api, "dark");
-
-    expect(api.saveSettings).toHaveBeenCalledWith({
-      locale: "zh-CN",
-      debugToolsEnabled: false,
-      closeToTray: false,
-      theme: "dark",
-      tts: {},
-      proxy: {},
-      webSearch: {},
-      notifications: {},
-    });
   });
 });

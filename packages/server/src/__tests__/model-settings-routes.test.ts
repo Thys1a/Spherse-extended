@@ -7,6 +7,7 @@ import { ModelCatalog } from "@spherse/core";
 import { registerSettingsRoutes } from "../routes/settings.js";
 import type { ProjectRegistry } from "../registry.js";
 import { ModelSettingsStore } from "../model-settings.js";
+import { WebSearchSettingsStore } from "../web-search-settings.js";
 
 describe("GET /api/settings/models route", () => {
   let app: FastifyInstance;
@@ -16,6 +17,7 @@ describe("GET /api/settings/models route", () => {
     registerSettingsRoutes(app, {} as ProjectRegistry, {
       modelSettingsStore: new ModelSettingsStore(),
       modelCatalog: new ModelCatalog(),
+      webSearchSettingsStore: new WebSearchSettingsStore(),
     });
     await app.ready();
   });
@@ -49,6 +51,7 @@ describe("GET /api/settings/models route", () => {
     registerSettingsRoutes(gated, {} as ProjectRegistry, {
       modelSettingsStore: store,
       modelCatalog: new ModelCatalog(),
+      webSearchSettingsStore: new WebSearchSettingsStore(),
     });
     await gated.ready();
     try {
@@ -83,6 +86,7 @@ describe("GET /api/settings/models route", () => {
       registerSettingsRoutes(seeded, {} as ProjectRegistry, {
         modelSettingsStore: reloaded,
         modelCatalog: new ModelCatalog(),
+        webSearchSettingsStore: new WebSearchSettingsStore(),
       });
       await seeded.ready();
       try {
@@ -115,6 +119,7 @@ describe("GET /api/settings/models route", () => {
     registerSettingsRoutes(writable, registry as unknown as ProjectRegistry, {
       modelSettingsStore: store,
       modelCatalog: new ModelCatalog(),
+      webSearchSettingsStore: new WebSearchSettingsStore(),
     });
     await writable.ready();
     try {
@@ -182,9 +187,14 @@ describe("GET /api/settings/models route", () => {
       ],
     });
     const loop = Fastify();
-    registerSettingsRoutes(loop, {} as ProjectRegistry, {
+    registerSettingsRoutes(loop, {
+      setDefaultModel: vi.fn(),
+      setSampling: vi.fn(),
+      setThinkingLevel: vi.fn(),
+    } as unknown as ProjectRegistry, {
       modelSettingsStore: store,
       modelCatalog: new ModelCatalog(),
+      webSearchSettingsStore: new WebSearchSettingsStore(),
     });
     await loop.ready();
     try {
@@ -223,6 +233,7 @@ describe("GET /api/settings/models route", () => {
     registerSettingsRoutes(cleared, registry as unknown as ProjectRegistry, {
       modelSettingsStore: store,
       modelCatalog: new ModelCatalog(),
+      webSearchSettingsStore: new WebSearchSettingsStore(),
     });
     await cleared.ready();
     try {

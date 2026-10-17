@@ -1,188 +1,118 @@
 import { create } from "zustand";
 import { normalizeLocale, type Locale } from "@spherse/i18n";
-import type { TtsSettings, ProxySettings, WebSearchSettings } from "@spherse/core";
+import type { TtsSettings, ProxySettings } from "@spherse/core";
 import type { HostBridge, NotificationSettings, ThemeMode } from "../lib/host-bridge";
 
-export type SettingsStoreApi = Pick<HostBridge, "getSettings" | "saveSettings">;
+const DEFAULT_DESKTOP_PREFS = {
+  theme: "system" as ThemeMode,
+  debugToolsEnabled: false,
+  closeToTray: true,
+  tts: {},
+  proxy: {},
+  notifications: {},
+};
 
 interface SettingsStore {
+  loaded: boolean;
   locale: Locale;
   debugToolsEnabled: boolean;
   closeToTray: boolean;
   theme: ThemeMode;
   tts: TtsSettings;
   proxy: ProxySettings;
-  webSearch: WebSearchSettings;
   notifications: NotificationSettings;
-  loadLocale: (api: SettingsStoreApi) => Promise<void>;
-  changeLocale: (api: SettingsStoreApi, locale: Locale) => Promise<boolean>;
-  setDebugToolsEnabled: (api: SettingsStoreApi, enabled: boolean) => Promise<boolean>;
-  setCloseToTray: (api: SettingsStoreApi, enabled: boolean) => Promise<boolean>;
-  setTheme: (api: SettingsStoreApi, theme: ThemeMode) => Promise<boolean>;
-  setTts: (api: SettingsStoreApi, patch: Partial<TtsSettings>) => Promise<boolean>;
-  setProxy: (api: SettingsStoreApi, patch: Partial<ProxySettings>) => Promise<boolean>;
-  setWebSearch: (api: SettingsStoreApi, patch: Partial<WebSearchSettings>) => Promise<boolean>;
-  setNotifications: (api: SettingsStoreApi, patch: Partial<NotificationSettings>) => Promise<boolean>;
+  loadPrefs: (bridge: HostBridge) => Promise<void>;
+  changeLocale: (bridge: HostBridge, locale: Locale) => Promise<boolean>;
+  setDebugToolsEnabled: (bridge: HostBridge, enabled: boolean) => Promise<boolean>;
+  setCloseToTray: (bridge: HostBridge, enabled: boolean) => Promise<boolean>;
+  setTheme: (bridge: HostBridge, theme: ThemeMode) => Promise<boolean>;
+  setTts: (bridge: HostBridge, patch: Partial<TtsSettings>) => Promise<boolean>;
+  setProxy: (bridge: HostBridge, patch: Partial<ProxySettings>) => Promise<boolean>;
+  setNotifications: (bridge: HostBridge, patch: Partial<NotificationSettings>) => Promise<boolean>;
 }
 
-export const useSettingsStore = create<SettingsStore>((set, get) => ({
-  locale: "zh-CN",
-  debugToolsEnabled: false,
-  closeToTray: true,
-  theme: "system",
-  tts: {},
-  proxy: {},
-  webSearch: {},
-  notifications: {},
+type DesktopOnlyPrefs = Pick<SettingsStore, "debugToolsEnabled" | "closeToTray" | "theme" | "tts" | "proxy" | "notifications">;
 
-  async loadLocale(api) {
-    const settings = await api.getSettings();
-    set({
-      locale: normalizeLocale(settings?.locale),
-      debugToolsEnabled: settings?.debugToolsEnabled ?? false,
-      closeToTray: settings?.closeToTray ?? true,
-      theme: settings?.theme ?? "system",
-      tts: settings?.tts ?? {},
-      proxy: settings?.proxy ?? {},
-      webSearch: settings?.webSearch ?? {},
-      notifications: settings?.notifications ?? {},
+export const useSettingsStore = create<SettingsStore>((set, get) => {
+  async function persistDesktopPrefs(bridge: HostBridge, patch: Partial<DesktopOnlyPrefs>): Promise<boolean> {
+    const prefs = bridge.desktopPrefs;
+    if (!prefs) return false;
+    return prefs.savePrefs({
+      theme: patch.theme ?? get().theme,
+      debugToolsEnabled: patch.debugToolsEnabled ?? get().debugToolsEnabled,
+      closeToTray: patch.closeToTray ?? get().closeToTray,
+      tts: patch.tts ?? get().tts,
+      proxy: patch.proxy ?? get().proxy,
+      notifications: patch.notifications ?? get().notifications,
     });
-  },
+  }
 
-  async changeLocale(api, locale) {
-    set({ locale });
-    await api.saveSettings({
-      locale,
-      debugToolsEnabled: get().debugToolsEnabled,
-      closeToTray: get().closeToTray,
-      theme: get().theme,
-      tts: get().tts,
-      proxy: get().proxy,
-      webSearch: get().webSearch,
-      notifications: get().notifications,
-    });
-    return true;
-  },
-
-  async setDebugToolsEnabled(api, enabled) {
-    set({ debugToolsEnabled: enabled });
-    const settings = await api.getSettings();
-    await api.saveSettings({
-      locale: settings?.locale ?? get().locale,
-      debugToolsEnabled: enabled,
-      closeToTray: get().closeToTray,
-      theme: get().theme,
-      tts: get().tts,
-      proxy: get().proxy,
-      webSearch: get().webSearch,
-      notifications: get().notifications,
-    });
-    return true;
-  },
-
-  async setCloseToTray(api, enabled) {
-    set({ closeToTray: enabled });
-    const settings = await api.getSettings();
-    await api.saveSettings({
-      locale: settings?.locale ?? get().locale,
-      debugToolsEnabled: get().debugToolsEnabled,
-      closeToTray: enabled,
-      theme: get().theme,
-      tts: get().tts,
-      proxy: get().proxy,
-      webSearch: get().webSearch,
-      notifications: get().notifications,
-    });
-    return true;
-  },
-
-  async setTheme(api, theme) {
-    set({ theme });
-    const settings = await api.getSettings();
-    await api.saveSettings({
-      locale: settings?.locale ?? get().locale,
-      debugToolsEnabled: get().debugToolsEnabled,
-      closeToTray: get().closeToTray,
-      theme,
-      tts: get().tts,
-      proxy: get().proxy,
-      webSearch: get().webSearch,
-      notifications: get().notifications,
-    });
-    return true;
-  },
-
-  async setTts(api, patch) {
-    const next = { ...get().tts, ...patch };
-    set({ tts: next });
-    const settings = await api.getSettings();
-    await api.saveSettings({
-      locale: settings?.locale ?? get().locale,
-      debugToolsEnabled: get().debugToolsEnabled,
-      closeToTray: get().closeToTray,
-      theme: get().theme,
-      tts: next,
-      proxy: get().proxy,
-      webSearch: get().webSearch,
-      notifications: get().notifications,
-    });
-    return true;
-  },
-
-  async setProxy(api, patch) {
-    const next = { ...get().proxy, ...patch };
-    for (const key of Object.keys(next) as (keyof typeof next)[]) {
-      if (next[key] === undefined) delete next[key];
+  function pruneUndefined<T extends Record<string, unknown>>(value: T): T {
+    for (const key of Object.keys(value)) {
+      if (value[key] === undefined) delete value[key];
     }
-    set({ proxy: next });
-    const settings = await api.getSettings();
-    await api.saveSettings({
-      locale: settings?.locale ?? get().locale,
-      debugToolsEnabled: get().debugToolsEnabled,
-      closeToTray: get().closeToTray,
-      theme: get().theme,
-      tts: get().tts,
-      proxy: next,
-      webSearch: get().webSearch,
-      notifications: get().notifications,
-    });
-    return true;
-  },
+    return value;
+  }
 
-  async setWebSearch(api, patch) {
-    const next = { ...get().webSearch, ...patch };
-    for (const key of Object.keys(next) as (keyof typeof next)[]) {
-      if (next[key] === undefined) delete next[key];
-    }
-    set({ webSearch: next });
-    const settings = await api.getSettings();
-    await api.saveSettings({
-      locale: settings?.locale ?? get().locale,
-      debugToolsEnabled: get().debugToolsEnabled,
-      closeToTray: get().closeToTray,
-      theme: get().theme,
-      tts: get().tts,
-      proxy: get().proxy,
-      webSearch: next,
-      notifications: get().notifications,
-    });
-    return true;
-  },
+  return {
+    loaded: false,
+    locale: "zh-CN",
+    debugToolsEnabled: false,
+    closeToTray: true,
+    theme: "system",
+    tts: {},
+    proxy: {},
+    notifications: {},
 
-  async setNotifications(api, patch) {
-    const next = { ...get().notifications, ...patch };
-    set({ notifications: next });
-    const settings = await api.getSettings();
-    await api.saveSettings({
-      locale: settings?.locale ?? get().locale,
-      debugToolsEnabled: get().debugToolsEnabled,
-      closeToTray: get().closeToTray,
-      theme: get().theme,
-      tts: get().tts,
-      proxy: get().proxy,
-      webSearch: get().webSearch,
-      notifications: next,
-    });
-    return true;
-  },
-}));
+    async loadPrefs(bridge) {
+      const [general, desktop] = await Promise.all([
+        bridge.prefs.getPrefs().catch(() => null),
+        bridge.desktopPrefs?.getPrefs().catch(() => null) ?? Promise.resolve(null),
+      ]);
+      set({
+        loaded: true,
+        locale: normalizeLocale(general?.locale),
+        ...DEFAULT_DESKTOP_PREFS,
+        ...(desktop ?? {}),
+      });
+    },
+
+    async changeLocale(bridge, locale) {
+      set({ locale });
+      return bridge.prefs.savePrefs({ locale });
+    },
+
+    async setDebugToolsEnabled(bridge, enabled) {
+      set({ debugToolsEnabled: enabled });
+      return persistDesktopPrefs(bridge, { debugToolsEnabled: enabled });
+    },
+
+    async setCloseToTray(bridge, enabled) {
+      set({ closeToTray: enabled });
+      return persistDesktopPrefs(bridge, { closeToTray: enabled });
+    },
+
+    async setTheme(bridge, theme) {
+      set({ theme });
+      return persistDesktopPrefs(bridge, { theme });
+    },
+
+    async setTts(bridge, patch) {
+      const next = pruneUndefined({ ...get().tts, ...patch });
+      set({ tts: next });
+      return persistDesktopPrefs(bridge, { tts: next });
+    },
+
+    async setProxy(bridge, patch) {
+      const next = pruneUndefined({ ...get().proxy, ...patch });
+      set({ proxy: next });
+      return persistDesktopPrefs(bridge, { proxy: next });
+    },
+
+    async setNotifications(bridge, patch) {
+      const next = { ...get().notifications, ...patch };
+      set({ notifications: next });
+      return persistDesktopPrefs(bridge, { notifications: next });
+    },
+  };
+});

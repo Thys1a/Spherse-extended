@@ -27,6 +27,7 @@ vi.mock("../../lib/use-connection", () => ({
     listProjectSessions: vi.fn(async () => ({ sessions: [], byAgent: {} })),
     listAgents: vi.fn(async () => []),
   }),
+  useGlobalApiClient: () => null,
   useConnection: () => ({ baseUrl: "http://localhost:5173", accessToken: null }),
 }));
 

@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import type { CustomProviderDef, SamplingParams, ThinkingLevel } from "@spherse/core";
 import type { ModelSettingsResponse } from "../../lib/types";
-import type { ProviderConfig, SettingsApi, ModelSettingsApi } from "./types";
+import type { ProviderConfig, ModelSettingsApi } from "./types";
 import { generateCustomProviderId } from "./custom-provider-id.js";
 
 interface GroupFormState {
@@ -57,83 +57,53 @@ function configuredFromFlags(providers: Record<string, { configured: boolean }>)
   return map;
 }
 
-function extractKeys(providers: Record<string, { apiKey?: string }> | undefined): Record<string, string> {
-  const keys: Record<string, string> = {};
-  for (const [id, c] of Object.entries(providers ?? {})) {
-    if (c?.apiKey) keys[id] = c.apiKey;
-  }
-  return keys;
-}
-
-function keysToProviders(keys: Record<string, string>): Record<string, { apiKey: string }> {
-  const providers: Record<string, { apiKey: string }> = {};
-  for (const [id, key] of Object.entries(keys)) {
-    providers[id] = { apiKey: key };
-  }
-  return providers;
-}
-
-export function useSettingsForm(api: SettingsApi, modelApi: ModelSettingsApi | null = null) {
+export function useSettingsForm(modelApi: ModelSettingsApi | null) {
   const [textProviders, setTextProviders] = useState<Record<string, ProviderConfig>>({});
   const [imageProviders, setImageProviders] = useState<Record<string, ProviderConfig>>({});
   const [textData, setTextData] = useState<GroupData>({ ...EMPTY_GROUP });
   const [imageData, setImageData] = useState<GroupData>({ ...EMPTY_GROUP });
   const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const [customProviders, setCustomProviders] = useState<CustomProviderDef[]>([]);
-  const [useRest, setUseRest] = useState(false);
 
   useEffect(() => {
+    if (!modelApi) return;
+    let cancelled = false;
     void (async () => {
-      if (modelApi) {
-        try {
-          const [textCatalog, imageCatalog, settings] = await Promise.all([
-            modelApi.getSupportedProviders(),
-            modelApi.getImageProviders(),
-            modelApi.getModelSettings(),
-          ]);
-          setTextProviders(textCatalog ?? {});
-          setImageProviders(imageCatalog ?? {});
-          setTextData({
-            ...EMPTY_GROUP,
-            configured: configuredFromFlags(settings.models.text.providers),
-            defaultModel: settings.models.text.defaultModel ?? "",
-            sampling: settings.models.text.sampling,
-            thinkingLevel: settings.models.text.thinkingLevel,
-          });
-          setImageData({
-            ...EMPTY_GROUP,
-            configured: configuredFromFlags(settings.models.image.providers),
-            defaultModel: settings.models.image.defaultModel ?? "",
-          });
-          setCustomProviders(settings.customProviders ?? []);
-          setUseRest(true);
-          return;
-        } catch {
-          setUseRest(false);
-        }
+      try {
+        const [textCatalog, imageCatalog, settings] = await Promise.all([
+          modelApi.getSupportedProviders(),
+          modelApi.getImageProviders(),
+          modelApi.getModelSettings(),
+        ]);
+        if (cancelled) return;
+        setTextProviders(textCatalog ?? {});
+        setImageProviders(imageCatalog ?? {});
+        setTextData({
+          ...EMPTY_GROUP,
+          configured: configuredFromFlags(settings.models.text.providers),
+          defaultModel: settings.models.text.defaultModel ?? "",
+          sampling: settings.models.text.sampling,
+          thinkingLevel: settings.models.text.thinkingLevel,
+        });
+        setImageData({
+          ...EMPTY_GROUP,
+          configured: configuredFromFlags(settings.models.image.providers),
+          defaultModel: settings.models.image.defaultModel ?? "",
+        });
+        setCustomProviders(settings.customProviders ?? []);
+        setLoadError(false);
+      } catch {
+        if (cancelled) return;
+        setTextProviders({});
+        setImageProviders({});
+        setLoadError(true);
       }
-      const [textCatalog, imageCatalog, settings] = await Promise.all([
-        api.getSupportedProviders(),
-        api.getImageProviders(),
-        api.getSettings(),
-      ]);
-      setTextProviders(textCatalog ?? {});
-      setImageProviders(imageCatalog ?? {});
-      setTextData({
-        ...EMPTY_GROUP,
-        apiKeys: extractKeys(settings?.models?.text?.providers),
-        defaultModel: settings?.models?.text?.defaultModel ?? "",
-        sampling: settings?.models?.text?.sampling,
-        thinkingLevel: settings?.models?.text?.thinkingLevel,
-      });
-      setImageData({
-        ...EMPTY_GROUP,
-        apiKeys: extractKeys(settings?.models?.image?.providers),
-        defaultModel: settings?.models?.image?.defaultModel ?? "",
-      });
-      setCustomProviders(settings?.customProviders ?? []);
     })();
-  }, [api, modelApi]);
+    return () => {
+      cancelled = true;
+    };
+  }, [modelApi]);
 
   const applyResponse = useCallback((response: ModelSettingsResponse) => {
     const configured = configuredFromFlags(response.models.text.providers);
@@ -165,37 +135,28 @@ export function useSettingsForm(api: SettingsApi, modelApi: ModelSettingsApi | n
       imageOverride?: GroupData,
       customProvidersOverride?: CustomProviderDef[],
     ): Promise<boolean> => {
+      if (!modelApi) return false;
       const t = textOverride ?? textData;
       const i = imageOverride ?? imageData;
       const cp = customProvidersOverride ?? customProviders;
       setSaving(true);
       try {
-        if (useRest && modelApi) {
-          const response = await modelApi.updateModelSettings({
-            models: {
-              text: {
-                defaultModel: t.defaultModel,
-                providers: providersPayload(t),
-                sampling: t.sampling,
-                thinkingLevel: t.thinkingLevel,
-              },
-              image: {
-                defaultModel: i.defaultModel,
-                providers: providersPayload(i),
-              },
-            },
-            customProviders: cp,
-          });
-          applyResponse(response);
-          return true;
-        }
-        await api.saveSettings({
+        const response = await modelApi.updateModelSettings({
           models: {
-            text: { defaultModel: t.defaultModel, providers: keysToProviders(t.apiKeys), sampling: t.sampling, thinkingLevel: t.thinkingLevel },
-            image: { defaultModel: i.defaultModel, providers: keysToProviders(i.apiKeys) },
+            text: {
+              defaultModel: t.defaultModel,
+              providers: providersPayload(t),
+              sampling: t.sampling,
+              thinkingLevel: t.thinkingLevel,
+            },
+            image: {
+              defaultModel: i.defaultModel,
+              providers: providersPayload(i),
+            },
           },
           customProviders: cp,
         });
+        applyResponse(response);
         return true;
       } catch {
         return false;
@@ -203,14 +164,14 @@ export function useSettingsForm(api: SettingsApi, modelApi: ModelSettingsApi | n
         setSaving(false);
       }
     },
-    [api, modelApi, useRest, textData, imageData, customProviders, applyResponse],
+    [modelApi, textData, imageData, customProviders, applyResponse],
   );
 
   const refreshTextCatalog = useCallback(async () => {
-    const source = useRest && modelApi ? modelApi : api;
-    const textCatalog = await source.getSupportedProviders().catch(() => null);
+    if (!modelApi) return;
+    const textCatalog = await modelApi.getSupportedProviders().catch(() => null);
     if (textCatalog) setTextProviders(textCatalog);
-  }, [api, modelApi, useRest]);
+  }, [modelApi]);
 
   const addCustomProvider = useCallback(
     async (def: CustomProviderDef): Promise<boolean> => {
@@ -339,6 +300,7 @@ export function useSettingsForm(api: SettingsApi, modelApi: ModelSettingsApi | n
   const textGroup = makeGroup("text", textProviders, textData, setTextData);
   return {
     saving,
+    loadError,
     text: {
       ...textGroup,
       customProviders,

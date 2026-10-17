@@ -6,6 +6,10 @@ import { createTestQueryClient, renderWithProviders } from "../../test/render";
 import { AgentDialogForm } from "./AgentDialogForm";
 
 const getSupportedProviders = vi.fn(async () => ({}));
+const getModelSettings = vi.fn(async () => ({
+  models: { text: { defaultModel: "", providers: {} }, image: { defaultModel: "", providers: {} } },
+  customProviders: [],
+}));
 const listMarketplacePrompts = vi.fn(async () => ({
   schemaVersion: 1,
   generatedAt: "2026-10-11T00:00:00Z",
@@ -13,13 +17,15 @@ const listMarketplacePrompts = vi.fn(async () => ({
   prompts: [],
 }));
 
+const mockGlobalClient = { listMarketplacePrompts, getModelSettings };
+
 vi.mock("../../lib/use-connection", () => ({
   useApiClient: () => ({
     getSupportedProviders,
     listAgents: vi.fn(async () => []),
     searchFiles: vi.fn(async () => []),
   }),
-  useGlobalApiClient: () => ({ listMarketplacePrompts }),
+  useGlobalApiClient: () => mockGlobalClient,
   useConnection: () => ({ baseUrl: "http://localhost:5173", accessToken: null }),
 }));
 
@@ -139,12 +145,12 @@ describe("AgentDialogForm host gating", () => {
     getSupportedProviders.mockClear();
   });
 
-  it("hides model and thinking level config on web host and skips provider fetching", () => {
+  it("renders model and thinking level config on web host via rest settings", async () => {
     renderForm(undefined, "web");
 
-    expect(screen.queryByText(translate("zh-CN", "agent-dialog.modelLabel"))).toBeNull();
-    expect(screen.queryByText(translate("zh-CN", "settings.models.thinkingLevel"))).toBeNull();
-    expect(getSupportedProviders).not.toHaveBeenCalled();
+    expect(await screen.findByText(translate("zh-CN", "agent-dialog.modelLabel"))).toBeInTheDocument();
+    expect(screen.getByText(translate("zh-CN", "settings.models.thinkingLevel"))).toBeInTheDocument();
+    expect(getSupportedProviders).toHaveBeenCalled();
   });
 
   it("renders model and thinking level config on electron host", () => {

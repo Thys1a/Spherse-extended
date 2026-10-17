@@ -15,15 +15,10 @@ vi.mock("electron", () => ({
   app: { getVersion: () => "0.0.0-test" },
 }));
 vi.mock("./settings.js", () => ({
-  getSettings: () => undefined,
   getMobileAccess: () => ({}),
   getServerToken: () => "shutdown-test-token",
-  seedModelSettingsFromLegacy: () => undefined,
   getModelSettingsPath: () => "/tmp/test-model-settings.json",
-}));
-vi.mock("./model-catalog.js", () => ({
-  getAppCatalog: () => undefined,
-  getAppModelCatalog: () => undefined,
+  getWebSearchSettingsPath: () => "/tmp/test-web-search-settings.json",
 }));
 vi.mock("@spherse/server", () => ({
   createMultiProjectServer: createServerMock,

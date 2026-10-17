@@ -110,8 +110,9 @@
 - 7bdabd5 的 review 修复：sanitize 剥离 custom headers（明文不出新边界）；normalize 守卫 sampling 白名单 thinkingLevel + image 去采样（脏盘不 500）；单 catalog 实例（registry 与路由同源）；0600 落盘 + 随机 tmp；providers 路由改走注入实例；custom 操作 locked 早退；_registry 预留 P2。M3（existsSync 竞态）转 P3 迁移约束；I1 分叉窗口以"P2 PUT 接线 + 桥写封口同 commit"为关闭条件。
 - #144 P2（写链）落地：PUT 路由（rotation/blank-delete/registry 同步/env 应用）+ GlobalApiClient.updateModelSettings + form writes/clears 增量语义（去 locked/fieldset）+ settings-store 去 models 回带（桥写封口，I1 关闭）+ desktop merge 未定义组保留 + IPC 注册推送守卫（缺字段不再清 registry）。验证：typecheck 全过、server 模型路由/ contracts /app settings 127/desktop 295 全绿，lint 0 errors。P3（桥接+迁移+开 web）待续。
 - 8ad4dc9 的 review 修复（important-1）：REST 下 custom 增删改后目录刷新改走 modelApi（桥目录回写致新行消失），附测试；medium（M2/M3）与 minor（m1–m6）暂不修，P3 前重估（m2 台账措辞已澄清：I1 在线路径关闭，回退保留至 P3 删桥）。
+- #144 P3（桥接+迁移+开 web）落地：server webSearch 独立分区（store/GET+PUT/sanitize/env）+ desktop settings 重写为 hostPrefs（mask/merge/bridge-save/IPC/catalog 全删）+ migrate-legacy-settings（备份+幂等+全字段，seed 由其取代）+ main 接迁移 + preload/bridge 切 prefs + app settings-store 重写 + form 单路径 + WebSearchPanel 走 REST + AgentDialog/SessionModelPill/tts 三处切 REST + ALL_HOSTS + ModelProviderItem（configured 必填+禁用+占位）+ i18n 两 key 三语。验证：全量 typecheck、app 1689/server 432/desktop 251/contracts 103 全绿，lint 0 errors，check:i18n 过。#144 合并完成，待验收。
 
-## 待办（3 项未合入）
+## 待办（2 项未合入）
 
-- 高风险：#112 Agent 记忆、#148 memory guide 改写、#144 settings server 化 → 对照分析见 `high-risk-comparison.md`（待决策后立 design doc）
+- 高风险：#112 Agent 记忆、#148 memory guide 改写 → 方向冲突已定跳过（见 08 §十五），待你最终确认销项
 - project-structure.md 385–392 行还写着上游自定义域名 + CNAME

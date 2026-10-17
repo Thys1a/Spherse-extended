@@ -9,7 +9,7 @@ export function ModelProviderItem({
   id,
   config,
   apiKey,
-  configured: configuredProp,
+  configured,
   onApiKeyChange,
   onApiKeyCommit,
   onConnect,
@@ -20,7 +20,7 @@ export function ModelProviderItem({
   id: string;
   config: ProviderConfig;
   apiKey: string;
-  configured?: boolean;
+  configured: boolean;
   onApiKeyChange: (value: string) => void;
   onApiKeyCommit: (value: string) => void;
   onConnect: () => void;
@@ -29,7 +29,6 @@ export function ModelProviderItem({
   onDelete?: () => void;
 }) {
   const { t } = useI18n();
-  const configured = configuredProp ?? apiKey.trim().length > 0;
   const isCustom = config.custom === true;
   const isKeyless = config.keyless === true;
 
@@ -86,8 +85,9 @@ export function ModelProviderItem({
           <Input
             type="password"
             className="flex-1"
-            placeholder={t("settings.provider.apiKeyPlaceholder")}
+            placeholder={configured ? t("settings.provider.apiKeyConfigured") : t("settings.provider.apiKeyPlaceholder")}
             value={apiKey}
+            disabled={configured}
             onChange={(e) => onApiKeyChange(e.target.value)}
             onBlur={() => onApiKeyCommit(apiKey)}
             autoComplete={`off-${id}`}

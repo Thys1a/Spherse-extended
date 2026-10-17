@@ -1,6 +1,6 @@
-import type { ProviderCatalogItem } from "@spherse/core";
 import type {
-  HostSettings,
+  DesktopPrefs,
+  GeneralPrefs,
   MobileAccessEvent,
   MobileAccessState,
   MobileTunnelMode,
@@ -37,10 +37,10 @@ export interface ElectronAPI {
   onNotificationClicked: (callback: (route: string) => void) => () => void;
   setLastActiveProject: (projectId: string) => Promise<void>;
   getLastActiveProject: () => Promise<string | null>;
-  getSettings: () => Promise<HostSettings | null>;
-  saveSettings: (settings: HostSettings) => Promise<{ success: boolean }>;
-  getSupportedProviders: () => Promise<Record<string, ProviderCatalogItem>>;
-  getImageProviders: () => Promise<Record<string, ProviderCatalogItem>>;
+  getGeneralPrefs: () => Promise<GeneralPrefs>;
+  saveGeneralPrefs: (prefs: GeneralPrefs) => Promise<{ success: boolean }>;
+  getDesktopPrefs: () => Promise<DesktopPrefs>;
+  saveDesktopPrefs: (prefs: DesktopPrefs) => Promise<{ success: boolean }>;
   isDev: () => Promise<boolean>;
   toggleDevTools: () => Promise<void>;
   isDevToolsOpen: () => Promise<boolean>;

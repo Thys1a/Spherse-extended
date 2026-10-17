@@ -5,8 +5,7 @@ import type { ProviderCatalogItem } from "@spherse/core";
 import { parseAgentMarkdown, buildAgentMarkdown } from "./agent-markdown";
 import type { AgentFormData } from "./agent-markdown";
 import { useProjectCtx } from "../../context/project-context";
-import { useHostBridge } from "../../context/host-bridge-context";
-import { useApiClient } from "../../lib/use-connection";
+import { useApiClient, useGlobalApiClient } from "../../lib/use-connection";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../../components/ui/tabs";
 import { Button } from "../../components/ui/button";
 import { DialogFooter } from "../../components/ui/dialog";
@@ -41,7 +40,7 @@ export function AgentDialogForm({ initial, mode, agentId, onSubmit, onCancel }: 
   const { t } = useI18n();
   const { projectId } = useProjectCtx();
   const client = useApiClient(projectId);
-  const bridge = useHostBridge();
+  const globalClient = useGlobalApiClient();
   const parsed = useMemo(() => parseAgentMarkdown(initial.raw), [initial.raw]);
   const [formData, setFormData] = useState<AgentFormData>(parsed.formData);
   const [themeContent, setThemeContent] = useState(initial.theme);
@@ -49,29 +48,26 @@ export function AgentDialogForm({ initial, mode, agentId, onSubmit, onCancel }: 
   const [error, setError] = useState<string | null>(null);
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [providers, setProviders] = useState<Record<string, ProviderCatalogItem> | null>(null);
-  const [apiKeys, setApiKeys] = useState<Record<string, string>>({});
+  const [configuredIds, setConfiguredIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    if (bridge.kind === "web") return;
     let cancelled = false;
     Promise.all([
       client.getSupportedProviders().catch(() => null),
-      bridge.getSettings().catch(() => null),
+      globalClient?.getModelSettings().catch(() => null),
     ]).then(([catalog, settings]) => {
       if (cancelled) return;
       if (catalog) setProviders(catalog);
-      const keys: Record<string, string> = {};
-      for (const [id, credentials] of Object.entries(settings?.models?.text?.providers ?? {})) {
-        if (typeof credentials?.apiKey === "string" && credentials.apiKey.trim()) {
-          keys[id] = credentials.apiKey;
-        }
+      const ids = new Set<string>();
+      for (const [id, entry] of Object.entries(settings?.models?.text?.providers ?? {})) {
+        if (entry.configured) ids.add(id);
       }
-      setApiKeys(keys);
+      setConfiguredIds(ids);
     });
     return () => {
       cancelled = true;
     };
-  }, [client, bridge]);
+  }, [client, globalClient]);
 
   useEffect(() => {
     if (providers == null) return;
@@ -146,18 +142,16 @@ export function AgentDialogForm({ initial, mode, agentId, onSubmit, onCancel }: 
                 placeholder={t("agent-dialog.namePlaceholder")}
               />
             </Field>
-            {bridge.kind !== "web" && (
-              <ModelConfigField
-                providers={providers ?? {}}
-                apiKeys={apiKeys}
-                model={formData.model}
-                thinkingLevel={formData.thinkingLevel}
-                onModelChange={(model) => setFormData((prev) => ({ ...prev, model }))}
-                onThinkingLevelChange={(thinkingLevel) =>
-                  setFormData((prev) => ({ ...prev, thinkingLevel }))
-                }
-              />
-            )}
+            <ModelConfigField
+              providers={providers ?? {}}
+              configuredIds={configuredIds}
+              model={formData.model}
+              thinkingLevel={formData.thinkingLevel}
+              onModelChange={(model) => setFormData((prev) => ({ ...prev, model }))}
+              onThinkingLevelChange={(thinkingLevel) =>
+                setFormData((prev) => ({ ...prev, thinkingLevel }))
+              }
+            />
             <Field>
               <FieldLabel>{t("agent-dialog.placeholderLabel")}</FieldLabel>
               <Input

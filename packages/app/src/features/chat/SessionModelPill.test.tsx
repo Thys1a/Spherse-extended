@@ -11,10 +11,19 @@ import { SessionModelPill } from "./SessionModelPill";
 
 const getSupportedProviders = vi.fn();
 const setSessionModel = vi.fn();
+const getModelSettings = vi.fn(async () => ({
+  models: {
+    text: { defaultModel: "openai/gpt-4o", providers: { openai: { configured: true } } },
+    image: { defaultModel: "", providers: {} },
+  },
+  customProviders: [],
+}));
 const mockClient = { getSupportedProviders, setSessionModel };
+const mockGlobalClient = { getModelSettings };
 
 vi.mock("../../lib/use-connection", () => ({
   useApiClient: () => mockClient,
+  useGlobalApiClient: () => mockGlobalClient,
   useConnection: () => ({ baseUrl: "http://localhost:5173", accessToken: null }),
 }));
 
@@ -34,12 +43,6 @@ const catalog = {
   },
 };
 
-const settings = {
-  models: {
-    text: { defaultModel: "openai/gpt-4o", providers: { openai: { apiKey: "k" } } },
-  },
-};
-
 const agent = { id: "a1", name: "Helper", slug: "helper", model: "openai/o1" } as AgentSummary;
 
 function seedQueryClient(queryClient: QueryClient, session: SessionInfo) {
@@ -50,7 +53,7 @@ function seedQueryClient(queryClient: QueryClient, session: SessionInfo) {
 function renderPill(session: SessionInfo) {
   const queryClient = createTestQueryClient();
   seedQueryClient(queryClient, session);
-  const bridge = createMockHostBridge({ getSettings: vi.fn(async () => settings) });
+  const bridge = createMockHostBridge();
   renderWithProviders(<SessionModelPill sessionId={session.id} />, { queryClient, bridge });
 }
 
