@@ -109,6 +109,7 @@
 - #144 P1（读链）落地：contracts 模型 schema（`sanitizeEmptySchemas` 比上游多带，防 P2 回写丢标志）+ core `ModelSettings` + server `ModelSettingsStore`/GET/`registerSettingsRoutes` 加参 + desktop seed（幂等）与装配传参（旧 options 保留）+ 渲染端切 REST 读（REST 模式模型区整体只读，fieldset 禁用；回退断连态走旧桥）。验证：typecheck 全过、contracts 102/server 11/app 15/desktop 292 全绿。P2（PUT+写链）待续。
 - 7bdabd5 的 review 修复：sanitize 剥离 custom headers（明文不出新边界）；normalize 守卫 sampling 白名单 thinkingLevel + image 去采样（脏盘不 500）；单 catalog 实例（registry 与路由同源）；0600 落盘 + 随机 tmp；providers 路由改走注入实例；custom 操作 locked 早退；_registry 预留 P2。M3（existsSync 竞态）转 P3 迁移约束；I1 分叉窗口以"P2 PUT 接线 + 桥写封口同 commit"为关闭条件。
 - #144 P2（写链）落地：PUT 路由（rotation/blank-delete/registry 同步/env 应用）+ GlobalApiClient.updateModelSettings + form writes/clears 增量语义（去 locked/fieldset）+ settings-store 去 models 回带（桥写封口，I1 关闭）+ desktop merge 未定义组保留 + IPC 注册推送守卫（缺字段不再清 registry）。验证：typecheck 全过、server 模型路由/ contracts /app settings 127/desktop 295 全绿，lint 0 errors。P3（桥接+迁移+开 web）待续。
+- 8ad4dc9 的 review 修复（important-1）：REST 下 custom 增删改后目录刷新改走 modelApi（桥目录回写致新行消失），附测试；medium（M2/M3）与 minor（m1–m6）暂不修，P3 前重估（m2 台账措辞已澄清：I1 在线路径关闭，回退保留至 P3 删桥）。
 
 ## 待办（3 项未合入）
 

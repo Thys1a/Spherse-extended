@@ -207,9 +207,10 @@ export function useSettingsForm(api: SettingsApi, modelApi: ModelSettingsApi | n
   );
 
   const refreshTextCatalog = useCallback(async () => {
-    const textCatalog = await api.getSupportedProviders();
-    setTextProviders(textCatalog ?? {});
-  }, [api]);
+    const source = useRest && modelApi ? modelApi : api;
+    const textCatalog = await source.getSupportedProviders().catch(() => null);
+    if (textCatalog) setTextProviders(textCatalog);
+  }, [api, modelApi, useRest]);
 
   const addCustomProvider = useCallback(
     async (def: CustomProviderDef): Promise<boolean> => {

@@ -282,7 +282,7 @@ describe("useSettingsForm rest mode", () => {
     expect(result.current.text.configured).toEqual({});
   });
 
-  it("refuses custom provider writes only when the rest call fails", async () => {
+  it("writes custom providers through PUT when rest succeeds", async () => {
     const modelApi = createModelApi();
     const { result } = renderHook(() => useSettingsForm(api, modelApi));
     await waitFor(() => expect(result.current.text.configured).toEqual({ "builtin-x": true }));
@@ -372,5 +372,17 @@ describe("useSettingsForm rest mode", () => {
     const last = vi.mocked(modelApi.updateModelSettings).mock.calls.at(-1)![0];
     expect(last.models.text.providers![addedId]).toEqual({ apiKey: "" });
     expect(last.customProviders!.find((c: { id: string }) => c.id === addedId)).toBeUndefined();
+  });
+
+  it("refreshes the catalog from rest sources after adding a provider", async () => {
+    const modelApi = createModelApi();
+    const { result } = renderHook(() => useSettingsForm(api, modelApi));
+    await waitFor(() => expect(result.current.text.configured).toEqual({ "builtin-x": true }));
+
+    await act(async () => {
+      await result.current.text.addCustomProvider!({ id: "", name: "New", baseUrl: "https://new.example", models: ["m"], keyless: false });
+    });
+    expect(modelApi.getSupportedProviders).toHaveBeenCalled();
+    expect(api.getSupportedProviders).not.toHaveBeenCalled();
   });
 });
