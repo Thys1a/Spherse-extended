@@ -36,6 +36,7 @@ async function loadPrefs(): Promise<{ locale: string }> {
     if (raw) {
       const parsed = JSON.parse(raw) as { locale?: unknown };
       const locale = typeof parsed?.locale === "string" ? parsed.locale : "zh-CN";
+      localStorage.removeItem(LEGACY_SETTINGS_KEY);
       return { locale };
     }
     const legacy = localStorage.getItem(LEGACY_SETTINGS_KEY);

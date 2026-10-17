@@ -111,6 +111,7 @@
 - #144 P2（写链）落地：PUT 路由（rotation/blank-delete/registry 同步/env 应用）+ GlobalApiClient.updateModelSettings + form writes/clears 增量语义（去 locked/fieldset）+ settings-store 去 models 回带（桥写封口，I1 关闭）+ desktop merge 未定义组保留 + IPC 注册推送守卫（缺字段不再清 registry）。验证：typecheck 全过、server 模型路由/ contracts /app settings 127/desktop 295 全绿，lint 0 errors。P3（桥接+迁移+开 web）待续。
 - 8ad4dc9 的 review 修复（important-1）：REST 下 custom 增删改后目录刷新改走 modelApi（桥目录回写致新行消失），附测试；medium（M2/M3）与 minor（m1–m6）暂不修，P3 前重估（m2 台账措辞已澄清：I1 在线路径关闭，回退保留至 P3 删桥）。
 - #144 P3（桥接+迁移+开 web）落地：server webSearch 独立分区（store/GET+PUT/sanitize/env）+ desktop settings 重写为 hostPrefs（mask/merge/bridge-save/IPC/catalog 全删）+ migrate-legacy-settings（备份+幂等+全字段，seed 由其取代）+ main 接迁移 + preload/bridge 切 prefs + app settings-store 重写 + form 单路径 + WebSearchPanel 走 REST + AgentDialog/SessionModelPill/tts 三处切 REST + ALL_HOSTS + ModelProviderItem（configured 必填+禁用+占位）+ i18n 两 key 三语。验证：全量 typecheck、app 1689/server 432/desktop 251/contracts 103 全绿，lint 0 errors，check:i18n 过。#144 合并完成，待验收。
+- db6ce56 的 review 修复（C1/I1/I2/I3/M1/M2/M3/m1/m2/m3）：undefined 污染双层修复（desktop `?? {}` + store 条件展开，附 IPC 形状回归测试）+ e2e 切 prefs 通道 + WebSearchPanel 移出桌面门禁（globalClient 门禁）+ PUT 防抖串行 + 失败 toast（新 key 三语）+ .bak 0600 + null 进 loadError + 迁移 skip/未知字段测试 + 清 3 处过期 mock + 删 core AppSettings + web 旧 key 总清理。验证：app 1690/server 432/desktop 253/contracts 103 全绿，lint 0 errors。
 
 ## 待办（2 项未合入）
 

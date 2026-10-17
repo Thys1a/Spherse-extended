@@ -10,7 +10,6 @@ export type {
   TtsSettings,
   ProxySettings,
   WebSearchSettings,
-  AppSettings,
   ProviderCatalog,
   ProviderCatalogItem,
   ProviderModelItem,

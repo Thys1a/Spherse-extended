@@ -69,11 +69,17 @@ export const useSettingsStore = create<SettingsStore>((set, get) => {
         bridge.prefs.getPrefs().catch(() => null),
         bridge.desktopPrefs?.getPrefs().catch(() => null) ?? Promise.resolve(null),
       ]);
+      const { theme, debugToolsEnabled, closeToTray, tts, proxy, notifications } = desktop ?? {};
       set({
         loaded: true,
         locale: normalizeLocale(general?.locale),
         ...DEFAULT_DESKTOP_PREFS,
-        ...(desktop ?? {}),
+        ...(theme !== undefined ? { theme } : {}),
+        ...(debugToolsEnabled !== undefined ? { debugToolsEnabled } : {}),
+        ...(closeToTray !== undefined ? { closeToTray } : {}),
+        ...(tts !== undefined ? { tts } : {}),
+        ...(proxy !== undefined ? { proxy } : {}),
+        ...(notifications !== undefined ? { notifications } : {}),
       });
     },
 

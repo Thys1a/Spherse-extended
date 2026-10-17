@@ -15,8 +15,6 @@ function createMockHostBridge(overrides: Partial<HostBridge> = {}): HostBridge {
       content: { editable: true },
     },
     getServerBaseUrl: vi.fn().mockResolvedValue("http://localhost:5173"),
-    getSettings: vi.fn().mockResolvedValue(null),
-    saveSettings: vi.fn().mockResolvedValue({ success: true }),
     openExternal: vi.fn(),
     notify: vi.fn(),
     project: {

@@ -154,26 +154,6 @@ export interface WebSearchSettings {
   model?: string;
 }
 
-export interface AppSettings {
-  locale: string;
-  models: {
-    text: ModelGroupSettings;
-    image: ModelGroupSettings;
-  };
-  customProviders?: CustomProviderDef[];
-  debugToolsEnabled?: boolean;
-  closeToTray?: boolean;
-  theme?: ThemeMode;
-  mobileAccess?: MobileAccessSettings;
-  tts?: TtsSettings;
-  proxy?: ProxySettings;
-  webSearch?: WebSearchSettings;
-  notifications?: {
-    approval?: boolean;
-    trigger?: boolean;
-  };
-}
-
 export interface ProviderCatalogItem {
   id: string;
   name: string;

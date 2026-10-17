@@ -25,7 +25,14 @@ export function createMockHostBridge(overrides: HostBridgeOverrides = {}): HostB
       savePrefs: vi.fn(async () => true),
     },
     desktopPrefs: {
-      getPrefs: vi.fn(async () => ({ theme: "system" as const, debugToolsEnabled: false, closeToTray: true })),
+      getPrefs: vi.fn(async () => ({
+        theme: "system" as const,
+        debugToolsEnabled: false,
+        closeToTray: true,
+        tts: undefined,
+        proxy: undefined,
+        notifications: undefined,
+      })),
       savePrefs: vi.fn(async () => true),
     },
     openExternal: vi.fn(async () => {}),

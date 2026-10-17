@@ -76,9 +76,9 @@ export function getDesktopPrefs(): DesktopPrefs {
     theme: prefs.theme,
     debugToolsEnabled: prefs.debugToolsEnabled,
     closeToTray: prefs.closeToTray,
-    tts: prefs.tts,
-    proxy: prefs.proxy,
-    notifications: prefs.notifications,
+    tts: prefs.tts ?? {},
+    proxy: prefs.proxy ?? {},
+    notifications: prefs.notifications ?? {},
   };
 }
 

@@ -15,8 +15,6 @@ function createBridge(overrides: Partial<HostBridge> = {}): HostBridge {
       content: { editable: false },
     },
     getServerBaseUrl: vi.fn(async () => ""),
-    getSettings: vi.fn(async () => null),
-    saveSettings: vi.fn(async () => ({ success: true })),
     openExternal: vi.fn(),
     notify: vi.fn(),
     ...overrides,

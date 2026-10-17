@@ -62,6 +62,33 @@ describe("useSettingsStore prefs", () => {
     expect(state.debugToolsEnabled).toBe(false);
   });
 
+  it("ignores explicit undefined fields from the bridge instead of wiping defaults", async () => {
+    const bridge = createMockHostBridge();
+    const ipcBridge = {
+      ...bridge,
+      desktopPrefs: {
+        getPrefs: vi.fn(async () => ({
+          theme: "dark",
+          debugToolsEnabled: true,
+          closeToTray: true,
+          tts: undefined,
+          proxy: undefined,
+          notifications: undefined,
+        })),
+        savePrefs: vi.fn(async () => true),
+      },
+    };
+
+    await useSettingsStore.getState().loadPrefs(ipcBridge as unknown as HostBridge);
+
+    const state = useSettingsStore.getState();
+    expect(state.theme).toBe("dark");
+    expect(state.tts).toEqual({});
+    expect(state.proxy).toEqual({});
+    expect(state.notifications).toEqual({});
+    expect(() => state.tts.autoRead).not.toThrow();
+  });
+
   it("changeLocale persists through prefs", async () => {
     const bridge = createBridge();
     await useSettingsStore.getState().loadPrefs(bridge);

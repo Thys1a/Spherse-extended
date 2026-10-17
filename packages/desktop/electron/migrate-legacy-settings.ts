@@ -1,4 +1,4 @@
-import { existsSync, writeFileSync } from "node:fs";
+import { existsSync, writeFileSync, chmodSync } from "node:fs";
 import { ModelSettingsStore, WebSearchSettingsStore } from "@spherse/server";
 import type { ThemeMode } from "@spherse/app/host-bridge";
 import {
@@ -18,7 +18,12 @@ function backupLegacySettings(legacy: LegacySettings): void {
   try {
     const storePath = (settingsStore as unknown as { path?: unknown }).path;
     if (typeof storePath !== "string") return;
-    writeFileSync(`${storePath}.bak`, JSON.stringify({ settings: legacy }, null, 2), "utf-8");
+    const backupPath = `${storePath}.bak`;
+    writeFileSync(backupPath, JSON.stringify({ settings: legacy }, null, 2), {
+      encoding: "utf-8",
+      mode: 0o600,
+    });
+    chmodSync(backupPath, 0o600);
   } catch {
     return;
   }

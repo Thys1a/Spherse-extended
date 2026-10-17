@@ -137,4 +137,21 @@ describe("migrateLegacySettings", () => {
     expect(JSON.parse(fs.readFileSync(modelSettingsPath(), "utf-8")).text.defaultModel).toBe("existing/m");
     expect(settingsStore.get("settings")).toBeUndefined();
   });
+
+  it("skips hostPrefs and webSearch partitions that already exist", () => {
+    settingsStore.set("hostPrefs", { locale: "en", theme: "dark", debugToolsEnabled: true, closeToTray: true });
+    const webSearchPath = path.join(state.userDataDir, "web-search-settings.json");
+    fs.writeFileSync(webSearchPath, JSON.stringify({ apiKey: "sk-keep" }));
+    settingsStore.set("settings", legacySettings());
+    migrateLegacySettings();
+
+    expect(getHostPrefs()).toMatchObject({ locale: "en", theme: "dark" });
+    expect(JSON.parse(fs.readFileSync(webSearchPath, "utf-8"))).toMatchObject({ apiKey: "sk-keep" });
+    expect(settingsStore.get("settings")).toBeUndefined();
+  });
+
+  it("preserves unknown hostPrefs fields instead of dropping them", () => {
+    settingsStore.set("hostPrefs", { locale: "en", theme: "dark", futureField: "keep-me" });
+    expect(getHostPrefs()).toMatchObject({ futureField: "keep-me" });
+  });
 });

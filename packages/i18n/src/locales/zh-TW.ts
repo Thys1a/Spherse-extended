@@ -667,6 +667,7 @@ export const zhTW: Record<TranslationKey, string> = {
   "settings.webSearch.model": "搜尋模型",
   "settings.webSearch.modelDesc": "執行搜尋的模型，留空使用預設模型",
   "settings.webSearch.modelPlaceholder": "deepseek-v4-flash",
+  "settings.webSearch.saveFailed": "儲存 Web 搜尋設定失敗：{message}",
   "tabs.list": "開啟的分頁",
   "tabs.home": "首頁",
   "tabs.closeTab": "關閉分頁",

@@ -115,9 +115,9 @@ describe("useSettingsForm init", () => {
     await waitFor(() => expect(result.current.loadError).toBe(true));
   });
 
-  it("reports no loadError when the client is absent", async () => {
+  it("reports loadError when the client is absent", async () => {
     const { result } = renderHook(() => useSettingsForm(null));
-    expect(result.current.loadError).toBe(false);
+    await waitFor(() => expect(result.current.loadError).toBe(true));
     expect(result.current.text.configured).toEqual({});
   });
 });

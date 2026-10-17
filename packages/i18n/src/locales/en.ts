@@ -667,6 +667,7 @@ export const en: Record<TranslationKey, string> = {
   "settings.webSearch.model": "Search Model",
   "settings.webSearch.modelDesc": "Model used to perform searches; leave empty for the default model",
   "settings.webSearch.modelPlaceholder": "deepseek-v4-flash",
+  "settings.webSearch.saveFailed": "Failed to save web search settings: {message}",
   "tabs.list": "Open tabs",
   "tabs.home": "Home",
   "tabs.closeTab": "Close tab",

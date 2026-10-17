@@ -67,7 +67,10 @@ export function useSettingsForm(modelApi: ModelSettingsApi | null) {
   const [customProviders, setCustomProviders] = useState<CustomProviderDef[]>([]);
 
   useEffect(() => {
-    if (!modelApi) return;
+    if (!modelApi) {
+      setLoadError(true);
+      return;
+    }
     let cancelled = false;
     void (async () => {
       try {

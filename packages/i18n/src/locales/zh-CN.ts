@@ -1343,6 +1343,8 @@ export const zhCN = {
   "settings.webSearch.modelDesc": "执行搜索的模型，留空使用默认模型",
   // 设置 > 通用：搜索模型输入框占位提示
   "settings.webSearch.modelPlaceholder": "deepseek-v4-flash",
+  // Web 搜索设置保存失败提示，{message} 为错误信息
+  "settings.webSearch.saveFailed": "保存 Web 搜索设置失败：{message}",
   // 标签页栏的无障碍标签
   "tabs.list": "打开的标签页",
   // 无标题标签页的回退显示

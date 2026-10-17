@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
+import { toast } from "sonner";
 import {
   Dialog,
   DialogContent,
@@ -244,6 +245,9 @@ function SettingsTabs() {
   const form = useSettingsForm(modelApi);
   const [webSearch, setWebSearchState] = useState<WebSearchSettings>({});
   const webSearchTouched = useRef<{ apiKey?: boolean; baseUrl?: boolean; model?: boolean }>({});
+  const webSearchStateRef = useRef<WebSearchSettings>({});
+  const webSearchSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const webSearchSaveChain = useRef<Promise<unknown>>(Promise.resolve());
   useEffect(() => {
     if (!globalClient) return;
     let cancelled = false;
@@ -251,13 +255,20 @@ function SettingsTabs() {
       .getWebSearchSettings()
       .then((res) => {
         if (cancelled) return;
-        setWebSearchState({ baseUrl: res.baseUrl ?? undefined, model: res.model ?? undefined });
+        const next = { baseUrl: res.baseUrl ?? undefined, model: res.model ?? undefined };
+        webSearchStateRef.current = next;
+        setWebSearchState(next);
       })
       .catch(() => {});
     return () => {
       cancelled = true;
     };
   }, [globalClient]);
+  useEffect(() => {
+    return () => {
+      if (webSearchSaveTimer.current) clearTimeout(webSearchSaveTimer.current);
+    };
+  }, []);
   const initialTab = useAppUiStore((s) => s.settingsModalTab) ?? "models";
   const [tab, setTab] = useState(initialTab);
 
@@ -341,25 +352,6 @@ function SettingsTabs() {
             </div>
           </FieldGroup>
           <TtsSettingsPanel tts={tts} onChange={(patch) => { void setTts(bridge, patch); }} />
-          <WebSearchPanel
-            webSearch={webSearch}
-            onChange={(patch) => {
-              const next = { ...webSearch, ...patch };
-              for (const key of Object.keys(patch) as (keyof WebSearchSettings)[]) {
-                webSearchTouched.current[key] = true;
-              }
-              setWebSearchState(next);
-              if (!globalClient) return;
-              const touched = webSearchTouched.current;
-              void globalClient
-                .updateWebSearchSettings({
-                  apiKey: touched.apiKey ? (next.apiKey ?? null) : undefined,
-                  baseUrl: touched.baseUrl ? (next.baseUrl ?? null) : undefined,
-                  model: touched.model ? (next.model ?? null) : undefined,
-                })
-                .catch(() => {});
-            }}
-          />
           {trayEnabled && (
             <FieldGroup className="mt-5">
               <div className="flex items-center justify-between gap-3">
@@ -379,6 +371,38 @@ function SettingsTabs() {
             <ProxyPanel proxy={proxy} onChange={(patch) => { void setProxy(bridge, patch); }} />
           )}
             </>
+          )}
+          {globalClient && (
+            <WebSearchPanel
+              webSearch={webSearch}
+              onChange={(patch) => {
+                const next = { ...webSearchStateRef.current, ...patch };
+                for (const key of Object.keys(patch) as (keyof WebSearchSettings)[]) {
+                  webSearchTouched.current[key] = true;
+                }
+                webSearchStateRef.current = next;
+                setWebSearchState(next);
+                if (webSearchSaveTimer.current) clearTimeout(webSearchSaveTimer.current);
+                webSearchSaveTimer.current = setTimeout(() => {
+                  const touched = { ...webSearchTouched.current };
+                  const snapshot = { ...webSearchStateRef.current };
+                  webSearchSaveChain.current = webSearchSaveChain.current
+                    .then(() =>
+                      globalClient.updateWebSearchSettings({
+                        apiKey: touched.apiKey ? (snapshot.apiKey ?? null) : undefined,
+                        baseUrl: touched.baseUrl ? (snapshot.baseUrl ?? null) : undefined,
+                        model: touched.model ? (snapshot.model ?? null) : undefined,
+                      }),
+                    )
+                    .then(
+                      () => {},
+                      (err: unknown) => {
+                        toast.error(t("settings.webSearch.saveFailed", { message: (err as Error).message }));
+                      },
+                    );
+                }, 500);
+              }}
+            />
           )}
         </TabsContent>
 
