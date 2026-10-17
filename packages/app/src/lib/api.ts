@@ -16,6 +16,7 @@ import type {
   AgentCreateResponse,
   AgentUpdateResponse,
   AiAccessSettingsResponse,
+  ModelSettingsResponse,
   WelcomePageSettingsResponse,
   SidePanelSettingsResponse,
   ThemeSettingsResponse,
@@ -964,6 +965,24 @@ export function createGlobalApiClient(baseUrl: string, accessToken?: string | nu
   const authedFetch = createAuthedFetch(accessToken);
 
   return {
+    async getModelSettings(): Promise<ModelSettingsResponse> {
+      const res = await authedFetch(`${baseUrl}/api/settings/models`);
+      await assertOk(res);
+      return parseJsonResponse<ModelSettingsResponse>(res, schemas.modelSettingsResponse);
+    },
+
+    async getSupportedProviders(): Promise<ProviderCatalogContract> {
+      const res = await authedFetch(`${baseUrl}/api/settings/providers`);
+      await assertOk(res);
+      return parseJsonResponse<ProviderCatalogContract>(res, schemas.providerCatalog);
+    },
+
+    async getImageProviders(): Promise<ProviderCatalogContract> {
+      const res = await authedFetch(`${baseUrl}/api/settings/image-providers`);
+      await assertOk(res);
+      return parseJsonResponse<ProviderCatalogContract>(res, schemas.providerCatalog);
+    },
+
     async listMarketplaceProjects(): Promise<MarketplaceProjectManifestResponse> {
       const res = await authedFetch(`${baseUrl}/api/marketplace/projects`);
       await assertOk(res);

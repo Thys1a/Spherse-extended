@@ -1,6 +1,8 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
+import type { ModelCatalog } from "@spherse/core";
 import type { ProjectRegistry, ProjectContextCompat } from "../registry.js";
 import type { ChatSessionHub } from "../chat/index.js";
+import type { ModelSettingsStore } from "../model-settings.js";
 import { notFound } from "../errors.js";
 import { registerAgentRoutes } from "./agents.js";
 import { registerAgentWriteRoutes } from "./agent-write.js";
@@ -33,6 +35,8 @@ declare module "fastify" {
 export interface RouteOptions {
   authRequired?: boolean;
   hub: ChatSessionHub;
+  modelSettingsStore: ModelSettingsStore;
+  modelCatalog: ModelCatalog;
 }
 
 export function registerAllRoutes(
@@ -56,7 +60,10 @@ export function registerAllRoutes(
   registerContentRoutes(fastify, registry);
   registerDataRoutes(fastify, registry);
   registerCardRoutes(fastify, registry);
-  registerSettingsRoutes(fastify, registry);
+  registerSettingsRoutes(fastify, registry, {
+    modelSettingsStore: options.modelSettingsStore,
+    modelCatalog: options.modelCatalog,
+  });
   registerPreviewRoutes(fastify, registry);
   registerSkillRoutes(fastify, registry);
   registerCommandRoutes(fastify, registry);

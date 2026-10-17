@@ -120,6 +120,12 @@ export interface ModelGroupSettings {
   thinkingLevel?: ThinkingLevel;
 }
 
+export interface ModelSettings {
+  text: ModelGroupSettings;
+  image: ModelGroupSettings;
+  customProviders: CustomProviderDef[];
+}
+
 export type ThemeMode = "light" | "dark" | "system";
 
 export type MobileTunnelMode = "quick" | "manual";

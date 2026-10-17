@@ -15,7 +15,7 @@ import { useSettingsStore } from "../../stores/settings-store";
 import { useAppUiStore } from "../../stores/app-ui-store";
 import { useSettingsForm } from "./use-settings-form";
 import type { GroupFormState } from "./use-settings-form";
-import { type SettingsApi } from "./types";
+import { type ModelSettingsApi, type SettingsApi } from "./types";
 import { DefaultModelField } from "./DefaultModelField";
 import { ThinkingLevelField } from "./ThinkingLevelField";
 import { ModelProviderItem } from "./ModelProviderItem";
@@ -35,6 +35,7 @@ import type { ThemeMode } from "../../lib/host-bridge";
 import { InfoIcon, Plus, SearchIcon } from "lucide-react";
 import { Tooltip, TooltipTrigger, TooltipContent } from "../../components/ui/tooltip";
 import { useHostBridge } from "../../context/host-bridge-context";
+import { useGlobalApiClient } from "../../lib/use-connection";
 
 const LOCALE_LABELS: Record<string, string> = {
   "zh-CN": "简体中文",
@@ -85,6 +86,7 @@ function ModelGroupTab({
   }, [providerEntries, providerQuery, showProviderSearch]);
   return (
     <>
+      <fieldset disabled={group.locked} className="contents">
       <FieldGroup className="shrink-0">
         <DefaultModelField
           providers={group.providers}
@@ -158,6 +160,7 @@ function ModelGroupTab({
             id={id}
             config={config}
             apiKey={group.apiKeys[id] ?? ""}
+            configured={group.configured[id]}
             onApiKeyChange={(value) => group.setApiKey(id, value)}
             onApiKeyCommit={(value) => group.commitApiKey(id, value)}
             onConnect={() => void group.connect(id)}
@@ -184,6 +187,7 @@ function ModelGroupTab({
           {t("settings.provider.addCustom")}
         </Button>
       )}
+      </fieldset>
       {kind === "text" && (
         <CustomProviderDialog
           open={dialog !== null}
@@ -232,7 +236,13 @@ function SettingsTabs() {
     getSupportedProviders: bridge.getSupportedProviders ?? (async () => ({})),
     getImageProviders: bridge.getImageProviders ?? (async () => ({})),
   }), [bridge]);
-  const form = useSettingsForm(settingsApi);
+  const globalClient = useGlobalApiClient();
+  const modelApi = useMemo<ModelSettingsApi | null>(() => (globalClient ? {
+    getModelSettings: globalClient.getModelSettings,
+    getSupportedProviders: globalClient.getSupportedProviders,
+    getImageProviders: globalClient.getImageProviders,
+  } : null), [globalClient]);
+  const form = useSettingsForm(settingsApi, modelApi);
   const initialTab = useAppUiStore((s) => s.settingsModalTab) ?? "models";
   const [tab, setTab] = useState(initialTab);
 

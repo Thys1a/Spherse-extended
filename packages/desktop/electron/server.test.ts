@@ -45,6 +45,8 @@ vi.mock("./settings.js", () => ({
   getSettings: () => undefined,
   getServerToken: () => "server-token",
   getMobileAccess: () => ({ ...mobileStore, mode: mobileStore.mode ?? "quick" }),
+  seedModelSettingsFromLegacy: () => undefined,
+  getModelSettingsPath: () => "/tmp/test-model-settings.json",
 }));
 
 vi.mock("./model-catalog.js", () => ({

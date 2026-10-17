@@ -1,8 +1,10 @@
 import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
+import fs from "node:fs";
 import type { AddressInfo } from "node:net";
 import websocket from "@fastify/websocket";
 import multipart from "@fastify/multipart";
-import type { Logger, SamplingParams, ThinkingLevel, ModelCatalog } from "@spherse/core";
+import type { Logger, SamplingParams, ThinkingLevel } from "@spherse/core";
+import { ModelCatalog } from "@spherse/core";
 import {
   NotFoundError,
   ValidationError,
@@ -10,6 +12,8 @@ import {
   ConflictError,
 } from "@spherse/core";
 import { ProjectRegistry } from "./registry.js";
+import { ModelSettingsStore, applyModelSettingsToEnv } from "./model-settings.js";
+export { ModelSettingsStore } from "./model-settings.js";
 import { createServerLogger, createPrettyStream } from "./logger.js";
 import { HttpError, errorMessage } from "./errors.js";
 import { registerAuthHook, type AuthOptions } from "./middlewares/auth.js";
@@ -43,6 +47,7 @@ export interface CreateServerOptions {
   defaultModel?: string;
   sampling?: SamplingParams;
   thinkingLevel?: ThinkingLevel;
+  modelSettingsPath?: string;
   auth?: AuthOptions;
   port?: number;
   modelCatalog?: ModelCatalog;
@@ -114,6 +119,12 @@ export async function createMultiProjectServer(
 
   const chatHub = new ChatSessionHub(logger);
 
+  const modelCatalog = options?.modelCatalog ?? new ModelCatalog();
+  const modelSettingsStore = new ModelSettingsStore({ filePath: options?.modelSettingsPath });
+  if (options?.modelSettingsPath && fs.existsSync(options.modelSettingsPath)) {
+    applyModelSettingsToEnv(modelSettingsStore.get(), modelCatalog);
+  }
+
   const registry = new ProjectRegistry(logger, {
     defaultModel: options?.defaultModel,
     sampling: options?.sampling,
@@ -126,6 +137,8 @@ export async function createMultiProjectServer(
   registerAllRoutes(fastify, registry, {
     authRequired: Boolean(options?.auth?.accessToken),
     hub: chatHub,
+    modelSettingsStore,
+    modelCatalog,
   });
   handleChatWebSocket(fastify, registry, chatHub);
   handleBusWebSocket(fastify, registry);

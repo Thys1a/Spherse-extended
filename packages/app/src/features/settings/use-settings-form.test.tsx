@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CustomProviderDef, SamplingParams } from "@spherse/core";
-import type { AppSettings, SettingsApi } from "./types";
+import type { AppSettings, ModelSettingsApi, SettingsApi } from "./types";
 import { useSettingsForm } from "./use-settings-form";
 
 function createApi(overrides: { settings?: AppSettings | null } = {}): SettingsApi {
@@ -189,5 +189,60 @@ describe("useSettingsForm custom providers", () => {
     expect(result.current.image.addCustomProvider).toBeUndefined();
     expect(result.current.image.updateCustomProvider).toBeUndefined();
     expect(result.current.image.removeCustomProvider).toBeUndefined();
+  });
+});
+
+describe("useSettingsForm rest read mode", () => {
+  function createModelApi(): ModelSettingsApi {
+    return {
+      getModelSettings: vi.fn(async () => ({
+        models: {
+          text: {
+            defaultModel: "builtin-x/m1",
+            providers: { "builtin-x": { configured: true }, "builtin-y": { configured: false } },
+            sampling: { temperature: 0.5 },
+          },
+          image: { defaultModel: "", providers: {} },
+        },
+        customProviders: [],
+      })),
+      getSupportedProviders: vi.fn(async () => ({ "builtin-x": {} as never, "builtin-y": {} as never })),
+      getImageProviders: vi.fn(async () => ({ "img-x": {} as never })),
+    };
+  }
+
+  it("locks the form, surfaces configured flags and leaves apiKeys empty", async () => {
+    const modelApi = createModelApi();
+    const { result } = renderHook(() => useSettingsForm(api, modelApi));
+    await waitFor(() => expect(result.current.text.locked).toBe(true));
+
+    expect(result.current.text.defaultModel).toBe("builtin-x/m1");
+    expect(result.current.text.sampling).toEqual({ temperature: 0.5 });
+    expect(result.current.text.apiKeys).toEqual({});
+    expect(result.current.text.configured).toEqual({ "builtin-x": true });
+    expect(result.current.image.locked).toBe(true);
+  });
+
+  it("refuses model writes while locked", async () => {
+    const modelApi = createModelApi();
+    const { result } = renderHook(() => useSettingsForm(api, modelApi));
+    await waitFor(() => expect(result.current.text.locked).toBe(true));
+
+    let ok = true;
+    await act(async () => {
+      ok = await result.current.text.patchSampling({ topP: 0.9 });
+    });
+    expect(ok).toBe(false);
+    expect(api.saveSettings).not.toHaveBeenCalled();
+  });
+
+  it("falls back to bridge reads when the rest call fails", async () => {
+    const modelApi = createModelApi();
+    vi.mocked(modelApi.getModelSettings).mockRejectedValueOnce(new Error("offline"));
+    const { result } = renderHook(() => useSettingsForm(api, modelApi));
+    await waitFor(() => expect(result.current.text.apiKeys["builtin-x"]).toBe("stored-key"));
+
+    expect(result.current.text.locked).toBe(false);
+    expect(result.current.text.configured).toEqual({});
   });
 });

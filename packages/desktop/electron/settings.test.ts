@@ -12,8 +12,10 @@ vi.mock("electron-store", () => ({
   },
 }));
 
+const { testUserDataDirHolder } = vi.hoisted(() => ({ testUserDataDirHolder: { dir: "/tmp" } }));
+
 vi.mock("electron", () => ({
-  app: { isPackaged: false },
+  app: { isPackaged: false, getPath: (key: string) => (key === "userData" ? testUserDataDirHolder.dir : `/tmp/${key}`) },
   nativeTheme: { themeSource: "system" },
 }));
 
@@ -25,7 +27,7 @@ vi.mock("undici", () => ({
 
 import { setGlobalDispatcher } from "undici";
 
-import { maskModelGroup, mergeModelGroup, getMaskedSettings, saveSettings, settingsStore, getCloseToTray, getMobileAccess, setMobileAccess, getServerToken, setServerToken, generateAccessToken } from "./settings.js";
+import { maskModelGroup, mergeModelGroup, getMaskedSettings, saveSettings, settingsStore, getCloseToTray, getMobileAccess, setMobileAccess, getServerToken, setServerToken, generateAccessToken, seedModelSettingsFromLegacy, getModelSettingsPath } from "./settings.js";
 import { getAppModelCatalog } from "./model-catalog.js";
 
 describe("mergeModelGroup sampling passthrough", () => {
@@ -744,5 +746,42 @@ describe("webSearch settings", () => {
     expect(settingsStore.get("settings")?.webSearch?.apiKey).toBe("sk-live-key");
     expect(process.env.SPHERSE_WEB_SEARCH_API_KEY).toBe("sk-live-key");
     clearSearchEnv();
+  });
+});
+
+describe("seedModelSettingsFromLegacy", () => {
+  it("seeds model settings from legacy once and skips when the file exists", async () => {
+    const fs = await import("node:fs");
+    const os = await import("node:os");
+    const path = await import("node:path");
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "seed-"));
+    testUserDataDirHolder.dir = dir;
+    settingsStore.set("settings", {
+      locale: "zh-CN",
+      models: {
+        text: { defaultModel: "openai/gpt-4o", providers: { openai: { apiKey: "sk-1" } } },
+        image: { defaultModel: "", providers: {} },
+      },
+      customProviders: [],
+    });
+    seedModelSettingsFromLegacy();
+    const saved = JSON.parse(fs.readFileSync(getModelSettingsPath(), "utf-8"));
+    expect(saved.text.defaultModel).toBe("openai/gpt-4o");
+    expect(saved.text.providers).toEqual({ openai: { apiKey: "sk-1" } });
+    seedModelSettingsFromLegacy();
+    expect(JSON.parse(fs.readFileSync(getModelSettingsPath(), "utf-8")).text.defaultModel).toBe("openai/gpt-4o");
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("does nothing without legacy models", async () => {
+    const fs = await import("node:fs");
+    const os = await import("node:os");
+    const path = await import("node:path");
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "seed-empty-"));
+    testUserDataDirHolder.dir = dir;
+    settingsStore.set("settings", { locale: "zh-CN" });
+    seedModelSettingsFromLegacy();
+    expect(fs.existsSync(getModelSettingsPath())).toBe(false);
+    fs.rmSync(dir, { recursive: true, force: true });
   });
 });

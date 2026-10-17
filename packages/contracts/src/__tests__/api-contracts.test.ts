@@ -598,6 +598,41 @@ describe("api contracts", () => {
     }
   });
 
+  it("validates model settings request and response shapes", () => {
+    const request = {
+      models: {
+        text: {
+          defaultModel: "openai/gpt-4o",
+          providers: { openai: { apiKey: "sk-1" }, untouched: {} },
+          sampling: { temperature: 0.5 },
+          thinkingLevel: "medium",
+        },
+        image: { defaultModel: "", providers: {} },
+      },
+      customProviders: [
+        { id: "c1", name: "C", baseUrl: "http://x", models: ["m"], keyless: false, sanitizeEmptySchemas: true },
+      ],
+    };
+    expect(parseApiResponse(schemas.modelSettingsRequest, request)).toEqual(request);
+
+    const response = {
+      models: {
+        text: {
+          defaultModel: "openai/gpt-4o",
+          providers: { openai: { configured: true }, missing: { configured: false } },
+          sampling: { temperature: 0.5 },
+          thinkingLevel: "medium",
+        },
+        image: { defaultModel: "", providers: {} },
+      },
+      customProviders: [],
+    };
+    expect(parseApiResponse(schemas.modelSettingsResponse, response)).toEqual(response);
+    expect(() =>
+      parseApiResponse(schemas.modelSettingsResponse, { models: { text: { defaultModel: "x" } } }),
+    ).toThrow(/Invalid payload/);
+  });
+
   it("validates turn context snapshot", () => {
     const snapshot = {
       sessionId: "s1",

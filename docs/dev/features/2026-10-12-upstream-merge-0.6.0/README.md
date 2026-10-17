@@ -106,6 +106,7 @@
 - 跳过 #104 整域：fork 自研 tab 架构互斥；leave-guard fork 有等价但覆盖窄（切 tab 疑似静默丢失，已记 backlog 待真机确认）；session-title 与 #110 文件一致；去扩展名被 fork 测试钉死不做；开关同 #147；e2e defer。
 - 跳过 #126：机制经 OSS changelog.json，fork 无 OSS 前提不存在；GitHub 源重做已记 backlog。
 - 跳过 #129：依赖 electron-updater feed（latest.yml），fork CI 不产出该文件，链路第一步即 404；等 backlog #149 feed 恢复再重估；且动受保护发版测试。
+- #144 P1（读链）落地：contracts 模型 schema（`sanitizeEmptySchemas` 比上游多带，防 P2 回写丢标志）+ core `ModelSettings` + server `ModelSettingsStore`/GET/`registerSettingsRoutes` 加参 + desktop seed（幂等）与装配传参（旧 options 保留）+ 渲染端切 REST 读（REST 模式模型区整体只读，fieldset 禁用；回退断连态走旧桥）。验证：typecheck 全过、contracts 102/server 11/app 15/desktop 292 全绿。P2（PUT+写链）待续。
 
 ## 待办（3 项未合入）
 

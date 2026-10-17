@@ -56,13 +56,24 @@
 | `syncTray()` | 保留在 prefs 保存路径（closeToTray 变更触发），不可丢 |
 | `updateDefaultModel/Sampling/ThinkingLevel`（registry 推送） | server 内部（PUT handler 内更新 registry），IPC 删除 |
 
-### 4.3 字段迁移表要点（R1 准绳，review I6）
+### 4.3 字段迁移表（R1 准绳，P0 冻结口径，无孤儿）
 
-- models.text/image + customProviders → `model-settings.json`（经 `ModelSettingsStore.normalize`）。
-- locale/theme/debugToolsEnabled/closeToTray → hostPrefs；tts/proxy/webSearch/notifications → hostPrefs 扩展；mobileAccess → 顶层（token 沿用现有懒迁并在迁移时搬到 `serverToken`，同时改造 `getServerToken:346`/`getMobileAccess:363` 改读新位）。
-- `openProjects`/`lastActiveProject`/`serverToken` 顶层键原位保留不动。
-- 旧 `settings` 键迁移前全量备份，校验通过再删；幂等（新位已存在则跳过，抄上游 `existsSync` 守卫）。
-- 注意 `getMaskedSettings` 输出 shape ≠ 持久化 shape（mobileAccess/token 不在输出里），迁移以持久化文件为准逐项打勾。
+| 源字段（旧 `settings` / 顶层键） | 新家 | 说明 |
+|---|---|---|
+| `models.text.{defaultModel,providers,sampling,thinkingLevel}` | `model-settings.json` | 经 `normalize`；env 应用搬 server |
+| `models.image.{defaultModel,providers}` | `model-settings.json` | 同上（sampling/thinkingLevel 仅 text 用） |
+| `customProviders[]` | `model-settings.json` | 随模型走（catalog 同步依赖） |
+| `locale` | hostPrefs（双端） | web 唯一保留项 |
+| `theme`/`debugToolsEnabled`/`closeToTray` | hostPrefs（desktop） | `tabsEnabled` 不迁（剥离） |
+| `tts.{voiceURI,rate,autoRead}` | hostPrefs 扩展（desktop） | 整对象搬 |
+| `proxy.{url,noProxy}` | hostPrefs 扩展（desktop） | 存储搬，`applyProxyEnv` 留 desktop |
+| `notifications.{approval,trigger}` | hostPrefs 扩展（desktop） | 整对象搬 |
+| `webSearch.{apiKey,baseUrl,model}` | `web-search-settings.json`（P4，server） | 不进 ModelSettings；迁移前 desktop 行为不变 |
+| `mobileAccess.{enabled,mode,publicDomain}` | 顶层 `mobileAccess` | `token` 搬到顶层 `serverToken`（沿用懒迁） |
+| 顶层 `openProjects`/`lastActiveProject`/`serverToken` | 原位保留 | 迁移不碰 |
+| 旧 `settings` 键 | 备份后删除 | 幂等：新位已存在则跳过 |
+
+注意 `getMaskedSettings` 输出 shape ≠ 持久化 shape（mobileAccess/token 不在输出里），迁移以持久化文件为准逐项打勾（上表即打勾清单）。
 
 ## 5. 决策（已全定稿）
 
@@ -76,7 +87,7 @@
 ## 6. 分阶段
 
 - P0 对照冻结：本文件 + `high-risk-comparison.md` 即冻结口径；先写 §4.3 迁移表逐字段认领，无孤儿才开工。
-- P1 读链整切：contracts schema + store + GET + desktop 装配传参（旧 options 保留）+ `registerSettingsRoutes` 加参（含 side-panel 测试同步）+ desktop/web 渲染端切 REST 读 + 已配 key 输入框禁用态；验证 desktop 表单显示脱敏值 + REST 直调 GET + 现有测试全绿（P1 即有消费者，不存在无产出阶段）。
+- P1 读链整切：contracts schema + store + GET + desktop 装配传参（旧 options 保留）+ `registerSettingsRoutes` 加参（含 side-panel 测试同步）+ desktop 一次性 seed（幂等、无删除，完整迁移仍在 P3；否则 REST 读到空 store 造成显示回退）+ desktop/web 渲染端切 REST 读 + 已配 key 输入框禁用态；验证 desktop 表单显示脱敏值 + REST 直调 GET + 现有测试全绿（P1 即有消费者，不存在无产出阶段）。
 - P2 写链整切：PUT + settings-store 8 setter 去 `models` + `use-settings-form` 改 REST + mask 语义切换 + `syncTray` 重挂；验证 key 轮换/删除/空串语义 + 回滚（迁移前备份旧 settings）。
 - P3 桥接+迁移+开 web：bridge 瘦身 + `ALL_HOSTS` + 设置页 web 兼容审计 + legacy 迁移（含 fork 字段、备份、幂等）+ `getServerToken`/`getMobileAccess` 改造 + 删 desktop `model-catalog.ts` 与 `ipc/settings.ts`（无消费者后，上游实证）；验证 web 设置页冒烟 + 无白屏 + 老版本升级演练（备份比对逐字段）。
 - P4 webSearch 独立分区（可与 P2 并行，另一人/分支）。

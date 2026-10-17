@@ -1,10 +1,12 @@
 import path from "node:path";
+import fs from "node:fs";
 import crypto from "node:crypto";
 import { app, nativeTheme } from "electron";
 import Store from "electron-store";
 import { setGlobalDispatcher, EnvHttpProxyAgent } from "undici";
 import type { AppSettings, ModelGroupSettings, ProviderCredentials, MobileAccessSettings, ProxySettings, WebSearchSettings } from "@spherse/core";
 import { WEB_SEARCH_API_KEY_ENV, WEB_SEARCH_BASE_URL_ENV, WEB_SEARCH_MODEL_ENV } from "@spherse/core";
+import { ModelSettingsStore } from "@spherse/server";
 import { getAppModelCatalog } from "./model-catalog.js";
 
 export interface OpenProjectEntry {
@@ -24,6 +26,32 @@ type SettingsSchema = {
 export const settingsStore = new Store<SettingsSchema>({
   name: "settings",
 });
+
+export function getModelSettingsPath(): string {
+  return path.join(app.getPath("userData"), "model-settings.json");
+}
+
+export function seedModelSettingsFromLegacy(): void {
+  const filePath = getModelSettingsPath();
+  if (fs.existsSync(filePath)) return;
+  const models = settingsStore.get("settings")?.models;
+  if (!models) return;
+  new ModelSettingsStore({ filePath }).applyUpdate({
+    models: {
+      text: {
+        defaultModel: models.text?.defaultModel ?? "",
+        providers: models.text?.providers,
+        sampling: models.text?.sampling,
+        thinkingLevel: models.text?.thinkingLevel,
+      },
+      image: {
+        defaultModel: models.image?.defaultModel ?? "",
+        providers: models.image?.providers,
+      },
+    },
+    customProviders: settingsStore.get("settings")?.customProviders,
+  });
+}
 
 export function getSettings(): AppSettings | undefined {
   return settingsStore.get("settings");

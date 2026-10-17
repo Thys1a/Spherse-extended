@@ -125,6 +125,9 @@ export type { UploadResponse } from "./upload.js";
 export type {
   ProviderCatalogItemContract,
   ProviderCatalogContract,
+  CustomProviderDefContract,
+  ModelSettingsRequest,
+  ModelSettingsResponse,
   AiAccessSettingsRequest,
   AiAccessSettingsResponse,
   WelcomePageSettingsRequest,

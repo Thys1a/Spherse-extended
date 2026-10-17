@@ -1,11 +1,13 @@
 import { useEffect, useState, useCallback } from "react";
 import type { CustomProviderDef, SamplingParams, ThinkingLevel } from "@spherse/core";
-import type { ProviderConfig, SettingsApi } from "./types";
+import type { ProviderConfig, SettingsApi, ModelSettingsApi } from "./types";
 import { generateCustomProviderId } from "./custom-provider-id.js";
 
 interface GroupFormState {
   providers: Record<string, ProviderConfig>;
   apiKeys: Record<string, string>;
+  configured: Record<string, boolean>;
+  locked: boolean;
   defaultModel: string;
   sampling?: SamplingParams;
   thinkingLevel?: ThinkingLevel;
@@ -26,9 +28,20 @@ export type { GroupFormState };
 
 interface GroupData {
   apiKeys: Record<string, string>;
+  configured: Record<string, boolean>;
   defaultModel: string;
   sampling?: SamplingParams;
   thinkingLevel?: ThinkingLevel;
+}
+
+const EMPTY_GROUP: GroupData = { apiKeys: {}, configured: {}, defaultModel: "" };
+
+function configuredFromFlags(providers: Record<string, { configured: boolean }>): Record<string, boolean> {
+  const map: Record<string, boolean> = {};
+  for (const [id, entry] of Object.entries(providers)) {
+    if (entry.configured) map[id] = true;
+  }
+  return map;
 }
 
 function extractKeys(providers: Record<string, { apiKey?: string }> | undefined): Record<string, string> {
@@ -47,16 +60,45 @@ function keysToProviders(keys: Record<string, string>): Record<string, { apiKey:
   return providers;
 }
 
-export function useSettingsForm(api: SettingsApi) {
+export function useSettingsForm(api: SettingsApi, modelApi: ModelSettingsApi | null = null) {
   const [textProviders, setTextProviders] = useState<Record<string, ProviderConfig>>({});
   const [imageProviders, setImageProviders] = useState<Record<string, ProviderConfig>>({});
-  const [textData, setTextData] = useState<GroupData>({ apiKeys: {}, defaultModel: "" });
-  const [imageData, setImageData] = useState<GroupData>({ apiKeys: {}, defaultModel: "" });
+  const [textData, setTextData] = useState<GroupData>({ ...EMPTY_GROUP });
+  const [imageData, setImageData] = useState<GroupData>({ ...EMPTY_GROUP });
   const [saving, setSaving] = useState(false);
   const [customProviders, setCustomProviders] = useState<CustomProviderDef[]>([]);
+  const [locked, setLocked] = useState(false);
 
   useEffect(() => {
     void (async () => {
+      if (modelApi) {
+        try {
+          const [textCatalog, imageCatalog, settings] = await Promise.all([
+            modelApi.getSupportedProviders(),
+            modelApi.getImageProviders(),
+            modelApi.getModelSettings(),
+          ]);
+          setTextProviders(textCatalog ?? {});
+          setImageProviders(imageCatalog ?? {});
+          setTextData({
+            ...EMPTY_GROUP,
+            configured: configuredFromFlags(settings.models.text.providers),
+            defaultModel: settings.models.text.defaultModel ?? "",
+            sampling: settings.models.text.sampling,
+            thinkingLevel: settings.models.text.thinkingLevel,
+          });
+          setImageData({
+            ...EMPTY_GROUP,
+            configured: configuredFromFlags(settings.models.image.providers),
+            defaultModel: settings.models.image.defaultModel ?? "",
+          });
+          setCustomProviders(settings.customProviders ?? []);
+          setLocked(true);
+          return;
+        } catch {
+          setLocked(false);
+        }
+      }
       const [textCatalog, imageCatalog, settings] = await Promise.all([
         api.getSupportedProviders(),
         api.getImageProviders(),
@@ -65,18 +107,20 @@ export function useSettingsForm(api: SettingsApi) {
       setTextProviders(textCatalog ?? {});
       setImageProviders(imageCatalog ?? {});
       setTextData({
+        ...EMPTY_GROUP,
         apiKeys: extractKeys(settings?.models?.text?.providers),
         defaultModel: settings?.models?.text?.defaultModel ?? "",
         sampling: settings?.models?.text?.sampling,
         thinkingLevel: settings?.models?.text?.thinkingLevel,
       });
       setImageData({
+        ...EMPTY_GROUP,
         apiKeys: extractKeys(settings?.models?.image?.providers),
         defaultModel: settings?.models?.image?.defaultModel ?? "",
       });
       setCustomProviders(settings?.customProviders ?? []);
     })();
-  }, [api]);
+  }, [api, modelApi]);
 
   const save = useCallback(
     async (
@@ -84,6 +128,7 @@ export function useSettingsForm(api: SettingsApi) {
       imageOverride?: GroupData,
       customProvidersOverride?: CustomProviderDef[],
     ): Promise<boolean> => {
+      if (locked) return false;
       const t = textOverride ?? textData;
       const i = imageOverride ?? imageData;
       const cp = customProvidersOverride ?? customProviders;
@@ -103,7 +148,7 @@ export function useSettingsForm(api: SettingsApi) {
         setSaving(false);
       }
     },
-    [api, textData, imageData, customProviders],
+    [api, locked, textData, imageData, customProviders],
   );
 
   const refreshTextCatalog = useCallback(async () => {
@@ -160,6 +205,8 @@ export function useSettingsForm(api: SettingsApi) {
   ): GroupFormState => ({
     providers,
     apiKeys: data.apiKeys,
+    configured: data.configured,
+    locked,
     defaultModel: data.defaultModel,
     sampling: data.sampling,
     thinkingLevel: data.thinkingLevel,

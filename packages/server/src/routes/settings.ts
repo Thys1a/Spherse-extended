@@ -1,10 +1,28 @@
 import fs from "node:fs/promises";
 import type { FastifyInstance } from "fastify";
+import type { ModelCatalog } from "@spherse/core";
 import type { ProjectRegistry } from "../registry.js";
 import { getImageSupportedProviders, resolveProjectPath } from "@spherse/core";
 import { schemas } from "@spherse/contracts";
+import type { ModelSettingsStore } from "../model-settings.js";
 
-export function registerSettingsRoutes(fastify: FastifyInstance, registry: ProjectRegistry): void {
+interface SettingsRouteOptions {
+  modelSettingsStore: ModelSettingsStore;
+  modelCatalog: ModelCatalog;
+}
+
+export function registerSettingsRoutes(
+  fastify: FastifyInstance,
+  registry: ProjectRegistry,
+  options: SettingsRouteOptions,
+): void {
+  fastify.get("/api/settings/models", {
+    schema: { response: { 200: schemas.modelSettingsResponse } },
+    async handler() {
+      return options.modelSettingsStore.sanitize();
+    },
+  });
+
   fastify.get("/api/settings/providers", {
     schema: { response: { 200: schemas.providerCatalog } },
     async handler() {

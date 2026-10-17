@@ -3,7 +3,7 @@ import { app } from "electron";
 import { createMultiProjectServer } from "@spherse/server";
 import type { ProjectRegistry, MultiProjectServer } from "@spherse/server";
 import type { SamplingParams, ThinkingLevel } from "@spherse/core";
-import { getSettings, getMobileAccess, getServerToken } from "./settings.js";
+import { getSettings, getMobileAccess, getServerToken, seedModelSettingsFromLegacy, getModelSettingsPath } from "./settings.js";
 import { getAppModelCatalog } from "./model-catalog.js";
 import { getTunnelManager } from "./tunnel/manager.js";
 
@@ -55,10 +55,12 @@ export function syncAllowedHosts(): void {
 export async function ensureServer(): Promise<void> {
   if (serverHandle) return;
   const settings = getSettings();
+  seedModelSettingsFromLegacy();
   const result = await createMultiProjectServer({
     defaultModel: settings?.models?.text?.defaultModel,
     sampling: settings?.models?.text?.sampling,
     thinkingLevel: settings?.models?.text?.thinkingLevel,
+    modelSettingsPath: getModelSettingsPath(),
     auth: { accessToken: getServerToken() },
     modelCatalog: getAppModelCatalog(),
     appVersion: app.getVersion(),

@@ -5,6 +5,7 @@ export type {
   SamplingParams,
   ThinkingLevel,
   ModelGroupSettings,
+  ModelSettings,
   MobileAccessSettings,
   TtsSettings,
   ProxySettings,
