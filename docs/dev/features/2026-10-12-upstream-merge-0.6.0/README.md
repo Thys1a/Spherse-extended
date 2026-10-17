@@ -107,6 +107,7 @@
 - 跳过 #126：机制经 OSS changelog.json，fork 无 OSS 前提不存在；GitHub 源重做已记 backlog。
 - 跳过 #129：依赖 electron-updater feed（latest.yml），fork CI 不产出该文件，链路第一步即 404；等 backlog #149 feed 恢复再重估；且动受保护发版测试。
 - #144 P1（读链）落地：contracts 模型 schema（`sanitizeEmptySchemas` 比上游多带，防 P2 回写丢标志）+ core `ModelSettings` + server `ModelSettingsStore`/GET/`registerSettingsRoutes` 加参 + desktop seed（幂等）与装配传参（旧 options 保留）+ 渲染端切 REST 读（REST 模式模型区整体只读，fieldset 禁用；回退断连态走旧桥）。验证：typecheck 全过、contracts 102/server 11/app 15/desktop 292 全绿。P2（PUT+写链）待续。
+- 7bdabd5 的 review 修复：sanitize 剥离 custom headers（明文不出新边界）；normalize 守卫 sampling 白名单 thinkingLevel + image 去采样（脏盘不 500）；单 catalog 实例（registry 与路由同源）；0600 落盘 + 随机 tmp；providers 路由改走注入实例；custom 操作 locked 早退；_registry 预留 P2。M3（existsSync 竞态）转 P3 迁移约束；I1 分叉窗口以"P2 PUT 接线 + 桥写封口同 commit"为关闭条件。
 
 ## 待办（3 项未合入）
 

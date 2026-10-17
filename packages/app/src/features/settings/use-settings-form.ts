@@ -158,6 +158,7 @@ export function useSettingsForm(api: SettingsApi, modelApi: ModelSettingsApi | n
 
   const addCustomProvider = useCallback(
     async (def: CustomProviderDef): Promise<boolean> => {
+      if (locked) return false;
       const existingIds = [...Object.keys(textProviders), ...customProviders.map((c) => c.id)];
       const id = generateCustomProviderId(def.name, existingIds);
       const withId = { ...def, id };
@@ -167,22 +168,24 @@ export function useSettingsForm(api: SettingsApi, modelApi: ModelSettingsApi | n
       if (ok) await refreshTextCatalog();
       return ok;
     },
-    [textProviders, customProviders, save, refreshTextCatalog],
+    [locked, textProviders, customProviders, save, refreshTextCatalog],
   );
 
   const updateCustomProvider = useCallback(
     async (id: string, def: CustomProviderDef): Promise<boolean> => {
+      if (locked) return false;
       const next = customProviders.map((c) => (c.id === id ? { ...def, id } : c));
       setCustomProviders(next);
       const ok = await save(undefined, undefined, next);
       if (ok) await refreshTextCatalog();
       return ok;
     },
-    [customProviders, save, refreshTextCatalog],
+    [locked, customProviders, save, refreshTextCatalog],
   );
 
   const removeCustomProvider = useCallback(
     async (id: string): Promise<boolean> => {
+      if (locked) return false;
       const next = customProviders.filter((c) => c.id !== id);
       const nextApiKeys = { ...textData.apiKeys };
       delete nextApiKeys[id];
@@ -194,7 +197,7 @@ export function useSettingsForm(api: SettingsApi, modelApi: ModelSettingsApi | n
       if (ok) await refreshTextCatalog();
       return ok;
     },
-    [customProviders, textData, save, refreshTextCatalog],
+    [locked, customProviders, textData, save, refreshTextCatalog],
   );
 
   const makeGroup = (

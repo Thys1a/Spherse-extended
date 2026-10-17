@@ -7,6 +7,8 @@ function emptyGroup(): ModelGroupSettings {
   return { defaultModel: "", providers: {} };
 }
 
+const THINKING_LEVELS = new Set(["off", "low", "medium", "high"]);
+
 function normalizeGroup(raw: unknown): ModelGroupSettings {
   if (typeof raw !== "object" || raw === null) return emptyGroup();
   const group = raw as Partial<ModelGroupSettings>;
@@ -14,12 +16,26 @@ function normalizeGroup(raw: unknown): ModelGroupSettings {
   for (const [id, creds] of Object.entries(group.providers ?? {})) {
     if (creds?.apiKey?.trim()) providers[id] = { apiKey: creds.apiKey };
   }
+  const sampling = normalizeSampling(group.sampling);
+  const thinkingLevel =
+    typeof group.thinkingLevel === "string" && THINKING_LEVELS.has(group.thinkingLevel)
+      ? (group.thinkingLevel as ModelGroupSettings["thinkingLevel"])
+      : undefined;
   return {
     defaultModel: typeof group.defaultModel === "string" ? group.defaultModel : "",
     providers,
-    sampling: group.sampling,
-    thinkingLevel: group.thinkingLevel,
+    sampling,
+    thinkingLevel,
   };
+}
+
+function normalizeSampling(raw: unknown): ModelGroupSettings["sampling"] {
+  if (typeof raw !== "object" || raw === null) return undefined;
+  const { temperature, topP } = raw as { temperature?: unknown; topP?: unknown };
+  const clean: { temperature?: number; topP?: number } = {};
+  if (typeof temperature === "number") clean.temperature = temperature;
+  if (typeof topP === "number") clean.topP = topP;
+  return clean.temperature === undefined && clean.topP === undefined ? undefined : clean;
 }
 
 function normalizeSettings(raw: unknown): ModelSettings {
@@ -27,9 +43,10 @@ function normalizeSettings(raw: unknown): ModelSettings {
     return { text: emptyGroup(), image: emptyGroup(), customProviders: [] };
   }
   const data = raw as Partial<ModelSettings>;
+  const image = normalizeGroup(data.image);
   return {
     text: normalizeGroup(data.text),
-    image: normalizeGroup(data.image),
+    image: { defaultModel: image.defaultModel, providers: image.providers },
     customProviders: Array.isArray(data.customProviders) ? data.customProviders : [],
   };
 }
@@ -92,7 +109,7 @@ export class ModelSettingsStore {
           providers: this.toConfiguredMap(this.settings.image.providers),
         },
       },
-      customProviders: this.settings.customProviders,
+      customProviders: this.settings.customProviders.map(({ headers: _dropped, ...rest }) => rest),
     };
   }
 
@@ -126,9 +143,10 @@ export class ModelSettingsStore {
 
   private writeToDisk(settings: ModelSettings): void {
     fs.mkdirSync(path.dirname(this.filePath!), { recursive: true });
-    const tmp = `${this.filePath}.${process.pid}.${Date.now()}.tmp`;
-    fs.writeFileSync(tmp, JSON.stringify(settings, null, 2), "utf-8");
+    const tmp = `${this.filePath}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`;
+    fs.writeFileSync(tmp, JSON.stringify(settings, null, 2), { encoding: "utf-8", mode: 0o600 });
     fs.renameSync(tmp, this.filePath!);
+    fs.chmodSync(this.filePath!, 0o600);
   }
 }
 

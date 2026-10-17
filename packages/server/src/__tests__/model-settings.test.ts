@@ -93,4 +93,39 @@ describe("ModelSettingsStore", () => {
       customProviders: [{ id: "c1", name: "C", baseUrl: "http://x", models: ["m"], keyless: false }],
     });
   });
+
+  it("strips custom provider headers from sanitized output", () => {
+    const store = new ModelSettingsStore();
+    store.applyUpdate({
+      models: { text: { defaultModel: "", providers: {} }, image: { defaultModel: "", providers: {} } },
+      customProviders: [
+        { id: "c1", name: "C", baseUrl: "http://x", models: ["m"], keyless: false, headers: { Authorization: "Bearer sk-x" } },
+      ],
+    });
+
+    const sanitized = store.sanitize();
+    expect(sanitized.customProviders).toEqual([
+      { id: "c1", name: "C", baseUrl: "http://x", models: ["m"], keyless: false },
+    ]);
+    expect("headers" in sanitized.customProviders[0]).toBe(false);
+    expect(store.get().customProviders[0]).toMatchObject({ headers: { Authorization: "Bearer sk-x" } });
+  });
+
+  it("normalizes dirty sampling and thinkingLevel instead of failing reads", () => {
+    fs.writeFileSync(
+      filePath,
+      JSON.stringify({
+        text: { defaultModel: "m", providers: {}, sampling: { temperature: "hot" }, thinkingLevel: "ultra" },
+        image: { defaultModel: "", providers: {}, sampling: { topP: 0.5 }, thinkingLevel: "low" },
+        customProviders: [],
+      }),
+      "utf-8",
+    );
+    const store = new ModelSettingsStore({ filePath });
+
+    expect(store.get().text.sampling).toBeUndefined();
+    expect(store.get().text.thinkingLevel).toBeUndefined();
+    expect(store.get().image).toEqual({ defaultModel: "", providers: {} });
+    expect(() => store.sanitize()).not.toThrow();
+  });
 });

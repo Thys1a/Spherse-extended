@@ -1,4 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import Fastify, { type FastifyInstance } from "fastify";
 import { ModelCatalog } from "@spherse/core";
 import { registerSettingsRoutes } from "../routes/settings.js";
@@ -61,6 +64,42 @@ describe("GET /api/settings/models route", () => {
       });
     } finally {
       await gated.close();
+    }
+  });
+
+  it("serves seeded file content through sanitize", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "spherse-model-seed-"));
+    try {
+      const filePath = path.join(dir, "model-settings.json");
+      const store = new ModelSettingsStore({ filePath });
+      store.applyUpdate({
+        models: {
+          text: { defaultModel: "openai/gpt-4o", providers: { openai: { apiKey: "sk-1" } } },
+          image: { defaultModel: "", providers: {} },
+        },
+      });
+      const reloaded = new ModelSettingsStore({ filePath });
+      const seeded = Fastify();
+      registerSettingsRoutes(seeded, {} as ProjectRegistry, {
+        modelSettingsStore: reloaded,
+        modelCatalog: new ModelCatalog(),
+      });
+      await seeded.ready();
+      try {
+        const res = await seeded.inject({ method: "GET", url: "/api/settings/models" });
+        expect(res.statusCode).toBe(200);
+        expect(res.json()).toEqual({
+          models: {
+            text: { defaultModel: "openai/gpt-4o", providers: { openai: { configured: true } } },
+            image: { defaultModel: "", providers: {} },
+          },
+          customProviders: [],
+        });
+      } finally {
+        await seeded.close();
+      }
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
     }
   });
 });

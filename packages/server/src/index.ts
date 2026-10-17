@@ -129,7 +129,7 @@ export async function createMultiProjectServer(
     defaultModel: options?.defaultModel,
     sampling: options?.sampling,
     thinkingLevel: options?.thinkingLevel,
-    modelCatalog: options?.modelCatalog,
+    modelCatalog,
     onRuntimeRemoved: (runtime) => chatHub.closeRuntime(runtime),
   });
 

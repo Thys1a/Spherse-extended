@@ -245,4 +245,17 @@ describe("useSettingsForm rest read mode", () => {
     expect(result.current.text.locked).toBe(false);
     expect(result.current.text.configured).toEqual({});
   });
+
+  it("refuses custom provider writes while locked", async () => {
+    const modelApi = createModelApi();
+    const { result } = renderHook(() => useSettingsForm(api, modelApi));
+    await waitFor(() => expect(result.current.text.locked).toBe(true));
+
+    let ok = true;
+    await act(async () => {
+      ok = await result.current.text.addCustomProvider!({ id: "", name: "New", baseUrl: "https://new.example", models: ["m"], keyless: false });
+    });
+    expect(ok).toBe(false);
+    expect(api.saveSettings).not.toHaveBeenCalled();
+  });
 });

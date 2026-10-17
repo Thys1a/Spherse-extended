@@ -13,7 +13,7 @@ interface SettingsRouteOptions {
 
 export function registerSettingsRoutes(
   fastify: FastifyInstance,
-  registry: ProjectRegistry,
+  _registry: ProjectRegistry,
   options: SettingsRouteOptions,
 ): void {
   fastify.get("/api/settings/models", {
@@ -26,7 +26,7 @@ export function registerSettingsRoutes(
   fastify.get("/api/settings/providers", {
     schema: { response: { 200: schemas.providerCatalog } },
     async handler() {
-      return registry.getSupportedProviders();
+      return options.modelCatalog.getSupportedProviders();
     },
   });
 
