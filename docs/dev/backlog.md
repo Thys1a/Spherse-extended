@@ -28,6 +28,8 @@
 - [ ] **Windows 世界书外链建链权限引导**：`addAgentCardLink` 在 Windows 无权限时已转明确英文错误（与 core 错误英文惯例一致），但用户仍需自行开管理员/开发者模式。方向：对话框报错旁给一键指引（或检测到该错误时 toast 追加解决步骤）；评估是否值得为 Windows 提供 copy 回退（会破坏"直接同步"语义，默认不做）。
 - [ ] **`search_content` 总量闸下沉到扫描层**：32KB 总量闸现落在结果拼接层（扫满 100 条再丢弃），巨行极少命中时仍遍历全项目。方向：把字节预算传入 `searchDir`/`searchInFile` 做早停。参见 `docs/dev/bugfix/2026-09-22-search-content-oversized-result/design.md`（review 遗留）
 - [ ] **sp 订阅 defer 行为变化说明**：T7 起同会话 `sp:` 订阅从恒跳过变为恒转一圈必触发 follow-up turn，且失败 turn 的 `turn/end(error)` 也会点燃订阅者。方向：在 trigger 相关用户文档注明该行为变化。参见 `docs/dev/bugfix/2026-09-23-repeated-tool-calls/design.md`
+- [ ] **长上下文工具调用标记退化探针与强制压缩**：`assistant/message` 落盘前扫描正文 `<invoke` / `<parameter` / 模板特殊 token，命中即按 `markTruncated` 路径记 `stopReason: error` + `errorMessage` 走可见可重试链；首次标记/截断轮后把实测退化点记入会话 `observedWindow` 并强制压缩一次（复用 `maybeCompactLog` 的 `thresholdRatio: 0` 路径）；历史 assistant 正文标记做展示层剥离防自我强化（不解析回 `toolCall`）。参见 `docs/dev/bugfix/2026-10-04-toolcall-markup-on-long-context/design.md`
+- [ ] **收敛 chat 历史游标回退与滚动位毒化（新 runtime）**：`session-lifecycle.ts:116` 对账无条件覆盖 `oldestSeq`（loadMore 后重连即倒退）；`useChatScroll.ts:175` 卸载回写原始值（贴底未归 0）、`:133` 重开恢复无阈值门。方向：对账仅衔接已加载区间时更新游标，回写贴底存 0、恢复加阈值+范围校验。参见 `docs/dev/bugfix/2026-09-11-chat-theme-history/design.md` Bug 2（旧 `resolvePageCursor` 路径已随重构消失，按 `history-loader`/`session-lifecycle` 重对）
 
 ## 技术债（重构与收敛）
 
@@ -90,6 +92,7 @@
 - [ ] **脏文件切 tab 疑似静默丢失（先真机确认）**：`useContentEditor` 的 requestLeave 只保 Back/Close 两个按钮，切 tab/点侧栏/换项目等导航路径无人问 dirty 态（dirty-paths store 只被文件树删除/移动消费）；editor state 随 unmount 消失。方向：先真机确认（脏文件→点别的 tab 看是否丢），确认后按上游 #104 的 `useBlocker` 方案收敛（fork 为 createHashRouter，data router 可用），替换 requestLeave 机制。参见上游 `ca3059b` design「未保存编辑守卫」节。
 - [ ] **更新弹窗显示目标版本更新日志（GitHub 源重做）**：上游 #126 经 OSS `changelog.json` 取 notes，fork 无 OSS 不可直接合（`df36455` 机制前提不存在）。方向：desktop 更新检查改经 GitHub Releases API 取目标版本 notes，填入既有 `releaseNotes` 槽位（`packages/desktop/electron/updater.ts` 已有字段透传、当前恒空），mac/Linux 对话框展示；主进程出网失败留空。landing 已有 releases 拉取解析 precedent（`packages/landing/src/lib/release.ts`、`changelog.ts）。
 
+- [ ] **补齐 `openFile` action 的 `newTab` 参数**：文件右键已直调 `openTab force`，HTML 卡片等程序化调用方只能 `navigate`（触发单复用槽替换）无法开新标签。方向：`open-file.ts` 加 `newTab?: boolean`（`force: true` 建 tab，tabs 关时降级 navigate，门控与 `onOpenInNewTab` 一致），补 handler 单测 + HTML 卡片调用示例。参见 `docs/dev/features/2026-09-10-file-list-ops/design.md` 增补调研 P2
 ## 基础设施
 
 - [ ] **Linux 发行打磨（条件触发：出现 Linux 用户实际诉求时）**：当前 Linux 发布为 x64 AppImage + deb（CI linux matrix job，executableName 三平台统一 `Spherse`）。潜在跟进：arm64 构建、rpm/snap 等格式、Ubuntu 23.10+（AppArmor 限制 unprivileged userns）下 Electron SUID sandbox 启动失败的更优解（现为 README/下载页 sysctl workaround）。
