@@ -1,7 +1,7 @@
 # Design：合入上游 #144（settings server 化）
 
 - 日期：2026-10-16，2026-10-17 修订（C1 定 A 真多端；按 review I1–I6/M1–M4 重构）
-- 状态：C1/D4/D5 已定 A；D2/D3/D6 待定
+- 状态：C1/D2/D3/D4/D5/D6、D1-B 全定稿；已达 P0 开工条件
 - 上游：`e85db12`（69 文件，+2443/−1350）
 - 前置对照：`high-risk-comparison.md` §二
 
@@ -64,14 +64,14 @@
 - 旧 `settings` 键迁移前全量备份，校验通过再删；幂等（新位已存在则跳过，抄上游 `existsSync` 守卫）。
 - 注意 `getMaskedSettings` 输出 shape ≠ 持久化 shape（mobileAccess/token 不在输出里），迁移以持久化文件为准逐项打勾。
 
-## 5. 待决策
+## 5. 决策（已全定稿）
 
 - D1 范围：A 全量（含表单重写）/ B 小步（先读后写）。倾向 B。
-- D2 webSearch 归属：A 并入 ModelSettings / B 独立文件+路由 / C 留 desktop 本地。倾向 B（与模型语义不同，独立迁移互不阻塞；A 省一路迁移但混合关注点）。
-- D3 杂项去向：A 进 hostPrefs / B 留旧 key。倾向 A（proxy 热应用另立项）。
+- D2 webSearch 归属：已定 B——独立 `web-search-settings.json` + 独立路由，复用原子写 + sanitize 模式。
+- D3 杂项去向：已定 A——进 hostPrefs 扩展（proxy 热应用另立项）。
 - D4 web 接入形态：已定 A——模型/目录走 app ApiClient（useGlobalApiClient，宿主无关），prefs 走 bridge。
 - D5 catalog：已定 A——server 自建（`new ModelCatalog`），删 `desktop/electron/model-catalog.ts`；渲染端目录走 REST，上游实证。
-- D6 迁移：A 单向全字段 + 备份幂等 / B 双读兼容。倾向 A。
+- D6 迁移：已定 A——单向全字段 + 备份幂等。
 
 ## 6. 分阶段
 
