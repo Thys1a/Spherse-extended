@@ -1,7 +1,7 @@
 # 合并上游 v0.6.0
 
 - 日期：2026-10-12
-- 状态：合并完成待验收，剩余 1 项待确认（见文末待办）
+- 状态：合并完成，用户已验收 #112/#148 跳过结论；分支暂不合 dev
 - 版本：v1.0.1（新增项）
 - 来源：上游 `mengrru/Spherse` v0.6.0（2026-10-11 发布）；本 fork README「未来计划」
 
@@ -114,7 +114,4 @@
 - db6ce56 的 review 修复（C1/I1/I2/I3/M1/M2/M3/m1/m2/m3）：undefined 污染双层修复（desktop `?? {}` + store 条件展开，附 IPC 形状回归测试）+ e2e 切 prefs 通道 + WebSearchPanel 移出桌面门禁（globalClient 门禁）+ PUT 防抖串行 + 失败 toast（新 key 三语）+ .bak 0600 + null 进 loadError + 迁移 skip/未知字段测试 + 清 3 处过期 mock + 删 core AppSettings + web 旧 key 总清理。验证：app 1690/server 432/desktop 253/contracts 103 全绿，lint 0 errors。
 - c9a3866 的 review 复查修复：official 三处文档同步新链路（desktop/frontend/server）+ data-conventions 模型归属 + 迁移未知字段名实（legacy 丢弃/已存在透传）+ 删 zh-CN 新增注释（红线）。
 - doc-sync 收尾：删 project-structure.md 已不存在的 landing CNAME 条目（文件已于 9788732 删除）+ 落 sidePanel.path（data-conventions 表格/校验 + glossary 术语，锚点闭环）。
-
-## 待办（1 项待确认）
-
-- 高风险：#112 Agent 记忆、#148 memory guide 改写 → 方向冲突已定跳过（见 08 §十五），待你最终确认销项
+- #112/#148 销项：用户最终确认跳过（方向冲突，见 08 §十五），待办清零；分支暂不合 dev。
