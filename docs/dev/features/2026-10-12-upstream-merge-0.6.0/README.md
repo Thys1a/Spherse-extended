@@ -1,7 +1,7 @@
 # 合并上游 v0.6.0
 
 - 日期：2026-10-12
-- 状态：合并中，剩余 10 项（见文末待办）
+- 状态：合并完成待验收，剩余 1 项待确认（见文末待办）
 - 版本：v1.0.1（新增项）
 - 来源：上游 `mengrru/Spherse` v0.6.0（2026-10-11 发布）；本 fork README「未来计划」
 
@@ -113,8 +113,8 @@
 - #144 P3（桥接+迁移+开 web）落地：server webSearch 独立分区（store/GET+PUT/sanitize/env）+ desktop settings 重写为 hostPrefs（mask/merge/bridge-save/IPC/catalog 全删）+ migrate-legacy-settings（备份+幂等+全字段，seed 由其取代）+ main 接迁移 + preload/bridge 切 prefs + app settings-store 重写 + form 单路径 + WebSearchPanel 走 REST + AgentDialog/SessionModelPill/tts 三处切 REST + ALL_HOSTS + ModelProviderItem（configured 必填+禁用+占位）+ i18n 两 key 三语。验证：全量 typecheck、app 1689/server 432/desktop 251/contracts 103 全绿，lint 0 errors，check:i18n 过。#144 合并完成，待验收。
 - db6ce56 的 review 修复（C1/I1/I2/I3/M1/M2/M3/m1/m2/m3）：undefined 污染双层修复（desktop `?? {}` + store 条件展开，附 IPC 形状回归测试）+ e2e 切 prefs 通道 + WebSearchPanel 移出桌面门禁（globalClient 门禁）+ PUT 防抖串行 + 失败 toast（新 key 三语）+ .bak 0600 + null 进 loadError + 迁移 skip/未知字段测试 + 清 3 处过期 mock + 删 core AppSettings + web 旧 key 总清理。验证：app 1690/server 432/desktop 253/contracts 103 全绿，lint 0 errors。
 - c9a3866 的 review 复查修复：official 三处文档同步新链路（desktop/frontend/server）+ data-conventions 模型归属 + 迁移未知字段名实（legacy 丢弃/已存在透传）+ 删 zh-CN 新增注释（红线）。
+- doc-sync 收尾：删 project-structure.md 已不存在的 landing CNAME 条目（文件已于 9788732 删除）+ 落 sidePanel.path（data-conventions 表格/校验 + glossary 术语，锚点闭环）。
 
-## 待办（2 项未合入）
+## 待办（1 项待确认）
 
 - 高风险：#112 Agent 记忆、#148 memory guide 改写 → 方向冲突已定跳过（见 08 §十五），待你最终确认销项
-- project-structure.md 385–392 行还写着上游自定义域名 + CNAME

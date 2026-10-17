@@ -105,6 +105,7 @@
 | UI SDK（`@spherse/sdk`） | 注入 iframe 的浏览器运行时，暴露 `window.spherse` API | [architecture/ui-sdk.md](architecture/ui-sdk.md) |
 | HostBridge | renderer 对宿主能力的抽象接口，desktop / web 各有实现 | [architecture/frontend.md](architecture/frontend.md) |
 | HostCapabilities | 宿主能力开关声明，renderer 据此条件渲染宿主专属 UI | [architecture/frontend.md](architecture/frontend.md) |
+| 自定义侧边面板 | ProjectPanel 的可切换视图：按项目配置的 HTML（project.yaml 中 sidePanel.path）经透明 iframe 占满项目面板；与指整个左侧栏的 side panel（ActivityBar + ProjectPanel）不同 | [data-conventions.md](data-conventions.md) |
 | chat session store | chat 的 Zustand store（`useChatSessionStore`），持有 Entry 状态、连接投影、分页与 actions | [architecture/chat.md](architecture/chat.md) |
 | timePerception | agent 时间感知配置：感知时间 = 真实时间经锚点 / 流速变换 | [data-conventions.md](data-conventions.md) |
 | memory（memory.jsonl） | per-agent 记忆持久化，`memory_save` / `memory_recall` 读写，`<memory>` block 注入 | [architecture/capabilities.md](architecture/capabilities.md) |
