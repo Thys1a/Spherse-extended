@@ -18,8 +18,12 @@ export function registerSettingsIpc(): void {
     if (defaultModel) {
       updateDefaultModel(defaultModel);
     }
-    updateSampling(settings.models?.text?.sampling);
-    updateThinkingLevel(settings.models?.text?.thinkingLevel);
+    if (settings.models?.text?.sampling !== undefined) {
+      updateSampling(settings.models.text.sampling);
+    }
+    if (settings.models?.text?.thinkingLevel !== undefined) {
+      updateThinkingLevel(settings.models.text.thinkingLevel);
+    }
     return { success: true };
   });
 

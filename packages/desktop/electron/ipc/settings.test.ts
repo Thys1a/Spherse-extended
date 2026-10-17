@@ -66,7 +66,7 @@ describe("save-settings ipc propagation", () => {
     expect(updateThinkingLevelMock).toHaveBeenCalledWith("high");
   });
 
-  it("propagates undefined thinkingLevel unconditionally (reset to medium)", () => {
+  it("skips registry pushes for absent model fields so prefs-only saves keep registry state", () => {
     saveSettingsHandler()({
       locale: "zh-CN",
       models: {
@@ -75,7 +75,9 @@ describe("save-settings ipc propagation", () => {
       },
     });
 
-    expect(updateThinkingLevelMock).toHaveBeenCalledWith(undefined);
+    expect(updateThinkingLevelMock).not.toHaveBeenCalled();
+    expect(updateSamplingMock).not.toHaveBeenCalled();
+    expect(updateDefaultModelMock).toHaveBeenCalledWith("p/m");
   });
 
   it("still propagates defaultModel and sampling alongside thinkingLevel", () => {

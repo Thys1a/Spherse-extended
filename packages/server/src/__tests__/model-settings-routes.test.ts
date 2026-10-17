@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -100,6 +100,143 @@ describe("GET /api/settings/models route", () => {
       }
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("rotates keys, deletes on blank and syncs the registry on PUT", async () => {
+    const savedEnv = process.env.OPENAI_API_KEY;
+    const store = new ModelSettingsStore();
+    const registry = {
+      setDefaultModel: vi.fn(),
+      setSampling: vi.fn(),
+      setThinkingLevel: vi.fn(),
+    };
+    const writable = Fastify();
+    registerSettingsRoutes(writable, registry as unknown as ProjectRegistry, {
+      modelSettingsStore: store,
+      modelCatalog: new ModelCatalog(),
+    });
+    await writable.ready();
+    try {
+      const put = await writable.inject({
+        method: "PUT",
+        url: "/api/settings/models",
+        payload: {
+          models: {
+            text: { defaultModel: "openai/gpt-4o", providers: { openai: { apiKey: "sk-new" } }, sampling: { temperature: 0.7 } },
+            image: { defaultModel: "", providers: {} },
+          },
+          customProviders: [],
+        },
+      });
+      expect(put.statusCode).toBe(200);
+      expect(put.json()).toEqual({
+        models: {
+          text: {
+            defaultModel: "openai/gpt-4o",
+            providers: { openai: { configured: true } },
+            sampling: { temperature: 0.7 },
+          },
+          image: { defaultModel: "", providers: {} },
+        },
+        customProviders: [],
+      });
+      expect(registry.setDefaultModel).toHaveBeenCalledWith("openai/gpt-4o");
+      expect(registry.setSampling).toHaveBeenCalledWith({ temperature: 0.7 });
+      expect(registry.setThinkingLevel).toHaveBeenCalledWith(undefined);
+
+      const del = await writable.inject({
+        method: "PUT",
+        url: "/api/settings/models",
+        payload: {
+          models: {
+            text: { defaultModel: "openai/gpt-4o", providers: { openai: { apiKey: "" } } },
+            image: { defaultModel: "", providers: {} },
+          },
+        },
+      });
+      expect(del.statusCode).toBe(200);
+      expect(del.json().models.text.providers).toEqual({});
+    } finally {
+      if (savedEnv === undefined) delete process.env.OPENAI_API_KEY;
+      else process.env.OPENAI_API_KEY = savedEnv;
+      await writable.close();
+    }
+  });
+
+  it("rejects malformed PUT bodies with 400", async () => {
+    const res = await app.inject({
+      method: "PUT",
+      url: "/api/settings/models",
+      payload: { models: { text: { providers: {} } } },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("preserves custom provider headers across GET sanitized PUT round-trips", async () => {
+    const store = new ModelSettingsStore();
+    store.applyUpdate({
+      models: { text: { defaultModel: "", providers: {} }, image: { defaultModel: "", providers: {} } },
+      customProviders: [
+        { id: "c1", name: "C", baseUrl: "http://x", models: ["m"], keyless: false, headers: { Authorization: "Bearer sk-x" } },
+      ],
+    });
+    const loop = Fastify();
+    registerSettingsRoutes(loop, {} as ProjectRegistry, {
+      modelSettingsStore: store,
+      modelCatalog: new ModelCatalog(),
+    });
+    await loop.ready();
+    try {
+      const got = await loop.inject({ method: "GET", url: "/api/settings/models" });
+      expect(got.json().customProviders).toEqual([
+        { id: "c1", name: "C", baseUrl: "http://x", models: ["m"], keyless: false },
+      ]);
+
+      const put = await loop.inject({
+        method: "PUT",
+        url: "/api/settings/models",
+        payload: {
+          models: { text: { defaultModel: "", providers: {} }, image: { defaultModel: "", providers: {} } },
+          customProviders: [
+            { id: "c1", name: "C", baseUrl: "http://x", models: ["m"], keyless: false },
+          ],
+        },
+      });
+      expect(put.statusCode).toBe(200);
+      expect(store.get().customProviders).toEqual([
+        { id: "c1", name: "C", baseUrl: "http://x", models: ["m"], keyless: false, headers: { Authorization: "Bearer sk-x" } },
+      ]);
+    } finally {
+      await loop.close();
+    }
+  });
+
+  it("pushes empty defaultModel to the registry as undefined", async () => {
+    const store = new ModelSettingsStore();
+    const registry = {
+      setDefaultModel: vi.fn(),
+      setSampling: vi.fn(),
+      setThinkingLevel: vi.fn(),
+    };
+    const cleared = Fastify();
+    registerSettingsRoutes(cleared, registry as unknown as ProjectRegistry, {
+      modelSettingsStore: store,
+      modelCatalog: new ModelCatalog(),
+    });
+    await cleared.ready();
+    try {
+      const res = await cleared.inject({
+        method: "PUT",
+        url: "/api/settings/models",
+        payload: {
+          models: { text: { defaultModel: "", providers: {} }, image: { defaultModel: "", providers: {} } },
+        },
+      });
+      expect(res.statusCode).toBe(200);
+      expect(registry.setDefaultModel).toHaveBeenCalledWith(undefined);
+    } finally {
+      await cleared.close();
     }
   });
 });

@@ -135,6 +135,7 @@ export function mergeModelGroup(
   incoming: ModelGroupSettings | undefined,
   prev: ModelGroupSettings | undefined,
 ): ModelGroupSettings {
+  if (!incoming) return prev ?? { defaultModel: "", providers: {} };
   const defaultModel = incoming?.defaultModel ?? prev?.defaultModel ?? "";
   const providers: Record<string, ProviderCredentials> = {};
   const allIds = new Set([

@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import type { CustomProviderDef, SamplingParams, ThinkingLevel } from "@spherse/core";
+import type { ModelSettingsResponse } from "../../lib/types";
 import type { ProviderConfig, SettingsApi, ModelSettingsApi } from "./types";
 import { generateCustomProviderId } from "./custom-provider-id.js";
 
@@ -7,7 +8,6 @@ interface GroupFormState {
   providers: Record<string, ProviderConfig>;
   apiKeys: Record<string, string>;
   configured: Record<string, boolean>;
-  locked: boolean;
   defaultModel: string;
   sampling?: SamplingParams;
   thinkingLevel?: ThinkingLevel;
@@ -29,12 +29,25 @@ export type { GroupFormState };
 interface GroupData {
   apiKeys: Record<string, string>;
   configured: Record<string, boolean>;
+  writes: Record<string, string>;
+  clears: Record<string, true>;
   defaultModel: string;
   sampling?: SamplingParams;
   thinkingLevel?: ThinkingLevel;
 }
 
-const EMPTY_GROUP: GroupData = { apiKeys: {}, configured: {}, defaultModel: "" };
+const EMPTY_GROUP: GroupData = { apiKeys: {}, configured: {}, writes: {}, clears: {}, defaultModel: "" };
+
+function providersPayload(group: GroupData): Record<string, { apiKey?: string }> {
+  const providers: Record<string, { apiKey?: string }> = {};
+  for (const [id, apiKey] of Object.entries(group.writes)) {
+    if (apiKey.trim()) providers[id] = { apiKey };
+  }
+  for (const id of Object.keys(group.clears)) {
+    if (!providers[id]) providers[id] = { apiKey: "" };
+  }
+  return providers;
+}
 
 function configuredFromFlags(providers: Record<string, { configured: boolean }>): Record<string, boolean> {
   const map: Record<string, boolean> = {};
@@ -67,7 +80,7 @@ export function useSettingsForm(api: SettingsApi, modelApi: ModelSettingsApi | n
   const [imageData, setImageData] = useState<GroupData>({ ...EMPTY_GROUP });
   const [saving, setSaving] = useState(false);
   const [customProviders, setCustomProviders] = useState<CustomProviderDef[]>([]);
-  const [locked, setLocked] = useState(false);
+  const [useRest, setUseRest] = useState(false);
 
   useEffect(() => {
     void (async () => {
@@ -93,10 +106,10 @@ export function useSettingsForm(api: SettingsApi, modelApi: ModelSettingsApi | n
             defaultModel: settings.models.image.defaultModel ?? "",
           });
           setCustomProviders(settings.customProviders ?? []);
-          setLocked(true);
+          setUseRest(true);
           return;
         } catch {
-          setLocked(false);
+          setUseRest(false);
         }
       }
       const [textCatalog, imageCatalog, settings] = await Promise.all([
@@ -122,18 +135,60 @@ export function useSettingsForm(api: SettingsApi, modelApi: ModelSettingsApi | n
     })();
   }, [api, modelApi]);
 
+  const applyResponse = useCallback((response: ModelSettingsResponse) => {
+    const configured = configuredFromFlags(response.models.text.providers);
+    const imageConfigured = configuredFromFlags(response.models.image.providers);
+    setTextData((prev) => ({
+      ...prev,
+      configured,
+      apiKeys: {},
+      writes: {},
+      clears: {},
+      defaultModel: response.models.text.defaultModel ?? prev.defaultModel,
+      sampling: response.models.text.sampling,
+      thinkingLevel: response.models.text.thinkingLevel,
+    }));
+    setImageData((prev) => ({
+      ...prev,
+      configured: imageConfigured,
+      apiKeys: {},
+      writes: {},
+      clears: {},
+      defaultModel: response.models.image.defaultModel ?? prev.defaultModel,
+    }));
+    setCustomProviders(response.customProviders ?? []);
+  }, []);
+
   const save = useCallback(
     async (
       textOverride?: GroupData,
       imageOverride?: GroupData,
       customProvidersOverride?: CustomProviderDef[],
     ): Promise<boolean> => {
-      if (locked) return false;
       const t = textOverride ?? textData;
       const i = imageOverride ?? imageData;
       const cp = customProvidersOverride ?? customProviders;
       setSaving(true);
       try {
+        if (useRest && modelApi) {
+          const response = await modelApi.updateModelSettings({
+            models: {
+              text: {
+                defaultModel: t.defaultModel,
+                providers: providersPayload(t),
+                sampling: t.sampling,
+                thinkingLevel: t.thinkingLevel,
+              },
+              image: {
+                defaultModel: i.defaultModel,
+                providers: providersPayload(i),
+              },
+            },
+            customProviders: cp,
+          });
+          applyResponse(response);
+          return true;
+        }
         await api.saveSettings({
           models: {
             text: { defaultModel: t.defaultModel, providers: keysToProviders(t.apiKeys), sampling: t.sampling, thinkingLevel: t.thinkingLevel },
@@ -148,7 +203,7 @@ export function useSettingsForm(api: SettingsApi, modelApi: ModelSettingsApi | n
         setSaving(false);
       }
     },
-    [api, locked, textData, imageData, customProviders],
+    [api, modelApi, useRest, textData, imageData, customProviders, applyResponse],
   );
 
   const refreshTextCatalog = useCallback(async () => {
@@ -158,7 +213,6 @@ export function useSettingsForm(api: SettingsApi, modelApi: ModelSettingsApi | n
 
   const addCustomProvider = useCallback(
     async (def: CustomProviderDef): Promise<boolean> => {
-      if (locked) return false;
       const existingIds = [...Object.keys(textProviders), ...customProviders.map((c) => c.id)];
       const id = generateCustomProviderId(def.name, existingIds);
       const withId = { ...def, id };
@@ -168,36 +222,42 @@ export function useSettingsForm(api: SettingsApi, modelApi: ModelSettingsApi | n
       if (ok) await refreshTextCatalog();
       return ok;
     },
-    [locked, textProviders, customProviders, save, refreshTextCatalog],
+    [textProviders, customProviders, save, refreshTextCatalog],
   );
 
   const updateCustomProvider = useCallback(
     async (id: string, def: CustomProviderDef): Promise<boolean> => {
-      if (locked) return false;
       const next = customProviders.map((c) => (c.id === id ? { ...def, id } : c));
       setCustomProviders(next);
       const ok = await save(undefined, undefined, next);
       if (ok) await refreshTextCatalog();
       return ok;
     },
-    [locked, customProviders, save, refreshTextCatalog],
+    [customProviders, save, refreshTextCatalog],
   );
 
   const removeCustomProvider = useCallback(
     async (id: string): Promise<boolean> => {
-      if (locked) return false;
       const next = customProviders.filter((c) => c.id !== id);
-      const nextApiKeys = { ...textData.apiKeys };
-      delete nextApiKeys[id];
+      const nextKeys = { ...textData.apiKeys };
+      delete nextKeys[id];
+      const nextWrites = { ...textData.writes };
+      delete nextWrites[id];
       const nextModel = textData.defaultModel.startsWith(`${id}/`) ? "" : textData.defaultModel;
-      const nextTextData = { ...textData, apiKeys: nextApiKeys, defaultModel: nextModel };
+      const nextTextData: GroupData = {
+        ...textData,
+        apiKeys: nextKeys,
+        writes: nextWrites,
+        clears: { ...textData.clears, [id]: true },
+        defaultModel: nextModel,
+      };
       setCustomProviders(next);
       setTextData(nextTextData);
       const ok = await save(nextTextData, undefined, next);
       if (ok) await refreshTextCatalog();
       return ok;
     },
-    [locked, customProviders, textData, save, refreshTextCatalog],
+    [customProviders, textData, save, refreshTextCatalog],
   );
 
   const makeGroup = (
@@ -209,7 +269,6 @@ export function useSettingsForm(api: SettingsApi, modelApi: ModelSettingsApi | n
     providers,
     apiKeys: data.apiKeys,
     configured: data.configured,
-    locked,
     defaultModel: data.defaultModel,
     sampling: data.sampling,
     thinkingLevel: data.thinkingLevel,
@@ -217,7 +276,15 @@ export function useSettingsForm(api: SettingsApi, modelApi: ModelSettingsApi | n
       setData({ ...data, apiKeys: { ...data.apiKeys, [id]: value } });
     },
     commitApiKey: (id, value) => {
-      const next = { ...data, apiKeys: { ...data.apiKeys, [id]: value } };
+      if (!value.trim()) return;
+      const nextClears = { ...data.clears };
+      delete nextClears[id];
+      const next: GroupData = {
+        ...data,
+        apiKeys: { ...data.apiKeys, [id]: value },
+        writes: { ...data.writes, [id]: value },
+        clears: nextClears,
+      };
       setData(next);
       if (kind === "text") void save(next, undefined);
       else void save(undefined, next);
@@ -238,14 +305,31 @@ export function useSettingsForm(api: SettingsApi, modelApi: ModelSettingsApi | n
       return kind === "text" ? save(next, undefined) : save(undefined, next);
     },
     connect: async (id) => {
-      if (!data.apiKeys[id]?.trim()) return false;
-      return save();
+      const value = data.apiKeys[id];
+      if (!value?.trim()) return false;
+      const nextClears = { ...data.clears };
+      delete nextClears[id];
+      const next: GroupData = {
+        ...data,
+        writes: { ...data.writes, [id]: value },
+        clears: nextClears,
+      };
+      setData(next);
+      return kind === "text" ? save(next, undefined) : save(undefined, next);
     },
     disconnect: async (id) => {
       const nextKeys = { ...data.apiKeys, [id]: "" };
+      const nextWrites = { ...data.writes };
+      delete nextWrites[id];
       const providerModel = data.defaultModel.startsWith(`${id}/`);
       const nextModel = providerModel ? "" : data.defaultModel;
-      const next = { ...data, apiKeys: nextKeys, defaultModel: nextModel };
+      const next: GroupData = {
+        ...data,
+        apiKeys: nextKeys,
+        writes: nextWrites,
+        clears: { ...data.clears, [id]: true },
+        defaultModel: nextModel,
+      };
       setData(next);
       return kind === "text" ? save(next, undefined) : save(undefined, next);
     },

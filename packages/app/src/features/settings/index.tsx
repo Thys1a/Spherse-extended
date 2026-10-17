@@ -86,7 +86,6 @@ function ModelGroupTab({
   }, [providerEntries, providerQuery, showProviderSearch]);
   return (
     <>
-      <fieldset disabled={group.locked} className="contents">
       <FieldGroup className="shrink-0">
         <DefaultModelField
           providers={group.providers}
@@ -187,7 +186,6 @@ function ModelGroupTab({
           {t("settings.provider.addCustom")}
         </Button>
       )}
-      </fieldset>
       {kind === "text" && (
         <CustomProviderDialog
           open={dialog !== null}
@@ -239,6 +237,7 @@ function SettingsTabs() {
   const globalClient = useGlobalApiClient();
   const modelApi = useMemo<ModelSettingsApi | null>(() => (globalClient ? {
     getModelSettings: globalClient.getModelSettings,
+    updateModelSettings: globalClient.updateModelSettings,
     getSupportedProviders: globalClient.getSupportedProviders,
     getImageProviders: globalClient.getImageProviders,
   } : null), [globalClient]);

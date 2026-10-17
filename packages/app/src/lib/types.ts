@@ -18,6 +18,7 @@ export type {
   AgentUpdateResponse,
   AgentCreateResponse,
   AiAccessSettingsResponse,
+  ModelSettingsRequest,
   ModelSettingsResponse,
   WelcomePageSettingsResponse,
   SidePanelSettingsResponse,

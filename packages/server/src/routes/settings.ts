@@ -1,10 +1,12 @@
 import fs from "node:fs/promises";
 import type { FastifyInstance } from "fastify";
 import type { ModelCatalog } from "@spherse/core";
+import type { ModelSettingsRequest } from "@spherse/contracts";
 import type { ProjectRegistry } from "../registry.js";
 import { getImageSupportedProviders, resolveProjectPath } from "@spherse/core";
 import { schemas } from "@spherse/contracts";
 import type { ModelSettingsStore } from "../model-settings.js";
+import { applyModelSettingsToEnv } from "../model-settings.js";
 
 interface SettingsRouteOptions {
   modelSettingsStore: ModelSettingsStore;
@@ -13,12 +15,27 @@ interface SettingsRouteOptions {
 
 export function registerSettingsRoutes(
   fastify: FastifyInstance,
-  _registry: ProjectRegistry,
+  registry: ProjectRegistry,
   options: SettingsRouteOptions,
 ): void {
   fastify.get("/api/settings/models", {
     schema: { response: { 200: schemas.modelSettingsResponse } },
     async handler() {
+      return options.modelSettingsStore.sanitize();
+    },
+  });
+
+  fastify.put<{ Body: ModelSettingsRequest }>("/api/settings/models", {
+    schema: {
+      body: schemas.modelSettingsRequest,
+      response: { 200: schemas.modelSettingsResponse },
+    },
+    async handler(req) {
+      const next = options.modelSettingsStore.applyUpdate(req.body);
+      applyModelSettingsToEnv(next, options.modelCatalog);
+      registry.setDefaultModel(next.text.defaultModel || undefined);
+      registry.setSampling(next.text.sampling);
+      registry.setThinkingLevel(next.text.thinkingLevel);
       return options.modelSettingsStore.sanitize();
     },
   });

@@ -1,5 +1,5 @@
 import type { ProviderCatalogItem } from "@spherse/core";
-import type { ModelSettingsResponse } from "../../lib/types";
+import type { ModelSettingsRequest, ModelSettingsResponse } from "../../lib/types";
 import type { HostSettings } from "../../lib/host-bridge";
 
 export type ProviderConfig = ProviderCatalogItem;
@@ -14,6 +14,7 @@ export interface SettingsApi {
 
 export interface ModelSettingsApi {
   getModelSettings: () => Promise<ModelSettingsResponse>;
+  updateModelSettings: (req: ModelSettingsRequest) => Promise<ModelSettingsResponse>;
   getSupportedProviders: () => Promise<Record<string, ProviderConfig>>;
   getImageProviders: () => Promise<Record<string, ProviderConfig>>;
 }

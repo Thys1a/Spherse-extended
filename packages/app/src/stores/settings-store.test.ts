@@ -35,30 +35,18 @@ describe("useSettingsStore", () => {
     expect(useSettingsStore.getState().locale).toBe("zh-CN");
   });
 
-  it("changeLocale updates locale and persists", async () => {
-    const models = {
-      text: { defaultModel: "deepseek/v4", providers: { deepseek: { apiKey: "key" } } },
-      image: { defaultModel: "", providers: {} },
-    };
+  it("changeLocale updates locale and persists without models", async () => {
     const api = createApi({
-      getSettings: vi.fn().mockResolvedValue({ models }),
+      getSettings: vi.fn().mockResolvedValue({}),
     });
 
     const ok = await useSettingsStore.getState().changeLocale(api, "en");
 
     expect(ok).toBe(true);
     expect(useSettingsStore.getState().locale).toBe("en");
-    expect(api.saveSettings).toHaveBeenCalledWith({
-      locale: "en",
-      models,
-      debugToolsEnabled: false,
-      theme: "system",
-      tts: {},
-      proxy: {},
-      closeToTray: true,
-      webSearch: {},
-      notifications: {},
-    });
+    const saved = (api.saveSettings as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(saved.locale).toBe("en");
+    expect("models" in saved).toBe(false);
   });
 
   it("loads debugToolsEnabled from settings", async () => {
@@ -90,7 +78,6 @@ describe("useSettingsStore", () => {
     expect(useSettingsStore.getState().debugToolsEnabled).toBe(true);
     expect(api.saveSettings).toHaveBeenCalledWith({
       locale: "zh-CN",
-      models: undefined,
       debugToolsEnabled: true,
       theme: "system",
       tts: {},
@@ -130,7 +117,6 @@ describe("useSettingsStore", () => {
     expect(useSettingsStore.getState().theme).toBe("dark");
     expect(api.saveSettings).toHaveBeenCalledWith({
       locale: "zh-CN",
-      models: undefined,
       debugToolsEnabled: false,
       theme: "dark",
       tts: {},
@@ -151,7 +137,6 @@ describe("useSettingsStore", () => {
 
     expect(api.saveSettings).toHaveBeenCalledWith({
       locale: "en",
-      models: undefined,
       debugToolsEnabled: true,
       theme: "light",
       tts: {},
@@ -183,7 +168,6 @@ describe("useSettingsStore", () => {
     expect(useSettingsStore.getState().tts).toEqual({ autoRead: true });
     expect(api.saveSettings).toHaveBeenCalledWith({
       locale: "zh-CN",
-      models: undefined,
       debugToolsEnabled: false,
       theme: "system",
       tts: { autoRead: true },
@@ -215,7 +199,6 @@ describe("useSettingsStore", () => {
     expect(useSettingsStore.getState().proxy).toEqual({ url: "http://127.0.0.1:7890" });
     expect(api.saveSettings).toHaveBeenCalledWith({
       locale: "zh-CN",
-      models: undefined,
       debugToolsEnabled: false,
       theme: "system",
       tts: {},
@@ -236,7 +219,6 @@ describe("useSettingsStore", () => {
 
     expect(api.saveSettings).toHaveBeenCalledWith({
       locale: "zh-CN",
-      models: undefined,
       debugToolsEnabled: false,
       theme: "dark",
       tts: {},
@@ -289,7 +271,6 @@ describe("useSettingsStore", () => {
     expect(useSettingsStore.getState().notifications).toEqual({ trigger: false });
     expect(api.saveSettings).toHaveBeenCalledWith({
       locale: "en",
-      models: undefined,
       debugToolsEnabled: false,
       theme: "dark",
       tts: { autoRead: true },
@@ -321,7 +302,6 @@ describe("useSettingsStore", () => {
     expect(useSettingsStore.getState().webSearch).toEqual({ apiKey: "sk-live-key" });
     expect(api.saveSettings).toHaveBeenCalledWith({
       locale: "zh-CN",
-      models: undefined,
       debugToolsEnabled: false,
       theme: "system",
       tts: {},
@@ -355,7 +335,6 @@ describe("useSettingsStore", () => {
 
     expect(api.saveSettings).toHaveBeenCalledWith({
       locale: "zh-CN",
-      models: undefined,
       debugToolsEnabled: false,
       theme: "dark",
       tts: {},
@@ -387,7 +366,6 @@ describe("useSettingsStore", () => {
     expect(useSettingsStore.getState().closeToTray).toBe(false);
     expect(api.saveSettings).toHaveBeenCalledWith({
       locale: "zh-CN",
-      models: undefined,
       debugToolsEnabled: false,
       closeToTray: false,
       theme: "system",
@@ -408,7 +386,6 @@ describe("useSettingsStore", () => {
 
     expect(api.saveSettings).toHaveBeenCalledWith({
       locale: "zh-CN",
-      models: undefined,
       debugToolsEnabled: false,
       closeToTray: false,
       theme: "dark",

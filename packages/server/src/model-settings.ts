@@ -51,6 +51,21 @@ function normalizeSettings(raw: unknown): ModelSettings {
   };
 }
 
+function mergeCustomProviders(
+  incoming: ModelSettings["customProviders"] | undefined,
+  prev: ModelSettings["customProviders"],
+): ModelSettings["customProviders"] {
+  if (!incoming) return prev;
+  const prevById = new Map(prev.map((p) => [p.id, p]));
+  return incoming.map((p) => {
+    const prevHeaders = prevById.get(p.id)?.headers;
+    if (!("headers" in p)) return prevHeaders ? { ...p, headers: prevHeaders } : p;
+    if (p.headers && Object.keys(p.headers).length > 0) return p;
+    const { headers: _dropped, ...rest } = p;
+    return rest;
+  });
+}
+
 function mergeProviderKeys(
   incoming: Record<string, { apiKey?: string }> | undefined,
   prev: Record<string, ProviderCredentials>,
@@ -134,7 +149,7 @@ export class ModelSettingsStore {
         defaultModel: request.models.image.defaultModel,
         providers: mergeProviderKeys(request.models.image.providers, prev.image.providers),
       },
-      customProviders: request.customProviders ?? prev.customProviders,
+      customProviders: mergeCustomProviders(request.customProviders, prev.customProviders),
     };
     if (this.filePath) this.writeToDisk(next);
     this.settings = next;

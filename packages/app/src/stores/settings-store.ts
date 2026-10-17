@@ -51,10 +51,8 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
 
   async changeLocale(api, locale) {
     set({ locale });
-    const settings = await api.getSettings();
     await api.saveSettings({
       locale,
-      models: settings?.models,
       debugToolsEnabled: get().debugToolsEnabled,
       closeToTray: get().closeToTray,
       theme: get().theme,
@@ -71,7 +69,6 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     const settings = await api.getSettings();
     await api.saveSettings({
       locale: settings?.locale ?? get().locale,
-      models: settings?.models,
       debugToolsEnabled: enabled,
       closeToTray: get().closeToTray,
       theme: get().theme,
@@ -88,7 +85,6 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     const settings = await api.getSettings();
     await api.saveSettings({
       locale: settings?.locale ?? get().locale,
-      models: settings?.models,
       debugToolsEnabled: get().debugToolsEnabled,
       closeToTray: enabled,
       theme: get().theme,
@@ -105,7 +101,6 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     const settings = await api.getSettings();
     await api.saveSettings({
       locale: settings?.locale ?? get().locale,
-      models: settings?.models,
       debugToolsEnabled: get().debugToolsEnabled,
       closeToTray: get().closeToTray,
       theme,
@@ -123,7 +118,6 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     const settings = await api.getSettings();
     await api.saveSettings({
       locale: settings?.locale ?? get().locale,
-      models: settings?.models,
       debugToolsEnabled: get().debugToolsEnabled,
       closeToTray: get().closeToTray,
       theme: get().theme,
@@ -144,7 +138,6 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     const settings = await api.getSettings();
     await api.saveSettings({
       locale: settings?.locale ?? get().locale,
-      models: settings?.models,
       debugToolsEnabled: get().debugToolsEnabled,
       closeToTray: get().closeToTray,
       theme: get().theme,
@@ -165,7 +158,6 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     const settings = await api.getSettings();
     await api.saveSettings({
       locale: settings?.locale ?? get().locale,
-      models: settings?.models,
       debugToolsEnabled: get().debugToolsEnabled,
       closeToTray: get().closeToTray,
       theme: get().theme,
@@ -183,7 +175,6 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     const settings = await api.getSettings();
     await api.saveSettings({
       locale: settings?.locale ?? get().locale,
-      models: settings?.models,
       debugToolsEnabled: get().debugToolsEnabled,
       closeToTray: get().closeToTray,
       theme: get().theme,

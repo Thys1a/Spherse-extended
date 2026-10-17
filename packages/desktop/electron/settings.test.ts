@@ -31,6 +31,12 @@ import { maskModelGroup, mergeModelGroup, getMaskedSettings, saveSettings, setti
 import { getAppModelCatalog } from "./model-catalog.js";
 
 describe("mergeModelGroup sampling passthrough", () => {
+  it("keeps the previous group when incoming is undefined", () => {
+    const prev = { defaultModel: "m", providers: { a: { apiKey: "k" } }, sampling: { temperature: 0.3 } };
+    expect(mergeModelGroup(undefined, prev)).toEqual(prev);
+    expect(mergeModelGroup(undefined, undefined)).toEqual({ defaultModel: "", providers: {} });
+  });
+
   it("uses incoming sampling when present", () => {
     const result = mergeModelGroup(
       { defaultModel: "deepseek/v4", providers: {}, sampling: { temperature: 0.7, topP: 0.9 } },

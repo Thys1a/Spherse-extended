@@ -16,6 +16,7 @@ import type {
   AgentCreateResponse,
   AgentUpdateResponse,
   AiAccessSettingsResponse,
+  ModelSettingsRequest,
   ModelSettingsResponse,
   WelcomePageSettingsResponse,
   SidePanelSettingsResponse,
@@ -967,6 +968,16 @@ export function createGlobalApiClient(baseUrl: string, accessToken?: string | nu
   return {
     async getModelSettings(): Promise<ModelSettingsResponse> {
       const res = await authedFetch(`${baseUrl}/api/settings/models`);
+      await assertOk(res);
+      return parseJsonResponse<ModelSettingsResponse>(res, schemas.modelSettingsResponse);
+    },
+
+    async updateModelSettings(req: ModelSettingsRequest): Promise<ModelSettingsResponse> {
+      const res = await authedFetch(`${baseUrl}/api/settings/models`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(req),
+      });
       await assertOk(res);
       return parseJsonResponse<ModelSettingsResponse>(res, schemas.modelSettingsResponse);
     },
