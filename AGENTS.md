@@ -145,6 +145,8 @@ npm run build:landing   # 构建 landing page（含 @spherse/i18n 依赖构建�
 ## 开发规范
 
 - **E2E 验证选择**：按变更影响面选择受影响的 E2E 场景运行，不要求全量；分层选型规则与命令见 [`docs/official/testing.md`](docs/official/testing.md)。合并/发布前跑 `npm run verify:e2e`
+- 需要读取用户项目数据要先和用户确认是否为隐私数据
+- 如有不确定之处先向用户提问，如需执行先提交计划供用户确认
 
 ## 编码规范（仓库级红线）
 

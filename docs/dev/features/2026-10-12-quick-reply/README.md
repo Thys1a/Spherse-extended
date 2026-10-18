@@ -13,3 +13,4 @@
 
 - 数据归属、UI 入口、「全局快捷回复」命名澄清见 [design.md](./design.md)；结论：新建 per-agent 能力，不做全局迁移
 - 2026-10-18 已决策：schema `{label, description, text, action}`（当前仅 fill 填入）、CRUD 在 agent 编辑页（有管理权限可改）、Composer 上方 button 行
+- 跟进见 [followup-2026-10-19.md](./followup-2026-10-19.md)（删除残留排查：链路自洽，附确认三步；管理弹窗提案→已按“专属弹窗+只改草稿”落定并实现）

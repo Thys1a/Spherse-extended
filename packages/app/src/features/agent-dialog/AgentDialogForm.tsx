@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { useI18n } from "@spherse/i18n/react";
 import type { TranslationKey } from "@spherse/i18n";
-import type { ProviderCatalogItem, QuickReply } from "@spherse/core";
+import type { ProviderCatalogItem } from "@spherse/core";
 import { parseAgentMarkdown, buildAgentMarkdown } from "./agent-markdown";
 import type { AgentFormData } from "./agent-markdown";
 import { useProjectCtx } from "../../context/project-context";
@@ -19,7 +19,7 @@ import { ADVANCED_TOOL_IDS } from "./tool-registry";
 import { ModelConfigField, modelExistsInCatalog } from "./ModelConfigField";
 import { PathListField } from "./PathListField";
 import { QuickReplyField } from "./QuickReplyField";
-import { MAX_QUICK_REPLIES } from "./agent-markdown";
+import { QuickReplyManagerDialog } from "./QuickReplyManagerDialog";
 import { AgentCardLinksField } from "./AgentCardLinksField";
 import { TimePerceptionField } from "./TimePerceptionField";
 import { HintLabel } from "./HintLabel";
@@ -100,16 +100,7 @@ export function AgentDialogForm({ initial, mode, agentId, onSubmit, onCancel }: 
     setFormData((prev) => ({ ...prev, quickLinks: prev.quickLinks.filter((c) => c !== path) }));
   };
 
-  const addQuickReply = (reply: QuickReply) => {
-    setFormData((prev) => {
-      const replies = prev.quickReplies ?? [];
-      return replies.length >= MAX_QUICK_REPLIES ? prev : { ...prev, quickReplies: [...replies, reply] };
-    });
-  };
-
-  const removeQuickReply = (index: number) => {
-    setFormData((prev) => ({ ...prev, quickReplies: (prev.quickReplies ?? []).filter((_, i) => i !== index) }));
-  };
+  const [quickReplyManagerOpen, setQuickReplyManagerOpen] = useState(false);
 
   const toggleGroup = (groupToolIds: string[]) => {
     setFormData((prev) => {
@@ -264,15 +255,17 @@ export function AgentDialogForm({ initial, mode, agentId, onSubmit, onCancel }: 
             />
             <QuickReplyField
               replies={formData.quickReplies ?? []}
-              onAdd={addQuickReply}
-              onRemove={removeQuickReply}
+              onManage={() => setQuickReplyManagerOpen(true)}
               label={t("agent-dialog.quickRepliesLabel")}
               hint={t("agent-dialog.quickRepliesHint")}
-              labelPlaceholder={t("agent-dialog.quickReplyLabelPlaceholder")}
-              descriptionPlaceholder={t("agent-dialog.quickReplyDescriptionPlaceholder")}
-              textPlaceholder={t("agent-dialog.quickReplyTextPlaceholder")}
-              addLabel={t("agent-dialog.quickRepliesAdd")}
             />
+            {quickReplyManagerOpen && (
+              <QuickReplyManagerDialog
+                replies={formData.quickReplies ?? []}
+                onChange={(quickReplies) => setFormData((prev) => ({ ...prev, quickReplies }))}
+                onClose={() => setQuickReplyManagerOpen(false)}
+              />
+            )}
             {mode === "edit" && agentId && client && (
               <AgentCardLinksField agentId={agentId} client={client} />
             )}

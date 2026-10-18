@@ -459,6 +459,18 @@ export const zhCN = {
   "agent-dialog.quickReplyDescriptionPlaceholder": "说明（可选）",
   // 快捷回复条目：填入文本输入框占位
   "agent-dialog.quickReplyTextPlaceholder": "点击后填入的文本",
+  // Agent 快捷回复管理按钮文案（打开管理弹窗）
+  "agent-dialog.quickRepliesManage": "管理",
+  // Agent 快捷回复条数文案，{count} 为当前条数
+  "agent-dialog.quickRepliesCount": "共 {count} 条",
+  // 快捷回复管理弹窗标题
+  "agent-dialog.quickRepliesDialogTitle": "管理快捷回复",
+  // 快捷回复条目「更新」按钮文案（编辑态）
+  "agent-dialog.quickReplyUpdate": "更新",
+  // 快捷回复管理弹窗空态提示
+  "agent-dialog.quickRepliesEmpty": "暂无快捷回复，在下方添加",
+  // 快捷回复管理弹窗「完成」按钮文案（仅关闭弹窗，落盘走编辑页保存）
+  "agent-dialog.quickRepliesDone": "完成",
   "agent-dialog.cardLinksLabel": "世界书外链",
   "agent-dialog.cardLinksHint": "把项目内 .card.json 文件链入该 Agent，命中条目每轮自动注入其 prompt",
   "agent-dialog.cardLinksPlaceholder": "添加 .card.json 文件…",

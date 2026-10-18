@@ -31,6 +31,7 @@
 - [ ] **sp 订阅 defer 行为变化说明**：T7 起同会话 `sp:` 订阅从恒跳过变为恒转一圈必触发 follow-up turn，且失败 turn 的 `turn/end(error)` 也会点燃订阅者。方向：在 trigger 相关用户文档注明该行为变化。参见 `docs/dev/bugfix/2026-09-23-repeated-tool-calls/design.md`
 - [ ] **长上下文工具调用标记退化探针与强制压缩**：`assistant/message` 落盘前扫描正文 `<invoke` / `<parameter` / 模板特殊 token，命中即按 `markTruncated` 路径记 `stopReason: error` + `errorMessage` 走可见可重试链；首次标记/截断轮后把实测退化点记入会话 `observedWindow` 并强制压缩一次（复用 `maybeCompactLog` 的 `thresholdRatio: 0` 路径）；历史 assistant 正文标记做展示层剥离防自我强化（不解析回 `toolCall`）。参见 `docs/dev/bugfix/2026-10-04-toolcall-markup-on-long-context/design.md`
 - [ ] **收敛 chat 历史游标回退与滚动位毒化（新 runtime）**：`session-lifecycle.ts:116` 对账无条件覆盖 `oldestSeq`（loadMore 后重连即倒退）；`useChatScroll.ts:175` 卸载回写原始值（贴底未归 0）、`:133` 重开恢复无阈值门。方向：对账仅衔接已加载区间时更新游标，回写贴底存 0、恢复加阈值+范围校验。参见 `docs/dev/bugfix/2026-09-11-chat-theme-history/design.md` Bug 2（旧 `resolvePageCursor` 路径已随重构消失，按 `history-loader`/`session-lifecycle` 重对）
+- [ ] **agent 编辑保存丢弃 disabled 的 timePerception 配置**：`buildAgentMarkdown`（`packages/app/src/features/agent-dialog/agent-markdown.ts`）只在 `timePerception.enabled` 为真时写回，`{enabled:false}` 的既有配置经任意一次 agent 编辑保存即被整块删除。方向：写回时保留 disabled 配置原样（或收敛为显式删除语义并经用户确认），补 round-trip 用例。2026-10-19 快捷回复管理弹窗 review 发现（pre-existing，非本次引入）
 
 ## 技术债（重构与收敛）
 
@@ -96,6 +97,7 @@
 
 - [ ] **补齐 `openFile` action 的 `newTab` 参数**：文件右键已直调 `openTab force`，HTML 卡片等程序化调用方只能 `navigate`（触发单复用槽替换）无法开新标签。方向：`open-file.ts` 加 `newTab?: boolean`（`force: true` 建 tab，tabs 关时降级 navigate，门控与 `onOpenInNewTab` 一致），补 handler 单测 + HTML 卡片调用示例。参见 `docs/dev/features/2026-09-10-file-list-ops/design.md` 增补调研 P2
 - [ ] **服务端草稿 token 精确预估接口**：输入框计数器现为草稿纯文本启发式（不含 profile/skills/worldbook/工具定义/历史），pill 为累计值，两者相加只是近似（v1.0.1 已落地）。方向：server 新增估算接口，把草稿套进当前会话 prompt 组装走一遍 core 现成 estimator（`pendingPromptEstimate` 同款），renderer 每键 debounce + 缓存调用；需定超时/失败降级。参见 `docs/dev/features/2026-10-12-token-display/design.md` §四。
+- [ ] **Agent 对话框关闭加未保存校验**：编辑页改动只活在本地草稿，取消/X 直接丢弃且无任何提示，易误读为“删了没生效”（2026-10-19 quick-reply 跟进实证：删徽章不点保存，聊天窗口自然不变）。方向：有关闭确认的 dirty 守卫（改动后关闭先问），与上条「脏文件切 tab」同类，可合并设计。参见 `docs/dev/features/2026-10-12-quick-reply/followup-2026-10-19.md`。
 ## 基础设施
 
 - [ ] **Linux 发行打磨（条件触发：出现 Linux 用户实际诉求时）**：当前 Linux 发布为 x64 AppImage + deb（CI linux matrix job，executableName 三平台统一 `Spherse`）。潜在跟进：arm64 构建、rpm/snap 等格式、Ubuntu 23.10+（AppArmor 限制 unprivileged userns）下 Electron SUID sandbox 启动失败的更优解（现为 README/下载页 sysctl workaround）。

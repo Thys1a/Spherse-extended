@@ -302,7 +302,7 @@ spherse/
 │   │       ├── features/
 │   │       │   ├── activity-bar/         # 自治型 Activity Bar（项目头像轨、设置/添加按钮），内部读 app-store/app-ui-store 与 useProjectActions；pin 按钮通过 pinToggle prop 可选注入
 │   │       │   ├── agent-trigger/        # Agent 触发器弹窗、表单、列表与运行日志，含 running 运行态 feature store 与 TriggerEventBridge（trigger 域唯一事件接线：查询失效 + 运行态 + 通知）
-│   │   │   ├── agent-dialog/        # Agent 对话框（含 ModelConfigField、PromptTemplatesDialog 提示词模板选择、QuickReplyField 快捷回复编辑）
+│   │       │   ├── agent-dialog/        # Agent 对话框（含 ModelConfigField、PromptTemplatesDialog 提示词模板选择、QuickReplyField 快捷回复入口行、QuickReplyManagerDialog 快捷回复管理弹窗）
 │   │       │   ├── agent-session-list/   # Agent/session 分组列表，含 AgentDialog/SearchFileField 与折叠状态 feature store
   │   │       │   ├── chat/                 # 对话 feature；model/ 放 Entry 归约、历史合并、MessageGroup 组装与卡片投影，runtime/ 放 session store、link/recovery/lifecycle/queue 等运行时模块，hooks/ 放 UI hooks（含 useSelectionMenu 选择菜单、useDataLinkedRefresh 卡片联动刷新），lib/ 放纯函数（含 slash-menu/summon 解析发送、quote-fence 引用围栏、html-fence-parser 内联 HTML 提取、attachment-type），utils/ 放图片压缩（compress-image）；根目录保留页面组件、气泡组件（UserBubble/AssistantBubble/ToolItemView）、chat-agent-context、chat 专属类型与附件 UI（AttachmentBar/MessageAttachments）；扩展组件含 SelectionMenu（划选复制/引用）、SpeakButton + tts/（本地朗读）、SessionModelPill（会话级模型）、SessionTokensPill（会话 token）、QuickReplyBar（快捷回复）、slash 解析（`lib/slash-menu`）/ summon 发送（`lib/use-summon-send`）/ token 估算（`lib/estimate-tokens`，core 同名函数镜像）/ 补全交互（`Composer` 内）
 │   │       │   ├── content-browser/      # 文件浏览、预览（HTML/markdown/image）、编辑、复制路径/刷新、冲突提示，ContentQueryBridge 集中处理 fs-watch/reconnect 缓存失效；二进制文件拦截渲染占位卡 UnsupportedFileCard（桌面端经 HostCapabilities.openFileExternal 提供「用默认应用打开」按钮）
