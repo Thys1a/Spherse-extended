@@ -40,9 +40,10 @@ export function QuickReplyManagerDialog({
 
   const handleSubmit = () => {
     if (!canSubmit) return;
+    const description = draftDescription.trim();
     const entry: QuickReply = {
       label: draftLabel.trim().slice(0, MAX_QUICK_REPLY_LABEL_LENGTH),
-      ...(draftDescription ? { description: draftDescription } : {}),
+      ...(description ? { description } : {}),
       text: draftText,
       action: "fill",
     };
@@ -53,6 +54,13 @@ export function QuickReplyManagerDialog({
       onChange(replies.map((reply, index) => (index === editingIndex ? entry : reply)));
     }
     resetDraft();
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleSubmit();
+    }
   };
 
   const handleEdit = (index: number) => {
@@ -86,8 +94,13 @@ export function QuickReplyManagerDialog({
                   className="flex items-center gap-2 rounded-md border border-border px-2 py-1.5"
                 >
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-xs font-medium">{reply.label}</span>
-                    <span className="block truncate text-[11px] text-muted-foreground">
+                    <span className="block truncate text-xs font-medium" title={reply.label}>
+                      {reply.label}
+                    </span>
+                    <span
+                      className="block truncate text-[11px] text-muted-foreground"
+                      title={reply.description ?? reply.text}
+                    >
                       {reply.description ?? reply.text}
                     </span>
                   </span>
@@ -122,6 +135,7 @@ export function QuickReplyManagerDialog({
                 onChange={(e) => setDraftLabel(e.target.value)}
                 placeholder={t("agent-dialog.quickReplyLabelPlaceholder")}
                 className="w-28 shrink-0"
+                onKeyDown={handleKeyDown}
               />
               <Input
                 type="text"
@@ -129,6 +143,7 @@ export function QuickReplyManagerDialog({
                 onChange={(e) => setDraftDescription(e.target.value)}
                 placeholder={t("agent-dialog.quickReplyDescriptionPlaceholder")}
                 className="min-w-0 flex-1"
+                onKeyDown={handleKeyDown}
               />
             </div>
             <div className="flex gap-1.5">
@@ -138,15 +153,10 @@ export function QuickReplyManagerDialog({
                 onChange={(e) => setDraftText(e.target.value)}
                 placeholder={t("agent-dialog.quickReplyTextPlaceholder")}
                 className="min-w-0 flex-1"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    handleSubmit();
-                  }
-                }}
+                onKeyDown={handleKeyDown}
               />
               {editingIndex === null ? (
-                <Button type="button" variant="outline" size="sm" disabled={!canSubmit} onClick={handleSubmit}>
+                <Button type="button" variant="outline" size="sm" disabled={!canSubmit || capped} onClick={handleSubmit}>
                   {t("agent-dialog.quickRepliesAdd")}
                 </Button>
               ) : (

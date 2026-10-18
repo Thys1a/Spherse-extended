@@ -39,10 +39,32 @@ describe("QuickReplyManagerDialog", () => {
     expect(screen.getByRole("button", { name: translate("zh-CN", "agent-dialog.quickRepliesAdd") })).toBeDisabled();
   });
 
-  it("disables adding at the reply cap", () => {
+  it("disables adding at the reply cap even with a valid draft", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
     const replies = Array.from({ length: 10 }, (_, i) => ({ label: `R${i}`, text: `t${i}`, action: "fill" as const }));
-    renderDialog(replies);
+    renderDialog(replies, onChange);
+    await fillDraft(user, "Extra", "extra text");
     expect(screen.getByRole("button", { name: translate("zh-CN", "agent-dialog.quickRepliesAdd") })).toBeDisabled();
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("omits a blank description instead of storing whitespace", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    renderDialog([], onChange);
+    await fillDraft(user, "Hi", "hello", "   ");
+    await user.click(screen.getByRole("button", { name: translate("zh-CN", "agent-dialog.quickRepliesAdd") }));
+    expect(onChange).toHaveBeenCalledWith([{ label: "Hi", text: "hello", action: "fill" }]);
+  });
+
+  it("submits from the label input with Enter", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    renderDialog([], onChange);
+    await user.type(screen.getByPlaceholderText(translate("zh-CN", "agent-dialog.quickReplyLabelPlaceholder")), "Hi");
+    await user.type(screen.getByPlaceholderText(translate("zh-CN", "agent-dialog.quickReplyTextPlaceholder")), "hello{Enter}");
+    expect(onChange).toHaveBeenCalledWith([{ label: "Hi", text: "hello", action: "fill" }]);
   });
 
   it("edits an entry in place instead of appending", async () => {
@@ -72,6 +94,21 @@ describe("QuickReplyManagerDialog", () => {
     const removeButtons = screen.getAllByRole("button", { name: translate("zh-CN", "common.delete") });
     await user.click(removeButtons[0]);
     expect(onChange).toHaveBeenCalledWith([{ label: "B", text: "b", action: "fill" }]);
+  });
+
+  it("cancels editing when its entry is removed", async () => {
+    const user = userEvent.setup();
+    const { onChange } = renderDialog([
+      { label: "A", text: "a", action: "fill" },
+      { label: "B", text: "b", action: "fill" },
+    ]);
+    const editButtons = screen.getAllByRole("button", { name: translate("zh-CN", "common.edit") });
+    await user.click(editButtons[1]);
+    expect(screen.getByRole("button", { name: translate("zh-CN", "agent-dialog.quickReplyUpdate") })).toBeInTheDocument();
+    const removeButtons = screen.getAllByRole("button", { name: translate("zh-CN", "common.delete") });
+    await user.click(removeButtons[0]);
+    expect(onChange).toHaveBeenCalledWith([{ label: "B", text: "b", action: "fill" }]);
+    expect(screen.getByRole("button", { name: translate("zh-CN", "agent-dialog.quickRepliesAdd") })).toBeInTheDocument();
   });
 
   it("shows the empty state without entries", () => {

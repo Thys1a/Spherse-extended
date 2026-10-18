@@ -162,6 +162,35 @@ describe("AgentDialogForm host gating", () => {
   });
 });
 
+describe("AgentDialogForm quick reply manager wiring", () => {
+  it("opens the manager from the row, applies edits to the draft, and saves them", async () => {
+    const user = userEvent.setup();
+    const onSubmit = renderForm();
+    await user.click(screen.getByRole("tab", { name: translate("zh-CN", "agent-dialog.tabPersonalization") }));
+    await user.click(screen.getByRole("button", { name: translate("zh-CN", "agent-dialog.quickRepliesManage") }));
+    expect(screen.getByText(translate("zh-CN", "agent-dialog.quickRepliesDialogTitle"))).toBeInTheDocument();
+
+    await user.type(
+      screen.getByPlaceholderText(translate("zh-CN", "agent-dialog.quickReplyLabelPlaceholder")),
+      "Hi",
+    );
+    await user.type(
+      screen.getByPlaceholderText(translate("zh-CN", "agent-dialog.quickReplyTextPlaceholder")),
+      "hello",
+    );
+    await user.click(screen.getByRole("button", { name: translate("zh-CN", "agent-dialog.quickRepliesAdd") }));
+    await user.click(screen.getByRole("button", { name: translate("zh-CN", "agent-dialog.quickRepliesDone") }));
+    await user.click(screen.getByRole("button", { name: "保存" }));
+
+    await vi.waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledTimes(1);
+    });
+    const content = onSubmit.mock.calls[0]?.[1] as unknown as string;
+    expect(content).toContain("quickReplies:");
+    expect(content).toContain("Hi");
+  });
+});
+
 describe("AgentDialogForm keyless providers", () => {
   it("lists keyless provider models without configured flags", async () => {
     const user = userEvent.setup();
