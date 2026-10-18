@@ -100,7 +100,7 @@ await spherse.sendMessage({ sessionId: rt.sessionId, message: "继续分析" });
 - 成功：resolve
 - 失败：reject（`session_not_found` / `iframe_not_found` / `invalid_params` / `feature_disabled` / `dock_not_allowed`）
 - 同一卡片重复调用会重新绑定（切换 `sessionId` 会替换面板中的会话）
-- `dockChat` / `undockChat` 仅在聊天 HtmlCard 中可用；其它注入了 SDK 的预览页（如 Content Browser 预览）中 auto-dock 不会发生，显式调用也应避免
+- auto-dock 只在聊天 HtmlCard 发生（需要会话上下文）；显式调用在任何注入了 SDK 的页面都可用（含 Content Browser 预览），但必须自备 sessionId
 
 ### `spherse.undockChat()`
 
