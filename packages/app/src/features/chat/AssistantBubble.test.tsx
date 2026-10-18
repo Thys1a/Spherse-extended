@@ -106,4 +106,9 @@ describe("AssistantBubble", () => {
     renderBubble({ text: "hello" });
     expect(screen.queryByText(/输入 .* · 输出/)).not.toBeInTheDocument();
   });
+
+  it("hides the token line while streaming even with diagnostics", () => {
+    renderBubble({ streaming: true, diagnostics: { promptTokens: 120, outputTokens: 5 } });
+    expect(screen.queryByText(/输入 .* · 输出/)).not.toBeInTheDocument();
+  });
 });

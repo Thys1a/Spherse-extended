@@ -33,7 +33,7 @@ export function QuickReplyField({
   const [draftDescription, setDraftDescription] = useState("");
   const [draftText, setDraftText] = useState("");
   const capped = replies.length >= MAX_QUICK_REPLIES;
-  const canAdd = !capped && draftLabel.trim() !== "" && draftText !== "";
+  const canAdd = !capped && draftLabel.trim() !== "" && draftText.trim() !== "";
 
   const handleAdd = () => {
     if (!canAdd) return;

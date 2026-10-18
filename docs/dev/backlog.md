@@ -7,6 +7,7 @@
 ## 验证补全
 
 - [ ] **手动验证 server 浏览器安全边界加固的真实隧道链路**：`2026-08-28-server-browser-security` 已合入 always-on token + 认证制 CORS + Host 校验，自动化已覆盖 server/desktop 语义（`browser-security.test.ts` / `server.test.ts`），但缺真机回归：① cloudflared 转发到 `http://localhost:{port}` 时的实际 Host 头形态（决定 quick 模式是否依赖动态 host 注册）；② quick tunnel 全流程（含 PWA WS 连接）；③ manual domain 反代访问与 regenerate 后域名仍可访问；④ prod 打包 renderer（file:// origin）API/WS。参见 `docs/dev/features/2026-08-28-server-browser-security/plan.md` 验证节。
+- [ ] **确认 CI 跑过 desktop E2E agent-quick-replies.spec**：quickReplies 整链（seed → 详情端点 → 回复条 → 填入）单测只各钉一段，E2E spec 已仿 `agent-quick-links.spec.ts` 写好但未本地执行（本机缺 ms-playwright 环境），靠 CI e2e 覆盖；合入后看 CI 绿再销本条。参见 `docs/dev/features/2026-10-12-quick-reply/design.md` §五。
 
 ## Bug
 

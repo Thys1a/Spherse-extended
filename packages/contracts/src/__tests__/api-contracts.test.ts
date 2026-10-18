@@ -139,6 +139,24 @@ describe("api contracts", () => {
       quickLinks: ["notes/world.md"],
     });
     expect(() => parseApiResponse(schemas.agentProfile, { ...profile, quickLinks: ["a", 1] })).toThrow(/Invalid payload/);
+    expect(
+      parseApiResponse(schemas.agentProfile, {
+        ...profile,
+        quickReplies: [{ label: "Hi", description: "Say hi", text: "hello", action: "fill" }],
+      }),
+    ).toMatchObject({ quickReplies: [{ label: "Hi", description: "Say hi", text: "hello", action: "fill" }] });
+    expect(() =>
+      parseApiResponse(schemas.agentProfile, {
+        ...profile,
+        quickReplies: Array.from({ length: 11 }, (_, i) => ({ label: `R${i}`, text: `t${i}`, action: "fill" })),
+      }),
+    ).toThrow(/Invalid payload/);
+    expect(() =>
+      parseApiResponse(schemas.agentProfile, {
+        ...profile,
+        quickReplies: [{ label: "x".repeat(17), text: "t", action: "fill" }],
+      }),
+    ).toThrow(/Invalid payload/);
     expect(() => parseApiResponse(schemas.agentProfile, { id: "a1" })).toThrow(/Invalid payload/);
 
     const summary = { id: "a1", name: "Agent", slug: "agent", createdAt: 1 };

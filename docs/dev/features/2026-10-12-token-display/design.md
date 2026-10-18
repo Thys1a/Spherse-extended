@@ -1,7 +1,7 @@
 # 对话 token 数据 + 输入框预计 token 展示：方案
 
 - 日期：2026-10-18
-- 状态：有方案，待评审
+- 状态：已实现，待验收
 - 版本：v1.0.1
 - 来源：`docs/dev/investigation/2026-10-06-cross-project/09-token-usage-feasibility.md`（结论可行，建议先做 A1 + B1；分项定义与优先级见该文档）+ 本次代码现状核查（只读，未改代码）
 
@@ -45,8 +45,8 @@
 - UI：pill 渲染数字/进度；输入计数随输入变化；投影放宽 + 正常态渲染后 diagnostics 到达。
 - 镜像一致性：app 估算与 core 同名函数逐值对比测试。
 - i18n：`npm run check:i18n`。
-- 真机：pill 数字随轮次更新；角标；输入计数；移动端窄屏。
+- 真机：pill 数字随轮次更新；角标；输入计数；移动端窄屏；弱网首载 pill 缺席不顶布局。
 
 ## 六、范围与不做
 
-- 不改 `usage` 采集与落库格式；不做服务端推送（先用失效重取）；不引 pi-ai 估算器；renderer 不运行时引用 `@spherse/core`（打包边界）；不改 contracts（`sessionStatus` 字段不变）；向量/语义相关一概不碰。
+- 不改 `usage` 采集与落库格式；不做服务端推送（先用失效重取）；不引 pi-ai 估算器；renderer 不运行时引用 `@spherse/core`（打包边界）；不改 contracts（`sessionStatus` 字段不变）；pill 与弹窗不抽共用展示组件（布局不同，各渲染一次，接受双份）；向量/语义相关一概不碰。

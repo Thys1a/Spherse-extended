@@ -3,6 +3,7 @@ import matter from "gray-matter";
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import type { ProjectStore } from "../store/project.js";
 import type { AgentProfile } from "../types.js";
+import { MAX_QUICK_REPLIES, MAX_QUICK_REPLY_LABEL_LENGTH } from "../types.js";
 import { ValidationError, NotFoundError } from "../errors.js";
 import { addAgentCardLink, removeAgentCardLink } from "../capabilities/card/worldbook.js";
 
@@ -219,6 +220,24 @@ function validateTools(tools: string[] | undefined, knownTools: KnownToolsRef): 
   return [...new Set(tools)];
 }
 
+function validateQuickReplies(
+  replies: Array<{ label: string; text: string }> | undefined,
+): void {
+  if (replies === undefined) return;
+  if (replies.length > MAX_QUICK_REPLIES) {
+    throw new ValidationError(
+      `too many quick replies: got ${replies.length}, max is ${MAX_QUICK_REPLIES}.`,
+    );
+  }
+  for (const reply of replies) {
+    if (reply.label.length > MAX_QUICK_REPLY_LABEL_LENGTH) {
+      throw new ValidationError(
+        `quick reply label too long: "${reply.label}" exceeds ${MAX_QUICK_REPLY_LABEL_LENGTH} chars.`,
+      );
+    }
+  }
+}
+
 export function createManageAgentTool(
   projectStore: ProjectStore,
   knownTools: KnownToolsRef,
@@ -272,6 +291,7 @@ export function createManageAgentTool(
             frontmatter.tools = tools ?? [];
             if (params.context && params.context.length > 0) frontmatter.context = params.context;
             if (params.quick_links && params.quick_links.length > 0) frontmatter.quickLinks = params.quick_links;
+            validateQuickReplies(params.quick_replies);
             if (params.quick_replies && params.quick_replies.length > 0) {
               frontmatter.quickReplies = params.quick_replies;
             }
@@ -313,6 +333,7 @@ export function createManageAgentTool(
               else delete frontmatter.quickLinks;
             }
             if (params.quick_replies !== undefined) {
+              validateQuickReplies(params.quick_replies);
               if (params.quick_replies.length > 0) frontmatter.quickReplies = params.quick_replies;
               else delete frontmatter.quickReplies;
             }

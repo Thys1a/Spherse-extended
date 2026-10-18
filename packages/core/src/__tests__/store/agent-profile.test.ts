@@ -184,7 +184,7 @@ You are a world building assistant.`;
 
   it("drops invalid quickReplies entries and truncates overlong labels", async () => {
     await writeProfile(
-      "---\nname: Agent\nquickReplies:\n  - label: OK\n    text: hi\n  - 42\n  - label: ''\n    text: empty\n  - label: This label is way too long for display\n    text: long\n---\n\nprompt",
+      "---\nname: Agent\nquickReplies:\n  - label: OK\n    text: hi\n  - 42\n  - label: ''\n    text: empty\n  - label: Blank\n    text: '   '\n  - label: This label is way too long for display\n    text: long\n---\n\nprompt",
     );
     const profile = await store.read();
     expect(profile).not.toBeNull();

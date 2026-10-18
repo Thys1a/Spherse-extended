@@ -293,6 +293,30 @@ describe("createManageAgentTool", () => {
     expect((await readFrontmatter(profile.id)).quickReplies).toBeUndefined();
   });
 
+  it("rejects over-limit quick replies on create and update", async () => {
+    const many = Array.from({ length: 11 }, (_, i) => ({ label: `R${i}`, text: `t${i}`, action: "fill" as const }));
+    const created = await makeTool().execute(
+      "tc",
+      { action: "create", name: "QR", system_prompt: "p", quick_replies: many },
+      undefined as any,
+    );
+    expect(created.details.error).toBe(true);
+    expect(created.content[0].text).toContain("too many");
+
+    const profile = await seedAgent();
+    const longLabel = await makeTool().execute(
+      "tc",
+      {
+        action: "update",
+        agent_id: profile.id,
+        quick_replies: [{ label: "x".repeat(17), text: "t", action: "fill" as const }],
+      },
+      undefined as any,
+    );
+    expect(longLabel.details.error).toBe(true);
+    expect(longLabel.content[0].text).toContain("too long");
+  });
+
   it("reports a missing agent id", async () => {
     const result = await makeTool().execute(
       "tc",

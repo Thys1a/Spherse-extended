@@ -95,9 +95,7 @@ export function extractAssistantExtras(
   if (truncated) extras._thinkingTruncated = true;
   const diagnostics = extractMessageDiagnostics(message);
   const hasTokens =
-    diagnostics.promptTokens !== undefined ||
-    diagnostics.outputTokens !== undefined ||
-    diagnostics.promptEstimate !== undefined;
+    diagnostics.promptTokens !== undefined || diagnostics.outputTokens !== undefined;
   if (message.stopReason === "error" || truncated || hasTokens) {
     extras._diagnostics = {
       ...diagnostics,

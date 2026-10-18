@@ -77,7 +77,7 @@ describe("initPresets", () => {
 
     const profile = projectStore.listAgents().find((p) => p.name === "小助手");
     expect(profile).toBeDefined();
-    expect(profile!.systemPrompt).toContain("先计划，后执行");
+    expect(profile!.systemPrompt).toContain("先计划，后执行：有疑问先提问澄清；动手前先给出计划，经确认后再执行。");
   });
 
   it("does not throw when called on empty project", async () => {

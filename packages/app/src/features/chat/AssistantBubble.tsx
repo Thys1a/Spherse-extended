@@ -104,6 +104,17 @@ export function AssistantBubble({
     return { blocks, content: stripHtmlFences(text) };
   }, [streaming, text, allowInlineHtml]);
   const displayText = inlineHtml?.content ?? text;
+  const showTurnTokens =
+    !streaming &&
+    !error &&
+    diagnostics !== undefined &&
+    (diagnostics.promptTokens !== undefined || diagnostics.outputTokens !== undefined);
+  const turnTokenLabel = showTurnTokens
+    ? t("chat.turnTokenUsage", {
+        prompt: (diagnostics?.promptTokens ?? 0).toLocaleString(),
+        output: (diagnostics?.outputTokens ?? 0).toLocaleString(),
+      })
+    : null;
 
   return (
     <div
@@ -145,16 +156,11 @@ export function AssistantBubble({
               </>
             )}
           </div>
-          {!streaming &&
-            diagnostics &&
-            (diagnostics.promptTokens !== undefined || diagnostics.outputTokens !== undefined) && (
-              <div className="mt-1 text-[11px] tabular-nums text-muted-foreground">
-                {t("chat.turnTokenUsage", {
-                  prompt: (diagnostics.promptTokens ?? 0).toLocaleString(),
-                  output: (diagnostics.outputTokens ?? 0).toLocaleString(),
-                })}
-              </div>
-            )}
+          {turnTokenLabel && (
+            <div className="mt-1 text-[11px] tabular-nums text-muted-foreground">
+              {turnTokenLabel}
+            </div>
+          )}
           {inlineHtml?.blocks.map((block, blockIndex) => {
             const card: HtmlCard = { type: "html", html: block.source };
             return (

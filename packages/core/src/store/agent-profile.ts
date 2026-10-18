@@ -159,10 +159,12 @@ export function parseQuickReplies(data: unknown): QuickReply[] | undefined {
     if (typeof item !== "object" || item === null || Array.isArray(item)) continue;
     const obj = item as Record<string, unknown>;
     if (typeof obj.label !== "string" || !obj.label.trim()) continue;
-    if (typeof obj.text !== "string" || !obj.text) continue;
+    if (typeof obj.text !== "string" || !obj.text.trim()) continue;
     out.push({
       label: obj.label.trim().slice(0, MAX_QUICK_REPLY_LABEL_LENGTH),
-      ...(typeof obj.description === "string" && obj.description ? { description: obj.description } : {}),
+      ...(typeof obj.description === "string" && obj.description.trim()
+        ? { description: obj.description.trim() }
+        : {}),
       text: obj.text,
       action: "fill",
     });

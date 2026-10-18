@@ -301,4 +301,12 @@ describe("extractAssistantExtras", () => {
       },
     });
   });
+
+  it("attaches no extras for a normal turn with only a prompt estimate", () => {
+    expect(
+      extractAssistantExtras(
+        { content: [{ type: "text", text: "hi" }], stopReason: "stop", promptEstimate: 120 } as never,
+      ),
+    ).toEqual({});
+  });
 });

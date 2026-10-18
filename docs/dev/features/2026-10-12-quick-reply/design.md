@@ -1,7 +1,7 @@
 # agent 所属快捷回复：方案
 
 - 日期：2026-10-18
-- 状态：有方案，待评审（schema/入口/行为三处待定，见 §四）
+- 状态：已实现，待验收
 - 版本：v1.0.1
 - 来源：排期总览（用户直接提出，无出处）+ 本次代码现状核查（只读，未改代码）
 
@@ -21,10 +21,10 @@
 
 ## 三、方案
 
-1. 数据模型：`quickReplies: {label, description, text, action}[]`（已定；`label` 显示名限长、`description` 说明（tooltip/无障碍）、`text` 填入文本、`action` 仅 `fill` 保留扩展）；`AgentSummary` 本就排除详情字段，新字段走详情 query 即可；开关暂不加（`quickLinks` 无开关先例）。限值落定：最多 10 条，label ≤ 16 字符。
-2. 写链：`agent-markdown.ts`、`manage_agent`（仿 `quick_links` 全量替换，走既有审批；有管理权限的 agent 可改）、contracts（`agentProfile` schema 加数组对象，TypeBox 限 `maxItems`/`maxLength`）、`agent-profile.ts` 过滤分支（`quickLinks` 现只 filter 字符串，新分支做对象解析 + 枚举 + 限值校验）各加一条；读链解析四字段并校验限值。
-3. 配置 UI：Agent Dialog「个性化」页（即 agent 编辑页）新增快捷回复编辑器（增删改查；用户操作无权限门）+ i18n（走 i18n skill，限值进提示文案）。
-4. 聊天 UI：Composer 上方 button 行（移动端横滚；每条目一 button，`label` 截断显示、`description` 进 title）；点击填入走 `composer-insert-store.ts:15-16`（插入光标处，不覆盖已有草稿，直发不做）。
+1. 数据模型：`quickReplies: {label, description, text, action}[]`（已定；`label` 显示名限长、`description` 说明（tooltip/无障碍，空白去空）、`text` 填入文本（空白条目丢弃，存原文不 trim）、`action` 仅 `fill` 保留扩展：非法值 coerce 为 `fill`）；`AgentSummary` 本就排除详情字段，新字段走详情 query 即可；开关暂不加（`quickLinks` 无开关先例）。限值落定：最多 10 条，label ≤ 16 字符。
+2. 写链：`agent-markdown.ts`、`manage_agent`（仿 `quick_links` 全量替换，走既有审批；写时超限直接拒绝，见 `validateQuickReplies`，与 `validateTools` 同风格；有管理权限的 agent 可改）、contracts（`agentProfile` schema 加数组对象，TypeBox 限 `maxItems`/`maxLength`）、`agent-profile.ts` 过滤分支（`quickLinks` 现只 filter 字符串，新分支做对象解析 + 枚举 + 限值校验）各加一条；读链解析四字段并校验限值。
+3. 配置 UI：Agent Dialog「个性化」页（即 agent 编辑页）新增快捷回复编辑器（增/删；改经删后重加；用户操作无权限门）+ i18n（走 i18n skill，限值进提示文案）。
+4. 聊天 UI：Composer 上方 button 行（移动端横滚；每条目一 button，`label` 截断显示、`description` 进 title）；点击填入走 `composer-insert-store.ts:15-16`（插入光标处：前后无换行则补 `\n`，不覆盖已有草稿；直发不做）。
 5. 改动清单：`core/src/types.ts`、`agent-profile.ts`、`agent-markdown.ts`、`manage-agent.ts`、`contracts/src/agents.ts`、`AgentDialogForm.tsx`（新编辑器）、聊天回复条新组件、`data-conventions.md:98` 加字段行、三语 i18n。
 6. 测试：仿 `agent-quick-links.spec.ts` 补 E2E + 单测（解析/写回/过滤，含限值用例）。
 
@@ -32,9 +32,9 @@
 
 - schema：`{label, description, text, action}`，`action` 标注预留、当前仅 `fill`（点击填入光标处）。
 - CRUD 在 agent 编辑页（用户操作无权限门）；LLM 经 `manage_agent` 改走 `withApproval`（已核实）。
-- 入口：Composer 上方 button 行（移动端横滚）；`hideHeader` 浮窗/停靠默认不跟（同 `quickLinks`）。
+- 入口：Composer 上方 button 行（移动端横滚）；`hideHeader` 浮窗/停靠默认不跟（实现机制：`Chat` 以 `enabled = !hideHeader` 跳过 profile 查询，同 `quickLinks` 一刀切）。
 - 「全局快捷回复」按不存在处理（命名澄清，不迁移）。
-- 限值落定：最多 10 条，label ≤ 16 字符（落 core 校验 + 编辑器 maxlength + i18n 提示）。
+- 限值落定：最多 10 条，label ≤ 16 字符（落 core 校验 + 编辑器 maxlength + i18n 提示；限值变更需同改 core `types.ts`、contracts、`manage-agent` 描述、app 镜像 + i18n 文案 4 处）。
 
 ## 五、测试
 

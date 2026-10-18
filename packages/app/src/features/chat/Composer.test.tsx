@@ -454,6 +454,18 @@ describe("Composer external insert", () => {
     useComposerInsertStore.setState({ sessionId: null, text: "", nonce: 0 });
   });
 
+  it("appends inserted text on a new line when the draft is not empty", async () => {
+    renderComposer({ streaming: false });
+    await user.type(screen.getByRole("textbox"), "hello");
+    act(() => {
+      useComposerInsertStore.getState().requestInsert("session-1", "ping me");
+    });
+    await vi.waitFor(() => {
+      expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("hello\nping me");
+    });
+    useComposerInsertStore.setState({ sessionId: null, text: "", nonce: 0 });
+  });
+
   it("does not replay a consumed insert on remount", async () => {
     const first = renderComposer({ streaming: false });
     act(() => {
