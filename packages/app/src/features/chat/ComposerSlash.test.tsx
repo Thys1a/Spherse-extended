@@ -41,6 +41,8 @@ let user: ReturnType<typeof userEvent.setup>;
 
 beforeEach(() => {
   user = userEvent.setup();
+  mockCommandList.length = 0;
+  mockCommandList.push({ name: "test", description: "Run tests" });
 });
 
 afterEach(() => {
@@ -112,6 +114,16 @@ describe("Composer slash completion", () => {
       scrollSpy.mockClear();
       await user.keyboard("{ArrowDown}");
       expect(scrollSpy).toHaveBeenCalled();
+      expect(
+        document.querySelector('[role="option"][aria-selected="true"]')?.textContent,
+      ).toContain("cmd-1");
+
+      await user.keyboard("{ArrowUp}");
+      await user.keyboard("{ArrowUp}");
+      expect(scrollSpy).toHaveBeenCalled();
+      expect(
+        document.querySelector('[role="option"][aria-selected="true"]')?.textContent,
+      ).toContain("cmd-11");
     } finally {
       mockCommandList.length = 0;
       mockCommandList.push({ name: "test", description: "Run tests" });

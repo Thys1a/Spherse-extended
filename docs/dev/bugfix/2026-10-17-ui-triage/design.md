@@ -76,7 +76,7 @@ dev 模式（`npm run dev` → `electron-vite dev` → `node_modules/electron/di
 
 ### 附带发现（同批修）
 
-`packages/desktop/electron/window.ts:15` 运行时读 `../../build/spherse-icon.png`，但 `electron-builder.yml` 的 `files` 仅含 `dist/**/* + package.json`，打包后 `resources/app/build/` 不存在，`BrowserWindow icon` 加载失败。修法：`files` 追加 `build/spherse-icon.png`；验证 `npm run pack -w @spherse/desktop` 后 `release/win-unpacked/resources/app/build/spherse-icon.png` 存在。
+`packages/desktop/electron/window.ts:15` 运行时读 `../../build/spherse-icon.png`，但 `electron-builder.yml` 的 `files` 仅含 `dist/**/* + package.json`，打包后 `resources/app/build/` 不存在，`BrowserWindow icon` 加载失败。修法：`files` 追加 `build/spherse-icon.png`（已实施；`pack` 实测 `\build\spherse-icon.png` 已进 `app.asar`、与 `dist/main/index.js` 同级，`window.ts:15` 路径在 asar 内可解析，U1 销号）。
 
 ## 三、聊天搜索缺少显式 UI 供用户发现
 

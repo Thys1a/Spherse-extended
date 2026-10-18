@@ -8,6 +8,7 @@
 
 - 入口 `electron/bootstrap.ts`：dev（`!app.isPackaged` 且非 test）将 userData 重定向 `Spherse-Dev/`
   - dev 与 prod 的 electron-store / localStorage 完全隔离，可同时运行
+  - Windows 任务栏身份同样分流：仅 packaged 设 AppUserModelId（`com.spherse.app`），dev 用 Electron 默认值，两者不混组、不抢固定项（`electron/app-id.ts`）
   - E2E 由 Playwright 传 `--user-data-dir` + `NODE_ENV=test` 跳过重定向
 - `app.whenReady` 顺序：`fixPath` → `migrateLegacySettings`（备份旧 `settings` → 分区落盘 → 删旧键）→ `ensureServer()`（恒传 server token）→ 创建窗口与右键菜单 → 注册全部 IPC → quick 模式启动 tunnel；更新检查另起 `setTimeout` 5s 调度，与 tunnel 无先后依赖
 - BrowserWindow：1200×800、`contextIsolation: true`、`nodeIntegration: false`、preload 白名单桥

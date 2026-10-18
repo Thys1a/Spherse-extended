@@ -50,7 +50,7 @@ export function ProjectPanel() {
                     onClick={() => {
                       openGlobalSearch(true);
                     }}
-                    title={t("global-search.placeholder")}
+                    title={`${t("global-search.search")} (${isMacPlatform() ? "⌘P" : "Ctrl+P"})`}
                     aria-label={t("global-search.search")}
                   >
                     <SearchIcon className="size-4 shrink-0" />
@@ -78,7 +78,7 @@ export function ProjectPanel() {
           }}
         >
           {t("global-search.search")}
-          <ContextMenuShortcut>{isMacPlatform() ? "⌘P" : "Ctrl P"}</ContextMenuShortcut>
+          <ContextMenuShortcut>{isMacPlatform() ? "⌘P" : "Ctrl+P"}</ContextMenuShortcut>
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>

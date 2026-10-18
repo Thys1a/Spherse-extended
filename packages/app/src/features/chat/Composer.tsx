@@ -185,7 +185,7 @@ export function Composer({ streaming, loading = false, panicLocked = false, sess
       selected.scrollIntoView({ block: "nearest" });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [menu?.items.length, menu?.selected]);
+  }, [menu?.items.length, menu?.selected, menu?.match.query]);
 
   const pickMenuItem = (item: SlashMenuItem | undefined): boolean => {
     if (!item || !slashMatch) return false;

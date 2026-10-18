@@ -229,7 +229,7 @@ export function Chat({ sessionId, agent, onNavigateToPath, onOpenSession, initia
 
   return (
     <ChatAgentProvider agent={agentScope}>
-      <div ref={rootRef} className="flex flex-col h-full" data-chat-root data-chat-instance={sessionId}>
+      <div ref={rootRef} className={hideHeader ? "relative flex flex-col h-full" : "flex flex-col h-full"} data-chat-root data-chat-instance={sessionId}>
         {scopedThemeCss && <style data-agent-theme={sessionId}>{scopedThemeCss}</style>}
         {!hideHeader && (
           <div className="relative shrink-0">
