@@ -84,7 +84,7 @@ dev 模式（`npm run dev` → `electron-vite dev` → `node_modules/electron/di
 
 根因：electron-vite 把 main 打包进 `dist/main/chunks/main-*.js`（安装包内实证：`__dirname$2` + 同文件 preload 路径），运行时 `__dirname` = `…/app.asar/dist/main/chunks`，于是 `window.ts:15` 的 `../../build/spherse-icon.png` 解析到 `…/app.asar/dist/build/spherse-icon.png`——不存在（真文件在 `…/app.asar/build/`）。源码态成立（`electron/` → `../../build`），dev 态成立，打包态恒失败。electron/ 下共 3 处 `../..`：preload（`dist/preload`，误打误撞正确）、renderer（`dist/renderer`，正确），只有图标这一处是错的。窗口图标加载失败 → 任务栏回退 → Electron logo。
 
-修法（未实施）：`icon: path.join(app.getAppPath(), "build", "spherse-icon.png")`——dev 下 `getAppPath()` 为包根，`build/` 直达；打包后为 `…/app.asar`，asar 内读 png 有效。一行，无分支，无 chunks 假设。
+修法（2026-10-19 已实施，决策 B）：win32 直接省略 `icon`（用 exe 内嵌多尺寸 ICO，贴合 Electron 官方建议；dev 下 exe 是 electron.exe，任务栏显示 Electron 属预期）；其他平台 `icon: path.join(app.getAppPath(), "build", "spherse-icon.png")`（dev 下为包根，打包后为 `app.asar` 内，asar 读 png 有效；无 chunks 假设）。yml 里 png 入包保留（Linux 需要）。
 
 ## 三、聊天搜索缺少显式 UI 供用户发现
 
@@ -166,6 +166,9 @@ expect((getHostPrefs() as unknown as Record<string, unknown>).futureField).toBeU
 - 对照正常方：`ModelProviderItem`（`settings/index.tsx:169-170`）用 `configured` 布尔 → 徽章正确；agent-dialog（`ModelConfigField.tsx:59`）用 `configuredIds` 集合 → 正常；session 选择读 catalog → 正常。
 - merge144 之前 key 存 electron-store 本地可读，门是通的；server 化后断掉，属回归。
 
-### 修复方向（未实施）
+### 修复方向（2026-10-19 已实施，审查后加严两处）
 
-- 给 `DefaultModelField` 加 `configured: Record<string, boolean>` prop，过滤改为 `apiKeys[id]?.trim() || configured[id]`（新手工输入走 `apiKeys`，已迁移走 `configured`）。两行 + 单测。
+- 给 `DefaultModelField` 加 `configured: Record<string, boolean>` prop，过滤改为 `apiKeys[id]?.trim() || configured[id] || providers[id]?.keyless`（新手工输入走 `apiKeys`，已迁移走 `configured`，免密钥走 `keyless`——与 `SessionModelPill.tsx:89` 判据对齐）。
+- `loadError` 时不显示“请先配置”提示（错误横幅已说明，避免误导）。
+- agent 侧同批修：`AgentDialogForm.tsx` 的 `configuredIds` 改为 stored-configured 与 catalog-keyless 的并集（之前只遍历 settings 条目，keyless 供应商根本不在其中）。
+- 测试：新增 `DefaultModelField.test.tsx`（4 用例）；`AgentDialogForm.test.tsx` 加 keyless 用例（覆盖到 `configuredIds` 构建）。
