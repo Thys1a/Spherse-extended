@@ -17,6 +17,10 @@ vi.mock("sonner", () => ({
 const uploadAttachment = vi.fn();
 const deleteAttachment = vi.fn();
 
+const mockSessionStatus = vi.hoisted(() => ({
+  current: { currentTokens: 12000, contextWindowLimit: 200000 },
+}));
+
 vi.mock("../../lib/use-connection", () => ({
   useApiClient: () => ({
     uploadAttachment,
@@ -26,6 +30,7 @@ vi.mock("../../lib/use-connection", () => ({
     setSessionModel: vi.fn(),
     listProjectSessions: vi.fn(async () => ({ sessions: [], byAgent: {} })),
     listAgents: vi.fn(async () => []),
+    getSessionStatus: vi.fn(async () => mockSessionStatus.current),
   }),
   useGlobalApiClient: () => null,
   useConnection: () => ({ baseUrl: "http://localhost:5173", accessToken: null }),
@@ -70,6 +75,7 @@ function renderComposer(props: ComposerProps) {
       loading={props.loading ?? false}
       panicLocked={props.panicLocked ?? false}
       sessionId="session-1"
+      agentId="agent-1"
       placeholder={props.placeholder}
       onSend={onSend}
       onAbort={onAbort}
@@ -91,6 +97,7 @@ function rerenderComposer(
       loading={props.loading ?? false}
       panicLocked={props.panicLocked ?? false}
       sessionId="session-1"
+      agentId="agent-1"
       onSend={onSend}
       onAbort={onAbort}
     />,
@@ -461,5 +468,22 @@ describe("Composer external insert", () => {
     renderComposer({ streaming: false });
     expect(screen.getByRole("textbox")).toHaveValue("");
     useComposerInsertStore.setState({ sessionId: null, text: "", nonce: 0 });
+  });
+});
+
+describe("Composer token display", () => {
+  it("shows the session tokens pill from the status query", async () => {
+    renderComposer({ streaming: false });
+    const pill = await screen.findByTitle("会话状态");
+    expect(pill.textContent).toContain("12,000");
+    expect(pill.textContent).toContain("200,000");
+    expect(pill.textContent).toContain("6%");
+  });
+
+  it("shows the input estimate while typing and hides it when empty", async () => {
+    renderComposer({ streaming: false });
+    expect(screen.queryByText(/预计约/)).not.toBeInTheDocument();
+    await user.type(screen.getByRole("textbox"), "hello world");
+    expect(await screen.findByText("预计约 3 tokens")).toBeInTheDocument();
   });
 });

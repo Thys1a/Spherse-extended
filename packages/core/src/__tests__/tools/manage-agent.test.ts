@@ -250,6 +250,49 @@ describe("createManageAgentTool", () => {
     expect(got.content[0].text).toContain("world/characters.md");
   });
 
+  it("creates an agent with quick replies", async () => {
+    const result = await makeTool().execute(
+      "tc",
+      {
+        action: "create",
+        name: "QR",
+        system_prompt: "p",
+        quick_replies: [{ label: "Hi", description: "Say hi", text: "hello", action: "fill" }],
+      },
+      undefined as any,
+    );
+    expect(result.details.error).toBeFalsy();
+    const created = store.listAgents().find((a) => a.name === "QR");
+    expect(created).toBeDefined();
+    expect(store.getAgent(created!.id)!.getProfile().quickReplies).toEqual([
+      { label: "Hi", description: "Say hi", text: "hello", action: "fill" },
+    ]);
+  });
+
+  it("replaces quick replies on update and clears them with an empty array", async () => {
+    const profile = await seedAgent();
+    await makeTool().execute(
+      "tc",
+      {
+        action: "update",
+        agent_id: profile.id,
+        quick_replies: [{ label: "Hi", text: "hello", action: "fill" }],
+      },
+      undefined as any,
+    );
+    expect(store.getAgent(profile.id)!.getProfile().quickReplies).toEqual([
+      { label: "Hi", text: "hello", action: "fill" },
+    ]);
+
+    await makeTool().execute(
+      "tc",
+      { action: "update", agent_id: profile.id, quick_replies: [] },
+      undefined as any,
+    );
+    expect(store.getAgent(profile.id)!.getProfile().quickReplies).toBeUndefined();
+    expect((await readFrontmatter(profile.id)).quickReplies).toBeUndefined();
+  });
+
   it("reports a missing agent id", async () => {
     const result = await makeTool().execute(
       "tc",

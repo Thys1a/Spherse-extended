@@ -145,6 +145,16 @@ export function AssistantBubble({
               </>
             )}
           </div>
+          {!streaming &&
+            diagnostics &&
+            (diagnostics.promptTokens !== undefined || diagnostics.outputTokens !== undefined) && (
+              <div className="mt-1 text-[11px] tabular-nums text-muted-foreground">
+                {t("chat.turnTokenUsage", {
+                  prompt: (diagnostics.promptTokens ?? 0).toLocaleString(),
+                  output: (diagnostics.outputTokens ?? 0).toLocaleString(),
+                })}
+              </div>
+            )}
           {inlineHtml?.blocks.map((block, blockIndex) => {
             const card: HtmlCard = { type: "html", html: block.source };
             return (

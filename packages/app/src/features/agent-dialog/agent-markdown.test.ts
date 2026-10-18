@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { buildAgentMarkdown, parseAgentMarkdown } from "./agent-markdown";
+import {
+  MAX_QUICK_REPLIES as CORE_MAX_QUICK_REPLIES,
+  MAX_QUICK_REPLY_LABEL_LENGTH as CORE_MAX_LABEL_LENGTH,
+} from "@spherse/core";
+import {
+  buildAgentMarkdown,
+  MAX_QUICK_REPLIES,
+  MAX_QUICK_REPLY_LABEL_LENGTH,
+  parseAgentMarkdown,
+} from "./agent-markdown";
 
 describe("parseAgentMarkdown", () => {
   it("returns empty tools when there is no frontmatter block", () => {
@@ -69,6 +78,47 @@ describe("parseAgentMarkdown", () => {
     const raw = "---\nname: Agent\nquickLinks:\n  - a.md\n  - 42\n---\n\nsystem prompt";
     const result = parseAgentMarkdown(raw);
     expect(result.formData.quickLinks).toEqual(["a.md"]);
+  });
+
+  it("parses quickReplies array when present", () => {
+    const raw = "---\nname: Agent\nquickReplies:\n  - label: Hi\n    description: Say hi\n    text: hello\n    action: fill\n---\n\nsystem prompt";
+    const result = parseAgentMarkdown(raw);
+    expect(result.formData.quickReplies).toEqual([
+      { label: "Hi", description: "Say hi", text: "hello", action: "fill" },
+    ]);
+    expect(result.extraFrontmatter).not.toHaveProperty("quickReplies");
+  });
+
+  it("returns empty quickReplies when missing", () => {
+    const raw = "---\nname: Agent\n---\n\nsystem prompt";
+    const result = parseAgentMarkdown(raw);
+    expect(result.formData.quickReplies).toEqual([]);
+  });
+
+  it("drops invalid quickReplies entries and caps the list", () => {
+    const items = Array.from({ length: 12 }, (_, i) => `  - label: R${i}\n    text: t${i}`).join("\n");
+    const raw = `---\nname: Agent\nquickReplies:\n${items}\n  - 42\n  - label: ''\n    text: empty\n---\n\nsystem prompt`;
+    const result = parseAgentMarkdown(raw);
+    expect(result.formData.quickReplies).toHaveLength(10);
+    expect(result.formData.quickReplies?.[0]).toEqual({ label: "R0", text: "t0", action: "fill" });
+  });
+
+  it("writes quickReplies back into frontmatter and round-trips", () => {
+    const { formData } = parseAgentMarkdown("---\nname: Agent\n---\n\nprompt");
+    const out = buildAgentMarkdown(
+      { ...formData, quickReplies: [{ label: "Hi", text: "hello", action: "fill" }] },
+      {},
+      false,
+    );
+    expect(out).toContain("quickReplies:");
+    expect(parseAgentMarkdown(out).formData.quickReplies).toEqual([
+      { label: "Hi", text: "hello", action: "fill" },
+    ]);
+  });
+
+  it("mirrors core quick-reply limits", () => {
+    expect(MAX_QUICK_REPLIES).toBe(CORE_MAX_QUICK_REPLIES);
+    expect(MAX_QUICK_REPLY_LABEL_LENGTH).toBe(CORE_MAX_LABEL_LENGTH);
   });
 
   it("parses alias when present", () => {

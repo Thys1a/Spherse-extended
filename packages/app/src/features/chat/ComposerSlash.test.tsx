@@ -27,6 +27,7 @@ vi.mock("../../lib/use-connection", () => ({
     ]),
     listSkills: vi.fn(async () => [{ name: "review", description: "Review code" }]),
     listCommands: vi.fn(async () => mockCommandList),
+    getSessionStatus: vi.fn(async () => ({ currentTokens: 0, contextWindowLimit: null })),
     setSessionModel: vi.fn(),
   }),
   useGlobalApiClient: () => null,
@@ -54,7 +55,7 @@ afterEach(() => {
 function renderSlashComposer() {
   const onSend = vi.fn(() => true);
   renderWithProviders(
-    <Composer streaming={false} loading={false} sessionId="session-1" onSend={onSend} onAbort={vi.fn()} />,
+    <Composer streaming={false} loading={false} sessionId="session-1" agentId="agent-1" onSend={onSend} onAbort={vi.fn()} />,
     { queryClient: createTestQueryClient(), bridge: createMockHostBridge() },
   );
   return { onSend };

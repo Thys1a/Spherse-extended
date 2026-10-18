@@ -71,6 +71,15 @@ describe("initPresets", () => {
     }
   });
 
+  it("creates the assistant preset with the plan-first convention", async () => {
+    const { initPresets } = await import("../presets.js");
+    await initPresets(projectStore, spherseDir, createSilentLogger());
+
+    const profile = projectStore.listAgents().find((p) => p.name === "小助手");
+    expect(profile).toBeDefined();
+    expect(profile!.systemPrompt).toContain("先计划，后执行");
+  });
+
   it("does not throw when called on empty project", async () => {
     const { initPresets } = await import("../presets.js");
     await expect(initPresets(projectStore, spherseDir, createSilentLogger())).resolves.toBeUndefined();

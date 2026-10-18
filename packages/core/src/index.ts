@@ -1,6 +1,7 @@
 export type {
   TimePerceptionConfig,
   AgentProfile,
+  QuickReply,
   ProviderCredentials,
   SamplingParams,
   ThinkingLevel,
@@ -23,6 +24,8 @@ export {
   ModelNotConfiguredError,
   MigrationRequiredError,
 } from "./errors.js";
+export { estimateTokens } from "./context/token-estimate.js";
+export { MAX_QUICK_REPLIES, MAX_QUICK_REPLY_LABEL_LENGTH } from "./types.js";
 export type { ProjectRuntime } from "./project-runtime.js";
 export type { ProjectManager } from "./project-manager.js";
 export type { SessionManager } from "./session/session-manager.js";

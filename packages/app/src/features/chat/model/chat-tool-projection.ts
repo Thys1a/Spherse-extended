@@ -93,9 +93,14 @@ export function extractAssistantExtras(
   if (thinking !== "") extras._thinking = thinking;
   const truncated = message.stopReason === "length" || message.rawStopReason === "length";
   if (truncated) extras._thinkingTruncated = true;
-  if (message.stopReason === "error" || truncated) {
+  const diagnostics = extractMessageDiagnostics(message);
+  const hasTokens =
+    diagnostics.promptTokens !== undefined ||
+    diagnostics.outputTokens !== undefined ||
+    diagnostics.promptEstimate !== undefined;
+  if (message.stopReason === "error" || truncated || hasTokens) {
     extras._diagnostics = {
-      ...extractMessageDiagnostics(message),
+      ...diagnostics,
       ...(seq !== undefined ? { seq } : {}),
     };
   }

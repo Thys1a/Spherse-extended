@@ -8,6 +8,7 @@ import { useApiClient, useConnection } from "../../lib/use-connection";
 import { useFeature } from "../../lib/use-feature";
 import { useIsMobile } from "../../hooks/use-mobile";
 import { useProjectAgentProfile } from "../../queries/project";
+import { refreshSessionStatus } from "../../queries/project/sessions";
 import { useFloatingContentBrowserStore } from "../floating-content-browser/store";
 import { toast } from "sonner";
 import { useI18n } from "@spherse/i18n/react";
@@ -17,6 +18,7 @@ import { onAssistantTurnComplete } from "./tts/bridge";
 import { useSettingsStore } from "../../stores/settings-store";
 import { Composer } from "./Composer";
 import { Header } from "./Header";
+import { QuickReplyBar } from "./QuickReplyBar";
 import { MessageList } from "./MessageList";
 import { toSendable } from "./model/group-derivations";
 import { ConnectionBanner } from "./ConnectionBanner";
@@ -204,15 +206,24 @@ export function Chat({ sessionId, agent, onNavigateToPath, onOpenSession, initia
     stopIfSession(sessionId);
   }, [sessionId]);
 
+  const prevStreamingRef = useRef(streaming);
+  useEffect(() => {
+    if (prevStreamingRef.current && !streaming) {
+      void refreshSessionStatus(projectId, agent.id, sessionId);
+    }
+    prevStreamingRef.current = streaming;
+  }, [streaming, projectId, agent.id, sessionId]);
+
   useEffect(() => {
     if (!compactResult) return;
     if (compactResult.applied) {
       toast.success(t("chat.compactApplied"));
+      void refreshSessionStatus(projectId, agent.id, sessionId);
     } else {
       toast.info(t("chat.compactNotNeeded"));
     }
     clearCompactResult();
-  }, [compactResult, clearCompactResult, t]);
+  }, [compactResult, clearCompactResult, t, projectId, agent.id, sessionId]);
 
   useEffect(() => {
     if (!autoRead) return;
@@ -300,11 +311,15 @@ export function Chat({ sessionId, agent, onNavigateToPath, onOpenSession, initia
           onLoadMore={loadMore}
           locateSeq={locateSeq}
         />
+        {(profileQuery.data?.quickReplies?.length ?? 0) > 0 && (
+          <QuickReplyBar sessionId={sessionId} replies={profileQuery.data?.quickReplies ?? []} />
+        )}
         <Composer
           streaming={streaming}
           loading={loading}
           panicLocked={connection.state === "failed" || connection.state === "fatal"}
           sessionId={sessionId}
+          agentId={agent.id}
           placeholder={profileQuery.data?.placeholder}
           onSend={handleSend}
           onAbort={abort}

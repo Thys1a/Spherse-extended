@@ -96,6 +96,7 @@ frontmatter 字段：
 | `tools` | 否 | 允许的工具名列表；缺省不分配任何工具 |
 | `context` | 否 | 项目根内相对路径列表，构建 system prompt 时预读注入；access policy 不可读的路径静默跳过 |
 | `quickLinks` | 否 | 项目根内相对路径列表，渲染为聊天窗口 header 快捷链接按钮（桌面开文件浮窗、移动端 header 下方滑出面板）；`manage_agent` 全量替换（语义同 `context`），Agent Dialog 亦可改 |
+| `quickReplies` | 否 | 快捷回复条目列表 `{label, description?, text, action}`（当前仅 `fill`），渲染为输入框上方按钮，点击填入文本；label ≤ 16 字符、最多 10 条（超限解析时截断/丢弃非法项）；`manage_agent` 全量替换，Agent Dialog 亦可改 |
 | `placeholder` | 否 | 聊天输入框占位文案；空串视为未设 |
 | `greeting` | 否 | 新会话欢迎区文案；空串视为未设 |
 | `allowInlineHtml` | 否 | 允许该 agent 聊天里的 HTML 围栏块渲染为可交互卡片；未设默认关闭（仅渲染代码文本） |

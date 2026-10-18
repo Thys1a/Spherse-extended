@@ -164,6 +164,29 @@ export function useSessionSearch(
   });
 }
 
+export function useProjectSessionStatus(
+  projectId: string,
+  client: ApiClient | null,
+  agentId: string | null | undefined,
+  sessionId: string | null | undefined,
+) {
+  return useQuery({
+    queryKey: projectQueryKeys.sessionStatus(projectId, agentId ?? "", sessionId ?? ""),
+    queryFn: () => client!.getSessionStatus(agentId!, sessionId!),
+    enabled: Boolean(projectId && client && agentId && sessionId),
+  });
+}
+
+export async function refreshSessionStatus(
+  projectId: string,
+  agentId: string,
+  sessionId: string,
+): Promise<void> {
+  await queryClient.invalidateQueries({
+    queryKey: projectQueryKeys.sessionStatus(projectId, agentId, sessionId),
+  });
+}
+
 export async function ensureProjectSession(
   projectId: string,
   client: ApiClient | null,

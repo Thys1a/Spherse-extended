@@ -2,7 +2,8 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import crypto from "node:crypto";
 import matter from "gray-matter";
-import type { AgentProfile, ThinkingLevel, TimePerceptionConfig } from "../types.js";
+import type { AgentProfile, QuickReply, ThinkingLevel, TimePerceptionConfig } from "../types.js";
+import { MAX_QUICK_REPLIES, MAX_QUICK_REPLY_LABEL_LENGTH } from "../types.js";
 import { ValidationError } from "../errors.js";
 
 const THINKING_LEVELS: readonly ThinkingLevel[] = ["off", "low", "medium", "high"];
@@ -128,6 +129,7 @@ export class AgentProfileStore {
         quickLinks: Array.isArray(data.quickLinks)
           ? data.quickLinks.filter((p): p is string => typeof p === "string")
           : undefined,
+        quickReplies: parseQuickReplies(data.quickReplies),
         output: data.output,
         timePerception: parseTimePerception(data.timePerception),
         yolo: data.yolo === true || undefined,
@@ -147,6 +149,25 @@ export class AgentProfileStore {
       return null;
     }
   }
+}
+
+export function parseQuickReplies(data: unknown): QuickReply[] | undefined {
+  if (!Array.isArray(data)) return undefined;
+  const out: QuickReply[] = [];
+  for (const item of data) {
+    if (out.length >= MAX_QUICK_REPLIES) break;
+    if (typeof item !== "object" || item === null || Array.isArray(item)) continue;
+    const obj = item as Record<string, unknown>;
+    if (typeof obj.label !== "string" || !obj.label.trim()) continue;
+    if (typeof obj.text !== "string" || !obj.text) continue;
+    out.push({
+      label: obj.label.trim().slice(0, MAX_QUICK_REPLY_LABEL_LENGTH),
+      ...(typeof obj.description === "string" && obj.description ? { description: obj.description } : {}),
+      text: obj.text,
+      action: "fill",
+    });
+  }
+  return out.length > 0 ? out : undefined;
 }
 
 export function assertSafeSlug(slug: string): void {

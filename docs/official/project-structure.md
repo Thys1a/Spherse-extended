@@ -302,9 +302,9 @@ spherse/
 │   │       ├── features/
 │   │       │   ├── activity-bar/         # 自治型 Activity Bar（项目头像轨、设置/添加按钮），内部读 app-store/app-ui-store 与 useProjectActions；pin 按钮通过 pinToggle prop 可选注入
 │   │       │   ├── agent-trigger/        # Agent 触发器弹窗、表单、列表与运行日志，含 running 运行态 feature store 与 TriggerEventBridge（trigger 域唯一事件接线：查询失效 + 运行态 + 通知）
-│   │       │   ├── agent-dialog/        # Agent 对话框（含 ModelConfigField、PromptTemplatesDialog 提示词模板选择）
+│   │   │   ├── agent-dialog/        # Agent 对话框（含 ModelConfigField、PromptTemplatesDialog 提示词模板选择、QuickReplyField 快捷回复编辑）
 │   │       │   ├── agent-session-list/   # Agent/session 分组列表，含 AgentDialog/SearchFileField 与折叠状态 feature store
-  │   │       │   ├── chat/                 # 对话 feature；model/ 放 Entry 归约、历史合并、MessageGroup 组装与卡片投影，runtime/ 放 session store、link/recovery/lifecycle/queue 等运行时模块，hooks/ 放 UI hooks（含 useSelectionMenu 选择菜单、useDataLinkedRefresh 卡片联动刷新），lib/ 放纯函数（含 slash-menu/summon 解析发送、quote-fence 引用围栏、html-fence-parser 内联 HTML 提取、attachment-type），utils/ 放图片压缩（compress-image）；根目录保留页面组件、气泡组件（UserBubble/AssistantBubble/ToolItemView）、chat-agent-context、chat 专属类型与附件 UI（AttachmentBar/MessageAttachments）；扩展组件含 SelectionMenu（划选复制/引用）、SpeakButton + tts/（本地朗读）、SessionModelPill（会话级模型）、slash 解析（`lib/slash-menu`）/ summon 发送（`lib/use-summon-send`）/ 补全交互（`Composer` 内）
+  │   │       │   ├── chat/                 # 对话 feature；model/ 放 Entry 归约、历史合并、MessageGroup 组装与卡片投影，runtime/ 放 session store、link/recovery/lifecycle/queue 等运行时模块，hooks/ 放 UI hooks（含 useSelectionMenu 选择菜单、useDataLinkedRefresh 卡片联动刷新），lib/ 放纯函数（含 slash-menu/summon 解析发送、quote-fence 引用围栏、html-fence-parser 内联 HTML 提取、attachment-type），utils/ 放图片压缩（compress-image）；根目录保留页面组件、气泡组件（UserBubble/AssistantBubble/ToolItemView）、chat-agent-context、chat 专属类型与附件 UI（AttachmentBar/MessageAttachments）；扩展组件含 SelectionMenu（划选复制/引用）、SpeakButton + tts/（本地朗读）、SessionModelPill（会话级模型）、SessionTokensPill（会话 token）、QuickReplyBar（快捷回复）、slash 解析（`lib/slash-menu`）/ summon 发送（`lib/use-summon-send`）/ token 估算（`lib/estimate-tokens`，core 同名函数镜像）/ 补全交互（`Composer` 内）
 │   │       │   ├── content-browser/      # 文件浏览、预览（HTML/markdown/image）、编辑、复制路径/刷新、冲突提示，ContentQueryBridge 集中处理 fs-watch/reconnect 缓存失效；二进制文件拦截渲染占位卡 UnsupportedFileCard（桌面端经 HostCapabilities.openFileExternal 提供「用默认应用打开」按钮）
 │   │       │   ├── custom-side-panel/   # 自定义侧边面板（透明 iframe + CustomSidePanelQueryBridge fs-watch 刷新）
 │   │       │   ├── debug-tools/         # 调试菜单（开发模式或设置开启 debugToolsEnabled 时显示）+ Streaming Log 悬浮面板 + 事件日志查看器（TurnContextDialog/EventLogRow/event-log-display）
@@ -313,7 +313,7 @@ spherse/
 │   │       │   ├── floating-content-browser/ # 浮窗内容浏览器（多窗口、复用 ContentView 只读渲染 + components/floating-frame），含 useFloatedFilePaths；从文件树右键「浮窗」触发
 │   │       │   ├── global-search/           # 项目内全局搜索 dialog（聊天内容 + 文件名，快捷键定位跳转）
 │   │       │   ├── onboarding/           # 新用户引导页（无项目时 `/` 路由）：打开或创建项目 / 打开示例项目
-│   │       │   ├── project-panel/         # 项目侧栏内容（AgentSessionList/UserFilePanel/SkillPanel 薄组合层），作为 SidePanel 的静态 flex child
+│   │   │   ├── project-panel/         # 项目侧栏内容（AgentSessionList/UserFilePanel/SkillPanel 薄组合层 + 顶部全局搜索按钮），作为 SidePanel 的静态 flex child
 │   │       │   ├── project-market/       # 项目市场 dialog（浏览安装）
 │   │       │   ├── side-panel/           # 项目工作区左侧滑动单元：桌面端物理合并 ActivityBar + ProjectPanel 为同一 transform 容器（pinned/hover 滑入滑出）；移动端（useIsMobile 768px 断点）改为左下角浮动按钮 + 常驻 CSS 滑动面板（translate-x + backdrop，关闭态 inert），由解耦的 mobileOpen 状态控制
 │   │       │   ├── user-file-panel/      # Files section（SidebarGroup + AI 读取限制 dialog），复用 base components/file-tree
@@ -347,6 +347,7 @@ spherse/
 │   │   │   └── electron-api.ts       # Electron IPC 类型契约（renderer 与 main 共享，renderer 经 tsconfig @shared 别名引用）
  │   │   ├── electron/
 │   │   │   ├── bootstrap.ts          # Electron 入口引导：dev 环境重定向 userData 后加载 main
+│   │   │   ├── app-id.ts             # Windows AppUserModelId 解析：仅 packaged 返回 `com.spherse.app`，dev 用 Electron 默认（任务栏不混组）
 │   │   │   ├── main.ts               # Electron 主进程：启动时 fixPath（打包版 PATH 修复）→ migrateLegacySettings → 组装窗口、IPC、项目 server 管理、启动延迟静默更新检查
 │   │   │   ├── lifecycle.ts         # 退出生命周期（beginQuit/isQuitting 守卫，quit 统一入口）
 │   │   │   ├── tray.ts             # 系统托盘（closeToTray 常驻与退出菜单）
@@ -381,6 +382,7 @@ spherse/
 │   │       │   └── chat-history.ts   # Chat history E2E 辅助（event log fixture + sessions.db 播种）
 │   │       ├── agent-dialog.spec.ts  # Agent 对话框搜索文件 E2E 测试
 │   │       ├── agent-quick-links.spec.ts # 快捷链接 E2E 测试（桌面浮窗存活 / 移动端滑出面板 toggle）
+│   │       ├── agent-quick-replies.spec.ts # 快捷回复 E2E 测试（回复按钮填入输入框）
 │   │       ├── app-launch.spec.ts    # App 启动验证 smoke test
 │   │       ├── packaged-smoke.spec.ts # 打包产物冒烟测试（SPHERSE_SMOKE=1 门控：启动 electron-builder unpacked 二进制，验证 renderer 挂载 + server /health + 版本号；release CI 在 arch 匹配的 matrix job 上必跑）
 │   │       ├── chat-streaming-resilience.spec.ts # Chat streaming 切换 session/后台流式/E2E WebSocket mock

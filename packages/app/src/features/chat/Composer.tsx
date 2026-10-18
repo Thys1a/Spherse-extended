@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useI18n } from "@spherse/i18n/react";
 import { toast } from "sonner";
 import { Button } from "../../components/ui/button";
@@ -16,6 +16,8 @@ import { SessionModelPill } from "./SessionModelPill";
 import { useProjectAgents } from "../../queries/project";
 import { useProjectCommands } from "../../queries/commands";
 import { useProjectSkills } from "../../queries/skills";
+import { SessionTokensPill } from "./SessionTokensPill";
+import { estimateTokens } from "./lib/estimate-tokens";
 import {
   applySlashPick,
   filterSlashItems,
@@ -39,12 +41,13 @@ interface ComposerProps {
   loading?: boolean;
   panicLocked?: boolean;
   sessionId: string;
+  agentId: string;
   placeholder?: string;
   onSend: (message: string, attachments?: AttachedFile[]) => boolean;
   onAbort: () => void;
 }
 
-export function Composer({ streaming, loading = false, panicLocked = false, sessionId, placeholder, onSend, onAbort }: ComposerProps) {
+export function Composer({ streaming, loading = false, panicLocked = false, sessionId, agentId, placeholder, onSend, onAbort }: ComposerProps) {
   const { t } = useI18n();
   const { projectId } = useProjectCtx();
   const client = useApiClient(projectId);
@@ -100,6 +103,7 @@ export function Composer({ streaming, loading = false, panicLocked = false, sess
   }, [insertNonce, sessionId]);
 
   const attachBusy = uploadingCount > 0;
+  const inputEstimate = useMemo(() => estimateTokens(input), [input]);
 
   useLayoutEffect(() => {
     const textarea = textareaRef.current;
@@ -316,6 +320,15 @@ export function Composer({ streaming, loading = false, panicLocked = false, sess
     >
       <div className="flex items-center gap-2 px-1 pb-2">
         <SessionModelPill sessionId={sessionId} />
+        <SessionTokensPill sessionId={sessionId} agentId={agentId} />
+        {input.trim() !== "" && (
+          <span
+            className="ml-auto shrink-0 text-[11px] tabular-nums text-muted-foreground"
+            title={t("chat.inputTokenEstimate", { count: inputEstimate.toLocaleString() })}
+          >
+            {t("chat.inputTokenEstimate", { count: inputEstimate.toLocaleString() })}
+          </span>
+        )}
       </div>
       {(files.length > 0 || attachBusy) && (
         <AttachmentBar files={files} uploading={attachBusy} onRemove={handleRemoveFile} />

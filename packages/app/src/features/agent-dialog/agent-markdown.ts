@@ -1,5 +1,27 @@
 import yaml from "js-yaml";
-import type { ThinkingLevel, TimePerceptionConfig } from "@spherse/core";
+import type { QuickReply, ThinkingLevel, TimePerceptionConfig } from "@spherse/core";
+
+export const MAX_QUICK_REPLIES = 10;
+export const MAX_QUICK_REPLY_LABEL_LENGTH = 16;
+
+function parseQuickReplies(raw: unknown): QuickReply[] {
+  if (!Array.isArray(raw)) return [];
+  const out: QuickReply[] = [];
+  for (const item of raw) {
+    if (out.length >= MAX_QUICK_REPLIES) break;
+    if (typeof item !== "object" || item === null || Array.isArray(item)) continue;
+    const obj = item as Record<string, unknown>;
+    if (typeof obj.label !== "string" || !obj.label.trim()) continue;
+    if (typeof obj.text !== "string" || !obj.text) continue;
+    out.push({
+      label: obj.label.trim().slice(0, MAX_QUICK_REPLY_LABEL_LENGTH),
+      ...(typeof obj.description === "string" && obj.description ? { description: obj.description } : {}),
+      text: obj.text,
+      action: "fill",
+    });
+  }
+  return out;
+}
 
 export type TimePerceptionFormData = {
   enabled: boolean;
@@ -33,6 +55,7 @@ export interface AgentFormData {
   tools: string[];
   context: string[];
   quickLinks: string[];
+  quickReplies?: QuickReply[];
   systemPrompt: string;
   timePerception?: TimePerceptionFormData;
   yolo: boolean;
@@ -58,6 +81,7 @@ export function parseAgentMarkdown(raw: string): ParsedAgent {
         tools: [],
         context: [],
         quickLinks: [],
+        quickReplies: [],
         systemPrompt: raw.trim(),
         yolo: false,
         allowInlineHtml: false,
@@ -70,7 +94,7 @@ export function parseAgentMarkdown(raw: string): ParsedAgent {
   const body = raw.slice(match[0].length).trim();
   const frontmatter = yaml.load(frontmatterRaw) as Record<string, unknown>;
 
-  const { name, alias, model, thinkingLevel, tools, context, quickLinks, timePerception, yolo, allowInlineHtml, placeholder, greeting, ...extra } = frontmatter;
+  const { name, alias, model, thinkingLevel, tools, context, quickLinks, quickReplies, timePerception, yolo, allowInlineHtml, placeholder, greeting, ...extra } = frontmatter;
 
   return {
     formData: {
@@ -87,6 +111,7 @@ export function parseAgentMarkdown(raw: string): ParsedAgent {
       quickLinks: Array.isArray(quickLinks)
         ? quickLinks.filter((c): c is string => typeof c === "string")
         : [],
+      quickReplies: parseQuickReplies(quickReplies),
       systemPrompt: body,
       timePerception: parseTimePerception(timePerception),
       yolo: yolo === true,
@@ -122,6 +147,10 @@ export function buildAgentMarkdown(
   }
   if (formData.quickLinks.length > 0) {
     frontmatter.quickLinks = formData.quickLinks;
+  }
+  const quickReplies = formData.quickReplies ?? [];
+  if (quickReplies.length > 0) {
+    frontmatter.quickReplies = quickReplies;
   }
   if (formData.timePerception?.enabled) {
     frontmatter.timePerception = {

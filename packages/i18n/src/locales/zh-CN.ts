@@ -447,6 +447,18 @@ export const zhCN = {
   "agent-dialog.quickLinksHint": "显示为聊天窗口顶部的按钮，点击可快速打开该文件",
   // Agent 快捷链接路径输入框占位提示
   "agent-dialog.quickLinksPlaceholder": "添加文件…",
+  // Agent 快捷回复字段标签
+  "agent-dialog.quickRepliesLabel": "快捷回复",
+  // Agent 快捷回复字段 tooltip：说明展示位置、条数上限与作用
+  "agent-dialog.quickRepliesHint": "显示为聊天输入框上方的按钮（最多10条），点击填入预设文本",
+  // Agent 快捷回复「添加」按钮文案
+  "agent-dialog.quickRepliesAdd": "添加",
+  // 快捷回复条目：显示名输入框占位（最多16字）
+  "agent-dialog.quickReplyLabelPlaceholder": "显示名（最多16字）",
+  // 快捷回复条目：说明输入框占位（悬停提示，可选）
+  "agent-dialog.quickReplyDescriptionPlaceholder": "说明（可选）",
+  // 快捷回复条目：填入文本输入框占位
+  "agent-dialog.quickReplyTextPlaceholder": "点击后填入的文本",
   "agent-dialog.cardLinksLabel": "世界书外链",
   "agent-dialog.cardLinksHint": "把项目内 .card.json 文件链入该 Agent，命中条目每轮自动注入其 prompt",
   "agent-dialog.cardLinksPlaceholder": "添加 .card.json 文件…",
@@ -907,6 +919,10 @@ export const zhCN = {
   "chat.find.next": "下一个匹配",
   // 会话内查找栏「关闭查找」按钮的悬停提示与无障碍标签
   "chat.find.close": "关闭查找",
+  // Composer 输入框 token 计数器文案，{count} 为估算值（含千分位），仅输入非空时显示
+  "chat.inputTokenEstimate": "预计约 {count} tokens",
+  // 助手气泡每轮 token 角标文案，{prompt}/{output} 为本轮输入/输出（含千分位）
+  "chat.turnTokenUsage": "输入 {prompt} · 输出 {output}",
 
   // --- Content Browser ---
   // 内容浏览器文本查找栏：输入框占位文案，也是 Header 查找按钮与无障碍标签

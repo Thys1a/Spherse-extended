@@ -27,6 +27,17 @@ const agentProfile = Type.Object({
   tools: Type.Optional(Type.Array(Type.String())),
   context: Type.Optional(Type.Array(Type.String())),
   quickLinks: Type.Optional(Type.Array(Type.String())),
+  quickReplies: Type.Optional(
+    Type.Array(
+      Type.Object({
+        label: Type.String({ minLength: 1, maxLength: 16 }),
+        description: Type.Optional(Type.String()),
+        text: Type.String({ minLength: 1 }),
+        action: Type.Union([Type.Literal("fill")]),
+      }),
+      { maxItems: 10 },
+    ),
+  ),
   output: Type.Optional(
     Type.Object({
       path: Type.String(),

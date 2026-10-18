@@ -1,5 +1,15 @@
 export const PROJECT_META_DIR = ".spherse";
 
+export const MAX_QUICK_REPLIES = 10;
+export const MAX_QUICK_REPLY_LABEL_LENGTH = 16;
+
+export interface QuickReply {
+  label: string;
+  description?: string;
+  text: string;
+  action: "fill";
+}
+
 export interface ProjectConfig {
   id: string;
   name: string;
@@ -28,6 +38,7 @@ export interface AgentProfile {
   tools?: string[];
   context?: string[];
   quickLinks?: string[];
+  quickReplies?: QuickReply[];
   output?: {
     path: string;
     naming: string;
