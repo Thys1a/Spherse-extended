@@ -460,6 +460,7 @@ export const zhTW: Record<TranslationKey, string> = {
   "chat.find.next": "下一個符合結果",
   "chat.find.close": "關閉尋找",
   "chat.inputTokenEstimate": "預計約 {count} tokens",
+  "chat.projectedTokenTotal": "傳送後約 {count} tokens",
   "chat.turnTokenUsage": "輸入 {prompt} · 輸出 {output}",
   "content-browser.conflictBannerText": "檔案已被外部修改",
   "content-browser.find.placeholder": "尋找",

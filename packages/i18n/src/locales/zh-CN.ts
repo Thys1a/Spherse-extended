@@ -921,6 +921,8 @@ export const zhCN = {
   "chat.find.close": "关闭查找",
   // Composer 输入框 token 计数器文案，{count} 为估算值（含千分位），仅输入非空时显示
   "chat.inputTokenEstimate": "预计约 {count} tokens",
+  // Composer 输入框计数器后半段：草稿估算 + 会话累计后的发送总量预估，{count} 含千分位
+  "chat.projectedTokenTotal": "发送后约 {count} tokens",
   // 助手气泡每轮 token 角标文案，{prompt}/{output} 为本轮输入/输出（含千分位）
   "chat.turnTokenUsage": "输入 {prompt} · 输出 {output}",
 

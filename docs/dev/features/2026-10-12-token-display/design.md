@@ -25,7 +25,7 @@
 1. app 新增 `features/chat/lib/estimate-tokens.ts` 镜像 `estimateTokens`（纯函数零依赖；`__tests__` 或同目录 test 逐值对比 core 同名函数；别引 pi-ai 估算器，CJK 更差且越包边界）。parity 测试需从 core 导入同名函数，故 `core/src/index.ts` 顺带导出（renderer 仍用镜像，不运行时引用 core）。
 2. app 新增 `useProjectSessionStatus`（`queries/project/sessions.ts`，补 `projectQueryKeys.status`），`turn_end`/`agent_end` 后失效重取（`runtime/session-store.ts`、`hooks/useChatSession.ts` 现均无 status 逻辑；UI SDK `sessions.status` 双端口径保持一致）。
 3. 聊天内上下文 pill（`Composer`/`SessionModelPill` 旁，显示 `currentTokens` + `contextWindowLimit`；`SessionStatusDialog` 自带 fetch/reducer/弹窗外壳不可直接复用，先抽 `SessionTokens` 纯展示组件给两处共用）。
-4. `Composer` 输入 `useMemo` 计数（纯文本估算，标注“预计”）。
+4. `Composer` 输入 `useMemo` 计数（纯文本估算，标注“预计”）＋便宜近似：同一 `useProjectSessionStatus` 查询（与 pill 同 key，无额外请求）取累计值，计数器追加“发送后约 X”（累计 + 草稿，近似值）。精确预估（走服务端全量组装）不做，已记 backlog（服务端草稿 token 精确预估接口）。
 5. 放宽 `extractAssistantExtras` 投影门 + `AssistantBubble` 正常态渲染（当前仅 `error && diagnostics` 显示，见 `AssistantBubble.tsx:175-182`），让正常轮次 usage 到达并显示每轮角标（该轮 prompt/output；A2 进本期，B2 模型窗占比不做）。
 6. i18n：`session.status*` 仅覆盖弹窗，补聊天侧文案（走 i18n skill）。
 

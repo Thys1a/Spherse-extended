@@ -492,10 +492,12 @@ describe("Composer token display", () => {
     expect(pill.textContent).toContain("6%");
   });
 
-  it("shows the input estimate while typing and hides it when empty", async () => {
+  it("shows the input estimate and projected total while typing", async () => {
     renderComposer({ streaming: false });
     expect(screen.queryByText(/预计约/)).not.toBeInTheDocument();
     await user.type(screen.getByRole("textbox"), "hello world");
-    expect(await screen.findByText("预计约 3 tokens")).toBeInTheDocument();
+    const counter = await screen.findByTitle(/预计约 3 tokens/);
+    expect(counter.textContent).toContain("预计约 3 tokens");
+    expect(counter.textContent).toContain("发送后约 12,003 tokens");
   });
 });

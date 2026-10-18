@@ -460,6 +460,7 @@ export const en: Record<TranslationKey, string> = {
   "chat.find.next": "Next match",
   "chat.find.close": "Close find",
   "chat.inputTokenEstimate": "about {count} tokens (est.)",
+  "chat.projectedTokenTotal": "about {count} tokens after send",
   "chat.turnTokenUsage": "Input {prompt} · Output {output}",
   "content-browser.conflictBannerText": "File has been modified externally",
   "content-browser.find.placeholder": "Find",

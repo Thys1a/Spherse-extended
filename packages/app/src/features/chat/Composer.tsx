@@ -16,6 +16,7 @@ import { SessionModelPill } from "./SessionModelPill";
 import { useProjectAgents } from "../../queries/project";
 import { useProjectCommands } from "../../queries/commands";
 import { useProjectSkills } from "../../queries/skills";
+import { useProjectSessionStatus } from "../../queries/project/sessions";
 import { SessionTokensPill } from "./SessionTokensPill";
 import { estimateTokens } from "./lib/estimate-tokens";
 import {
@@ -104,6 +105,13 @@ export function Composer({ streaming, loading = false, panicLocked = false, sess
 
   const attachBusy = uploadingCount > 0;
   const inputEstimate = useMemo(() => estimateTokens(input), [input]);
+  const statusQuery = useProjectSessionStatus(projectId, client, agentId, sessionId);
+  const projectedTotal = statusQuery.data ? statusQuery.data.currentTokens + inputEstimate : null;
+  const draftLabel = t("chat.inputTokenEstimate", { count: inputEstimate.toLocaleString() });
+  const projectedLabel =
+    projectedTotal !== null
+      ? t("chat.projectedTokenTotal", { count: projectedTotal.toLocaleString() })
+      : null;
 
   useLayoutEffect(() => {
     const textarea = textareaRef.current;
@@ -324,9 +332,10 @@ export function Composer({ streaming, loading = false, panicLocked = false, sess
         {input.trim() !== "" && (
           <span
             className="ml-auto shrink-0 text-[11px] tabular-nums text-muted-foreground"
-            title={t("chat.inputTokenEstimate", { count: inputEstimate.toLocaleString() })}
+            title={projectedLabel ? `${draftLabel} · ${projectedLabel}` : draftLabel}
           >
-            {t("chat.inputTokenEstimate", { count: inputEstimate.toLocaleString() })}
+            {draftLabel}
+            {projectedLabel && <> · {projectedLabel}</>}
           </span>
         )}
       </div>

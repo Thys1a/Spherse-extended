@@ -95,6 +95,7 @@
 - [ ] **更新弹窗显示目标版本更新日志（GitHub 源重做）**：上游 #126 经 OSS `changelog.json` 取 notes，fork 无 OSS 不可直接合（`df36455` 机制前提不存在）。方向：desktop 更新检查改经 GitHub Releases API 取目标版本 notes，填入既有 `releaseNotes` 槽位（`packages/desktop/electron/updater.ts` 已有字段透传、当前恒空），mac/Linux 对话框展示；主进程出网失败留空。landing 已有 releases 拉取解析 precedent（`packages/landing/src/lib/release.ts`、`changelog.ts）。
 
 - [ ] **补齐 `openFile` action 的 `newTab` 参数**：文件右键已直调 `openTab force`，HTML 卡片等程序化调用方只能 `navigate`（触发单复用槽替换）无法开新标签。方向：`open-file.ts` 加 `newTab?: boolean`（`force: true` 建 tab，tabs 关时降级 navigate，门控与 `onOpenInNewTab` 一致），补 handler 单测 + HTML 卡片调用示例。参见 `docs/dev/features/2026-09-10-file-list-ops/design.md` 增补调研 P2
+- [ ] **服务端草稿 token 精确预估接口**：输入框计数器现为草稿纯文本启发式（不含 profile/skills/worldbook/工具定义/历史），pill 为累计值，两者相加只是近似（v1.0.1 已落地）。方向：server 新增估算接口，把草稿套进当前会话 prompt 组装走一遍 core 现成 estimator（`pendingPromptEstimate` 同款），renderer 每键 debounce + 缓存调用；需定超时/失败降级。参见 `docs/dev/features/2026-10-12-token-display/design.md` §四。
 ## 基础设施
 
 - [ ] **Linux 发行打磨（条件触发：出现 Linux 用户实际诉求时）**：当前 Linux 发布为 x64 AppImage + deb（CI linux matrix job，executableName 三平台统一 `Spherse`）。潜在跟进：arm64 构建、rpm/snap 等格式、Ubuntu 23.10+（AppArmor 限制 unprivileged userns）下 Electron SUID sandbox 启动失败的更优解（现为 README/下载页 sysctl workaround）。
