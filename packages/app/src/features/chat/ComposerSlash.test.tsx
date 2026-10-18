@@ -10,6 +10,10 @@ vi.mock("sonner", () => ({
   toast: { error: vi.fn(), success: vi.fn() },
 }));
 
+const { mockCommandList } = vi.hoisted(() => ({
+  mockCommandList: [{ name: "test", description: "Run tests" }],
+}));
+
 vi.mock("../../lib/use-connection", () => ({
   useApiClient: () => ({
     uploadAttachment: vi.fn(),
@@ -22,7 +26,7 @@ vi.mock("../../lib/use-connection", () => ({
       { id: "a2", name: "Writer", slug: "writer" },
     ]),
     listSkills: vi.fn(async () => [{ name: "review", description: "Review code" }]),
-    listCommands: vi.fn(async () => [{ name: "test", description: "Run tests" }]),
+    listCommands: vi.fn(async () => mockCommandList),
     setSessionModel: vi.fn(),
   }),
   useGlobalApiClient: () => null,
@@ -90,5 +94,32 @@ describe("Composer slash completion", () => {
 
     expect(onSend).not.toHaveBeenCalled();
     await vi.waitFor(() => expect(toast.error).toHaveBeenCalled());
+  });
+
+  it("lists all commands without truncation and follows keyboard selection", async () => {
+    mockCommandList.length = 0;
+    for (let i = 0; i < 12; i += 1) {
+      mockCommandList.push({ name: `cmd-${i}`, description: `Command ${i}` });
+    }
+    const originalScrollIntoView = Element.prototype.scrollIntoView;
+    const scrollSpy = vi.fn();
+    Element.prototype.scrollIntoView = scrollSpy;
+    try {
+      renderSlashComposer();
+      await user.type(screen.getByRole("textbox"), "/command:");
+      expect(await screen.findAllByRole("option")).toHaveLength(12);
+
+      scrollSpy.mockClear();
+      await user.keyboard("{ArrowDown}");
+      expect(scrollSpy).toHaveBeenCalled();
+    } finally {
+      mockCommandList.length = 0;
+      mockCommandList.push({ name: "test", description: "Run tests" });
+      if (originalScrollIntoView) {
+        Element.prototype.scrollIntoView = originalScrollIntoView;
+      } else {
+        delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+      }
+    }
   });
 });

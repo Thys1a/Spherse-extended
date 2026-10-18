@@ -9,12 +9,16 @@ interface FindBarProps {
   containerRef: RefObject<HTMLDivElement | null>;
   contentKey: string;
   onClose: () => void;
+  labelPrefix?: "content-browser.find" | "chat.find";
 }
 
-export function FindBar({ containerRef, contentKey, onClose }: FindBarProps) {
+type FindLabelSuffix = "placeholder" | "noMatch" | "previous" | "next" | "close";
+
+export function FindBar({ containerRef, contentKey, onClose, labelPrefix = "content-browser.find" }: FindBarProps) {
   const { t } = useI18n();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const find = useContentFind({ containerRef, contentKey });
+  const label = (suffix: FindLabelSuffix) => t(`${labelPrefix}.${suffix}`);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -26,7 +30,7 @@ export function FindBar({ containerRef, contentKey, onClose }: FindBarProps) {
   const countLabel = !hasQuery
     ? ""
     : !hasMatch
-      ? t("content-browser.find.noMatch")
+      ? label("noMatch")
       : find.overLimit
         ? `${find.matchIndex + 1}/${find.matchCount}+`
         : `${find.matchIndex + 1}/${find.matchCount}`;
@@ -39,7 +43,7 @@ export function FindBar({ containerRef, contentKey, onClose }: FindBarProps) {
       <Input
         ref={inputRef}
         value={find.query}
-        placeholder={t("content-browser.find.placeholder")}
+        placeholder={label("placeholder")}
         onChange={(e) => find.setQuery(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === "Escape") {
@@ -52,7 +56,7 @@ export function FindBar({ containerRef, contentKey, onClose }: FindBarProps) {
           }
         }}
         className={hasQuery && !hasMatch ? "text-muted-foreground" : undefined}
-        aria-label={t("content-browser.find.placeholder")}
+        aria-label={label("placeholder")}
       />
       <span className="min-w-[3rem] shrink-0 text-end font-mono text-xs text-muted-foreground tabular-nums">
         {countLabel}
@@ -62,8 +66,8 @@ export function FindBar({ containerRef, contentKey, onClose }: FindBarProps) {
         size="icon-sm"
         onClick={find.prev}
         disabled={!hasMatch}
-        title={t("content-browser.find.previous")}
-        aria-label={t("content-browser.find.previous")}
+        title={label("previous")}
+        aria-label={label("previous")}
       >
         <ChevronUpIcon />
       </Button>
@@ -72,8 +76,8 @@ export function FindBar({ containerRef, contentKey, onClose }: FindBarProps) {
         size="icon-sm"
         onClick={find.next}
         disabled={!hasMatch}
-        title={t("content-browser.find.next")}
-        aria-label={t("content-browser.find.next")}
+        title={label("next")}
+        aria-label={label("next")}
       >
         <ChevronDownIcon />
       </Button>
@@ -81,8 +85,8 @@ export function FindBar({ containerRef, contentKey, onClose }: FindBarProps) {
         variant="ghost"
         size="icon-sm"
         onClick={onClose}
-        title={t("content-browser.find.close")}
-        aria-label={t("content-browser.find.close")}
+        title={label("close")}
+        aria-label={label("close")}
       >
         <XIcon className="size-3.5" />
       </Button>

@@ -15,6 +15,7 @@ publish:
 files:
   - dist/**/*
   - package.json
+  - build/spherse-icon.png
 extraResources:
   - from: resources/tray
     to: tray

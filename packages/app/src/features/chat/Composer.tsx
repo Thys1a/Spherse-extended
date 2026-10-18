@@ -146,6 +146,7 @@ export function Composer({ streaming, loading = false, panicLocked = false, sess
   const [menuSelected, setMenuSelected] = useState(0);
   const [menuDismissed, setMenuDismissed] = useState(false);
   const [cursorPos, setCursorPos] = useState<number | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
 
   const syncCursor = (target: HTMLTextAreaElement | null) => {
     if (!target) return;
@@ -176,6 +177,15 @@ export function Composer({ streaming, loading = false, panicLocked = false, sess
     setMenuDismissed(false);
     setMenuSelected(0);
   }, [input]);
+
+  useEffect(() => {
+    if (!menu) return;
+    const selected = menuRef.current?.querySelector('[role="option"][aria-selected="true"]');
+    if (typeof selected?.scrollIntoView === "function") {
+      selected.scrollIntoView({ block: "nearest" });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [menu?.items.length, menu?.selected]);
 
   const pickMenuItem = (item: SlashMenuItem | undefined): boolean => {
     if (!item || !slashMatch) return false;
@@ -326,8 +336,9 @@ export function Composer({ streaming, loading = false, panicLocked = false, sess
         )}
         {menu && (
           <div
+            ref={menuRef}
             role="listbox"
-            className="absolute inset-x-2 bottom-full z-50 mb-1 max-h-56 overflow-y-auto rounded-lg bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10"
+            className="absolute inset-x-2 bottom-full z-50 mb-1 max-h-56 overflow-y-auto overscroll-contain rounded-lg bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10"
           >
             {menu.items.map((item, index) => (
               <button

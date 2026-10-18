@@ -1,6 +1,8 @@
 import { useMemo, useEffect, useRef, useState } from "react";
 import type { AgentSummary } from "../../lib/types";
 import { useNavigate } from "react-router";
+import { SearchIcon } from "lucide-react";
+import { Button } from "../../components/ui/button";
 import { useProjectCtx } from "../../context/project-context";
 import { useApiClient, useConnection } from "../../lib/use-connection";
 import { useFeature } from "../../lib/use-feature";
@@ -240,6 +242,7 @@ export function Chat({ sessionId, agent, onNavigateToPath, onOpenSession, initia
               onCompact={handleCompact}
               compacting={compacting}
               compactDisabled={streaming || loading}
+              onFind={() => setFindOpen(true)}
             />
             {isMobile && activeQuickLink !== null && (
               <QuickLinkPanel projectId={projectId} path={activeQuickLink} />
@@ -252,11 +255,24 @@ export function Chat({ sessionId, agent, onNavigateToPath, onOpenSession, initia
           onReconnect={reconnect}
           onRetryHistory={retryHistory}
         />
+        {hideHeader && !findOpen && (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="absolute end-2 top-2 z-10 text-muted-foreground"
+            onClick={() => setFindOpen(true)}
+            title={t("chat.find.open")}
+            aria-label={t("chat.find.open")}
+          >
+            <SearchIcon className="size-3.5" />
+          </Button>
+        )}
         {findOpen && (
           <FindBar
             containerRef={containerRef}
             contentKey={sessionId}
             onClose={() => setFindOpen(false)}
+            labelPrefix="chat.find"
           />
         )}
         <MessageList

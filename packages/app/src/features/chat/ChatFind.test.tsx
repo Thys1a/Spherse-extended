@@ -160,4 +160,25 @@ describe("Chat find bar", () => {
     expect(countText()).toBe("1/2");
     GROUPS[0].bubbles.pop();
   });
+
+  it("opens from the header find button", async () => {
+    renderChat();
+    expect(findBar()).toBeNull();
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /查找/ }));
+    expect(findBar()).not.toBeNull();
+  });
+
+  it("opens from the corner button when the header is hidden", async () => {
+    renderWithProviders(<Chat sessionId="s1" agent={agent} hideHeader />, {
+      bridge: createMockHostBridge(),
+      queryClient: createTestQueryClient(),
+    });
+    expect(findBar()).toBeNull();
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "查找" }));
+    expect(findBar()).not.toBeNull();
+  });
 });

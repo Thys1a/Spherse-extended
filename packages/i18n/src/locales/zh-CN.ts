@@ -895,6 +895,18 @@ export const zhCN = {
   "chat.questionToastMessage": "一个 Agent 正在等待你的回答",
   // 上述 toast 在能解析到 agent 名时的标题文案，{name} 为 agent 名称
   "chat.questionToastMessageWithName": "「{name}」正在等待你的回答",
+  // 聊天区 Header/浮动窗口查找按钮的悬停提示与无障碍标签，点击打开会话内查找栏
+  "chat.find.open": "查找",
+  // 会话内查找栏：输入框占位文案
+  "chat.find.placeholder": "查找",
+  // 会话内查找栏「无匹配」计数占位（输入了关键词但无任何匹配时显示）
+  "chat.find.noMatch": "无匹配",
+  // 会话内查找栏「上一个匹配」按钮的悬停提示与无障碍标签
+  "chat.find.previous": "上一个匹配",
+  // 会话内查找栏「下一个匹配」按钮的悬停提示与无障碍标签
+  "chat.find.next": "下一个匹配",
+  // 会话内查找栏「关闭查找」按钮的悬停提示与无障碍标签
+  "chat.find.close": "关闭查找",
 
   // --- Content Browser ---
   // 内容浏览器文本查找栏：输入框占位文案，也是 Header 查找按钮与无障碍标签

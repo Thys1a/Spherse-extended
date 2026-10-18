@@ -1,4 +1,6 @@
 import { useI18n } from "@spherse/i18n/react";
+import { SearchIcon } from "lucide-react";
+import { Button } from "../../components/ui/button";
 import {
   SidebarProvider,
 } from "../../components/ui/sidebar";
@@ -40,6 +42,24 @@ export function ProjectPanel() {
           <div className="h-full overflow-y-auto overflow-x-hidden">
             <SidebarProvider className="min-h-0 w-full">
               <div className="flex min-w-0 flex-1 flex-col">
+                <div className="border-b border-sidebar-border p-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full justify-start gap-2 text-muted-foreground"
+                    onClick={() => {
+                      openGlobalSearch(true);
+                    }}
+                    title={t("global-search.placeholder")}
+                    aria-label={t("global-search.search")}
+                  >
+                    <SearchIcon className="size-4 shrink-0" />
+                    <span className="flex-1 text-start">{t("global-search.search")}</span>
+                    <span className="text-[11px]">
+                      {isMacPlatform() ? "⌘P" : "Ctrl P"}
+                    </span>
+                  </Button>
+                </div>
                 <div className="border-b border-sidebar-border p-2">
                   <AgentSessionList />
                 </div>

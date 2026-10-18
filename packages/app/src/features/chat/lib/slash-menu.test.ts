@@ -42,12 +42,20 @@ describe("filterSlashItems", () => {
     ]);
   });
 
-  it("limits agent matches", () => {
+  it("lists agent matches", () => {
     const match = matchSlashToken(">>")!;
     expect(filterSlashItems(match, skills, commands, agents).map((i) => i.name)).toEqual([
       "build",
       "writer",
     ]);
+  });
+
+  it("returns the full list without truncation", () => {
+    const many = Array.from({ length: 12 }, (_, i) => ({ name: `cmd-${i}` }));
+    const match = matchSlashToken("/command:")!;
+    expect(filterSlashItems(match, [], many, []).map((i) => i.name)).toEqual(
+      many.map((c) => c.name),
+    );
   });
 });
 

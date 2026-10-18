@@ -1,5 +1,6 @@
 import { app, crashReporter, type BrowserWindow } from "electron";
 import { setGlobalDispatcher, EnvHttpProxyAgent } from "undici";
+import { resolveAppUserModelId } from "./app-id.js";
 import { createWindow, getMainWindow } from "./window.js";
 import { getMobileAccess } from "./settings.js";
 import { migrateLegacySettings } from "./migrate-legacy-settings.js";
@@ -19,8 +20,12 @@ import {
 import { beginQuit, isQuitting } from "./lifecycle.js";
 import { attachCloseToTray, destroyTray, showMainWindow, syncTray } from "./tray.js";
 
-if (process.platform === "win32") {
-  app.setAppUserModelId("com.spherse.app");
+const appUserModelId = resolveAppUserModelId({
+  isPackaged: app.isPackaged,
+  platform: process.platform,
+});
+if (appUserModelId) {
+  app.setAppUserModelId(appUserModelId);
 }
 
 crashReporter.start({ submitURL: "", uploadToServer: false });

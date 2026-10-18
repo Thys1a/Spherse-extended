@@ -154,7 +154,7 @@ describe("migrateLegacySettings", () => {
     settingsStore.set("settings", { ...legacySettings(), futureField: "gone" });
     migrateLegacySettings();
 
-    expect((getHostPrefs() as Record<string, unknown>).futureField).toBeUndefined();
+    expect((getHostPrefs() as unknown as Record<string, unknown>).futureField).toBeUndefined();
     expect(settingsStore.get("settings")).toBeUndefined();
   });
 

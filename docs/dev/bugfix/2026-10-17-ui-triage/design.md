@@ -1,7 +1,8 @@
 # UI 三问题定位（合并）：slash 菜单截断 / 任务栏 Electron 图标 / 搜索无显式入口
 
-- 日期：2026-10-17（方案 2026-10-18 评审修订）
-- 状态：方案已定，未实现
+- 日期：2026-10-17（方案 2026-10-18 评审修订，同日实现）
+- 状态：已实现（分支 `bugfix/2026-10-17-ui-triage`），待用户验收
+- 验证：lint 0 errors；全仓库 typecheck 通过；单测 i18n 10/10、desktop 257/257、app 1697/1697；`check:i18n` 通过
 - 来源：安装包（`release/Spherse-Setup-*.exe` 安装后）真机反馈 + 代码只读核查（未执行构建/安装）
 
 ## 决策记录（2026-10-18，用户拍板）
@@ -100,3 +101,46 @@ dev 模式（`npm run dev` → `electron-vite dev` → `node_modules/electron/di
 - 浮动/停靠（`hideHeader`）：`Chat` 内渲染角落小搜索按钮切换 `findOpen`，不动 `FloatingFrame`（停靠窗口无标题栏，插槽方案覆盖不到）。
 - 全局搜索可见入口：`project-panel/index.tsx` 顶部（`AgentSessionList` 上方）加按钮，桌面 + 移动端抽屉（`SidePanel` 内复用同一 `ProjectPanel`）共用。
 - 测试：`Header.test.tsx`（按钮触发 onFind）、`ChatFind.test.tsx`（按钮开 FindBar）、ProjectPanel 按钮开 dialog 用例。
+
+## 四、CI verify 失败：desktop typecheck TS2352（2026-10-18，与本次 triage 无关，push dev 后暴露）
+
+### 现象
+
+push dev（`6710a81`，纯文档提交）触发的 verify 在 `@spherse/desktop` 的 `tsc --noEmit` 挂掉，唯一 error：
+
+```text
+electron/migrate-legacy-settings.test.ts(157,13): error TS2352: Conversion of type
+'DesktopPrefs & GeneralPrefs' to type 'Record<string, unknown>' may be a mistake
+```
+
+失败行：
+
+```ts
+expect((getHostPrefs() as Record<string, unknown>).futureField).toBeUndefined();
+```
+
+附带的 18 条 `react-refresh/only-export-components` / `exhaustive-deps` 只是 warning（lint exit 0），与本次失败无关，不处理。
+
+### 根因
+
+`getHostPrefs()` 返回 `DesktopPrefs & GeneralPrefs`（`settings.ts:60`），而这两个类型在 `@spherse/app/host-bridge`（`host-bridge.ts:57-68`）中声明为 **`interface` 且无索引签名**。`interface` 不像 `type` 别名那样拥有隐式索引签名，因此该交叉类型与 `Record<string, unknown>` 既不可互相赋值、TS 直接按 TS2352 拒绝断言。运行时无影响（vitest 剥类型照跑），纯编译期问题。
+
+引入链（`git log -S` 实证，均已在 dev 祖先内）：
+
+- `db6ce56`（merge144 P3 bridge migration）引入了 `DesktopPrefs & GeneralPrefs` 返回类型（两 `interface` 自带，无索引签名）。
+- `c9a3866`（P3 review fix）在该测试文件新增 `"drops unknown legacy top-level fields…"` 用例时写下了这次直接断言，埋下 TS2352。
+
+### 为什么没早发现
+
+- pre-commit 钩子只跑 `npm run lint`（ESLint，无此类型规则），本次文档提交 lint 0 errors 通过。
+- `npm run typecheck` 依赖各包 `dist` 类型产物、平时只在 CI verify 跑；`npm test`（vitest）不做类型检查所以一直是绿的。renderer 侧同理——类型错误只能靠 typecheck 发现（AGENTS.md 已注明）。
+
+### 修复方向（已实施，2026-10-18）
+
+与同文件第 81 行惯例对齐，加一级 `unknown` 中转：
+
+```ts
+expect((getHostPrefs() as unknown as Record<string, unknown>).futureField).toBeUndefined();
+```
+
+备选（更干净、零断言）：`expect("futureField" in getHostPrefs()).toBe(false)`。不考虑给 prefs 加索引签名——会放宽生产类型，与迁移代码依赖已知键的前提相悖。修后本地用 `npm run typecheck --workspace=packages/desktop`（需先 `npm run build` 出 dist）验证，另本案说明 c9a3866 这类“只改测试”的提交同样需要跑全量 typecheck。
