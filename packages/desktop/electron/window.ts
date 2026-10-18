@@ -1,4 +1,4 @@
-import { BrowserWindow } from "electron";
+import { app, BrowserWindow } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -12,7 +12,9 @@ export function createWindow(): BrowserWindow {
     width: 1200,
     height: 800,
     autoHideMenuBar: true,
-    icon: path.join(__dirname, "../../build/spherse-icon.png"),
+    ...(process.platform === "win32"
+      ? {}
+      : { icon: path.join(app.getAppPath(), "build", "spherse-icon.png") }),
     webPreferences: {
       preload: path.join(__dirname, "../../preload/index.js"),
       contextIsolation: true,

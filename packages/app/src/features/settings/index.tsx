@@ -98,6 +98,8 @@ function ModelGroupTab({
         <DefaultModelField
           providers={group.providers}
           apiKeys={group.apiKeys}
+          configured={group.configured}
+          loadError={loadError}
           value={group.defaultModel}
           onChange={(model) => { void group.changeDefaultModel(model); }}
         />

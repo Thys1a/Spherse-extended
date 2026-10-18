@@ -60,9 +60,10 @@ export function AgentDialogForm({ initial, mode, agentId, onSubmit, onCancel }: 
     ]).then(([catalog, settings]) => {
       if (cancelled) return;
       if (catalog) setProviders(catalog);
+      const stored = settings?.models?.text?.providers ?? {};
       const ids = new Set<string>();
-      for (const [id, entry] of Object.entries(settings?.models?.text?.providers ?? {})) {
-        if (entry.configured) ids.add(id);
+      for (const id of new Set([...Object.keys(stored), ...Object.keys(catalog ?? {})])) {
+        if (stored[id]?.configured || catalog?.[id]?.keyless) ids.add(id);
       }
       setConfiguredIds(ids);
     });

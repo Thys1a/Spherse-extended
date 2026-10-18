@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, afterEach, beforeEach } from "vitest";
 import { cleanup, fireEvent, screen, within } from "@testing-library/react";
+import { userEvent } from "@testing-library/user-event";
 import { translate } from "@spherse/i18n";
 import { createMockHostBridge } from "../../test/host-bridge";
 import { createTestQueryClient, renderWithProviders } from "../../test/render";
@@ -158,5 +159,26 @@ describe("AgentDialogForm host gating", () => {
 
     expect(screen.getByText(translate("zh-CN", "agent-dialog.modelLabel"))).toBeVisible();
     expect(screen.getByText(translate("zh-CN", "settings.models.thinkingLevel"))).toBeVisible();
+  });
+});
+
+describe("AgentDialogForm keyless providers", () => {
+  it("lists keyless provider models without configured flags", async () => {
+    const user = userEvent.setup();
+    getSupportedProviders.mockResolvedValue({
+      kl: { name: "Keyless", models: [{ id: "k1", name: "K1" }], keyless: true },
+    });
+    try {
+      renderForm();
+
+      const trigger = screen
+        .getAllByRole("combobox")
+        .find((el) => el.textContent === translate("zh-CN", "settings.models.defaultModel"));
+      if (!trigger) throw new Error("model combobox trigger not rendered");
+      await user.click(trigger);
+      expect(await screen.findByText("K1")).toBeInTheDocument();
+    } finally {
+      getSupportedProviders.mockResolvedValue({});
+    }
   });
 });

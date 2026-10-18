@@ -76,7 +76,15 @@ dev 模式（`npm run dev` → `electron-vite dev` → `node_modules/electron/di
 
 ### 附带发现（同批修）
 
-`packages/desktop/electron/window.ts:15` 运行时读 `../../build/spherse-icon.png`，但 `electron-builder.yml` 的 `files` 仅含 `dist/**/* + package.json`，打包后 `resources/app/build/` 不存在，`BrowserWindow icon` 加载失败。修法：`files` 追加 `build/spherse-icon.png`（已实施；`pack` 实测 `\build\spherse-icon.png` 已进 `app.asar`、与 `dist/main/index.js` 同级，`window.ts:15` 路径在 asar 内可解析，U1 销号）。
+`packages/desktop/electron/window.ts:15` 运行时读 `../../build/spherse-icon.png`，但 `electron-builder.yml` 的 `files` 仅含 `dist/**/* + package.json`，打包后 `resources/app/build/` 不存在，`BrowserWindow icon` 加载失败。修法：`files` 追加 `build/spherse-icon.png`（已实施；`pack` 实测 `\build\spherse-icon.png` 已进 `app.asar`、与 `dist/main/index.js` 同级，U1 当时按此销号——但见下条追记，该修法必要不充分）。
+
+### 追记（2026-10-19）：1.0.1 安装版仍复现，真因是 rollup chunks 下 `__dirname` 漂移
+
+现象：CI 打包的 1.0.1 安装版（`1.0.1-beta`，已验证 asar 内含 AUMID 修复）任务栏仍显示 Electron 图标；exe 内嵌图标、快捷方式、无陈旧固定项均已排除，运行时 6 个进程全为 `D:\note\Spherse\Spherse.exe`。
+
+根因：electron-vite 把 main 打包进 `dist/main/chunks/main-*.js`（安装包内实证：`__dirname$2` + 同文件 preload 路径），运行时 `__dirname` = `…/app.asar/dist/main/chunks`，于是 `window.ts:15` 的 `../../build/spherse-icon.png` 解析到 `…/app.asar/dist/build/spherse-icon.png`——不存在（真文件在 `…/app.asar/build/`）。源码态成立（`electron/` → `../../build`），dev 态成立，打包态恒失败。electron/ 下共 3 处 `../..`：preload（`dist/preload`，误打误撞正确）、renderer（`dist/renderer`，正确），只有图标这一处是错的。窗口图标加载失败 → 任务栏回退 → Electron logo。
+
+修法（未实施）：`icon: path.join(app.getAppPath(), "build", "spherse-icon.png")`——dev 下 `getAppPath()` 为包根，`build/` 直达；打包后为 `…/app.asar`，asar 内读 png 有效。一行，无分支，无 chunks 假设。
 
 ## 三、聊天搜索缺少显式 UI 供用户发现
 
@@ -144,3 +152,20 @@ expect((getHostPrefs() as unknown as Record<string, unknown>).futureField).toBeU
 ```
 
 备选（更干净、零断言）：`expect("futureField" in getHostPrefs()).toBe(false)`。不考虑给 prefs 加索引签名——会放宽生产类型，与迁移代码依赖已知键的前提相悖。修后本地用 `npm run typecheck --workspace=packages/desktop`（需先 `npm run build` 出 dist）验证，另本案说明 c9a3866 这类“只改测试”的提交同样需要跑全量 typecheck。
+
+## 五、默认模型“请先配置 API”（2026-10-19，merge144 回归，与本次 triage 同目录备查）
+
+### 现象
+
+设置 API 页显示 API 已配置（由旧版本迁移，徽章正常），但默认模型配置处显示“请先配置 API Key”（`settings.models.configureFirst`）；agent 默认模型、session 模型选择均正常。
+
+### 根因
+
+- `use-settings-form.ts:85-91`、`114-123`：`apiKeys` 在加载与保存回执后恒为 `{}`——server 化 + 脱敏后 key 永不下发（by design），下来的只有 `configured` flags。
+- `DefaultModelField.tsx:33`：`configuredProviders = providers.filter(([id]) => apiKeys[id]?.trim())`——拿永远为空的 `apiKeys` 做门，而不用 `configured`。于是服务端存 key 的用户（迁移用户首当其冲）永远看到“请先配置”。
+- 对照正常方：`ModelProviderItem`（`settings/index.tsx:169-170`）用 `configured` 布尔 → 徽章正确；agent-dialog（`ModelConfigField.tsx:59`）用 `configuredIds` 集合 → 正常；session 选择读 catalog → 正常。
+- merge144 之前 key 存 electron-store 本地可读，门是通的；server 化后断掉，属回归。
+
+### 修复方向（未实施）
+
+- 给 `DefaultModelField` 加 `configured: Record<string, boolean>` prop，过滤改为 `apiKeys[id]?.trim() || configured[id]`（新手工输入走 `apiKeys`，已迁移走 `configured`）。两行 + 单测。
