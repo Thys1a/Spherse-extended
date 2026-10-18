@@ -1,6 +1,6 @@
 # 跨项目对照调研
 
-> 本目录汇总跨项目对照调研（对象 A–D，代号指称、已隐去项目名与绝对路径）与 Spherse 自身/方法专题（05–09），回答同一组问题：**与 Spherse 的重合在哪、哪些值得吸收、哪些是重复投入**。
+> 本目录汇总跨项目对照调研（对象 A–E，代号指称、已隐去项目名与绝对路径）与 Spherse 自身/方法专题（05–09），回答同一组问题：**与 Spherse 的重合在哪、哪些值得吸收、哪些是重复投入**。
 > 不改 `docs/dev/backlog.md`、不产出 design/plan、不改 `docs/official/`。
 
 ## 文档
@@ -11,6 +11,7 @@
 | [`02-language-learning-app.md`](./02-language-learning-app.md) | 对象 B |  多语言学习应用（——语言学习功能的吸收裁决；含「用户提取的四个功能点（v1.2.x）」与「信息卡运用方向（v1.2.x）」 |
 | [`03-language-immersion-game.md`](./03-language-immersion-game.md) | 对象 C | 构建在 Agent 运行时上的语言沉浸游戏参考实现——架构纪律、单 Workspace 复现可行性；含「衍生平台能力候选（v1.1.x / v1.3.x）」 |
 | [`04-companion-os.md`](./04-companion-os.md) | 对象 D | 记忆宫殿（向量长期记忆）与主动消息（离设备生成 + 推送）是最强参考；含「可吸收点」与「Spherse 复刻裁决」 |
+| [`10-worldview-timeline-tool.md`](./10-worldview-timeline-tool.md) | 对象 E | 世界观设定与时间轴管理 Web 应用（对象 A 的“设定侧”子集产品化）——唯一建议跟进的是顶栏常驻搜索 + `⌘K` 显式入口，正中 triage issue 3 |
 | [`05-prompt-assembly.md`](./05-prompt-assembly.md) | Spherse 自身 | 一条 prompt 的拼接内容与顺序：system 段表、tools 顺序、每轮 wire 视图与流程图 |
 | [`06-tavern-vs-agent.md`](./06-tavern-vs-agent.md) | 外部讨论 | 酒馆式提示词组装 vs Agent：worldbook 位置（近因偏见）+ 扩大注入、拼接顺序建议；「世界书挂载 tools」经复核列为不建议 |
 | [`07-session-profile-feasibility.md`](./07-session-profile-feasibility.md) | Spherse 自身 | Session 级 profile 可行性——现状 model 覆盖为先例；建议最小覆盖集 |
@@ -31,7 +32,7 @@ v1.3.0：comprehensive enhancement
 | **v1.0.3** | 扩大 worldbook 注入（取消 `≤8 条 / 2000 token` 预算上限） | 06 §四；04 §六 |
 | **v1.0.3** | worldbook 注入位置修正（从队尾 user 挪到当前用户消息之前） | 06 §四 / §五 |
 | ~~v1.0.3~~ | ~~Session 级 profile 覆盖（最小集，复用 session model 覆盖管道）~~ | 07 |
-| **v1.0.2** | 对话 token 数据 + 输入框预计 token 展示 | 09 |
+| **v1.0.1** | 对话 token 数据 + 输入框预计 token 展示 | 09 |
 | **v1.1.0** | 世界观撰写辅助增强（预设层，含数据格式 → 可视化 viewer） | 01 §十 |
 | **v1.1.0** | SDK 开放工作区文件写能力（受限写 / 无删；需先补回滚发现路径） | 01 §十一 |
 | **v1.2.0** | AI 输出解析 → chat 渲染；AI 输出解析 → trigger | 03 §九 |
@@ -42,10 +43,13 @@ v1.3.0：comprehensive enhancement
 | **v1.3.x** | 软件内快速备份插件（本地 zip / 云：WebDAV / GitHub / Supabase） | 04 §五 / §六 |
 | **v1.0.2** | 状态数据外链（`.data.json` + `$state` 声明 + projector 注入；与 worldbook 位置修正同批，共用「插到当前用户之前」helper；设计见 `features/2026-10-11-state-data-link/design.md`） | 06 §五 #4 |
 | **v1.0.2** | 小助手agent初始profile增加“如有疑问，向用户提问而非自作主张；如需执行，先给出计划并提问方案是否可行。” | -- |
-| **v1.0.2** | agent所属快捷回复 | -- |
+| **v1.0.1** | agent所属快捷回复 | -- |
 | **v1.0.1** | 合并上游版本 | -- |
 | 待评估 | 记忆方向：内核保持 `memory.jsonl` 单系统；向量为可手动开启的派生检索引擎（互斥、单真相源）；框架对照 + 目录项目逐条 + 当前代码盘点 + 外部写入方式 | 08 §一 / §四 – §七 / §十 / §十一 |
 | 待评估 | 世界书逐条 depth/role 注入；主动消息（离设备 + 推送） | 04 §六 |
+|待评估| subagent clawbot | |
+| 待评估 | 显式搜索入口（顶栏常驻 + 快捷键，对象 E 式）与待确认队列卡片范式 | 10 §四 |
+|**v1.0.x**| game engine p2 | |
 
 ## 共同结论
 
