@@ -76,7 +76,7 @@ dev 模式（`npm run dev` → `electron-vite dev` → `node_modules/electron/di
 
 ### 附带发现（同批修）
 
-`packages/desktop/electron/window.ts:15` 运行时读 `../../build/spherse-icon.png`，但 `electron-builder.yml` 的 `files` 仅含 `dist/**/* + package.json`，打包后 `resources/app/build/` 不存在，`BrowserWindow icon` 加载失败。修法：`files` 追加 `build/spherse-icon.png`（已实施；`pack` 实测 `\build\spherse-icon.png` 已进 `app.asar`、与 `dist/main/index.js` 同级，U1 当时按此销号——但见下条追记，该修法必要不充分）。
+`packages/desktop/electron/window.ts:15` 运行时读 `../../build/spherse-icon.png`，但 `electron-builder.yml` 的 `files` 仅含 `dist/**/* + package.json`，打包后 `resources/app/build/` 不存在，`BrowserWindow icon` 加载失败。修法演进：先是 `files` 追加 png（`pack` 实测进过 `app.asar`，当时按此销号 U1）→ 后发现 asar 虚拟路径不可靠，改走 `extraResources` 落盘（见下条追记），`files` 条目已同步移除。
 
 ### 追记（2026-10-19）：1.0.1 安装版仍复现，真因是 rollup chunks 下 `__dirname` 漂移
 
@@ -84,7 +84,7 @@ dev 模式（`npm run dev` → `electron-vite dev` → `node_modules/electron/di
 
 根因：electron-vite 把 main 打包进 `dist/main/chunks/main-*.js`（安装包内实证：`__dirname$2` + 同文件 preload 路径），运行时 `__dirname` = `…/app.asar/dist/main/chunks`，于是 `window.ts:15` 的 `../../build/spherse-icon.png` 解析到 `…/app.asar/dist/build/spherse-icon.png`——不存在（真文件在 `…/app.asar/build/`）。源码态成立（`electron/` → `../../build`），dev 态成立，打包态恒失败。electron/ 下共 3 处 `../..`：preload（`dist/preload`，误打误撞正确）、renderer（`dist/renderer`，正确），只有图标这一处是错的。窗口图标加载失败 → 任务栏回退 → Electron logo。
 
-修法（2026-10-19 已实施，决策 B）：win32 直接省略 `icon`（用 exe 内嵌多尺寸 ICO，贴合 Electron 官方建议；dev 下 exe 是 electron.exe，任务栏显示 Electron 属预期）；其他平台 `icon: path.join(app.getAppPath(), "build", "spherse-icon.png")`（dev 下为包根，打包后为 `app.asar` 内，asar 读 png 有效；无 chunks 假设）。yml 里 png 入包保留（Linux 需要）。
+修法（2026-10-19 已实施，决策 B，review 后改走 extraResources）：win32 直接省略 `icon`（用 exe 内嵌多尺寸 ICO）；其他平台经新纯函数 `resolveWindowIconPath`（`electron/window-icon.ts`，配单测）取图标——`files` 的 asar 内路径不可靠（asar 虚拟路径 + chunks 漂移双重风险），改走 `extraResources` 落盘真文件（`resources/spherse-icon.png`，与 tray 图标同机制），`files` 里 png 条目同步移除。dev 下 `getAppPath()` 断言与 Linux 打包实测待真机补证。
 
 ## 三、聊天搜索缺少显式 UI 供用户发现
 

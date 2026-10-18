@@ -35,7 +35,8 @@ export function DefaultModelField({
   const [query, setQuery] = useState("");
 
   const configuredProviders = Object.entries(providers).filter(
-    ([id, config]) => apiKeys[id]?.trim() || configured[id] || config.keyless,
+    ([id, config]) =>
+      (apiKeys[id]?.trim() || configured[id] || config.keyless) && config.models.length > 0,
   );
 
   const selectedLabel = (() => {

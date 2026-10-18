@@ -15,11 +15,12 @@ publish:
 files:
   - dist/**/*
   - package.json
-  - build/spherse-icon.png
 extraResources:
   - from: resources/tray
     to: tray
     filter: ["*.png"]
+  - from: build/spherse-icon.png
+    to: spherse-icon.png
 npmRebuild: false
 extraMetadata:
   main: dist/main/index.js
