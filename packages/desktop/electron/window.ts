@@ -1,6 +1,7 @@
 import { app, BrowserWindow } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { resolveAppUserModelId } from "./app-id.js";
 import { resolveWindowIconPath } from "./window-icon.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -26,6 +27,23 @@ export function createWindow(): BrowserWindow {
       nodeIntegration: false,
     },
   });
+  const windowAppId = resolveAppUserModelId({
+    platform: process.platform,
+    isPackaged: app.isPackaged,
+  });
+  if (windowAppId) {
+    try {
+      mainWindow.setAppDetails({
+        appId: windowAppId,
+        appIconPath: iconPath,
+        appIconIndex: 0,
+        relaunchCommand: `"${process.execPath}"`,
+        relaunchDisplayName: "Spherse",
+      });
+    } catch (err) {
+      console.error("[window] setAppDetails failed:", err);
+    }
+  }
 
   if (process.env.ELECTRON_RENDERER_URL) {
     mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL);

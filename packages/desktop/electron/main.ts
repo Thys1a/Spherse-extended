@@ -1,4 +1,5 @@
 import { app, crashReporter, type BrowserWindow } from "electron";
+import path from "node:path";
 import { setGlobalDispatcher, EnvHttpProxyAgent } from "undici";
 import { resolveAppUserModelId } from "./app-id.js";
 import { createWindow, getMainWindow } from "./window.js";
@@ -18,6 +19,7 @@ import {
   safeAppendCrashLog,
 } from "./crash-log.js";
 import { beginQuit, isQuitting } from "./lifecycle.js";
+import { removeStaleElectronShortcut } from "./stale-electron-shortcut.js";
 import { attachCloseToTray, destroyTray, showMainWindow, syncTray } from "./tray.js";
 
 const appUserModelId = resolveAppUserModelId({
@@ -124,6 +126,25 @@ process.on("unhandledRejection", (reason) => {
 });
 
 app.whenReady().then(async () => {
+  if (appUserModelId) {
+    try {
+      const outcome = removeStaleElectronShortcut({
+        startMenuDir: path.join(
+          app.getPath("appData"),
+          "Microsoft",
+          "Windows",
+          "Start Menu",
+          "Programs",
+        ),
+        expectedAppUserModelId: appUserModelId,
+      });
+      if (outcome === "removed") {
+        console.log("[main] removed stale Electron.lnk sharing our AppUserModelId");
+      }
+    } catch (err) {
+      console.error("[main] stale shortcut cleanup failed:", err);
+    }
+  }
   await fixPath();
   migrateLegacySettings();
   setGlobalDispatcher(new EnvHttpProxyAgent());

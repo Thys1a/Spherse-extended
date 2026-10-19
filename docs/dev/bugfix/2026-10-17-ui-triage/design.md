@@ -114,7 +114,29 @@ dev 模式（`npm run dev` → `electron-vite dev` → `node_modules/electron/di
 - 像素比对（同管线渲染，尺寸归一后可比）：live 图 ≠ Spherse-16/32/40/48 任一渲染（`5987E9…` 家族），≠ stock electron-32（`74D479…`）；exe 内仅 1 组图标（Spherse）。
 - 结论：回退行为不符合“省略即用 exe 图标”的预期——窗口实际携带了一个**身份不明的非 Spherse 图标**（Electron 系嫌疑最大但未锤死；颜色取证被 GDI+ 透明度行为污染，不可作数）。
 
-决策修正：**决策 B（win32 省略）的前提被证伪**，改回显式设图标——win32 用 extraResources 落盘真文件（与 tray 同机制，已在包内），`resolveWindowIconPath` 逻辑不变只改 win32 分支返回值。判别性验证：`npm run pack --dir` 跑 `win-unpacked\Spherse.exe` 看任务栏；好则结案，仍错则转向 AUMID 分组/快捷方式方向（当前证据不支持该方向）。
+决策修正：**决策 B（win32 省略）的前提被证伪**，改回显式设图标——win32 用 extraResources 落盘真文件（与 tray 同机制），`resolveWindowIconPath` 只改 win32 分支返回值（ico；dev 走包内同名 ico）。判别性验证见追记三。
+
+### 追记三（2026-10-19）：显式图标已实施 + 打包验证通过，待用户真机验收
+> 2026-10-19 晚更新：用户所测版本经查**不是含修复的构建**，下述“无效”结论全部作废，见追记四。
+
+### 追记四（2026-10-19）：用户测的一直是旧构建 + 神秘图标身份落定
+
+- 版本取证：`D:\note` 在装版 registry 为 `1.0.1-beta`，asar 主 chunk 为 `main-C3wVGKtd.js`，逐段确认为 omit 版（`win32 → void 0`）；含显式 ico 的 `main-CLsy0KPa.js` 只存在于本地 `release/` alpha 包（`Spherse-Setup-1.0.1-alpha-x64.exe`，113MB），从未被安装运行。registry 非 alpha 即铁证。
+- 活窗口图标取证（2026-10-19 晚，进程 20:29 版）：`WM_GETICON` small/big 非零但两把柄不同；逐像素比对同管线渲染，@125% DPI 下 DrawIconEx-32 与 Spherse-16/32/48/64/128、stock-electron-16/32、IDI_APPLICATION 全不等；exe 内仅 1 组图标；40x40 原生尺寸系 DPI 缩放假象（32@125%），无诊断意义。
+- 结论：旧构建（坏路径/省略）从未给窗口设过有效图标，活窗口图标是 Chromium 编译内置默认（跨构建跨重启像素一致：small `81A596…`、big `4988D7C6…`）；“省略即回退 exe 图标”的假设作废，这正是决策 B 被推翻的技术注脚。显式 ico 版是否生效，只能由安装本地 alpha 的真机一眼判定，此前一切“无效”报告针对旧构建，一律作废。
+
+- 实现：`window-icon.ts` 全平台显式返回（win32 → `resources/spherse-icon.ico`，其他 → `resources/spherse-icon.png`，dev 走包内 `build/` 同名文件）；`window.ts` 简化为直接传 `icon`；`electron-builder.yml` extraResources 加 ico 条目；单测同步到 4 用例。
+- `npm run pack --dir` + `npm run dist:alpha` 双验证：`resources/` 下 ico（107414）+ png 双落盘；新 chunk（`main-CLsy0KPa.js`）含 ico 分支、无旧坏路径；desktop 全套件 24 文件 / 260 用例通过；产物 `release/Spherse-Setup-1.0.1-alpha-x64.exe`（113MB）。
+- 远程排查已到极限：exe 图标/AUMID/快捷方式/固定/跳表/单安装/运行进程 8 项全绿；活窗口 `WM_GETICON` 全零（符合省略逻辑）但类图标身份无法 headless 确认；本机截屏看不到任务栏（自动隐藏）。最终判别只能真机看一眼：装 alpha → 从开始菜单启动 → 看任务栏。
+- 2026-10-19 晚修正：上述“无效”报告针对的构建经查**不含本次修复**（见追记四）；活窗口图标之谜同步解开，详见下。
+- 2026-10-19 澄清“依旧无效”：用户测的 `D:\note` 版 asar chunk 为旧 omit 版（`win32 → void 0`），即 CI beta（02:01 装）早于显式 ico 改动（`91345b8`）；本地新 alpha（`release/Spherse-Setup-1.0.1-alpha-x64.exe`，13:50，`main-CLsy0KPa.js` 含 ico 分支 + `resources/` 双落盘）从未被安装运行过。待用户装本地 alpha 重验，此前一切“无效”结论针对的都是旧构建。
+
+### 追记五（2026-10-20）：真凶是开始菜单里的 `Electron.lnk`，与图标管线无关
+
+- 决定性证据（用户补充）：右键任务栏显示的名字就是 `Electron`。沿身份链查到：开始菜单 `Electron.lnk`（2026-09-13，dev 时期无条件 `setAppUserModelId` 时 Windows 自动生成），target=`node_modules/electron/dist/electron.exe`，`System.AppUserModel.ID=com.spherse.app`——与 `Spherse.lnk` 同 ID；`Get-StartApps` 对该 ID 只返回 `Name=Electron`（无 Spherse）。任务栏按 AUMID 反查快捷方式（字母序 Electron 在前），图标+右键名全跟它走；标题栏走窗口图标，所以红实验标题栏变红而任务栏不动。10-18 的 packaged-only AUMID 只防新增不清存量；图标缓存/固定/跳表排查全是干净的，因为错的从来不是缓存。
+- 验证：`Electron.lnk` 改名 `.bak` + 重启 explorer，`Get-StartApps` 变 `Name=Spherse`，安装版任务栏/右键恢复正常。
+- 修复（dev，待发版）：`electron/stale-electron-shortcut.ts`——纯函数谓词（文件名=`Electron.lnk` 且 AUMID=ours 且 target 含 `electron.exe` 三者同时满足才删；`Spherse.lnk`/异 ID/异 target/不可解析一律保留）+ `removeStaleElectronShortcut`；`main.ts` `whenReady` 首行调用（门复用 `appUserModelId` 非空，即仅 packaged+win32）；`window.ts` `createWindow` 后 `setAppDetails({appId, appIconPath: ico, relaunchCommand, relaunchDisplayName: "Spherse"})` 做防御。单测 12 用例；解析器另用真机 `Electron.lnk`/`Spherse.lnk` 实测验证（删对留对）。
+- 附带：真 lnk 的 PropertyStore 非标准布局——pid 与 type 间有 1 pad 字节、长度字段是字符数而非字节数；解析器双兼容（单测 `windowsStyleStore` 锁定）。
 
 ### 追记三（2026-10-19）：改回显式图标 + 打包验证通过
 

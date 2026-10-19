@@ -348,6 +348,7 @@ spherse/
  │   │   ├── electron/
 │   │   │   ├── bootstrap.ts          # Electron 入口引导：dev 环境重定向 userData 后加载 main
 │   │   │   ├── app-id.ts             # Windows AppUserModelId 解析：仅 packaged 返回 `com.spherse.app`，dev 用 Electron 默认（任务栏不混组）
+│   │   │   ├── stale-electron-shortcut.ts # 同 ID 残留 `Electron.lnk` 清理：lnk 二进制直读 AUMID/target，三条件谓词命中才删（`Spherse.lnk`/异 ID 一律保留）
 │   │   │   ├── main.ts               # Electron 主进程：启动时 fixPath（打包版 PATH 修复）→ migrateLegacySettings → 组装窗口、IPC、项目 server 管理、启动延迟静默更新检查
 │   │   │   ├── lifecycle.ts         # 退出生命周期（beginQuit/isQuitting 守卫，quit 统一入口）
 │   │   │   ├── tray.ts             # 系统托盘（closeToTray 常驻与退出菜单）
@@ -370,7 +371,7 @@ spherse/
 │   │   │   │   ├── provider.ts        # TunnelProvider / TunnelSession 抽象接口（预留未来扩展）
 │   │   │   │   ├── cloudflare-provider.ts # Cloudflare Quick Tunnel 实现：spawn cloudflared tunnel --url、stdout 抓取 *.trycloudflare.com URL、packaged 二进制路径解析
 │   │   │   │   └── manager.ts         # TunnelManager 单例：start/stop/restart 状态机 + onStateChange 事件订阅
-│   │   │   ├── window.ts             # BrowserWindow 创建与管理
+│   │   │   ├── window.ts             # BrowserWindow 创建与管理（packaged 下 `setAppDetails` 显式申报任务栏身份：appId/icon/relaunch）
 │   │   │   ├── server.ts             # server 实例管理（ensure/restart/stop，恒带 serverToken 鉴权）+ 动态 host 重放（syncAllowedHosts）+ 模型/搜索配置路径透传（ensureServer 传 modelSettingsPath/webSearchSettingsPath）
 │   │   │   └── settings.ts           # electron-store 封装 + env 管理（含 syncCustomProviders）+ openProjects/locale/mobileAccess 持久化 + serverToken（顶层 key，getServerToken 迁移链）+ generateAccessToken
 │   │   │   └── migrate-legacy-settings.ts # 旧 settings 一次性迁移（备份 + 分区落盘 + 删旧键）
