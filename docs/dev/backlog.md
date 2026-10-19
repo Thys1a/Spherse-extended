@@ -32,6 +32,7 @@
 - [ ] **长上下文工具调用标记退化探针与强制压缩**：`assistant/message` 落盘前扫描正文 `<invoke` / `<parameter` / 模板特殊 token，命中即按 `markTruncated` 路径记 `stopReason: error` + `errorMessage` 走可见可重试链；首次标记/截断轮后把实测退化点记入会话 `observedWindow` 并强制压缩一次（复用 `maybeCompactLog` 的 `thresholdRatio: 0` 路径）；历史 assistant 正文标记做展示层剥离防自我强化（不解析回 `toolCall`）。参见 `docs/dev/bugfix/2026-10-04-toolcall-markup-on-long-context/design.md`
 - [ ] **收敛 chat 历史游标回退与滚动位毒化（新 runtime）**：`session-lifecycle.ts:116` 对账无条件覆盖 `oldestSeq`（loadMore 后重连即倒退）；`useChatScroll.ts:175` 卸载回写原始值（贴底未归 0）、`:133` 重开恢复无阈值门。方向：对账仅衔接已加载区间时更新游标，回写贴底存 0、恢复加阈值+范围校验。参见 `docs/dev/bugfix/2026-09-11-chat-theme-history/design.md` Bug 2（旧 `resolvePageCursor` 路径已随重构消失，按 `history-loader`/`session-lifecycle` 重对）
 - [ ] **agent 编辑保存丢弃 disabled 的 timePerception 配置**：`buildAgentMarkdown`（`packages/app/src/features/agent-dialog/agent-markdown.ts`）只在 `timePerception.enabled` 为真时写回，`{enabled:false}` 的既有配置经任意一次 agent 编辑保存即被整块删除。方向：写回时保留 disabled 配置原样（或收敛为显式删除语义并经用户确认），补 round-trip 用例。2026-10-19 快捷回复管理弹窗 review 发现（pre-existing，非本次引入）
+- [ ] **重做任务栏小尺寸图标可辨识度**：`packages/desktop/build/spherse-icon.png`（512）与 exe 提取小图标角落+中心全为不透明白（255,255,255,255），白底+浅灰细线在浅色任务栏上近乎隐形、呈“默认图标”观感。方向：图标去白底改透明，或为 16/32 尺寸做加粗简化版；同步验证 exe 内嵌与任务栏/托盘观感。参见 `docs/dev/bugfix/2026-10-17-ui-triage/design.md` 追记五
 
 ## 技术债（重构与收敛）
 
