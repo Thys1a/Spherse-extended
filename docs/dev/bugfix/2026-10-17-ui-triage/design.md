@@ -137,6 +137,7 @@ dev 模式（`npm run dev` → `electron-vite dev` → `node_modules/electron/di
 - 验证：`Electron.lnk` 改名 `.bak` + 重启 explorer，`Get-StartApps` 变 `Name=Spherse`，安装版任务栏/右键恢复正常。
 - 修复（dev，待发版）：`electron/stale-electron-shortcut.ts`——纯函数谓词（文件名=`Electron.lnk` 且 AUMID=ours 且 target 含 `electron.exe` 三者同时满足才删；`Spherse.lnk`/异 ID/异 target/不可解析一律保留）+ `removeStaleElectronShortcut`；`main.ts` `whenReady` 首行调用（门复用 `appUserModelId` 非空，即仅 packaged+win32）；`window.ts` `createWindow` 后 `setAppDetails({appId, appIconPath: ico, relaunchCommand, relaunchDisplayName: "Spherse"})` 做防御。单测 12 用例；解析器另用真机 `Electron.lnk`/`Spherse.lnk` 实测验证（删对留对）。
 - 附带：真 lnk 的 PropertyStore 非标准布局——pid 与 type 间有 1 pad 字节、长度字段是字符数而非字节数；解析器双兼容（单测 `windowsStyleStore` 锁定）。
+- 范围：清理仅 per-user 开始菜单单文件（`%APPDATA%\Microsoft\Windows\Start Menu\Programs\Electron.lnk`），不动 Common 分架与子目录；dev（AUMID 为空）不执行。
 
 ### 追记三（2026-10-19）：改回显式图标 + 打包验证通过
 

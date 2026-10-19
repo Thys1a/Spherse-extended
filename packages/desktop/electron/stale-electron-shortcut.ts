@@ -8,7 +8,6 @@ const HAS_LINK_TARGET_ID_LIST = 0x01;
 const HAS_LINK_INFO = 0x02;
 const LINK_INFO_HAS_LOCAL_BASE_PATH = 0x01;
 const PROPERTY_STORE_SIGNATURE = 0xa0000009;
-// PKEY_AppUserModel_ID = {9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3}, pid 5.
 const APP_USER_MODEL_ID_FMTID = Buffer.from([
   0x55, 0x28, 0x4c, 0x9f, 0x79, 0x9f, 0x39, 0x4b, 0xa8, 0xd0, 0xe1, 0xd4, 0x2d, 0xe1, 0xd5, 0xf3,
 ]);
@@ -89,7 +88,6 @@ function findAppUserModelId(payload: Buffer): string | null {
     if (!payload.subarray(i, i + 16).equals(APP_USER_MODEL_ID_FMTID)) continue;
     for (let j = i + 16; j + 12 <= payload.length; j += 1) {
       if (payload.readUInt32LE(j) !== APP_USER_MODEL_ID_PID) continue;
-      // Real Windows writers insert a pad byte between pid and type.
       for (const typeOffset of [4, 5]) {
         if (payload.readUInt16LE(j + typeOffset) !== VT_LPWSTR) continue;
         const decoded = decodeLPWSTR(payload, j + typeOffset + 4);
@@ -129,6 +127,10 @@ export function shouldRemoveStaleElectronShortcut(
 
 export type StaleShortcutCleanup = "removed" | "absent" | "kept";
 
+export function classifyReadError(err: unknown): "absent" | "kept" {
+  return (err as NodeJS.ErrnoException)?.code === "ENOENT" ? "absent" : "kept";
+}
+
 export function removeStaleElectronShortcut(options: {
   startMenuDir: string;
   expectedAppUserModelId: string;
@@ -137,8 +139,10 @@ export function removeStaleElectronShortcut(options: {
   let buffer: Buffer;
   try {
     buffer = fs.readFileSync(filePath);
-  } catch {
-    return "absent";
+  } catch (err) {
+    const outcome = classifyReadError(err);
+    if (outcome === "kept") console.error("[stale-electron-shortcut] read failed:", err);
+    return outcome;
   }
   let identity: ShortcutIdentity;
   try {
@@ -157,7 +161,8 @@ export function removeStaleElectronShortcut(options: {
   }
   try {
     fs.unlinkSync(filePath);
-  } catch {
+  } catch (err) {
+    console.error("[stale-electron-shortcut] remove failed:", err);
     return "kept";
   }
   return "removed";

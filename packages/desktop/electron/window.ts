@@ -38,7 +38,7 @@ export function createWindow(): BrowserWindow {
         appIconPath: iconPath,
         appIconIndex: 0,
         relaunchCommand: `"${process.execPath}"`,
-        relaunchDisplayName: "Spherse",
+        relaunchDisplayName: app.getName(),
       });
     } catch (err) {
       console.error("[window] setAppDetails failed:", err);

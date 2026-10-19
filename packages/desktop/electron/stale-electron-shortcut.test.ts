@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  classifyReadError,
   parseShortcutIdentity,
   removeStaleElectronShortcut,
   shouldRemoveStaleElectronShortcut,
@@ -14,12 +15,22 @@ function buildLink(options: {
   target: string;
   appUserModelId: string | null;
   windowsStyleStore?: boolean;
+  withIdList?: boolean;
+  withStrings?: boolean;
 }): Buffer {
   const parts: Buffer[] = [];
   const header = Buffer.alloc(76);
   header.writeUInt32LE(0x4c, 0);
-  header.writeUInt32LE(0x02, 20);
+  header.writeUInt32LE(
+    0x02 | (options.withIdList ? 0x01 : 0) | (options.withStrings ? 0x04 | 0x10 : 0),
+    20,
+  );
   parts.push(header);
+  if (options.withIdList) {
+    const idList = Buffer.alloc(6);
+    idList.writeUInt16LE(4, 0);
+    parts.push(idList);
+  }
   const targetAnsi = Buffer.from(`${options.target}\0`, "latin1");
   const targetUtf16 = Buffer.from(`${options.target}\0`, "utf16le");
   const linkInfoSize = 36 + targetAnsi.length + targetUtf16.length;
@@ -32,11 +43,19 @@ function buildLink(options: {
   targetAnsi.copy(linkInfo, 36);
   targetUtf16.copy(linkInfo, 36 + targetAnsi.length);
   parts.push(linkInfo);
+  if (options.withStrings) {
+    for (const text of ["nm", "C:\\w"]) {
+      const encoded = Buffer.from(text, "utf16le");
+      const segment = Buffer.alloc(2 + encoded.length);
+      segment.writeUInt16LE(text.length, 0);
+      encoded.copy(segment, 2);
+      parts.push(segment);
+    }
+  }
   if (options.appUserModelId !== null) {
     const value = Buffer.from(`${options.appUserModelId}\0`, "utf16le");
     const propValue = Buffer.alloc(8 + value.length);
     propValue.writeUInt16LE(0x001f, 0);
-    // Real Windows writers store the character count here, not the byte count.
     propValue.writeUInt32LE(options.windowsStyleStore ? value.length / 2 : value.length, 4);
     value.copy(propValue, 8);
     const fmtid = Buffer.from([
@@ -78,6 +97,19 @@ describe("parseShortcutIdentity", () => {
   it("reads Windows-style stores with character-count lengths and extra entries", () => {
     const identity = parseShortcutIdentity(
       buildLink({ target: "C:\\x\\electron.exe", appUserModelId: OUR_ID, windowsStyleStore: true }),
+    );
+    expect(identity).toEqual({ appUserModelId: OUR_ID, targetPath: "C:\\x\\electron.exe" });
+  });
+
+  it("skips id lists and string data like real Windows links carry", () => {
+    const identity = parseShortcutIdentity(
+      buildLink({
+        target: "C:\\x\\electron.exe",
+        appUserModelId: OUR_ID,
+        windowsStyleStore: true,
+        withIdList: true,
+        withStrings: true,
+      }),
     );
     expect(identity).toEqual({ appUserModelId: OUR_ID, targetPath: "C:\\x\\electron.exe" });
   });
@@ -157,6 +189,14 @@ describe("removeStaleElectronShortcut", () => {
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
+  });
+
+  it("distinguishes missing files from read failures", () => {
+    expect(classifyReadError(Object.assign(new Error("denied"), { code: "EACCES" }))).toBe("kept");
+    expect(classifyReadError(Object.assign(new Error("missing"), { code: "ENOENT" }))).toBe(
+      "absent",
+    );
+    expect(classifyReadError(new Error("unknown"))).toBe("kept");
   });
 
   it("keeps Spherse.lnk files on disk", () => {
