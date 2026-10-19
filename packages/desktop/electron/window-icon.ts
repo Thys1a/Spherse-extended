@@ -5,8 +5,8 @@ export function resolveWindowIconPath(options: {
   isPackaged: boolean;
   resourcesPath: string;
   appPath: string;
-}): string | undefined {
-  if (options.platform === "win32") return undefined;
-  if (options.isPackaged) return path.join(options.resourcesPath, "spherse-icon.png");
-  return path.join(options.appPath, "build", "spherse-icon.png");
+}): string {
+  const file = options.platform === "win32" ? "spherse-icon.ico" : "spherse-icon.png";
+  if (options.isPackaged) return path.join(options.resourcesPath, file);
+  return path.join(options.appPath, "build", file);
 }

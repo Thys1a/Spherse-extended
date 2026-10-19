@@ -19,7 +19,7 @@ export function createWindow(): BrowserWindow {
     width: 1200,
     height: 800,
     autoHideMenuBar: true,
-    ...(iconPath === undefined ? {} : { icon: iconPath }),
+    icon: iconPath,
     webPreferences: {
       preload: path.join(__dirname, "../../preload/index.js"),
       contextIsolation: true,

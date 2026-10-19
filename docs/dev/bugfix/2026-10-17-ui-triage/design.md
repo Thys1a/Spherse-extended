@@ -86,6 +86,42 @@ dev 模式（`npm run dev` → `electron-vite dev` → `node_modules/electron/di
 
 修法（2026-10-19 已实施，决策 B，review 后改走 extraResources）：win32 直接省略 `icon`（用 exe 内嵌多尺寸 ICO）；其他平台经新纯函数 `resolveWindowIconPath`（`electron/window-icon.ts`，配单测）取图标——`files` 的 asar 内路径不可靠（asar 虚拟路径 + chunks 漂移双重风险），改走 `extraResources` 落盘真文件（`resources/spherse-icon.png`，与 tray 图标同机制），`files` 里 png 条目同步移除。dev 下 `getAppPath()` 断言与 Linux 打包实测待真机补证。
 
+### 追记（2026-10-19）：1.0.1-beta 已含全部修复，但用户仍报 Electron——逐项排除表
+
+现象：registry 显示已装 `Spherse 1.0.1-beta`（`D:\note\Spherse`，文件 mtime 当日 02:01，进程 02:19 启动），任务栏仍显示 Electron。
+
+| 检查项 | 结果 | 结论 |
+|---|---|---|
+| 安装包内 AUMID 修复 | asar chunk 含 `resolveAppUserModelId` + packaged-only 门 | ✅ 在包内 |
+| 安装包内 window 图标修复 | chunk 含 `resolveWindowIconPath`（win32 省略），无旧 `__dirname...build` 串 | ✅ 在包内 |
+| exe 内嵌图标 | `ExtractAssociatedIcon` hash == 仓库 ico 32px（`5987E9…`） | ✅ 正确 |
+| 开始菜单快捷方式 | target/icon 正确，`AppUserModelID = com.spherse.app` | ✅ 正确 |
+| 桌面快捷方式 | target 正确 | ✅ 正确 |
+| 任务栏固定项 | `User Pinned\TaskBar` 无 Spherse | ✅ 无残留 |
+| JumpList（AutomaticDestinations 84 个，字节级 UTF-16/ASCII 双查） | 无 `electron.exe`/`Spherse.exe` 引用 | ✅ 干净 |
+| 多安装 | Program Files 无，卸载表唯一，`InstallLocation` 为空 | ✅ 单一安装 |
+| 运行进程 | 6× `Spherse.exe` 全为安装路径，无 `electron.exe` | ✅ 本体在跑 |
+
+结论：应用侧 + 快捷方式 + 固定 + 跳表 + 安装唯一性**全部无问题**。剩余可能只剩两类：① **时间差**——上报早于重装/重启（02:01 装、02:19 起），看到的是旧态；② **Explorer 侧不可查状态**（运行中按钮的图标缓存/分组缓存）。下一步只问用户三件事（见正文回复），不再查代码。
+
+### 追记二（2026-10-19）：用户确认是新态、无固定、次次复现——活窗口取证
+
+用户澄清：上报为当前态；从未固定过；每次打开都错。遂对**运行中窗口本身**取证（Win32 只读，无执行）：
+
+- 可见顶层窗口唯一：`"Spherse"`（其余 5 个进程无可见窗口），即主窗口。
+- `WM_GETICON`（SMALL2/SMALL/BIG）全返回 0：窗口**没有显式图标**，与新代码 win32 省略一致，fix 已生效。
+- `GetClassLong` small/big 返回**同一非零句柄**；`GetIconInfo` 量得原生 **40x40**（125% DPI 下 32 的缩放值，无诊断意义）。
+- 像素比对（同管线渲染，尺寸归一后可比）：live 图 ≠ Spherse-16/32/40/48 任一渲染（`5987E9…` 家族），≠ stock electron-32（`74D479…`）；exe 内仅 1 组图标（Spherse）。
+- 结论：回退行为不符合“省略即用 exe 图标”的预期——窗口实际携带了一个**身份不明的非 Spherse 图标**（Electron 系嫌疑最大但未锤死；颜色取证被 GDI+ 透明度行为污染，不可作数）。
+
+决策修正：**决策 B（win32 省略）的前提被证伪**，改回显式设图标——win32 用 extraResources 落盘真文件（与 tray 同机制，已在包内），`resolveWindowIconPath` 逻辑不变只改 win32 分支返回值。判别性验证：`npm run pack --dir` 跑 `win-unpacked\Spherse.exe` 看任务栏；好则结案，仍错则转向 AUMID 分组/快捷方式方向（当前证据不支持该方向）。
+
+### 追记三（2026-10-19）：改回显式图标 + 打包验证通过
+
+- 实现：`resolveWindowIconPath` 改为全平台显式返回路径（win32 → `resources/spherse-icon.ico`，其他 → `resources/spherse-icon.png`；dev 走包内 `build/` 同名文件）；`window.ts` 简化为直接传 `icon`；`electron-builder.yml` extraResources 追加 ico 条目（`files` 里 png 条目同步移除，asar 内路径不可靠）；单测同步到 4 用例。
+- `npm run pack --dir` 验证：`resources/spherse-icon.ico`（107414）+ `.png` 双落盘；新 chunk（`main-CLsy0KPa.js`）含新逻辑；desktop 全套件 24 文件 / 260 用例通过。
+- 事故记录：排查中一次 `asar extract-file package.json` 实际落盘到了仓库根，覆盖了根 `package.json`（内容变为 desktop 包），导致 `predist-contract` 误报 1 失败；已用 git 恢复，复跑全绿。教训：asar 取文件必须显式确认 cwd，事后以 `git status` 为准。
+
 ## 三、聊天搜索缺少显式 UI 供用户发现
 
 ### 现状（功能已完成，入口不可发现）

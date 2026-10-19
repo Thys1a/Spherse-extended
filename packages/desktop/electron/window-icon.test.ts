@@ -3,7 +3,7 @@ import path from "node:path";
 import { resolveWindowIconPath } from "./window-icon.js";
 
 describe("resolveWindowIconPath", () => {
-  it("omits the icon on Windows so the exe embedded ICO is used", () => {
+  it("uses the multi-size ico on Windows, packaged or not", () => {
     expect(
       resolveWindowIconPath({
         platform: "win32",
@@ -11,7 +11,7 @@ describe("resolveWindowIconPath", () => {
         resourcesPath: "/res",
         appPath: "/app",
       }),
-    ).toBeUndefined();
+    ).toBe(path.join("/res", "spherse-icon.ico"));
     expect(
       resolveWindowIconPath({
         platform: "win32",
@@ -19,7 +19,7 @@ describe("resolveWindowIconPath", () => {
         resourcesPath: "/res",
         appPath: "/app",
       }),
-    ).toBeUndefined();
+    ).toBe(path.join("/app", "build", "spherse-icon.ico"));
   });
 
   it("points at extraResources in packaged builds", () => {
