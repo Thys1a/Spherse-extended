@@ -5,6 +5,7 @@ import { renderWithProviders } from "../../test/render";
 import { createMockHostBridge } from "../../test/host-bridge";
 import { SpeakButton } from "./SpeakButton";
 import { useTtsStore } from "./tts/tts-store";
+import { useSettingsStore } from "../../stores/settings-store";
 import { stop } from "./tts/tts-controller";
 
 function installFakeSpeech() {
@@ -31,6 +32,7 @@ describe("SpeakButton", () => {
   beforeEach(() => {
     installFakeSpeech();
     useTtsStore.setState({ messageId: null, status: "idle" });
+    useSettingsStore.setState({ tts: {} });
   });
 
   afterEach(() => {
@@ -40,15 +42,8 @@ describe("SpeakButton", () => {
 
   it("starts reading aloud when clicked and reflects state", async () => {
     const user = userEvent.setup();
-    const bridge = createMockHostBridge({
-      getSettings: vi.fn(async () => ({
-        models: {
-          text: { defaultModel: "", providers: {} },
-          image: { defaultModel: "", providers: {} },
-        },
-        tts: { voiceURI: "v1", rate: 1 },
-      })),
-    });
+    useSettingsStore.setState({ tts: { voiceURI: "v1", rate: 1 } });
+    const bridge = createMockHostBridge();
     renderWithProviders(<SpeakButton messageId="m1" text="你好" sessionId="s1" />, { bridge });
 
     const button = screen.getByRole("button");

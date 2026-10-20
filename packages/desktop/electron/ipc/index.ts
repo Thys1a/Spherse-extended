@@ -1,6 +1,6 @@
 import type { BrowserWindow } from "electron";
 import { registerProjectIpc } from "./project.js";
-import { registerSettingsIpc } from "./settings.js";
+import { registerHostPrefsIpc } from "./host-prefs.js";
 import { registerDebugIpc } from "./debug.js";
 import { registerSkillIpc } from "./skill.js";
 import { registerUpdaterIpc } from "./updater.js";
@@ -9,7 +9,7 @@ import { registerNotificationIpc } from "./notifications.js";
 
 export function registerAllIpc(getWindow: () => BrowserWindow | null): void {
   registerProjectIpc(getWindow);
-  registerSettingsIpc();
+  registerHostPrefsIpc();
   registerDebugIpc(getWindow);
   registerSkillIpc(getWindow);
   registerUpdaterIpc(getWindow);

@@ -1,8 +1,8 @@
 import { useI18n } from "@spherse/i18n/react";
 import { Button } from "../../components/ui/button";
 import { SquareIcon, Volume2Icon } from "lucide-react";
-import { useHostBridge } from "../../context/host-bridge-context";
 import { useFeature } from "../../lib/use-feature";
+import { useSettingsStore } from "../../stores/settings-store";
 import { useTtsStore } from "./tts/tts-store";
 import { speak, stop } from "./tts/tts-controller";
 import { extractSpeechText } from "./tts/speech-text";
@@ -15,7 +15,6 @@ interface SpeakButtonProps {
 
 export function SpeakButton({ messageId, text, sessionId }: SpeakButtonProps) {
   const { t, locale } = useI18n();
-  const bridge = useHostBridge();
   const enabled = useFeature("tts");
   const isSpeaking = useTtsStore((s) => s.messageId === messageId && s.status === "speaking");
 
@@ -27,14 +26,12 @@ export function SpeakButton({ messageId, text, sessionId }: SpeakButtonProps) {
       return;
     }
     if (!sessionId) return;
-    void (async () => {
-      const settings = await bridge.getSettings();
-      speak(messageId, sessionId, extractSpeechText(text), {
-        voiceURI: settings?.tts?.voiceURI,
-        rate: settings?.tts?.rate,
-        locale,
-      });
-    })();
+    const tts = useSettingsStore.getState().tts;
+    speak(messageId, sessionId, extractSpeechText(text), {
+      voiceURI: tts?.voiceURI,
+      rate: tts?.rate,
+      locale,
+    });
   };
 
   return (

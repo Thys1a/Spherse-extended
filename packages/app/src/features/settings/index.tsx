@@ -1,4 +1,5 @@
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
+import { toast } from "sonner";
 import {
   Dialog,
   DialogContent,
@@ -15,7 +16,7 @@ import { useSettingsStore } from "../../stores/settings-store";
 import { useAppUiStore } from "../../stores/app-ui-store";
 import { useSettingsForm } from "./use-settings-form";
 import type { GroupFormState } from "./use-settings-form";
-import { type SettingsApi } from "./types";
+import { type ModelSettingsApi } from "./types";
 import { DefaultModelField } from "./DefaultModelField";
 import { ThinkingLevelField } from "./ThinkingLevelField";
 import { ModelProviderItem } from "./ModelProviderItem";
@@ -27,13 +28,15 @@ import { MobileAccessPanel } from "./MobileAccessPanel";
 import { HelpPanel } from "./HelpPanel";
 import { TtsSettingsPanel } from "./TtsSettingsPanel";
 import { ProxyPanel } from "./ProxyPanel";
+import { WebSearchPanel } from "./WebSearchPanel";
 import { SUPPORTED_LOCALES, normalizeLocale } from "@spherse/i18n";
 import { useI18n } from "@spherse/i18n/react";
-import type { CustomProviderDef } from "@spherse/core";
+import type { CustomProviderDef, WebSearchSettings } from "@spherse/core";
 import type { ThemeMode } from "../../lib/host-bridge";
 import { InfoIcon, Plus, SearchIcon } from "lucide-react";
 import { Tooltip, TooltipTrigger, TooltipContent } from "../../components/ui/tooltip";
 import { useHostBridge } from "../../context/host-bridge-context";
+import { useGlobalApiClient } from "../../lib/use-connection";
 
 const LOCALE_LABELS: Record<string, string> = {
   "zh-CN": "简体中文",
@@ -62,9 +65,11 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
 function ModelGroupTab({
   group,
   kind,
+  loadError,
 }: {
   group: GroupFormState;
   kind: "text" | "image";
+  loadError: boolean;
 }) {
   const { t } = useI18n();
   const bridge = useHostBridge();
@@ -84,10 +89,17 @@ function ModelGroupTab({
   }, [providerEntries, providerQuery, showProviderSearch]);
   return (
     <>
+      {loadError && (
+        <p className="shrink-0 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+          {t("settings.models.loadFailed")}
+        </p>
+      )}
       <FieldGroup className="shrink-0">
         <DefaultModelField
           providers={group.providers}
           apiKeys={group.apiKeys}
+          configured={group.configured}
+          loadError={loadError}
           value={group.defaultModel}
           onChange={(model) => { void group.changeDefaultModel(model); }}
         />
@@ -157,6 +169,7 @@ function ModelGroupTab({
             id={id}
             config={config}
             apiKey={group.apiKeys[id] ?? ""}
+            configured={group.configured[id] ?? false}
             onApiKeyChange={(value) => group.setApiKey(id, value)}
             onApiKeyCommit={(value) => group.commitApiKey(id, value)}
             onConnect={() => void group.connect(id)}
@@ -217,16 +230,47 @@ function SettingsTabs() {
   const setProxy = useSettingsStore((s) => s.setProxy);
   const notifications = useSettingsStore((s) => s.notifications);
   const setNotifications = useSettingsStore((s) => s.setNotifications);
+  const closeToTray = useSettingsStore((s) => s.closeToTray);
+  const setCloseToTray = useSettingsStore((s) => s.setCloseToTray);
   const proxyEnabled = bridge.capabilities.proxy;
   const mobileAccessEnabled = bridge.capabilities.mobileAccess;
   const notificationEnabled = bridge.capabilities.notification;
-  const settingsApi = useMemo<SettingsApi>(() => ({
-    getSettings: bridge.getSettings,
-    saveSettings: bridge.saveSettings,
-    getSupportedProviders: bridge.getSupportedProviders ?? (async () => ({})),
-    getImageProviders: bridge.getImageProviders ?? (async () => ({})),
-  }), [bridge]);
-  const form = useSettingsForm(settingsApi);
+  const trayEnabled = bridge.capabilities.tray;
+  const desktopPrefsEnabled = Boolean(bridge.desktopPrefs);
+  const globalClient = useGlobalApiClient();
+  const modelApi = useMemo<ModelSettingsApi | null>(() => (globalClient ? {
+    getModelSettings: globalClient.getModelSettings,
+    updateModelSettings: globalClient.updateModelSettings,
+    getSupportedProviders: globalClient.getSupportedProviders,
+    getImageProviders: globalClient.getImageProviders,
+  } : null), [globalClient]);
+  const form = useSettingsForm(modelApi);
+  const [webSearch, setWebSearchState] = useState<WebSearchSettings>({});
+  const webSearchTouched = useRef<{ apiKey?: boolean; baseUrl?: boolean; model?: boolean }>({});
+  const webSearchStateRef = useRef<WebSearchSettings>({});
+  const webSearchSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const webSearchSaveChain = useRef<Promise<unknown>>(Promise.resolve());
+  useEffect(() => {
+    if (!globalClient) return;
+    let cancelled = false;
+    globalClient
+      .getWebSearchSettings()
+      .then((res) => {
+        if (cancelled) return;
+        const next = { baseUrl: res.baseUrl ?? undefined, model: res.model ?? undefined };
+        webSearchStateRef.current = next;
+        setWebSearchState(next);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [globalClient]);
+  useEffect(() => {
+    return () => {
+      if (webSearchSaveTimer.current) clearTimeout(webSearchSaveTimer.current);
+    };
+  }, []);
   const initialTab = useAppUiStore((s) => s.settingsModalTab) ?? "models";
   const [tab, setTab] = useState(initialTab);
 
@@ -243,25 +287,27 @@ function SettingsTabs() {
         </TabsList>
 
         <TabsContent value="models" className="mt-3 flex min-h-0 flex-col">
-          <ModelGroupTab group={form.text} kind="text" />
+          <ModelGroupTab group={form.text} kind="text" loadError={form.loadError} />
         </TabsContent>
 
         <TabsContent value="image" className="mt-3 flex min-h-0 flex-col">
-          <ModelGroupTab group={form.image} kind="image" />
+          <ModelGroupTab group={form.image} kind="image" loadError={form.loadError} />
         </TabsContent>
 
         <TabsContent value="general" className="mt-3 min-h-0 overflow-y-auto">
           <Field>
             <SectionTitle as={FieldLabel}>{t("settings.language")}</SectionTitle>
-            <NativeSelect className="w-full" value={locale} onChange={(e) => void changeLocale(settingsApi, normalizeLocale(e.target.value))}>
+            <NativeSelect className="w-full" value={locale} onChange={(e) => void changeLocale(bridge, normalizeLocale(e.target.value))}>
               {SUPPORTED_LOCALES.map((loc) => (
                 <NativeSelectOption key={loc} value={loc}>{LOCALE_LABELS[loc]}</NativeSelectOption>
               ))}
             </NativeSelect>
           </Field>
+          {desktopPrefsEnabled && (
+            <>
           <Field className="mt-5">
             <SectionTitle as={FieldLabel}>{t("settings.appearance")}</SectionTitle>
-            <NativeSelect className="w-full" value={theme} onChange={(e) => void setTheme(settingsApi, e.target.value as ThemeMode)}>
+            <NativeSelect className="w-full" value={theme} onChange={(e) => void setTheme(bridge, e.target.value as ThemeMode)}>
               <NativeSelectOption value="light">{t("settings.appearance.light")}</NativeSelectOption>
               <NativeSelectOption value="dark">{t("settings.appearance.dark")}</NativeSelectOption>
               <NativeSelectOption value="system">{t("settings.appearance.system")}</NativeSelectOption>
@@ -275,7 +321,7 @@ function SettingsTabs() {
               </div>
               <Switch
                 checked={debugToolsEnabled}
-                onCheckedChange={(checked) => { void setDebugToolsEnabled(settingsApi, checked); }}
+                onCheckedChange={(checked) => { void setDebugToolsEnabled(bridge, checked); }}
               />
             </div>
           </FieldGroup>
@@ -292,7 +338,7 @@ function SettingsTabs() {
               <Switch
                 checked={notifications.approval ?? true}
                 disabled={!notificationEnabled}
-                onCheckedChange={(checked) => { void setNotifications(settingsApi, { approval: checked }); }}
+                onCheckedChange={(checked) => { void setNotifications(bridge, { approval: checked }); }}
               />
             </div>
             <div className="flex items-center justify-between gap-3">
@@ -303,13 +349,62 @@ function SettingsTabs() {
               <Switch
                 checked={notifications.trigger ?? true}
                 disabled={!notificationEnabled}
-                onCheckedChange={(checked) => { void setNotifications(settingsApi, { trigger: checked }); }}
+                onCheckedChange={(checked) => { void setNotifications(bridge, { trigger: checked }); }}
               />
             </div>
           </FieldGroup>
-          <TtsSettingsPanel tts={tts} onChange={(patch) => { void setTts(settingsApi, patch); }} />
+          <TtsSettingsPanel tts={tts} onChange={(patch) => { void setTts(bridge, patch); }} />
+          {trayEnabled && (
+            <FieldGroup className="mt-5">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex flex-col gap-1">
+                  <span className="text-sm font-medium leading-none">{t("settings.closeToTray")}</span>
+                  <span className="text-xs text-muted-foreground">{t("settings.closeToTrayDesc")}</span>
+                </div>
+              <Switch
+                checked={closeToTray}
+                aria-label={t("settings.closeToTray")}
+                onCheckedChange={(checked) => { void setCloseToTray(bridge, checked); }}
+              />
+              </div>
+            </FieldGroup>
+          )}
           {proxyEnabled && (
-            <ProxyPanel proxy={proxy} onChange={(patch) => { void setProxy(settingsApi, patch); }} />
+            <ProxyPanel proxy={proxy} onChange={(patch) => { void setProxy(bridge, patch); }} />
+          )}
+            </>
+          )}
+          {globalClient && (
+            <WebSearchPanel
+              webSearch={webSearch}
+              onChange={(patch) => {
+                const next = { ...webSearchStateRef.current, ...patch };
+                for (const key of Object.keys(patch) as (keyof WebSearchSettings)[]) {
+                  webSearchTouched.current[key] = true;
+                }
+                webSearchStateRef.current = next;
+                setWebSearchState(next);
+                if (webSearchSaveTimer.current) clearTimeout(webSearchSaveTimer.current);
+                webSearchSaveTimer.current = setTimeout(() => {
+                  const touched = { ...webSearchTouched.current };
+                  const snapshot = { ...webSearchStateRef.current };
+                  webSearchSaveChain.current = webSearchSaveChain.current
+                    .then(() =>
+                      globalClient.updateWebSearchSettings({
+                        apiKey: touched.apiKey ? (snapshot.apiKey ?? null) : undefined,
+                        baseUrl: touched.baseUrl ? (snapshot.baseUrl ?? null) : undefined,
+                        model: touched.model ? (snapshot.model ?? null) : undefined,
+                      }),
+                    )
+                    .then(
+                      () => {},
+                      (err: unknown) => {
+                        toast.error(t("settings.webSearch.saveFailed", { message: (err as Error).message }));
+                      },
+                    );
+                }, 500);
+              }}
+            />
           )}
         </TabsContent>
 

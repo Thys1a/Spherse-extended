@@ -6,6 +6,10 @@ export const projectQueryKeys = {
   sessions: (projectId: string) => ["projects", projectId, "sessions"] as const,
   session: (projectId: string, sessionId: string) =>
     ["projects", projectId, "session", sessionId] as const,
+  sessionSearch: (projectId: string, q: string) =>
+    ["projects", projectId, "session-search", q] as const,
+  sessionStatus: (projectId: string, agentId: string, sessionId: string) =>
+    ["projects", projectId, "agent", agentId, "session", sessionId, "status"] as const,
   content: (projectId: string, filePath: string) =>
     ["projects", projectId, "content", filePath] as const,
   directories: (projectId: string) => ["projects", projectId, "directories"] as const,
@@ -17,6 +21,12 @@ export const projectQueryKeys = {
   marketplaceSkills: (projectId: string) =>
     ["projects", projectId, "marketplace", "skills"] as const,
   welcomePage: (projectId: string) => ["projects", projectId, "welcome-page"] as const,
+  customSidePanel: (projectId: string) => ["projects", projectId, "custom-side-panel"] as const,
   themeSettings: (projectId: string) => ["projects", projectId, "theme-settings"] as const,
   triggers: (projectId: string) => ["projects", projectId, "triggers"] as const,
+};
+
+export const marketplaceQueryKeys = {
+  projects: () => ["marketplace", "projects"] as const,
+  prompts: (language: string) => ["marketplace", "prompts", language] as const,
 };

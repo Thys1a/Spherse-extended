@@ -11,11 +11,10 @@ function createBridge(overrides: Partial<HostBridge> = {}): HostBridge {
       openFileExternal: false,
       proxy: false,
       notification: true,
+      tray: false,
       content: { editable: false },
     },
     getServerBaseUrl: vi.fn(async () => ""),
-    getSettings: vi.fn(async () => null),
-    saveSettings: vi.fn(async () => ({ success: true })),
     openExternal: vi.fn(),
     notify: vi.fn(),
     ...overrides,
@@ -51,6 +50,7 @@ describe("notifyUser", () => {
       openFileExternal: false,
       proxy: false,
       notification: false,
+      tray: false,
       content: { editable: false },
     } });
     notifyUser(bridge, "title", "body");

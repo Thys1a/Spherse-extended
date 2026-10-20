@@ -250,6 +250,73 @@ describe("createManageAgentTool", () => {
     expect(got.content[0].text).toContain("world/characters.md");
   });
 
+  it("creates an agent with quick replies", async () => {
+    const result = await makeTool().execute(
+      "tc",
+      {
+        action: "create",
+        name: "QR",
+        system_prompt: "p",
+        quick_replies: [{ label: "Hi", description: "Say hi", text: "hello", action: "fill" }],
+      },
+      undefined as any,
+    );
+    expect(result.details.error).toBeFalsy();
+    const created = store.listAgents().find((a) => a.name === "QR");
+    expect(created).toBeDefined();
+    expect(store.getAgent(created!.id)!.getProfile().quickReplies).toEqual([
+      { label: "Hi", description: "Say hi", text: "hello", action: "fill" },
+    ]);
+  });
+
+  it("replaces quick replies on update and clears them with an empty array", async () => {
+    const profile = await seedAgent();
+    await makeTool().execute(
+      "tc",
+      {
+        action: "update",
+        agent_id: profile.id,
+        quick_replies: [{ label: "Hi", text: "hello", action: "fill" }],
+      },
+      undefined as any,
+    );
+    expect(store.getAgent(profile.id)!.getProfile().quickReplies).toEqual([
+      { label: "Hi", text: "hello", action: "fill" },
+    ]);
+
+    await makeTool().execute(
+      "tc",
+      { action: "update", agent_id: profile.id, quick_replies: [] },
+      undefined as any,
+    );
+    expect(store.getAgent(profile.id)!.getProfile().quickReplies).toBeUndefined();
+    expect((await readFrontmatter(profile.id)).quickReplies).toBeUndefined();
+  });
+
+  it("rejects over-limit quick replies on create and update", async () => {
+    const many = Array.from({ length: 11 }, (_, i) => ({ label: `R${i}`, text: `t${i}`, action: "fill" as const }));
+    const created = await makeTool().execute(
+      "tc",
+      { action: "create", name: "QR", system_prompt: "p", quick_replies: many },
+      undefined as any,
+    );
+    expect(created.details.error).toBe(true);
+    expect(created.content[0].text).toContain("too many");
+
+    const profile = await seedAgent();
+    const longLabel = await makeTool().execute(
+      "tc",
+      {
+        action: "update",
+        agent_id: profile.id,
+        quick_replies: [{ label: "x".repeat(17), text: "t", action: "fill" as const }],
+      },
+      undefined as any,
+    );
+    expect(longLabel.details.error).toBe(true);
+    expect(longLabel.content[0].text).toContain("too long");
+  });
+
   it("reports a missing agent id", async () => {
     const result = await makeTool().execute(
       "tc",

@@ -7,6 +7,7 @@
 ## 验证补全
 
 - [ ] **手动验证 server 浏览器安全边界加固的真实隧道链路**：`2026-08-28-server-browser-security` 已合入 always-on token + 认证制 CORS + Host 校验，自动化已覆盖 server/desktop 语义（`browser-security.test.ts` / `server.test.ts`），但缺真机回归：① cloudflared 转发到 `http://localhost:{port}` 时的实际 Host 头形态（决定 quick 模式是否依赖动态 host 注册）；② quick tunnel 全流程（含 PWA WS 连接）；③ manual domain 反代访问与 regenerate 后域名仍可访问；④ prod 打包 renderer（file:// origin）API/WS。参见 `docs/dev/features/2026-08-28-server-browser-security/plan.md` 验证节。
+- [ ] **确认 CI 跑过 desktop E2E agent-quick-replies.spec**：quickReplies 整链（seed → 详情端点 → 回复条 → 填入）单测只各钉一段，E2E spec 已仿 `agent-quick-links.spec.ts` 写好但未本地执行（本机缺 ms-playwright 环境），靠 CI e2e 覆盖；合入后看 CI 绿再销本条。参见 `docs/dev/features/2026-10-12-quick-reply/design.md` §五。
 
 ## Bug
 
@@ -28,6 +29,10 @@
 - [ ] **Windows 世界书外链建链权限引导**：`addAgentCardLink` 在 Windows 无权限时已转明确英文错误（与 core 错误英文惯例一致），但用户仍需自行开管理员/开发者模式。方向：对话框报错旁给一键指引（或检测到该错误时 toast 追加解决步骤）；评估是否值得为 Windows 提供 copy 回退（会破坏"直接同步"语义，默认不做）。
 - [ ] **`search_content` 总量闸下沉到扫描层**：32KB 总量闸现落在结果拼接层（扫满 100 条再丢弃），巨行极少命中时仍遍历全项目。方向：把字节预算传入 `searchDir`/`searchInFile` 做早停。参见 `docs/dev/bugfix/2026-09-22-search-content-oversized-result/design.md`（review 遗留）
 - [ ] **sp 订阅 defer 行为变化说明**：T7 起同会话 `sp:` 订阅从恒跳过变为恒转一圈必触发 follow-up turn，且失败 turn 的 `turn/end(error)` 也会点燃订阅者。方向：在 trigger 相关用户文档注明该行为变化。参见 `docs/dev/bugfix/2026-09-23-repeated-tool-calls/design.md`
+- [ ] **长上下文工具调用标记退化探针与强制压缩**：`assistant/message` 落盘前扫描正文 `<invoke` / `<parameter` / 模板特殊 token，命中即按 `markTruncated` 路径记 `stopReason: error` + `errorMessage` 走可见可重试链；首次标记/截断轮后把实测退化点记入会话 `observedWindow` 并强制压缩一次（复用 `maybeCompactLog` 的 `thresholdRatio: 0` 路径）；历史 assistant 正文标记做展示层剥离防自我强化（不解析回 `toolCall`）。参见 `docs/dev/bugfix/2026-10-04-toolcall-markup-on-long-context/design.md`
+- [ ] **收敛 chat 历史游标回退与滚动位毒化（新 runtime）**：`session-lifecycle.ts:116` 对账无条件覆盖 `oldestSeq`（loadMore 后重连即倒退）；`useChatScroll.ts:175` 卸载回写原始值（贴底未归 0）、`:133` 重开恢复无阈值门。方向：对账仅衔接已加载区间时更新游标，回写贴底存 0、恢复加阈值+范围校验。参见 `docs/dev/bugfix/2026-09-11-chat-theme-history/design.md` Bug 2（旧 `resolvePageCursor` 路径已随重构消失，按 `history-loader`/`session-lifecycle` 重对）
+- [ ] **agent 编辑保存丢弃 disabled 的 timePerception 配置**：`buildAgentMarkdown`（`packages/app/src/features/agent-dialog/agent-markdown.ts`）只在 `timePerception.enabled` 为真时写回，`{enabled:false}` 的既有配置经任意一次 agent 编辑保存即被整块删除。方向：写回时保留 disabled 配置原样（或收敛为显式删除语义并经用户确认），补 round-trip 用例。2026-10-19 快捷回复管理弹窗 review 发现（pre-existing，非本次引入）
+- [ ] **重做任务栏小尺寸图标可辨识度**：`packages/desktop/build/spherse-icon.png`（512）与 exe 提取小图标角落+中心全为不透明白（255,255,255,255），白底+浅灰细线在浅色任务栏上近乎隐形、呈“默认图标”观感。方向：图标去白底改透明，或为 16/32 尺寸做加粗简化版；同步验证 exe 内嵌与任务栏/托盘观感。参见 `docs/dev/bugfix/2026-10-17-ui-triage/design.md` 追记五
 
 ## 技术债（重构与收敛）
 
@@ -53,6 +58,7 @@
 - [ ] **收敛 `runtime.withdraw()` 返回值丢弃的悬挂风险**：`withdrawLastTurn`/`editAndResend`/`deleteAiTurn` 调完不检查 boolean——`isOpen` 检查与发送之间的 socket 关闭会让 `pendingWithdraw: true` 永不收敛，后续撤回/编辑/删除全被互斥锁死。方向：在三个调用点检查返回值并回滚 `pendingWithdraw`（与 R2.5b 同批发现，见 `docs/dev/decisions/0013-turn-rollback-undo-log.md`）。
 - [ ] **chat WS 出站背压**：`ChatChannel.publish` 同步 `socket.send`，慢客户端（手机 PWA 走公网 tunnel）的 ws 发送缓冲无上限增长（`message_update` 为累积快照，帧大且高频），无人看 `bufferedAmount`。方向：ws-chat 的 send 闭包按 `bufferedAmount` 分级——软阈值（~1MB）丢弃流式 update 帧（累积快照语义下丢中间帧无损，下一条即全量）、硬上限（~16MB）close 断开，客户端经游标重放 + 快照无损恢复。参见 `docs/dev/features/2026-09-05-chat-refactor/design.md`（hub 缺陷分析节）。
 - [ ] **server/core 错误消息 i18n**：ws error frame 的 `message` 由 renderer 直接展示（`entry-reducer.applyError`），但 server/core 硬编码英文（新增 `RuntimeClosedError` / `ChannelClosedError` 等），两包均不依赖 `@spherse/i18n`。方向：wire 以稳定 code 为主、renderer 按 code 映射文案；或在 server 注入翻译函数。2026-09-15 hub 收口 review 记录。
+- [ ] **抽取共享的平台判断小工具**：`isMacPlatform()`（`userAgentData.platform ?? navigator.platform` 回退链）在 `packages/app/src/features/chat/Header.tsx` 与 `features/project-panel/index.tsx` 逐字重复。方向：收敛到 `app/src/lib/` 小 util 并复用，避免后续补 Linux/Windows 区分时漏改。2026-10-18 ui-triage review 发现（m1，非阻塞）
 
 ## 条件触发（设计决策）
 
@@ -87,7 +93,12 @@
 - [ ] **实现 swipe 多候选（R6.2）**：方向已锁定（分支带走 active 版、切换记新事件，见 `docs/dev/features/2026-09-23-swipe/plan.md`），实现零代码，4 个开放问题未关。方向：reducer 分支状态 + 持久化 + WS 事件（contracts + chat-wire-projector）+ swipe UI；前置：先与本节「会话分支」项定义关系（合并/复用其虚拟 seq 映射/并行两套），否则两套分支语义冲突。
 - [ ] **原生子窗口浮窗（native-float 拆分之一）**：当前两浮窗域是主窗口内 Portal overlay（`FloatingContentBrowserContainer`/`FloatingChatContainer`），`pinned` 只是 z-index，拖拽钳在窗口内。方向：Electron 原生子窗口（`parent: mainWindow` + `alwaysOnTop`）+ `http://localhost:{serverPort}` 承载；renderer 新增顶层浮窗路由（上提至 ProjectScope 之外）；IPC 改多窗口；关闭策略（`window-all-closed` 即退，主窗关后浮窗孤儿）；位置持久化复用现有 `byProject` store。参见 `docs/dev/features/2026-09-19-native-float/design.md` §一§三。
 - [ ] **接通 File System Access API（native-float 拆分之二）**：打包版 `file://` opaque origin、跨源 iframe、零权限放行三层拦截（见 design §二）。方向：与原生子窗口同载体（localhost 安全上下文）；主进程 `session.setPermissionRequestHandler` 按路径/来源白名单放行 `fileSystem` 权限；HtmlCard/srcDoc 场景另需 `allow-modals` 沙箱安全评估；简易浏览器内跨源页仍不可用（spec 硬限制，只能走顶层/子窗口打开）。参见同上 §二§三。
+- [ ] **脏文件切 tab 疑似静默丢失（先真机确认）**：`useContentEditor` 的 requestLeave 只保 Back/Close 两个按钮，切 tab/点侧栏/换项目等导航路径无人问 dirty 态（dirty-paths store 只被文件树删除/移动消费）；editor state 随 unmount 消失。方向：先真机确认（脏文件→点别的 tab 看是否丢），确认后按上游 #104 的 `useBlocker` 方案收敛（fork 为 createHashRouter，data router 可用），替换 requestLeave 机制。参见上游 `ca3059b` design「未保存编辑守卫」节。
+- [ ] **更新弹窗显示目标版本更新日志（GitHub 源重做）**：上游 #126 经 OSS `changelog.json` 取 notes，fork 无 OSS 不可直接合（`df36455` 机制前提不存在）。方向：desktop 更新检查改经 GitHub Releases API 取目标版本 notes，填入既有 `releaseNotes` 槽位（`packages/desktop/electron/updater.ts` 已有字段透传、当前恒空），mac/Linux 对话框展示；主进程出网失败留空。landing 已有 releases 拉取解析 precedent（`packages/landing/src/lib/release.ts`、`changelog.ts）。
 
+- [ ] **补齐 `openFile` action 的 `newTab` 参数**：文件右键已直调 `openTab force`，HTML 卡片等程序化调用方只能 `navigate`（触发单复用槽替换）无法开新标签。方向：`open-file.ts` 加 `newTab?: boolean`（`force: true` 建 tab，tabs 关时降级 navigate，门控与 `onOpenInNewTab` 一致），补 handler 单测 + HTML 卡片调用示例。参见 `docs/dev/features/2026-09-10-file-list-ops/design.md` 增补调研 P2
+- [ ] **服务端草稿 token 精确预估接口**：输入框计数器现为草稿纯文本启发式（不含 profile/skills/worldbook/工具定义/历史），pill 为累计值，两者相加只是近似（v1.0.1 已落地）。方向：server 新增估算接口，把草稿套进当前会话 prompt 组装走一遍 core 现成 estimator（`pendingPromptEstimate` 同款），renderer 每键 debounce + 缓存调用；需定超时/失败降级。参见 `docs/dev/features/2026-10-12-token-display/design.md` §四。
+- [ ] **Agent 对话框关闭加未保存校验**：编辑页改动只活在本地草稿，取消/X 直接丢弃且无任何提示，易误读为“删了没生效”（2026-10-19 quick-reply 跟进实证：删徽章不点保存，聊天窗口自然不变）。方向：有关闭确认的 dirty 守卫（改动后关闭先问），与上条「脏文件切 tab」同类，可合并设计。参见 `docs/dev/features/2026-10-12-quick-reply/followup-2026-10-19.md`。
 ## 基础设施
 
 - [ ] **Linux 发行打磨（条件触发：出现 Linux 用户实际诉求时）**：当前 Linux 发布为 x64 AppImage + deb（CI linux matrix job，executableName 三平台统一 `Spherse`）。潜在跟进：arm64 构建、rpm/snap 等格式、Ubuntu 23.10+（AppArmor 限制 unprivileged userns）下 Electron SUID sandbox 启动失败的更优解（现为 README/下载页 sysctl workaround）。

@@ -1,6 +1,6 @@
 import type { AgentSummary } from "../../lib/types";
 import { Button } from "../../components/ui/button";
-import { XIcon } from "lucide-react";
+import { SearchIcon, XIcon } from "lucide-react";
 import { useI18n } from "@spherse/i18n/react";
 import { cn } from "../../lib/utils";
 import { CompactButton } from "./CompactButton";
@@ -14,6 +14,7 @@ interface HeaderProps {
   onCompact?: () => void;
   compacting?: boolean;
   compactDisabled?: boolean;
+  onFind?: () => void;
 }
 
 function basename(path: string): string {
@@ -22,11 +23,18 @@ function basename(path: string): string {
   return match ? match[1] : name;
 }
 
-export function Header({ agent, quickLinks, activeQuickLink, onQuickLink, onClose, onCompact, compacting, compactDisabled }: HeaderProps) {
+function isMacPlatform(): boolean {
+  const nav = navigator as Navigator & { userAgentData?: { platform?: string } };
+  const platform = nav.userAgentData?.platform ?? nav.platform ?? "";
+  return /mac/i.test(platform);
+}
+
+export function Header({ agent, quickLinks, activeQuickLink, onQuickLink, onClose, onCompact, compacting, compactDisabled, onFind }: HeaderProps) {
   const { t } = useI18n();
   const links = quickLinks?.filter((p, i, arr) => arr.indexOf(p) === i) ?? [];
+  const findTitle = `${t("chat.find.open")} (${isMacPlatform() ? "⌘F" : "Ctrl+F"})`;
   return (
-    <div className="flex items-center gap-2 border-b border-border bg-background px-4 py-3" data-chat-header>
+    <div className="flex items-center gap-2 border-b border-border bg-background px-4 py-2" data-chat-header>
       <span className="font-semibold text-[15px]">{agent.name}</span>
       {links.length > 0 && (
         <div
@@ -61,11 +69,23 @@ export function Header({ agent, quickLinks, activeQuickLink, onQuickLink, onClos
           className={cn(links.length === 0 && "ml-auto", "text-muted-foreground")}
         />
       )}
+      {onFind && (
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className={cn(links.length === 0 && !onCompact && "ml-auto", "text-muted-foreground")}
+          onClick={onFind}
+          title={findTitle}
+          aria-label={findTitle}
+        >
+          <SearchIcon className="size-3.5" />
+        </Button>
+      )}
       {onClose && (
         <Button
           variant="ghost"
           size="icon-sm"
-          className={links.length > 0 || onCompact ? "" : "ml-auto"}
+          className={links.length > 0 || onCompact || onFind ? "" : "ml-auto"}
           onClick={onClose}
           title={t("chat.close")}
         >

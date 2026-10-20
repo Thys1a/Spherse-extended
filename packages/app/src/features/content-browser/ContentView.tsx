@@ -228,7 +228,7 @@ export function ContentView({
       <div className="flex min-h-0 flex-1 flex-row">
         <div ref={mergeRefs(contentRef, scrollRef)} className="min-w-0 flex-1 overflow-y-auto p-4">
           {loading && <p className="p-8 text-center text-muted-foreground">{t("common.loading")}</p>}
-          {error && <p className="p-8 text-center text-destructive">{error}</p>}
+          {error && <p className="p-8 text-center break-words text-destructive">{error}</p>}
           {!loading && !error && binary && <UnsupportedFileCard filePath={filePath} />}
           {!loading && !error && !binary && content !== null && (
             isMarkdown ? (

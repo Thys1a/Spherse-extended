@@ -12,6 +12,7 @@ spherse/
 │   │       ├── project-manager.ts    # ProjectManager：数据访问门面（server 不得见 store 实例）+ 写入门面（writeFile/writeBinaryFile/createEntry/deletePath/copyFileWithin = resolve+policy+per-path mutex）
 │   │       ├── project-runtime.ts    # ProjectRuntime：轻量协调层（capability 生命周期遍历：onAgentDeleted/invalidateAgent/shutdown；triggerManager/timerService 为 derived getter）
 │   │       ├── tool-attribution.ts     # ToolAttributionRegistry（turn 归因：(sessionId, toolCallId)→turnSeq 注册表）+ deriveSideEffects（tool result details→sideEffects 派生表）
+│   │       ├── marketplace-project.ts # 项目市场安装服务（zip 下载解压安装）
 │   │       ├── kernel/               # 内核：零 I/O 纯组合子（capabilities 与 session 的公共契约层）
 │   │       │   ├── capability.ts     # Capability 接口（tools/contextBlocks/contextProjectors/turnHooks/attachmentProcessors/pathRules/eventMiddlewares/init/onAgentDeleted/invalidateAgent/shutdown）+ TurnMiddlewareSource + CapabilityRegistry
 │   │       │   ├── ports.ts          # SessionPort / ToolHost / SessionView（窄视图）/ StoreRegistry（含 forAgent 作用域）/ KernelServices（PathRule 定义在 access/path-category.ts，kernel 仅 type 引用）
@@ -35,6 +36,7 @@ spherse/
 │   │       │   ├── tool-output-budget/ # toolResult 上下文预算（单条 32KB 截断 projector + 近 5 轮外收缩 projector，覆盖本地/MCP 工具）
 │   │       │   ├── time-perception/ # streamDecorators 贡献（<time> 前缀注入）+ previewTransforms（debug snapshot 重放）+ 提示 block；感知时间数学在 time-perception.ts
 │   │       │   ├── memory/           # memory capability（memory_save/recall 工具接线 + <memory> block；MemoryStore 在 store/memory.ts）
+│   │       │   ├── web-search/      # web_search 联网搜索工具 + WebSearchBackend 注入（baseUrl/model/apiKeyEnv）
   │   │       │   ├── card/             # CardStore（.card.json 世界书读写：解析/检索/原子写；经 factory 挂 runtime.cardStore，server card 路由消费）+ worldbook.ts（matchWorldbook 世界书命中 + contextProjector 逐轮注入 + token/条目预算 + agent 外链增删查）
 │   │       │   ├── rollback/           # rollback_turn 工具（turn 级 undo：读 SessionManager 自注册的 side-effect 源，经 stores registry 桥接）
 │   │       │   ├── shared/           # llmPolicyOf 等跨能力共享工具
@@ -49,6 +51,7 @@ spherse/
 │   │       │   ├── model-resolver.ts # resolveFor / resolveOrThrow（catalog 注入）
 │   │       │   ├── events.ts / event-log.ts # SessionEvent 词汇表 + append-only SessionEventLog 门面
 │   │       │   ├── fold.ts           # events → AgentMessage 投影 + open-turn repair
+│   │       │   ├── search.ts        # 会话消息全文检索（SQLite LIKE 预筛 + JS 精筛 + abandoned/compaction 排除）
 │   │       │   ├── legacy-migrate.ts # messages/compactions → events 按会话幂等迁移
 │   │       │   ├── read-context-files.ts # profile 声明 context 文件读取（注入 systemPrompt 的 preloaded block；access policy 过滤）
 │   │       │   ├── event-middlewares.ts # log/persist（session 层不变量）
@@ -60,14 +63,14 @@ spherse/
 │   │       │   ├── session.ts        # SQLite session 持久化（events 主写；messages/compactions legacy 只读）
 │   │       │   ├── trigger.ts / skill.ts / mcp-config.ts / memory.ts / agent-profile.ts / agent-slug.ts / project-config.ts
 │   │       ├── tools/                # AgentTool 实现体（capability 的实现层，无注册表）
-│   │       │   ├── read/write/edit/list/search/move/copy-file.ts、run-command.ts、ask-user.ts、manage-agent.ts、manage-trigger.ts、manage-project-config.ts、emit-trigger-event.ts、load-skill.ts、render-card.ts、generate-image.ts、append-changelog.ts、memory-save.ts、memory-recall.ts、with-approval.ts、json-check.ts、output-limits.ts（工具输出截断共享常量）
+│   │       │   ├── read/write/edit/list/search/move/copy-file.ts、run-command.ts、ask-user.ts、manage-agent.ts、manage-trigger.ts、manage-project-config.ts、emit-trigger-event.ts、load-skill.ts、render-card.ts、generate-image.ts、append-changelog.ts、memory-save.ts、memory-recall.ts、with-approval.ts、json-check.ts、output-limits.ts（工具输出截断共享常量）、web-search.ts（web_search 联网搜索工具）
 │   │       ├── trigger/              # TriggerManager（门面：CRUD+事件+委派）/ scheduler（时间调度状态）/ executor（fire 执行+日志）/ TimerService / template / validation
 │   │       ├── access/               # path-category（内置 PATH_PATTERNS + PathRule 类型 + 注册规则优先）/ access-policy（llm/server 工厂，裁决优先级 deniedPaths > pathRules > 白名单）/ denied-paths
 │   │       ├── context/              # context window 管理域（跨层共享纯函数）：compaction（planCompaction/sanitizeToolCallPairs）/ token-estimate / truncated-turn（length 退化轮判定与标 error）
 │   │       ├── attachments/          # 附件域：AttachmentProcessor 端口 + image-processor + sanitizer（base64 卫生不变量）+ strip/sanitize
 │   │       ├── mcp/                  # mcp-client（连接与工具适配）/ mcp-connection-manager / config / types / json-schema-to-typebox
 │   │       ├── model-providers/      # ModelCatalog 类（per-runtime 实例，所有权在组合根）+ zhipu/openai images + index（仅 images 静态目录导出）
-│   │       ├── utils/                # file-write-mutex（全链路唯一实例）/ fs-walk / path-safety / binary-detect / xml-escape / settle-within（shutdown 等待有界化）
+│   │       ├── utils/                # file-write-mutex（全链路唯一实例）/ fs-walk / path-safety / binary-detect / xml-escape / settle-within（shutdown 等待有界化）、fs-move.ts（原子目录移动）
 │   │       ├── __tests__/            # Vitest 单元测试（kernel/capabilities/session/access/tools 分组）
 │   │       └── index.ts              # 公开导出（显式清单，按外部消费面收紧）
 │   ├── presets/                      # @spherse/presets — 内置模板与预置静态内容
@@ -78,10 +81,6 @@ spherse/
 │   │   │   ├── agent-theme-template.css # Agent 聊天窗口主题模板源文件
 │   │   │   ├── agents-index-template.md # 新项目 AGENTS.md 模板源文件
 │   │   │   ├── preset-agents/        # 预置 agent 模板源文件（<dir>.md 完整 profile，由 presets.json 的 presetAgents 声明）
-│   │   │   └── prompt-templates/     # 预置 prompt template 源文件（<id>.md，由 presets.json 的 presetPromptTemplates 声明）
-│   │   ├── sample-projects/          # 内置示例项目源（新用户引导页「打开示例项目」拷贝到用户选定位置；manifest.json + 各示例完整项目树）
-│   │   │   ├── manifest.json         # 示例清单（[{ id, displayName, dirName }]）
-│   │   │   └── harry-potter/         # Harry Potter 示例项目（完整项目树，含 .spherse/project.yaml、agents、文档）
 │   │   ├── skills/                   # 内置 skill 源（app 内置只读，通过 SkillStore 内存合并；新项目不再注入到 .spherse/skills/）
 │   │   │   ├── spherse-guide/        # Spherse 功能介绍、快速上手、目标导向使用引导与常见问题
 │   │   │   │   └── SKILL.md
@@ -160,11 +159,14 @@ spherse/
 │   │       ├── content.ts            # FileEntry、ContentResponse、create/save 请求
 │   │       ├── card.ts               # card.* 10 组 Request/Response + CardErrorCode（card_not_found/…/too_large）
 │   │       ├── file-tree.ts          # FileTreeResponse
-│   │       ├── settings.ts           # ProviderCatalog、AiAccess/WelcomePage/Theme Request/Response
+│   │       ├── settings.ts           # ProviderCatalog、AiAccess/WelcomePage/SidePanel/Theme Request/Response + ModelSettingsRequest/Response（模型 key 脱敏 sanitize 形状）+ WebSearchSettingsRequest/Response
 │   │       ├── trigger.ts            # TriggerEntry、TriggerCreate/Update 请求、List/Log Response
 │   │       ├── skills.ts             # SkillDefinition（含可选 version）、SkillList/Create/Install Request 响应与请求 schema
 │   │       ├── marketplace.ts        # MarketplaceSkillEntry、MarketplaceManifestResponse、SkillMarketplaceInstallRequest（{name, version}）
-│   │       ├── debug.ts              # TurnContextSnapshot
+│   │       ├── project-marketplace.ts # 项目市场 manifest/安装 wire 契约
+│   │       ├── prompt-marketplace.ts # 提示词模板市场 manifest/安装 wire 契约
+│   │       ├── upload.ts            # 文件上传 UploadResponse
+│   │       ├── debug.ts             # TurnContextSnapshot + sessionEventLog（事件日志查看器）
 │   │       ├── websocket.ts          # ChatClientMessage/ChatServerEvent/ChatReplayEvent（协议 v2：session_ready/replay_events/user_message/turn_retried、close code 族）+ parser
 │   │       └── __tests__/            # 契约测试（正向通过 / 负向抛 Invalid payload + Fastify coercion 兼容）
 │   ├── server/                       # @spherse/server — Fastify API 层
@@ -178,6 +180,9 @@ spherse/
     │   │       ├── registry.ts           # ProjectRegistry：Map<projectId, ProjectContext>，项目 register/remove（removal barrier + onRuntimeRemoved 观察者）
     │   │       ├── shutdown.ts           # closeMultiProjectServer()：hub → registry → fastify 关停顺序、阶段超时与失败隔离
     │   │       ├── marketplace.ts        # 技能市场 service：OSS manifest 代理（30s 内存缓存，env SPHERSE_MARKETPLACE_MANIFEST_URL 可覆盖 URL）+ zip 下载（同源 SSRF 校验、50MB 上限）
+    │   │       ├── model-settings.ts    # 模型配置 store（原子写/sanitize 脱敏）+ env 应用
+    │   │       ├── web-search-settings.ts # 搜索配置 store（原子写/sanitize 脱敏）+ env 应用
+    │   │       ├── prompt-marketplace.ts # 提示词模板市场 service
 │   │       ├── routes/               # REST 路由，按业务域拆分
 │   │       │   ├── index.ts          # registerAllRoutes 聚合
 │   │       │   ├── agents.ts         # Agent 查询与 raw 内容读取
@@ -190,7 +195,10 @@ spherse/
 │   │       │   ├── preview.ts        # HTML 文件预览服务
 │   │       │   ├── skills.ts         # Skill 列表、详情与创建/安装路由
     │   │       │   ├── marketplace.ts    # 技能市场路由（GET /marketplace/skills 代理 manifest；POST /skills/marketplace-install 按 {name, version} 下载 zip 并覆盖安装）
-│   │       │   ├── settings.ts       # 文本/图片 Provider 列表（GET /api/settings/providers、/image-providers）+ 项目 settings API（AI 读取禁止列表、欢迎页、主题 CSS）
+    │   │       │   ├── project-marketplace.ts # 项目市场路由（manifest 浏览/安装）
+    │   │       │   ├── prompt-marketplace.ts # 提示词模板市场路由
+    │   │       │   ├── upload.ts            # 文件上传路由（设备拖拽/DnD 入口）
+│   │       │   ├── settings.ts      # 文本/图片 Provider 列表 + 项目 settings API（AI 读取禁止列表、欢迎页、侧边面板、主题 CSS）+ 模型/搜索配置（GET/PUT /api/settings/models、/web-search）
 │   │       │   ├── images.ts         # 图片导出 API（POST /api/projects/:projectId/images/export，将生成的图片复制到项目目标路径）
 │   │       │   ├── attachments.ts    # 通用附件上传/删除 API（POST/DELETE /api/projects/:projectId/attachments，图片落盘 .spherse/attachments/）
 │       │       │   ├── trigger.ts         # 触发器 CRUD 与手动触发（/triggers、/trigger-logs、/run）
@@ -226,9 +234,14 @@ spherse/
 │   │       │   ├── project-key.ts    # project path → URL projectKey 生成
 │   │       │   ├── tool-registry.ts  # 前端权限分组元数据（TOOL_GROUPS：读取文件/写入文件/独立工具）
 │   │       │   ├── types.ts          # 前端类型
+│   │       │   ├── categories.ts    # 文件分类派生（category 去重）
+│   │       │   ├── connect-payload.ts # 扫码连接载荷类型（baseUrl/token）
+│   │       │   ├── project-page-paths.ts # 欢迎页/侧边面板路径归一化（renderer 侧镜像校验）
+│   │       │   ├── route-params.ts      # messageId 路由参数解析/剥离（全局搜索定位）
+│   │       │   ├── session-title.ts    # 会话回退标题（无标题时 updatedAt 本地时间串）
 │   │       │   ├── electron-api.ts   # 全局 Window.electronAPI 类型声明（类型来自 @shared/electron-api）
 │   │       │   ├── use-project-navigation.ts # 项目级导航 hook（back 不跨项目边界，模块级 per-project 历史栈）
-│   │       │   ├── use-connection.ts  # useApiClient(projectId) / useConnection() — 基于 app-store connection 派生 ApiClient
+│   │       │   ├── use-connection.ts  # useApiClient(projectId) / useConnection() + useGlobalApiClient()（全局 REST 客户端，模型/搜索配置用） — 基于 app-store connection 派生 ApiClient
 │   │       │   ├── urls.ts            # 官网域派生的集中 URL 常量（WEB_APP_URL/DOCS_URL/EXPLORE_URL/DOWNLOAD_PAGE_URL）
 │   │       │   ├── ws/                # 通用 WS 连接抽象：ws-connection.ts（WsConnection 状态机——idle/connecting/open/waiting-backoff/failed/fatal/closed、心跳 awaitingPongSince、退避重试、probe；bus 与 chat（PR3 起）共用）
 │   │       │   ├── utils.ts          # shadcn/ui cn() 工具
@@ -236,13 +249,14 @@ spherse/
 │   │       │       └── last-route.ts # per-project lastRoute localStorage helper（spherse:last-route:<projectId>）
 │   │       ├── context/
 │   │       │   └── project-context.tsx # ProjectProvider / useProjectCtx — project scope 的 ctx 注入（projectId/projectRoot）
-│   │       ├── queries/                 # TanStack Query 基础设施：client、key factory、project/content/skills/welcome-page/theme-settings/triggers 服务端状态
+│   │       ├── queries/                 # TanStack Query 基础设施：client、key factory、project/content/skills/welcome-page/theme-settings/triggers/custom-side-panel/session-search/marketplace-projects/marketplace-prompts 服务端状态
 │   │       ├── stores/
 │   │       │   ├── app-store.ts          # 打开项目集合、当前项目（含 lastOpened 排序）、Electron IPC 动作
 │   │       │   ├── project-data-store.ts # 前端运行时投影（当前仅 initialMessage 交接）
 │   │       │   ├── app-ui-store.ts       # 应用级临时 UI 状态（settings 弹窗 open 状态等）
 │   │       │   ├── settings-store.ts     # 应用级 locale/theme/debugTools 等持久化设置（与设置文件同步）
 │   │       │   ├── side-panel-store.ts   # side panel pinned/hover 折叠机制（全局 UI 状态，localStorage 持久化）+ 移动端 mobileOpen 滑出态（与桌面解耦）
+│   │       │   ├── custom-side-panel-store.ts # 自定义侧边面板显隐态（per-project 缺省显示，localStorage 只存显式关闭）
 │   │       │   └── bus-store.ts          # 全局多路复用 WebSocket 连接 store
 │   │       ├── layouts/
 │   │       │   ├── ProjectScope.tsx      # 项目工作区 layout route（真嵌套路由），挂 ProjectProvider + Outlet 与项目级 hook
@@ -269,6 +283,7 @@ spherse/
 │   │       │   │   ├── subscription-registry.ts # iframe 订阅、过滤与定向投递
 │   │       │   │   ├── types.ts                 # subscribe/unsubscribe/push 协议类型
 │   │       │   │   └── file-update.ts           # 文件路径规范化、payload 校验与 300ms 去抖
+│   │       │   │   └── navigate.ts             # 搜索命中定位导航事件路由解析
 │   │       │   ├── index.ts              # barrel export + handler side-effect import
 │   │       │   └── handlers/
 │   │       │       ├── chat-dock.ts     # chat.dock/rect/undock：聊天卡片嵌入面板（source→iframe 匹配、会话校验、slotRect 登记，chat.dock/rect 免配额）
@@ -283,26 +298,33 @@ spherse/
 │   │       │       ├── data.ts           # data.get/set/delete key-value 持久化
 │   │       │       ├── card.ts           # card.* 世界书读写薄代理（.card.json 前置校验 + 服务端错误码透传）
 │   │       │       └── api.ts            # api.call 只读 HTTP bridge（op 白名单转发 ApiClient，agents/sessions/content/fileTree）
+│   │       │       └── upload-file.ts   # uploadFile action（HTML 卡片上传文件到项目目录）
 │   │       ├── features/
 │   │       │   ├── activity-bar/         # 自治型 Activity Bar（项目头像轨、设置/添加按钮），内部读 app-store/app-ui-store 与 useProjectActions；pin 按钮通过 pinToggle prop 可选注入
 │   │       │   ├── agent-trigger/        # Agent 触发器弹窗、表单、列表与运行日志，含 running 运行态 feature store 与 TriggerEventBridge（trigger 域唯一事件接线：查询失效 + 运行态 + 通知）
+│   │       │   ├── agent-dialog/        # Agent 对话框（含 ModelConfigField、PromptTemplatesDialog 提示词模板选择、QuickReplyField 快捷回复入口行、QuickReplyManagerDialog 快捷回复管理弹窗）
 │   │       │   ├── agent-session-list/   # Agent/session 分组列表，含 AgentDialog/SearchFileField 与折叠状态 feature store
-  │   │       │   ├── chat/                 # 对话 feature；model/ 放 Entry 归约、历史合并、MessageGroup 组装与卡片投影，runtime/ 放 session store、link/recovery/lifecycle/queue 等运行时模块，hooks/ 放 UI hooks（含 useSelectionMenu 选择菜单、useDataLinkedRefresh 卡片联动刷新），lib/ 放纯函数（含 slash-menu/summon 解析发送、quote-fence 引用围栏、html-fence-parser 内联 HTML 提取、attachment-type），utils/ 放图片压缩（compress-image）；根目录保留页面组件、气泡组件（UserBubble/AssistantBubble/ToolItemView）、chat-agent-context、chat 专属类型与附件 UI（AttachmentBar/MessageAttachments）；扩展组件含 SelectionMenu（划选复制/引用）、SpeakButton + tts/（本地朗读）、SessionModelPill（会话级模型）、slash 解析（`lib/slash-menu`）/ summon 发送（`lib/use-summon-send`）/ 补全交互（`Composer` 内）
+  │   │       │   ├── chat/                 # 对话 feature；model/ 放 Entry 归约、历史合并、MessageGroup 组装与卡片投影，runtime/ 放 session store、link/recovery/lifecycle/queue 等运行时模块，hooks/ 放 UI hooks（含 useSelectionMenu 选择菜单、useDataLinkedRefresh 卡片联动刷新），lib/ 放纯函数（含 slash-menu/summon 解析发送、quote-fence 引用围栏、html-fence-parser 内联 HTML 提取、attachment-type），utils/ 放图片压缩（compress-image）；根目录保留页面组件、气泡组件（UserBubble/AssistantBubble/ToolItemView）、chat-agent-context、chat 专属类型与附件 UI（AttachmentBar/MessageAttachments）；扩展组件含 SelectionMenu（划选复制/引用）、SpeakButton + tts/（本地朗读）、SessionModelPill（会话级模型）、SessionTokensPill（会话 token）、QuickReplyBar（快捷回复）、slash 解析（`lib/slash-menu`）/ summon 发送（`lib/use-summon-send`）/ token 估算（`lib/estimate-tokens`，core 同名函数镜像）/ 补全交互（`Composer` 内）
 │   │       │   ├── content-browser/      # 文件浏览、预览（HTML/markdown/image）、编辑、复制路径/刷新、冲突提示，ContentQueryBridge 集中处理 fs-watch/reconnect 缓存失效；二进制文件拦截渲染占位卡 UnsupportedFileCard（桌面端经 HostCapabilities.openFileExternal 提供「用默认应用打开」按钮）
-│   │       │   ├── debug-tools/          # 调试菜单（开发模式或设置开启 debugToolsEnabled 时显示）+ Streaming Log 悬浮面板
+│   │       │   ├── custom-side-panel/   # 自定义侧边面板（透明 iframe + CustomSidePanelQueryBridge fs-watch 刷新）
+│   │       │   ├── debug-tools/         # 调试菜单（开发模式或设置开启 debugToolsEnabled 时显示）+ Streaming Log 悬浮面板 + 事件日志查看器（TurnContextDialog/EventLogRow/event-log-display）
 │   │       │   ├── docked-chat/          # 聊天 HtmlCard 嵌入的实时聊天面板（store 按 iframe source 记 dock 条目，DockedChatManager 合成 viewport rect portal 渲染 Chat；ui-sdk chat.dock/rect/undock 的消费方）
 │   │       │   ├── floating-chat/         # 浮动聊天窗口（Portal overlay、主题隔离），复用 components/floating-frame；含 useFloatingSessionId
 │   │       │   ├── floating-content-browser/ # 浮窗内容浏览器（多窗口、复用 ContentView 只读渲染 + components/floating-frame），含 useFloatedFilePaths；从文件树右键「浮窗」触发
+│   │       │   ├── global-search/           # 项目内全局搜索 dialog（聊天内容 + 文件名，快捷键定位跳转）
 │   │       │   ├── onboarding/           # 新用户引导页（无项目时 `/` 路由）：打开或创建项目 / 打开示例项目
-│   │       │   ├── project-panel/         # 项目侧栏内容（AgentSessionList/UserFilePanel/SkillPanel 薄组合层），作为 SidePanel 的静态 flex child
+│   │   │   ├── project-panel/         # 项目侧栏内容（AgentSessionList/UserFilePanel/SkillPanel 薄组合层 + 顶部全局搜索按钮），作为 SidePanel 的静态 flex child
+│   │       │   ├── project-market/       # 项目市场 dialog（浏览安装）
 │   │       │   ├── side-panel/           # 项目工作区左侧滑动单元：桌面端物理合并 ActivityBar + ProjectPanel 为同一 transform 容器（pinned/hover 滑入滑出）；移动端（useIsMobile 768px 断点）改为左下角浮动按钮 + 常驻 CSS 滑动面板（translate-x + backdrop，关闭态 inert），由解耦的 mobileOpen 状态控制
 │   │       │   ├── user-file-panel/      # Files section（SidebarGroup + AI 读取限制 dialog），复用 base components/file-tree
 │   │       │   ├── skill-panel/          # Skills section（三点菜单：技能市场/创建/安装技能 + CreateSkillDialog + MarketplaceDialog + marketplace-state 卡片状态推导），复用 base components/file-tree（rootPath=".spherse/skills"）
-│   │       │   ├── settings/             # 设置弹窗（文本/图片/通用/关于 tab，文本 tab 含默认模型 + 思考强度选择 ThinkingLevelField、高级采样参数，支持自定义 OpenAI 兼容供应商：CustomProviderDialog 创建/编辑、ModelProviderItem 行渲染、custom-provider-id id 生成）、更新检查 hook（useUpdateChecker reducer + 挂载恢复归位）与 UpdateChecker 组件、UpdateNoticeBridge（自动检测发现新版 → 全局右下角 toast，App 根挂载）、设置 store、类型与测试
+│   │       │   ├── settings/             # 设置弹窗（文本/图片/通用/关于 tab，文本 tab 含默认模型 + 思考强度选择 ThinkingLevelField、高级采样参数，支持自定义 OpenAI 兼容供应商：CustomProviderDialog 创建/编辑、ModelProviderItem 行渲染、custom-provider-id id 生成）、更新检查 hook（useUpdateChecker reducer + 挂载恢复归位）与 UpdateChecker 组件、UpdateNoticeBridge（自动检测发现新版 → 全局右下角 toast，App 根挂载）、设置 store、WebSearchPanel（搜索配置 REST 读写）、类型与测试
 │   │       │   ├── welcome-page/         # 项目欢迎页渲染（HTML iframe / 图片）+ WelcomePageQueryBridge（project.yaml fs-watch/reconnect → welcome-page 查询失效，ProjectRuntimeBridges 挂载）
+│   │       │   ├── web-disconnect/      # Web 端断开连接按钮
 │   │       │   ├── project-settings/     # 项目设置弹窗集合
 │   │       │   │   ├── welcome-page-settings/ # 项目欢迎页路径设置弹窗
 │   │       │   │   └── theme-settings/        # 项目主题 CSS 编辑弹窗 + ThemeQueryBridge（fs-watch/reconnect → theme-settings 查询失效，ProjectRuntimeBridges 挂载）
+│   │       │   │   └── side-panel-settings/  # 自定义侧边面板路径设置弹窗
 │   │       │   └── text-selection-session/ # 划选文本后发起会话
 │   │       ├── pages/
 │   │       │   ├── ChatPage.tsx          # Chat 路由 page，从 URL :sessionId 解析 session/agent 后渲染 Chat
@@ -311,7 +333,7 @@ spherse/
 │   │       │   └── WelcomePagePage.tsx   # Project index 路由 page，渲染 WelcomePage 空状态
 │   │       ├── components/
 │   │       │   ├── ui/                   # shadcn/ui 本地基础组件（Base UI 底层原语）与 TreeRow 等通用 UI 样式组件
-│   │       │   ├── file-tree/            # 可复用文件树基础组件（FileTree + 树模型 + controller hook + 通用 dialog），支持可选 rootPath/emptyLabel/onFloatFile/floatedFilePaths，被 user-file-panel 与 skill-panel 共用
+│   │       │   ├── file-tree/            # 可复用文件树基础组件（FileTree + 树模型 + controller hook + dnd 拖拽上传检测 + 通用 dialog），支持可选 rootPath/emptyLabel/onFloatFile/floatedFilePaths，被 user-file-panel 与 skill-panel 共用
 │   │       │   ├── floating-frame/       # 通用浮动窗口 chrome（拖拽/调整大小、titlebar、close），由 floating-chat 与 floating-content-browser 复用；hookPrefix 参数生成各自 data-*-float-* 主题钩子
 │   │       │   ├── find-bar/               # 通用查找条：FindBar（containerRef/contentKey/onClose 三 prop）+ useContentFind + find-engine（DOM 文本检索 + 高亮 + 滚动），由 content-browser 与 chat 共用
 │   │       │   ├── markdown-content/     # Markdown 渲染域：MarkdownContent（统一渲染组件，plain 模式用于用户消息）、CodeBlock、markdown-code-text（代码块文本抽取）、remark-plain-structure（plain 模式 remark 插件：list/table/thematicBreak 还原为带字面标记的文本行，保序号/行结构）
@@ -325,18 +347,21 @@ spherse/
 │   │   │   └── electron-api.ts       # Electron IPC 类型契约（renderer 与 main 共享，renderer 经 tsconfig @shared 别名引用）
  │   │   ├── electron/
 │   │   │   ├── bootstrap.ts          # Electron 入口引导：dev 环境重定向 userData 后加载 main
-│   │   │   ├── main.ts               # Electron 主进程：启动时 fixPath（打包版 PATH 修复）→ restoreEnvFromSettings → 组装窗口、IPC、项目 server 管理、启动延迟静默更新检查
+│   │   │   ├── app-id.ts             # Windows AppUserModelId 解析：仅 packaged 返回 `com.spherse.app`，dev 用 Electron 默认（任务栏不混组）
+│   │   │   ├── stale-electron-shortcut.ts # 同 ID 残留 `Electron.lnk` 清理：lnk 二进制直读 AUMID/target，三条件谓词命中才删（`Spherse.lnk`/异 ID 一律保留）
+│   │   │   ├── main.ts               # Electron 主进程：启动时 fixPath（打包版 PATH 修复）→ migrateLegacySettings → 组装窗口、IPC、项目 server 管理、启动延迟静默更新检查
+│   │   │   ├── lifecycle.ts         # 退出生命周期（beginQuit/isQuitting 守卫，quit 统一入口）
+│   │   │   ├── tray.ts             # 系统托盘（closeToTray 常驻与退出菜单）
 │   │   │   ├── fix-path.ts           # 打包版 PATH 修复：仅 packaged + darwin/linux，spawn 用户登录 shell（$SHELL -lic 'echo $PATH'，TERM=dumb，3s 超时）拉取登录 shell 的 PATH，剥离 ANSI/控制字节后按去重保序前置合并进 process.env.PATH（dev/test/win32 no-op，失败保留原 PATH 不阻断启动）；修复 GUI 进程不继承 shell PATH 导致 stdio MCP server（uvx/npx/python）找不到可执行文件
 │   │   │   ├── crash-log.ts          # 崩溃取证落盘（userData/logs/crash.jsonl）+ renderer 自愈决策纯函数（reload/recreate/退避）
 │   │   │   ├── preload.ts            # contextBridge，IPC 白名单（含更新检查 main→renderer 事件订阅）
 │   │   │   ├── updater.ts            # 更新检测：本仓库 GitHub Releases（latest 非预发布）+ compareVersions + 平台 downloadUrl 解析（electron-updater 仅保留 Windows in-app 下载 API，feed 已废弃）、silent 检测不改写交互状态、startAutoUpdateChecks 调度（启动 5s + 每小时 tick，≥24h 且用户活动时静默检测）
-│   │   │   ├── sample-projects.ts    # 内置示例项目资源路径解析（dev/packaged）+ manifest 读取（供 onboarding「打开示例项目」）
 │   │   │   ├── unsafe-location.ts    # 项目路径「易失区」判定：getUnsafeZoneRoot 计算更新时会被覆盖清空的目录（win32 = dirname(process.execPath)，NSIS 卸载器 RMDir /r $INSTDIR 作用域；darwin = .app bundle 目录；dev/linux 无，dev 下 SPHERSE_UNSAFE_ZONE env 可覆盖供 E2E 指定），isInsideUnsafeZone 经 @spherse/core 的 isPathInside 判断（打开/示例项目 IPC 弹警告框用）
 │   │   │   ├── ipc/                  # IPC handler 注册，按业务域拆分
 │   │   │   │   ├── index.ts          # registerAllIpc 聚合
+│   │   │   │   ├── host-prefs.ts    # 通用/桌面偏好读写 IPC（get/save-general-prefs、get/save-desktop-prefs）
 │   │   │   │   ├── project.ts        # 项目选择、server 启停、打开项目持久化、打开示例项目、打开项目文件夹（shell.openPath）、用默认应用打开文件（openFileExternal）；confirmUnsafeLocation 对安装目录内路径弹警告框（默认取消），restore-projects 恢复后对存量易失区项目每会话弹一次迁移警告
 │   │   │   │   ├── open-file-path.ts # isInsideAnyOpenProject 路径校验辅助（openFileExternal handler 使用，校验路径在已打开项目内）
-│   │   │   │   ├── settings.ts       # 设置读取/保存与 provider 列表
 │   │   │   │   ├── updater.ts        # 更新检查 IPC（check/download/install/cancel/get-state/get-app-version/open-external）
 │   │   │   │   ├── skill.ts          # 技能 zip 安装原生文件选择器（select-skill-zip）
 │   │   │   │   ├── context-menu.ts   # 文本框原生右键菜单：webContents 'context-menu' 事件（isEditable 门控，editFlags 控制 enable，i18n 本地化 undo/redo/cut/copy/paste/selectAll）
@@ -346,9 +371,10 @@ spherse/
 │   │   │   │   ├── provider.ts        # TunnelProvider / TunnelSession 抽象接口（预留未来扩展）
 │   │   │   │   ├── cloudflare-provider.ts # Cloudflare Quick Tunnel 实现：spawn cloudflared tunnel --url、stdout 抓取 *.trycloudflare.com URL、packaged 二进制路径解析
 │   │   │   │   └── manager.ts         # TunnelManager 单例：start/stop/restart 状态机 + onStateChange 事件订阅
-│   │   │   ├── window.ts             # BrowserWindow 创建与管理
-│   │   │   ├── server.ts             # server 实例管理（ensure/restart/stop，恒带 serverToken 鉴权）+ 动态 host 重放（syncAllowedHosts）+ defaultModel 更新
+│   │   │   ├── window.ts             # BrowserWindow 创建与管理（packaged 下 `setAppDetails` 显式申报任务栏身份：appId/icon/relaunch）
+│   │   │   ├── server.ts             # server 实例管理（ensure/restart/stop，恒带 serverToken 鉴权）+ 动态 host 重放（syncAllowedHosts）+ 模型/搜索配置路径透传（ensureServer 传 modelSettingsPath/webSearchSettingsPath）
 │   │   │   └── settings.ts           # electron-store 封装 + env 管理（含 syncCustomProviders）+ openProjects/locale/mobileAccess 持久化 + serverToken（顶层 key，getServerToken 迁移链）+ generateAccessToken
+│   │   │   └── migrate-legacy-settings.ts # 旧 settings 一次性迁移（备份 + 分区落盘 + 删旧键）
 │   │   └── e2e/                      # Playwright E2E 测试
 │   │       ├── helpers/
 │   │       │   ├── electron.ts       # Electron 应用启动辅助（测试项目创建、app launch）
@@ -357,14 +383,18 @@ spherse/
 │   │       │   └── chat-history.ts   # Chat history E2E 辅助（event log fixture + sessions.db 播种）
 │   │       ├── agent-dialog.spec.ts  # Agent 对话框搜索文件 E2E 测试
 │   │       ├── agent-quick-links.spec.ts # 快捷链接 E2E 测试（桌面浮窗存活 / 移动端滑出面板 toggle）
+│   │       ├── agent-quick-replies.spec.ts # 快捷回复 E2E 测试（回复按钮填入输入框）
 │   │       ├── app-launch.spec.ts    # App 启动验证 smoke test
 │   │       ├── packaged-smoke.spec.ts # 打包产物冒烟测试（SPHERSE_SMOKE=1 门控：启动 electron-builder unpacked 二进制，验证 renderer 挂载 + server /health + 版本号；release CI 在 arch 匹配的 matrix job 上必跑）
 │   │       ├── chat-streaming-resilience.spec.ts # Chat streaming 切换 session/后台流式/E2E WebSocket mock
 │   │       ├── chat-history-render.spec.ts # Chat history 渲染 E2E 测试（全事件类型 fixture + retried/withdrawn 淘汰语义）
 │   │       ├── project-close.spec.ts # 项目关闭 E2E 测试（streaming 中关闭断连 runtime、重启后干净重开）
+│   │       ├── close-to-tray.spec.ts # 关闭行为 E2E（closeToTray 开启常驻托盘 / 关闭直接退出）
 │   │       ├── unsafe-location-guard.spec.ts # 易失区拦截 E2E 测试（SPHERSE_UNSAFE_ZONE + SPHERSE_E2E_DIALOG_RESPONSE seam：拒绝/确认 open-project、存量项目启动警告）
 │   │       ├── file-tree.spec.ts     # 文件树 E2E 测试（展开折叠、创建删除、溢出截断）
 │   │       ├── agent-list.spec.ts              # Agent 列表展开折叠与会话重命名 E2E 测试
+│   │       ├── project-marketplace.spec.ts    # 项目市场 E2E
+│   │       ├── prompts-marketplace.spec.ts   # 提示词模板市场 E2E
 │   │       ├── floating-chat.spec.ts            # 浮窗聊天 E2E 测试（浮窗/关闭/拖动/调整大小/项目切换）
 │   │       ├── text-selection-session.spec.ts  # 划选会话 E2E 测试
 │   │       ├── ui-sdk.spec.ts          # UI SDK postMessage action E2E 测试
@@ -382,22 +412,24 @@ spherse/
 │   │       ├── main.tsx              # 注入 WebHostBridge 调 createAppRoot
 │   │       ├── host-bridge-web.tsx   # HostBridge 的 Web 实现（HTTP+localStorage 子集、token 探活、disconnect）
 │   │       └── pages/MobileConnectPage.tsx # 扫码/手动输入连接页
-│   ├── landing/                      # @spherse/landing — GitHub Pages 项目介绍页（自定义域名 spherse.mengru.work）
-│   │   ├── vite.config.ts            # 标准 Vite 构建配置（base: "/"，自定义域名根路径部署）
+│   │       └── connect/                   # 连接页拆分（ManualPanel 手动输入 + ScanPanel 扫码 + qr-decode 解析）
+│   ├── landing/                      # @spherse/landing — GitHub Pages 项目介绍页）
+│   │   ├── README.md                # 包级说明：UI chrome 文案走 catalog、长文走三语 md
+│   │   ├── vite.config.ts            # 标准 Vite 构建配置（base: "/"）
 │   │   ├── vitest.config.ts          # 单测配置（jsdom 环境，release.ts 下载链接解析逻辑）
 │   │   ├── index.html                # 入口 HTML
 │   │   ├── public/                   # 静态资源（截图、主题 CSS）
-│   │   │   ├── CNAME                # GitHub Pages 自定义域名声明（内容 spherse.mengru.work）
 │   │   │   ├── screenshots/          # 轮播截图 + feature 浮层截图
 │   │   │   └── themes/              # 轮播切换时动态加载的主题 CSS（覆盖 --sp-* 变量）
 │   │   └── src/
 │   │       ├── styles.css            # Tailwind v4 + --sp-* token 体系（从 app 精简复制）
-│   │       ├── lib/                  # release.ts（GitHub Releases 解析 + 平台/架构检测选安装包）、changelog.ts（GitHub releases 列表拉取）、urls.ts（GitHub 仓库 URL 常量派生）及单测
+│   │       ├── lib/                  # release.ts（GitHub Releases 解析 + 平台/架构检测选安装包）、changelog.ts（GitHub releases 列表拉取）、urls.ts（GitHub 仓库 URL 常量派生）、docs.ts（content/docs 三语 md 加载 + locale 回退）及单测
 │   │       ├── i18n/                 # landing 专属 i18n（复用 @spherse/i18n 类型与 locale 工具，自建 catalog）
 │   │       │   ├── index.ts          # useLandingI18n hook + localStorage 持久化
 │   │       │   └── locales/          # zh-CN / zh-TW / en 三语
-│   │       ├── components/           # 页面组件（Hero、Carousel、FeatureCards、DownloadPage、FeatureModal、LanguageSwitcher 等）
+│   │       ├── components/           # 页面组件（Hero、Carousel、FeatureCards、DownloadPage、FeatureModal、LanguageSwitcher、DocsPage、DocsArticlePage、DocMarkdown 等）
 │   │       │   └── ui/              # 从 app 复制的 shadcn 组件（button、dialog）
+│   │       ├── content/docs/          # 三语 md 教程（<id>.<locale>.md，以 # 标题开头，/docs 列表自动收录）
 │   │       └── data/                # 轮播与 feature 配置数据
 ├── scripts/
 │   ├── rebuild-native.mjs            # Electron native dependency rebuild
@@ -434,6 +466,7 @@ spherse/
 │       ├── pr-build.yml              # PR 触发的 CI：checkout + npm ci + npm run verify（lint/build/typecheck/单测/i18n check）
 │       ├── e2e.yml                   # PR 触发的 CI：macOS runner 跑 Electron E2E 全套（非 required，结果仅供参考；docs-only 跳过）
 │       └── deploy-pages.yml          # main 分支 landing/web/i18n 变更或发版流水线 workflow_dispatch 触发的 CI：构建并部署到 GitHub Pages
+│       └── deploy-web-dev.yml       # dev 分支推送自动部署 web 开发环境
 ├── .husky/
 │   └── pre-commit                    # Husky pre-commit 钩子（执行 npm run lint）
 ├── AGENTS.md                         # agent/新成员入口：文档地图 + 命令 + 红线（细节单一权威来源 + 链接）

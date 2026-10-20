@@ -40,6 +40,11 @@ export function UserFilePanel() {
     if (contentPath && deletedPaths.some((p) => contentPath === p || contentPath.startsWith(`${p}/`))) {
       if (projectId) navigate(`/project/${projectId}`);
     }
+    if (!projectId) return;
+    for (const deletedPath of deletedPaths) {
+      useSplitStore.getState().closeDeletedSplit(projectId, deletedPath);
+      useTabStore.getState().closeDeletedTabs(projectId, deletedPath);
+    }
   };
 
   const handleRenamed = (oldPath: string, newPath: string) => {
@@ -102,6 +107,7 @@ export function UserFilePanel() {
                   : undefined
               }
               readOnly={!canMutate}
+              uploadsEnabled={canMutate}
             />
           </SidebarGroupContent>
         </SidebarGroup>

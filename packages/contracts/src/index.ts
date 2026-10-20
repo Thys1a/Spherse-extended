@@ -5,11 +5,14 @@ import * as content from "./content.js";
 import * as data from "./data.js";
 import * as card from "./card.js";
 import * as fileTree from "./file-tree.js";
+import * as upload from "./upload.js";
 import * as settings from "./settings.js";
 import * as schedules from "./trigger.js";
 import * as skills from "./skills.js";
 import * as commands from "./commands.js";
 import * as marketplace from "./marketplace.js";
+import * as projectMarketplace from "./project-marketplace.js";
+import * as promptMarketplace from "./prompt-marketplace.js";
 import * as debug from "./debug.js";
 import * as bus from "./bus.js";
 import * as websocket from "./websocket.js";
@@ -23,11 +26,14 @@ export const schemas = {
   ...data.schemas,
   ...card.schemas,
   ...fileTree.schemas,
+  ...upload.schemas,
   ...settings.schemas,
   ...schedules.schemas,
   ...skills.schemas,
   ...commands.schemas,
   ...marketplace.schemas,
+  ...projectMarketplace.schemas,
+  ...promptMarketplace.schemas,
   ...debug.schemas,
   ...bus.schemas,
   ...websocket.schemas,
@@ -70,8 +76,11 @@ export type {
   SessionStatusResponse,
   SlashMetaContract,
   SummonMetaContract,
+  SessionSearchHit,
+  SessionSearchResponse,
 } from "./sessions.js";
 
+export { CONTENT_ERROR_CODES } from "./content.js";
 export type {
   FileEntryContract,
   FileEntriesResponse,
@@ -111,14 +120,22 @@ export type {
 } from "./card.js";
 
 export type { FileTreeResponse } from "./file-tree.js";
+export type { UploadResponse } from "./upload.js";
 
 export type {
   ProviderCatalogItemContract,
   ProviderCatalogContract,
+  CustomProviderDefContract,
+  ModelSettingsRequest,
+  ModelSettingsResponse,
+  WebSearchSettingsRequest,
+  WebSearchSettingsResponse,
   AiAccessSettingsRequest,
   AiAccessSettingsResponse,
   WelcomePageSettingsRequest,
   WelcomePageSettingsResponse,
+  SidePanelSettingsRequest,
+  SidePanelSettingsResponse,
   ThemeSettingsRequest,
   ThemeSettingsResponse,
 } from "./settings.js";
@@ -141,7 +158,21 @@ export type {
   MarketplaceManifestResponse,
   SkillMarketplaceInstallRequest,
 } from "./marketplace.js";
-export type { TurnContextSnapshotContract } from "./debug.js";
+export type {
+  MarketplaceProjectEntry,
+  MarketplaceProjectManifestResponse,
+  ProjectMarketplaceInstallRequest,
+  ProjectMarketplaceInstallResponse,
+} from "./project-marketplace.js";
+export type {
+  TurnContextSnapshotContract,
+  DebugSessionEventContract,
+  SessionEventLogContract,
+} from "./debug.js";
+export type {
+  MarketplacePromptEntry,
+  MarketplacePromptManifestResponse,
+} from "./prompt-marketplace.js";
 export type {
   ProjectListEntry,
   ProjectListResponse,
@@ -168,5 +199,6 @@ export type {
   BusClientMessage,
   TriggerServerEvent,
   AgentUpdatedEvent,
+  SessionUpdatedEvent,
   FsWatchChangeEvent,
 } from "./bus.js";

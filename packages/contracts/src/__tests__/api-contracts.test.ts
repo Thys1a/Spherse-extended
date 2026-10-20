@@ -106,6 +106,16 @@ describe("api contracts", () => {
     expect(() => parseApiResponse(schemas.okResponse, { ok: "true" })).toThrow(/Invalid payload/);
   });
 
+  it("validates upload responses", () => {
+    expect(parseApiResponse(schemas.uploadResponse, { path: "docs/a.txt", bytes: 3, renamed: false })).toEqual({
+      path: "docs/a.txt",
+      bytes: 3,
+      renamed: false,
+    });
+    expect(() => parseApiResponse(schemas.uploadResponse, { path: "docs/a.txt", bytes: 3 })).toThrow(/Invalid payload/);
+    expect(() => parseApiResponse(schemas.uploadResponse, { path: 1, bytes: 3, renamed: false })).toThrow(/Invalid payload/);
+  });
+
   it("validates agent profile, create, and update payloads", () => {
     const profile = {
       id: "a1",
@@ -129,6 +139,24 @@ describe("api contracts", () => {
       quickLinks: ["notes/world.md"],
     });
     expect(() => parseApiResponse(schemas.agentProfile, { ...profile, quickLinks: ["a", 1] })).toThrow(/Invalid payload/);
+    expect(
+      parseApiResponse(schemas.agentProfile, {
+        ...profile,
+        quickReplies: [{ label: "Hi", description: "Say hi", text: "hello", action: "fill" }],
+      }),
+    ).toMatchObject({ quickReplies: [{ label: "Hi", description: "Say hi", text: "hello", action: "fill" }] });
+    expect(() =>
+      parseApiResponse(schemas.agentProfile, {
+        ...profile,
+        quickReplies: Array.from({ length: 11 }, (_, i) => ({ label: `R${i}`, text: `t${i}`, action: "fill" })),
+      }),
+    ).toThrow(/Invalid payload/);
+    expect(() =>
+      parseApiResponse(schemas.agentProfile, {
+        ...profile,
+        quickReplies: [{ label: "x".repeat(17), text: "t", action: "fill" }],
+      }),
+    ).toThrow(/Invalid payload/);
     expect(() => parseApiResponse(schemas.agentProfile, { id: "a1" })).toThrow(/Invalid payload/);
 
     const summary = { id: "a1", name: "Agent", slug: "agent", createdAt: 1 };
@@ -231,6 +259,52 @@ describe("api contracts", () => {
     ).toThrow(/Invalid payload/);
   });
 
+  it("validates session search response", () => {
+    const hit = {
+      agentId: "a1",
+      sessionId: "s1",
+      sessionTitle: "session",
+      seq: 7,
+      role: "user",
+      snippet: "…needle…",
+      time: 1000,
+    };
+    expect(parseApiResponse(schemas.sessionSearchResponse, { results: [hit] })).toEqual({
+      results: [hit],
+    });
+    expect(
+      parseApiResponse(schemas.sessionSearchResponse, {
+        results: [{ agentId: "a1", sessionId: "s1", seq: 0, role: "assistant", snippet: "x", time: 1 }],
+      }),
+    ).toEqual({
+      results: [{ agentId: "a1", sessionId: "s1", seq: 0, role: "assistant", snippet: "x", time: 1 }],
+    });
+  });
+
+  it("rejects malformed session search hits", () => {
+    expect(() =>
+      parseApiResponse(schemas.sessionSearchResponse, {
+        results: [
+          { agentId: "a1", sessionId: "s1", sessionTitle: null, seq: 1, role: "user", snippet: "x", time: 1 },
+        ],
+      }),
+    ).toThrow(/Invalid payload/);
+    expect(() =>
+      parseApiResponse(schemas.sessionSearchResponse, {
+        results: [
+          { agentId: "a1", sessionId: "s1", seq: 1, role: "toolResult", snippet: "x", time: 1 },
+        ],
+      }),
+    ).toThrow(/Invalid payload/);
+    expect(() =>
+      parseApiResponse(schemas.sessionSearchResponse, {
+        results: [
+          { agentId: "a1", sessionId: "s1", seq: "7", role: "user", snippet: "x", time: 1 },
+        ],
+      }),
+    ).toThrow(/Invalid payload/);
+  });
+
   it("validates trigger list response with nextTriggerAt", () => {
     const entry = {
       id: "t1",
@@ -320,6 +394,99 @@ describe("api contracts", () => {
     expect(() => parseApiResponse(schemas.skillMarketplaceInstallRequest, { name: "demo", version: 1 })).toThrow(
       /Invalid payload/,
     );
+  });
+
+  it("validates project marketplace manifest and install contracts", () => {
+    const entry = {
+      name: "demo-world",
+      description: "Demo project",
+      version: "1.0.0",
+      category: "游戏",
+      zipUrl: "https://marketplace.test/spherse/projects/demo-world/1.0.0/demo-world-1.0.0.zip",
+      size: 2048,
+      updatedAt: "2026-09-19T00:00:00Z",
+    };
+    const manifest = { schemaVersion: 1, generatedAt: "2026-09-19T00:00:00Z", projects: [entry] };
+    expect(parseApiResponse(schemas.marketplaceProjectManifestResponse, manifest)).toEqual(manifest);
+    expect(parseApiResponse(schemas.marketplaceProjectManifestResponse, { ...manifest, projects: [] })).toEqual({
+      ...manifest,
+      projects: [],
+    });
+    expect(() =>
+      parseApiResponse(schemas.marketplaceProjectManifestResponse, {
+        schemaVersion: 1,
+        generatedAt: "x",
+        projects: [{}],
+      }),
+    ).toThrow(/Invalid payload/);
+    expect(() =>
+      parseApiResponse(schemas.marketplaceProjectManifestResponse, { schemaVersion: 1, generatedAt: "x" }),
+    ).toThrow(/Invalid payload/);
+    expect(() =>
+      parseApiResponse(schemas.marketplaceProjectManifestResponse, {
+        schemaVersion: 1,
+        generatedAt: "x",
+        projects: [{ ...entry, category: 1 }],
+      }),
+    ).toThrow(/Invalid payload/);
+    expect(
+      parseApiResponse(schemas.projectMarketplaceInstallRequest, {
+        name: "demo-world",
+        version: "1.0.0",
+        destDir: "/Users/demo/Documents",
+      }),
+    ).toEqual({ name: "demo-world", version: "1.0.0", destDir: "/Users/demo/Documents" });
+    expect(() => parseApiResponse(schemas.projectMarketplaceInstallRequest, { name: "demo-world" })).toThrow(
+      /Invalid payload/,
+    );
+    expect(
+      parseApiResponse(schemas.projectMarketplaceInstallResponse, { projectRoot: "/Users/demo/Documents/demo-world" }),
+    ).toEqual({ projectRoot: "/Users/demo/Documents/demo-world" });
+    expect(() => parseApiResponse(schemas.projectMarketplaceInstallResponse, {})).toThrow(/Invalid payload/);
+  });
+
+  it("validates prompt marketplace manifest response", () => {
+    const entry = {
+      id: "worldview-assistant",
+      title: "世界观创作助手",
+      description: "辅助世界观设定创作",
+      category: "创作",
+      content: "你将辅助用户进行世界观设定创作。",
+    };
+    const manifest = {
+      schemaVersion: 1,
+      generatedAt: "2026-10-11T00:00:00Z",
+      language: "zh-cn",
+      prompts: [entry],
+    };
+    expect(parseApiResponse(schemas.marketplacePromptManifestResponse, manifest)).toEqual(manifest);
+    expect(parseApiResponse(schemas.marketplacePromptManifestResponse, { ...manifest, prompts: [] })).toEqual({
+      ...manifest,
+      prompts: [],
+    });
+    expect(() =>
+      parseApiResponse(schemas.marketplacePromptManifestResponse, {
+        schemaVersion: 1,
+        generatedAt: "x",
+        language: "zh-cn",
+        prompts: [{}],
+      }),
+    ).toThrow(/Invalid payload/);
+    expect(() =>
+      parseApiResponse(schemas.marketplacePromptManifestResponse, {
+        schemaVersion: 1,
+        generatedAt: "x",
+        language: "zh-cn",
+      }),
+    ).toThrow(/Invalid payload/);
+    expect(() =>
+      parseApiResponse(schemas.marketplacePromptManifestResponse, {
+        schemaVersion: 1,
+        generatedAt: "x",
+        language: "zh-cn",
+        prompts: [{ ...entry, content: 1 }],
+      }),
+    ).toThrow(/Invalid payload/);
   });
 
   it("accepts optional version on skill definitions", () => {
@@ -415,6 +582,87 @@ describe("api contracts", () => {
     }
   });
 
+  it("preserves null side-panel path through Fastify body coercion", async () => {
+    const app = Fastify();
+    app.put<{ Body: { path: string | null } }>(
+      "/side-panel",
+      {
+        schema: {
+          body: schemas.sidePanelSettingsRequest,
+          response: { 200: schemas.sidePanelSettingsResponse },
+        },
+      },
+      async (req) => ({ ok: true, path: req.body.path }),
+    );
+
+    try {
+      const cleared = await app.inject({
+        method: "PUT",
+        url: "/side-panel",
+        payload: { path: null },
+      });
+      expect(cleared.statusCode).toBe(200);
+      expect(cleared.json()).toEqual({ ok: true, path: null });
+
+      const set = await app.inject({
+        method: "PUT",
+        url: "/side-panel",
+        payload: { path: "panel/index.html" },
+      });
+      expect(set.statusCode).toBe(200);
+      expect(set.json()).toEqual({ ok: true, path: "panel/index.html" });
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("validates model settings request and response shapes", () => {
+    const request = {
+      models: {
+        text: {
+          defaultModel: "openai/gpt-4o",
+          providers: { openai: { apiKey: "sk-1" }, untouched: {} },
+          sampling: { temperature: 0.5 },
+          thinkingLevel: "medium",
+        },
+        image: { defaultModel: "", providers: {} },
+      },
+      customProviders: [
+        { id: "c1", name: "C", baseUrl: "http://x", models: ["m"], keyless: false, sanitizeEmptySchemas: true },
+      ],
+    };
+    expect(parseApiResponse(schemas.modelSettingsRequest, request)).toEqual(request);
+
+    const response = {
+      models: {
+        text: {
+          defaultModel: "openai/gpt-4o",
+          providers: { openai: { configured: true }, missing: { configured: false } },
+          sampling: { temperature: 0.5 },
+          thinkingLevel: "medium",
+        },
+        image: { defaultModel: "", providers: {} },
+      },
+      customProviders: [],
+    };
+    expect(parseApiResponse(schemas.modelSettingsResponse, response)).toEqual(response);
+    expect(() =>
+      parseApiResponse(schemas.modelSettingsResponse, { models: { text: { defaultModel: "x" } } }),
+    ).toThrow(/Invalid payload/);
+  });
+
+  it("validates web search settings request and response shapes", () => {
+    const request = { apiKey: "sk-1", baseUrl: "https://x.example", model: null };
+    expect(parseApiResponse(schemas.webSearchSettingsRequest, request)).toEqual(request);
+    expect(parseApiResponse(schemas.webSearchSettingsRequest, {})).toEqual({});
+
+    const response = { apiKey: { configured: true }, baseUrl: "https://x.example", model: null };
+    expect(parseApiResponse(schemas.webSearchSettingsResponse, response)).toEqual(response);
+    expect(() =>
+      parseApiResponse(schemas.webSearchSettingsResponse, { apiKey: { configured: true } }),
+    ).toThrow(/Invalid payload/);
+  });
+
   it("validates turn context snapshot", () => {
     const snapshot = {
       sessionId: "s1",
@@ -425,6 +673,31 @@ describe("api contracts", () => {
     };
     expect(parseApiResponse(schemas.turnContextSnapshot, snapshot)).toEqual(snapshot);
     expect(() => parseApiResponse(schemas.turnContextSnapshot, { sessionId: "s1" })).toThrow(/Invalid payload/);
+  });
+
+  it("validates session event log", () => {
+    const log = {
+      sessionId: "s1",
+      events: [
+        { seq: 0, type: "user/message", time: 1, data: { message: { role: "user" } } },
+        { seq: 1, type: "turn/start", time: 1, data: {} },
+      ],
+    };
+    expect(parseApiResponse(schemas.sessionEventLog, log)).toEqual(log);
+    expect(() =>
+      parseApiResponse(schemas.sessionEventLog, { sessionId: "s1", events: [{ seq: 0, type: "x" }] }),
+    ).toThrow(/Invalid payload/);
+  });
+
+  it("ignores extra core fields in session event log entries", () => {
+    const log = {
+      sessionId: "s1",
+      events: [{ seq: 0, type: "user/message", time: 1, data: {}, schemaVersion: 2 }],
+    };
+    expect(parseApiResponse(schemas.sessionEventLog, log)).toEqual({
+      sessionId: "s1",
+      events: [{ seq: 0, type: "user/message", time: 1, data: {} }],
+    });
   });
 
   it("serializes the mcp discriminated-union response without dropping variant fields", async () => {
@@ -594,5 +867,27 @@ describe("api contracts", () => {
     expect(() =>
       parseApiResponse(schemas.agentSummary, { ...base, systemPrompt: "secret" }),
     ).toThrow(/Invalid payload/);
+  });
+
+  it("rejects the removed sse transport variant", async () => {
+    const app = Fastify();
+    app.put<{ Params: { id: string } }>(
+      "/agents/:id/mcp",
+      { schema: { body: schemas.agentMcpUpdateRequest } },
+      async () => ({ ok: true }),
+    );
+
+    const res = await app.inject({
+      method: "PUT",
+      url: "/agents/a/mcp",
+      payload: {
+        servers: [
+          { id: "s1", name: "old", enabled: true, transport: "sse", url: "http://localhost/sse" },
+        ],
+      },
+    });
+    expect(res.statusCode).toBe(400);
+
+    await app.close();
   });
 });

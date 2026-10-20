@@ -25,6 +25,20 @@ describe("Chat Header", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it("renders the find button when onFind is provided", async () => {
+    const user = userEvent.setup();
+    const onFind = vi.fn();
+    renderWithProviders(<Header agent={agent} onFind={onFind} />);
+
+    await user.click(screen.getByRole("button", { name: /查找/ }));
+    expect(onFind).toHaveBeenCalledTimes(1);
+  });
+
+  it("hides the find button when onFind is missing", () => {
+    renderWithProviders(<Header agent={agent} />);
+    expect(screen.queryByRole("button", { name: /查找/ })).not.toBeInTheDocument();
+  });
+
   it("renders quick link buttons with basename labels and theme hook", () => {
     renderWithProviders(
       <Header

@@ -3,7 +3,7 @@ import { I18nProvider } from "@spherse/i18n/react";
 import type { Locale } from "@spherse/i18n";
 import { render, type RenderOptions } from "@testing-library/react";
 import type { ReactElement, ReactNode } from "react";
-import { MemoryRouter } from "react-router";
+import { MemoryRouter, RouterProvider, createMemoryRouter, type InitialEntry } from "react-router";
 import { HostBridgeProvider } from "../context/host-bridge-context";
 import { ProjectProvider } from "../context/project-context";
 import type { HostBridge } from "../lib/host-bridge";
@@ -63,4 +63,62 @@ export function renderWithProviders(
   }
 
   return render(ui, { wrapper: ProviderTree, ...renderOptions });
+}
+
+export interface RenderWithDataRouterOptions extends RenderWithProvidersOptions {
+  routePath: string;
+  initialEntries?: InitialEntry[];
+  extraRoutes?: { path: string; element: ReactNode }[];
+}
+
+export function renderWithDataRouter(ui: ReactElement, options: RenderWithDataRouterOptions) {
+  const {
+    projectId = "p1",
+    projectRoot = "/tmp/p1",
+    route = "/",
+    queryClient,
+    bridge,
+    locale = "zh-CN",
+    wrapper,
+    routePath,
+    initialEntries,
+    extraRoutes = [],
+    ...renderOptions
+  } = options;
+  const withProject = (node: ReactNode) => (
+    <ProjectProvider projectId={projectId} projectRoot={projectRoot}>{node}</ProjectProvider>
+  );
+  const router = createMemoryRouter(
+    [
+      { path: routePath, element: withProject(ui) },
+      ...extraRoutes.map((r) => ({ path: r.path, element: withProject(r.element) })),
+    ],
+    initialEntries
+      ? { initialEntries, initialIndex: initialEntries.length - 1 }
+      : { initialEntries: [route] },
+  );
+
+  function RouterTree({ children }: { children: ReactNode }) {
+    let node: ReactNode = children;
+    if (wrapper) node = wrapper(node);
+    if (queryClient) {
+      node = <QueryClientProvider client={queryClient}>{node}</QueryClientProvider>;
+    }
+    if (bridge) {
+      node = <HostBridgeProvider bridge={bridge}>{node}</HostBridgeProvider>;
+    }
+    return (
+      <I18nProvider locale={locale}>
+        {node}
+      </I18nProvider>
+    );
+  }
+
+  const result = render(
+    <RouterTree>
+      <RouterProvider router={router} />
+    </RouterTree>,
+    renderOptions,
+  );
+  return { ...result, router };
 }

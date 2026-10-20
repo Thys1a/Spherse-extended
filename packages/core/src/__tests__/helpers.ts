@@ -17,7 +17,7 @@ export async function cleanupDir(dir: string): Promise<void> {
   // Windows teardown after killing a child can take seconds (taskkill +
   // console-subsystem release have been observed near ~7s on slow hosts);
   // poll generously before giving up. Harmless on POSIX, where the first
-  // attempt normally succeeds.
+  // attempt normally succeeds. Only transient lock errors are retried.
   let lastError: unknown;
   for (let attempt = 0; attempt < 30; attempt++) {
     try {
@@ -25,6 +25,8 @@ export async function cleanupDir(dir: string): Promise<void> {
       return;
     } catch (err) {
       lastError = err;
+      const code = (err as { code?: unknown })?.code;
+      if (code !== "EPERM" && code !== "EBUSY" && code !== "ENOTEMPTY") throw err;
       await new Promise((resolve) => setTimeout(resolve, 500));
     }
   }

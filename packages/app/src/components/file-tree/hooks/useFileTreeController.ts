@@ -15,6 +15,7 @@ import {
 } from "../tree-model";
 import { invalidateProjectFileQueries } from "../../../queries/content";
 import { useTabStore } from "../../../features/tabs/tab-store";
+import { useSplitStore } from "../../../features/tabs/split-store";
 
 export interface FileTreeController {
   expandedPaths: ReadonlySet<string>;
@@ -36,6 +37,7 @@ export interface FileTreeController {
   requestDeleteMany: (paths: string[]) => void;
   confirmDelete: () => void;
   cancelDelete: () => void;
+  uploadFiles: (dirPath: string, files: File[]) => Promise<void>;
 }
 
 export function useFileTreeController(
@@ -148,6 +150,7 @@ export function useFileTreeController(
           return changed ? next : prev;
         });
         useTabStore.getState().remapPaths(projectId, source, destination);
+        useSplitStore.getState().remapSplit(projectId, source, destination);
         useDirtyPathsStore.getState().remapPaths(projectId, source, destination);
         onRenamed?.(source, destination);
         await invalidateProjectFileQueries(projectId, source);
@@ -230,6 +233,38 @@ export function useFileTreeController(
 
   const cancelDelete = useCallback(() => setDeleteTargets(null), []);
 
+  const uploadFiles = useCallback(
+    async (dirPath: string, files: File[]) => {
+      if (files.length === 0) {
+        toast.info(t("file-tree.uploadNoFiles"));
+        return;
+      }
+      const uploadedPaths: string[] = [];
+      const renamedPaths: string[] = [];
+      for (const file of files) {
+        try {
+          const res = await client.uploadFile(dirPath, file);
+          uploadedPaths.push(res.path);
+          if (res.renamed) renamedPaths.push(res.path);
+        } catch (err) {
+          toast.error(t("file-tree.uploadFailed", { message: (err as Error).message }));
+        }
+      }
+      if (uploadedPaths.length === 0) return;
+      toast.success(t("file-tree.uploadedCount", { count: uploadedPaths.length }));
+      if (renamedPaths.length > 0) {
+        const visible = renamedPaths.slice(0, 5).join(", ");
+        const suffix = renamedPaths.length > 5 ? "…" : "";
+        toast.info(t("file-tree.uploadedRenamed", { names: `${visible}${suffix}` }));
+      }
+      expandDir(dirPath);
+      await Promise.all(
+        uploadedPaths.map((p) => invalidateProjectFileQueries(projectId, p)),
+      );
+    },
+    [client, projectId, t, expandDir],
+  );
+
   return {
     expandedPaths,
     creating,
@@ -250,5 +285,6 @@ export function useFileTreeController(
     requestDeleteMany,
     confirmDelete,
     cancelDelete,
+    uploadFiles,
   };
 }

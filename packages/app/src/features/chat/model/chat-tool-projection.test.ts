@@ -277,4 +277,36 @@ describe("extractAssistantExtras", () => {
       extractAssistantExtras({ content: [{ type: "text", text: "hi" }], stopReason: "stop" } as never),
     ).toEqual({});
   });
+
+  it("attaches diagnostics for a normal turn that carries usage", () => {
+    expect(
+      extractAssistantExtras(
+        {
+          content: [{ type: "text", text: "hi" }],
+          stopReason: "stop",
+          provider: "p",
+          model: "m",
+          usage: { input: 100, output: 5, cacheRead: 20 },
+        } as never,
+        7,
+      ),
+    ).toEqual({
+      _diagnostics: {
+        provider: "p",
+        model: "m",
+        stopReason: "stop",
+        promptTokens: 120,
+        outputTokens: 5,
+        seq: 7,
+      },
+    });
+  });
+
+  it("attaches no extras for a normal turn with only a prompt estimate", () => {
+    expect(
+      extractAssistantExtras(
+        { content: [{ type: "text", text: "hi" }], stopReason: "stop", promptEstimate: 120 } as never,
+      ),
+    ).toEqual({});
+  });
 });

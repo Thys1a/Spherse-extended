@@ -31,11 +31,10 @@ function createMockHostBridge(): HostBridge {
       openFileExternal: false,
       proxy: false,
       notification: true,
+      tray: false,
       content: { editable: true },
     },
     getServerBaseUrl: vi.fn().mockResolvedValue("http://localhost:5173"),
-    getSettings: vi.fn().mockResolvedValue(null),
-    saveSettings: vi.fn().mockResolvedValue({ success: true }),
     openExternal: vi.fn(),
     notify: vi.fn(),
   } as unknown as HostBridge;

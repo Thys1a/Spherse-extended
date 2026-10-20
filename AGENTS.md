@@ -22,7 +22,7 @@
 | `packages/app` | 共享 React renderer | [README](packages/app/README.md)（必读） |
 | `packages/desktop` | Electron 桌面壳（main/preload/基础设施） | 遵循 `docs/official/` |
 | `packages/web` | Web 版本壳（移动端 PWA） | 遵循 `docs/official/` |
-| `packages/landing` | GitHub Pages 项目介绍页 | 遵循 `docs/official/` |
+| `packages/landing` | GitHub Pages 项目介绍页 | [README](packages/landing/README.md)（文案分层：UI chrome 走 i18n catalog，长文走三语 md） |
 
 ### 读：按需加载
 
@@ -129,8 +129,9 @@ npm run build:landing   # 构建 landing page（含 @spherse/i18n 依赖构建�
 3. **实现**：复杂需求按 design doc 拆分任务并落盘 `plan.md`，逐项实现勾选；相对简单的任务直接实现。测试不强制 TDD、按场景选：不变量密集的纯逻辑（fold、access policy、错误分类等）先写测试再实现，UI / 集成路径实现后补
 4. **commit + 代码 review**：实现完毕先 commit，再加载 **code-review** skill 派 sub agent 对照 design doc 与代码现状审查实现
 5. **反馈处理**：重点关注 critical / important 评论，逐条判断是否成立、是否值得修，有选择性地修（追加 commit）；不成立或暂不修的记录理由，留给步骤 7 回复
-6. **代码验收**：审查和记录功能完成情况和遗漏项
+6. **代码验收**：审查和记录功能完成情况和遗漏项；**分支 merge 到 dev 前必须先结清 backlog**：对照 `docs/dev/backlog.md` 勾销已完成条目，把验收中发现的新缺口补为新条目（格式见该文件头部说明），无悬挂才可 merge
 7. **收尾提 PR或merge**：加载 **doc-sync** skill 自查文档同步并更新，然后提 PR；在 PR 评论区贴上 review report（分等级，标明哪些已修、哪些未修及原因）；**合并分支只认用户验收**：code-review 通过 ≠ 可合并，在用户明确验收（提出可合并/亲自合并）前 agent 不得 merge 任何分支，因为只有用户能做最终验收
+8. **发版后版本号**：push main（stable 发版）结束后询问用户是否修改版本号（`packages/desktop/package.json` 为唯一来源），因为一次发版即开启下一版本周期，版本号必须显式决策，不能沿用旧号默默进入下个周期
 
 ## 规范演进
 
@@ -144,6 +145,8 @@ npm run build:landing   # 构建 landing page（含 @spherse/i18n 依赖构建�
 ## 开发规范
 
 - **E2E 验证选择**：按变更影响面选择受影响的 E2E 场景运行，不要求全量；分层选型规则与命令见 [`docs/official/testing.md`](docs/official/testing.md)。合并/发布前跑 `npm run verify:e2e`
+- 需要读取用户项目数据要先和用户确认是否为隐私数据
+- 如有不确定之处先向用户提问，如需执行先提交计划供用户确认
 
 ## 编码规范（仓库级红线）
 
@@ -154,6 +157,7 @@ npm run build:landing   # 构建 landing page（含 @spherse/i18n 依赖构建�
 - **路径安全**：项目内路径解析必须用 `@spherse/core` 的 `resolveProjectPath` / `assertInsideProject` / `isPathInside`，禁止 `startsWith` 前缀判断
 - **API contract**：边界 schema 统一在独立包 `@spherse/contracts` 并复用同一套 parser，规则见 [server README](packages/server/README.md) 与 [contracts README](packages/contracts/README.md)
 - **契约测试（跨层接缝）**：对 core 的 PM 写入门面与 `SessionPort` 方法，消费方包（server/desktop）至少各有一条不 mock 被测方法本身的契约测试——层间解耦越彻底，mock 拼接缝的盲区越大
+- **持久化格式兼容只针对已发布数据**：项目文件、sessions.db、localStorage、electron settings 等格式变更，只为已随 release 发布、可能存在于用户环境中的格式写迁移 / 兼容读取；尚未发布的格式直接改、不留兼容分支，因为没有用户数据需要迁移，兼容代码只增加长期维护面
 - **不添加注释**：除非用户明确要求
 - **Lint**：ESLint 9 flat config 在 root `eslint.config.js`；pre-commit 钩子自动执行 `npm run lint`
 - **Git**：commit message 用 `feat:` / `fix:` / `chore:` 前缀

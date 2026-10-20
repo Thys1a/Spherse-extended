@@ -1,11 +1,13 @@
 import { useEffect, useState, useCallback } from "react";
 import type { CustomProviderDef, SamplingParams, ThinkingLevel } from "@spherse/core";
-import type { ProviderConfig, SettingsApi } from "./types";
+import type { ModelSettingsResponse } from "../../lib/types";
+import type { ProviderConfig, ModelSettingsApi } from "./types";
 import { generateCustomProviderId } from "./custom-provider-id.js";
 
 interface GroupFormState {
   providers: Record<string, ProviderConfig>;
   apiKeys: Record<string, string>;
+  configured: Record<string, boolean>;
   defaultModel: string;
   sampling?: SamplingParams;
   thinkingLevel?: ThinkingLevel;
@@ -26,57 +28,109 @@ export type { GroupFormState };
 
 interface GroupData {
   apiKeys: Record<string, string>;
+  configured: Record<string, boolean>;
+  writes: Record<string, string>;
+  clears: Record<string, true>;
   defaultModel: string;
   sampling?: SamplingParams;
   thinkingLevel?: ThinkingLevel;
 }
 
-function extractKeys(providers: Record<string, { apiKey?: string }> | undefined): Record<string, string> {
-  const keys: Record<string, string> = {};
-  for (const [id, c] of Object.entries(providers ?? {})) {
-    if (c?.apiKey) keys[id] = c.apiKey;
-  }
-  return keys;
-}
+const EMPTY_GROUP: GroupData = { apiKeys: {}, configured: {}, writes: {}, clears: {}, defaultModel: "" };
 
-function keysToProviders(keys: Record<string, string>): Record<string, { apiKey: string }> {
-  const providers: Record<string, { apiKey: string }> = {};
-  for (const [id, key] of Object.entries(keys)) {
-    providers[id] = { apiKey: key };
+function providersPayload(group: GroupData): Record<string, { apiKey?: string }> {
+  const providers: Record<string, { apiKey?: string }> = {};
+  for (const [id, apiKey] of Object.entries(group.writes)) {
+    if (apiKey.trim()) providers[id] = { apiKey };
+  }
+  for (const id of Object.keys(group.clears)) {
+    if (!providers[id]) providers[id] = { apiKey: "" };
   }
   return providers;
 }
 
-export function useSettingsForm(api: SettingsApi) {
+function configuredFromFlags(providers: Record<string, { configured: boolean }>): Record<string, boolean> {
+  const map: Record<string, boolean> = {};
+  for (const [id, entry] of Object.entries(providers)) {
+    if (entry.configured) map[id] = true;
+  }
+  return map;
+}
+
+export function useSettingsForm(modelApi: ModelSettingsApi | null) {
   const [textProviders, setTextProviders] = useState<Record<string, ProviderConfig>>({});
   const [imageProviders, setImageProviders] = useState<Record<string, ProviderConfig>>({});
-  const [textData, setTextData] = useState<GroupData>({ apiKeys: {}, defaultModel: "" });
-  const [imageData, setImageData] = useState<GroupData>({ apiKeys: {}, defaultModel: "" });
+  const [textData, setTextData] = useState<GroupData>({ ...EMPTY_GROUP });
+  const [imageData, setImageData] = useState<GroupData>({ ...EMPTY_GROUP });
   const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const [customProviders, setCustomProviders] = useState<CustomProviderDef[]>([]);
 
   useEffect(() => {
+    if (!modelApi) {
+      setLoadError(true);
+      return;
+    }
+    let cancelled = false;
     void (async () => {
-      const [textCatalog, imageCatalog, settings] = await Promise.all([
-        api.getSupportedProviders(),
-        api.getImageProviders(),
-        api.getSettings(),
-      ]);
-      setTextProviders(textCatalog ?? {});
-      setImageProviders(imageCatalog ?? {});
-      setTextData({
-        apiKeys: extractKeys(settings?.models?.text?.providers),
-        defaultModel: settings?.models?.text?.defaultModel ?? "",
-        sampling: settings?.models?.text?.sampling,
-        thinkingLevel: settings?.models?.text?.thinkingLevel,
-      });
-      setImageData({
-        apiKeys: extractKeys(settings?.models?.image?.providers),
-        defaultModel: settings?.models?.image?.defaultModel ?? "",
-      });
-      setCustomProviders(settings?.customProviders ?? []);
+      try {
+        const [textCatalog, imageCatalog, settings] = await Promise.all([
+          modelApi.getSupportedProviders(),
+          modelApi.getImageProviders(),
+          modelApi.getModelSettings(),
+        ]);
+        if (cancelled) return;
+        setTextProviders(textCatalog ?? {});
+        setImageProviders(imageCatalog ?? {});
+        setTextData({
+          ...EMPTY_GROUP,
+          configured: configuredFromFlags(settings.models.text.providers),
+          defaultModel: settings.models.text.defaultModel ?? "",
+          sampling: settings.models.text.sampling,
+          thinkingLevel: settings.models.text.thinkingLevel,
+        });
+        setImageData({
+          ...EMPTY_GROUP,
+          configured: configuredFromFlags(settings.models.image.providers),
+          defaultModel: settings.models.image.defaultModel ?? "",
+        });
+        setCustomProviders(settings.customProviders ?? []);
+        setLoadError(false);
+      } catch {
+        if (cancelled) return;
+        setTextProviders({});
+        setImageProviders({});
+        setLoadError(true);
+      }
     })();
-  }, [api]);
+    return () => {
+      cancelled = true;
+    };
+  }, [modelApi]);
+
+  const applyResponse = useCallback((response: ModelSettingsResponse) => {
+    const configured = configuredFromFlags(response.models.text.providers);
+    const imageConfigured = configuredFromFlags(response.models.image.providers);
+    setTextData((prev) => ({
+      ...prev,
+      configured,
+      apiKeys: {},
+      writes: {},
+      clears: {},
+      defaultModel: response.models.text.defaultModel ?? prev.defaultModel,
+      sampling: response.models.text.sampling,
+      thinkingLevel: response.models.text.thinkingLevel,
+    }));
+    setImageData((prev) => ({
+      ...prev,
+      configured: imageConfigured,
+      apiKeys: {},
+      writes: {},
+      clears: {},
+      defaultModel: response.models.image.defaultModel ?? prev.defaultModel,
+    }));
+    setCustomProviders(response.customProviders ?? []);
+  }, []);
 
   const save = useCallback(
     async (
@@ -84,18 +138,28 @@ export function useSettingsForm(api: SettingsApi) {
       imageOverride?: GroupData,
       customProvidersOverride?: CustomProviderDef[],
     ): Promise<boolean> => {
+      if (!modelApi) return false;
       const t = textOverride ?? textData;
       const i = imageOverride ?? imageData;
       const cp = customProvidersOverride ?? customProviders;
       setSaving(true);
       try {
-        await api.saveSettings({
+        const response = await modelApi.updateModelSettings({
           models: {
-            text: { defaultModel: t.defaultModel, providers: keysToProviders(t.apiKeys), sampling: t.sampling, thinkingLevel: t.thinkingLevel },
-            image: { defaultModel: i.defaultModel, providers: keysToProviders(i.apiKeys) },
+            text: {
+              defaultModel: t.defaultModel,
+              providers: providersPayload(t),
+              sampling: t.sampling,
+              thinkingLevel: t.thinkingLevel,
+            },
+            image: {
+              defaultModel: i.defaultModel,
+              providers: providersPayload(i),
+            },
           },
           customProviders: cp,
         });
+        applyResponse(response);
         return true;
       } catch {
         return false;
@@ -103,13 +167,14 @@ export function useSettingsForm(api: SettingsApi) {
         setSaving(false);
       }
     },
-    [api, textData, imageData, customProviders],
+    [modelApi, textData, imageData, customProviders, applyResponse],
   );
 
   const refreshTextCatalog = useCallback(async () => {
-    const textCatalog = await api.getSupportedProviders();
-    setTextProviders(textCatalog ?? {});
-  }, [api]);
+    if (!modelApi) return;
+    const textCatalog = await modelApi.getSupportedProviders().catch(() => null);
+    if (textCatalog) setTextProviders(textCatalog);
+  }, [modelApi]);
 
   const addCustomProvider = useCallback(
     async (def: CustomProviderDef): Promise<boolean> => {
@@ -139,10 +204,18 @@ export function useSettingsForm(api: SettingsApi) {
   const removeCustomProvider = useCallback(
     async (id: string): Promise<boolean> => {
       const next = customProviders.filter((c) => c.id !== id);
-      const nextApiKeys = { ...textData.apiKeys };
-      delete nextApiKeys[id];
+      const nextKeys = { ...textData.apiKeys };
+      delete nextKeys[id];
+      const nextWrites = { ...textData.writes };
+      delete nextWrites[id];
       const nextModel = textData.defaultModel.startsWith(`${id}/`) ? "" : textData.defaultModel;
-      const nextTextData = { ...textData, apiKeys: nextApiKeys, defaultModel: nextModel };
+      const nextTextData: GroupData = {
+        ...textData,
+        apiKeys: nextKeys,
+        writes: nextWrites,
+        clears: { ...textData.clears, [id]: true },
+        defaultModel: nextModel,
+      };
       setCustomProviders(next);
       setTextData(nextTextData);
       const ok = await save(nextTextData, undefined, next);
@@ -160,6 +233,7 @@ export function useSettingsForm(api: SettingsApi) {
   ): GroupFormState => ({
     providers,
     apiKeys: data.apiKeys,
+    configured: data.configured,
     defaultModel: data.defaultModel,
     sampling: data.sampling,
     thinkingLevel: data.thinkingLevel,
@@ -167,7 +241,15 @@ export function useSettingsForm(api: SettingsApi) {
       setData({ ...data, apiKeys: { ...data.apiKeys, [id]: value } });
     },
     commitApiKey: (id, value) => {
-      const next = { ...data, apiKeys: { ...data.apiKeys, [id]: value } };
+      if (!value.trim()) return;
+      const nextClears = { ...data.clears };
+      delete nextClears[id];
+      const next: GroupData = {
+        ...data,
+        apiKeys: { ...data.apiKeys, [id]: value },
+        writes: { ...data.writes, [id]: value },
+        clears: nextClears,
+      };
       setData(next);
       if (kind === "text") void save(next, undefined);
       else void save(undefined, next);
@@ -188,14 +270,31 @@ export function useSettingsForm(api: SettingsApi) {
       return kind === "text" ? save(next, undefined) : save(undefined, next);
     },
     connect: async (id) => {
-      if (!data.apiKeys[id]?.trim()) return false;
-      return save();
+      const value = data.apiKeys[id];
+      if (!value?.trim()) return false;
+      const nextClears = { ...data.clears };
+      delete nextClears[id];
+      const next: GroupData = {
+        ...data,
+        writes: { ...data.writes, [id]: value },
+        clears: nextClears,
+      };
+      setData(next);
+      return kind === "text" ? save(next, undefined) : save(undefined, next);
     },
     disconnect: async (id) => {
       const nextKeys = { ...data.apiKeys, [id]: "" };
+      const nextWrites = { ...data.writes };
+      delete nextWrites[id];
       const providerModel = data.defaultModel.startsWith(`${id}/`);
       const nextModel = providerModel ? "" : data.defaultModel;
-      const next = { ...data, apiKeys: nextKeys, defaultModel: nextModel };
+      const next: GroupData = {
+        ...data,
+        apiKeys: nextKeys,
+        writes: nextWrites,
+        clears: { ...data.clears, [id]: true },
+        defaultModel: nextModel,
+      };
       setData(next);
       return kind === "text" ? save(next, undefined) : save(undefined, next);
     },
@@ -204,6 +303,7 @@ export function useSettingsForm(api: SettingsApi) {
   const textGroup = makeGroup("text", textProviders, textData, setTextData);
   return {
     saving,
+    loadError,
     text: {
       ...textGroup,
       customProviders,

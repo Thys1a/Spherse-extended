@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useI18n } from "@spherse/i18n/react";
 import { toast } from "sonner";
 import { Button } from "../../components/ui/button";
@@ -9,40 +9,55 @@ import { compressImage } from "./utils/compress-image";
 import { AttachmentBar } from "./AttachmentBar";
 import { useProjectCtx } from "../../context/project-context";
 import { useApiClient } from "../../lib/use-connection";
+import { cn } from "../../lib/utils";
 import { useIsCoarsePointer } from "../../hooks/use-coarse-pointer";
 import { useComposerInsertStore } from "./composer-insert-store";
 import { SessionModelPill } from "./SessionModelPill";
 import { useProjectAgents } from "../../queries/project";
 import { useProjectCommands } from "../../queries/commands";
 import { useProjectSkills } from "../../queries/skills";
+import { useProjectSessionStatus } from "../../queries/project/sessions";
+import { SessionTokensPill } from "./SessionTokensPill";
+import { estimateTokens } from "./lib/estimate-tokens";
 import {
   applySlashPick,
   filterSlashItems,
   matchSlashToken,
   type SlashMenuItem,
 } from "./lib/slash-menu";
+import { useIsMobile } from "../../hooks/use-mobile";
 
 const LINE_HEIGHT = 20;
 const PADDING_Y = 16;
 const MIN_HEIGHT = 2 * LINE_HEIGHT + PADDING_Y;
+const MOBILE_MIN_HEIGHT = LINE_HEIGHT + PADDING_Y;
+const MOBILE_EXPAND_THRESHOLD = 3 * LINE_HEIGHT + PADDING_Y + 4;
 const MID_HEIGHT = 10 * LINE_HEIGHT + PADDING_Y;
+const MOBILE_MID_HEIGHT = 5 * LINE_HEIGHT + PADDING_Y;
 const MAX_HEIGHT = 20 * LINE_HEIGHT + PADDING_Y;
+const MOBILE_MAX_HEIGHT = 12 * LINE_HEIGHT + PADDING_Y;
 
 interface ComposerProps {
   streaming: boolean;
   loading?: boolean;
   panicLocked?: boolean;
   sessionId: string;
+  agentId: string;
   placeholder?: string;
   onSend: (message: string, attachments?: AttachedFile[]) => boolean;
   onAbort: () => void;
 }
 
-export function Composer({ streaming, loading = false, panicLocked = false, sessionId, placeholder, onSend, onAbort }: ComposerProps) {
+export function Composer({ streaming, loading = false, panicLocked = false, sessionId, agentId, placeholder, onSend, onAbort }: ComposerProps) {
   const { t } = useI18n();
   const { projectId } = useProjectCtx();
   const client = useApiClient(projectId);
   const isTouchKeyboard = useIsCoarsePointer();
+  const isMobile = useIsMobile();
+  const minHeight = isMobile ? MOBILE_MIN_HEIGHT : MIN_HEIGHT;
+  const midHeight = isMobile ? MOBILE_MID_HEIGHT : MID_HEIGHT;
+  const maxHeight = isMobile ? MOBILE_MAX_HEIGHT : MAX_HEIGHT;
+  const expandThreshold = isMobile ? MOBILE_EXPAND_THRESHOLD : MIN_HEIGHT + 4;
   const draftKey = `spherse:draft:${sessionId}`;
   const [input, setInput] = useState(() => localStorage.getItem(draftKey) ?? "");
   const [manualExpanded, setManualExpanded] = useState(false);
@@ -89,6 +104,14 @@ export function Composer({ streaming, loading = false, panicLocked = false, sess
   }, [insertNonce, sessionId]);
 
   const attachBusy = uploadingCount > 0;
+  const inputEstimate = useMemo(() => estimateTokens(input), [input]);
+  const statusQuery = useProjectSessionStatus(projectId, client, agentId, sessionId);
+  const projectedTotal = statusQuery.data ? statusQuery.data.currentTokens + inputEstimate : null;
+  const draftLabel = t("chat.inputTokenEstimate", { count: inputEstimate.toLocaleString() });
+  const projectedLabel =
+    projectedTotal !== null
+      ? t("chat.projectedTokenTotal", { count: projectedTotal.toLocaleString() })
+      : null;
 
   useLayoutEffect(() => {
     const textarea = textareaRef.current;
@@ -96,22 +119,22 @@ export function Composer({ streaming, loading = false, panicLocked = false, sess
     const prevScrollTop = textarea.scrollTop;
     textarea.style.height = "auto"; // collapse to measure scrollHeight
     const natural = textarea.scrollHeight;
-    const exceeds = natural > MIN_HEIGHT + 4;
+    const exceeds = natural > expandThreshold;
     setContentExceeds3Lines(exceeds);
     if (!exceeds && manualExpanded) {
       setManualExpanded(false);
       return;
     }
     if (manualExpanded) {
-      textarea.style.height = `${MAX_HEIGHT}px`;
-      textarea.style.overflowY = natural > MAX_HEIGHT ? "auto" : "hidden";
+      textarea.style.height = `${maxHeight}px`;
+      textarea.style.overflowY = natural > maxHeight ? "auto" : "hidden";
     } else {
-      const targetHeight = Math.max(MIN_HEIGHT, Math.min(natural, MID_HEIGHT));
+      const targetHeight = Math.max(minHeight, Math.min(natural, midHeight));
       textarea.style.height = `${targetHeight}px`;
-      textarea.style.overflowY = natural > MID_HEIGHT ? "auto" : "hidden";
+      textarea.style.overflowY = natural > midHeight ? "auto" : "hidden";
     }
     textarea.scrollTop = prevScrollTop; // prevent scroll-to-top after height change
-  }, [input, manualExpanded]);
+  }, [input, manualExpanded, minHeight, midHeight, maxHeight, expandThreshold]);
 
   useEffect(() => {
     if (input) {
@@ -135,6 +158,7 @@ export function Composer({ streaming, loading = false, panicLocked = false, sess
   const [menuSelected, setMenuSelected] = useState(0);
   const [menuDismissed, setMenuDismissed] = useState(false);
   const [cursorPos, setCursorPos] = useState<number | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
 
   const syncCursor = (target: HTMLTextAreaElement | null) => {
     if (!target) return;
@@ -165,6 +189,15 @@ export function Composer({ streaming, loading = false, panicLocked = false, sess
     setMenuDismissed(false);
     setMenuSelected(0);
   }, [input]);
+
+  useEffect(() => {
+    if (!menu) return;
+    const selected = menuRef.current?.querySelector('[role="option"][aria-selected="true"]');
+    if (typeof selected?.scrollIntoView === "function") {
+      selected.scrollIntoView({ block: "nearest" });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [menu?.items.length, menu?.selected, menu?.match.query]);
 
   const pickMenuItem = (item: SlashMenuItem | undefined): boolean => {
     if (!item || !slashMatch) return false;
@@ -276,18 +309,47 @@ export function Composer({ streaming, loading = false, panicLocked = false, sess
   };
 
   useEffect(() => {
+    const textarea = textareaRef.current;
+    if (textarea) textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+  }, []);
+
+  useEffect(() => {
     if (!streaming && !loading) textareaRef.current?.focus();
   }, [streaming, loading]);
 
   return (
-    <div className="border-t border-border bg-background p-3" data-chat-composer>
+    <div
+      className={cn(
+        "border-t border-border bg-background p-3",
+        isMobile &&
+          "border-t-0 bg-transparent ps-[calc(0.625rem+env(safe-area-inset-left))] pe-[calc(0.625rem+env(safe-area-inset-right))] pt-1.5 pb-[calc(1rem+env(safe-area-inset-bottom))]",
+      )}
+      data-chat-composer
+    >
       <div className="flex items-center gap-2 px-1 pb-2">
         <SessionModelPill sessionId={sessionId} />
+        <SessionTokensPill sessionId={sessionId} agentId={agentId} />
+        {input.trim() !== "" && (
+          <span
+            className="ml-auto shrink-0 text-[11px] tabular-nums text-muted-foreground"
+            title={projectedLabel ? `${draftLabel} · ${projectedLabel}` : draftLabel}
+          >
+            {draftLabel}
+            {projectedLabel && <> · {projectedLabel}</>}
+          </span>
+        )}
       </div>
       {(files.length > 0 || attachBusy) && (
         <AttachmentBar files={files} uploading={attachBusy} onRemove={handleRemoveFile} />
       )}
-      <div className="relative rounded-lg border border-input bg-background transition-colors focus-within:border-ring" data-chat-composer-input>
+      <div
+        className={cn(
+          "relative rounded-lg border border-input bg-background transition-colors focus-within:border-ring",
+          isMobile &&
+            "flex items-end gap-0.5 rounded-2xl px-1 pb-1 shadow-lg shadow-black/5",
+        )}
+        data-chat-composer-input
+      >
         {panicLocked && (
           <div className="flex items-center gap-1.5 px-3 pt-2 text-xs text-muted-foreground">
             <WifiOffIcon className="size-3.5" />
@@ -296,8 +358,9 @@ export function Composer({ streaming, loading = false, panicLocked = false, sess
         )}
         {menu && (
           <div
+            ref={menuRef}
             role="listbox"
-            className="absolute inset-x-2 bottom-full z-50 mb-1 max-h-56 overflow-y-auto rounded-lg bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10"
+            className="absolute inset-x-2 bottom-full z-50 mb-1 max-h-56 overflow-y-auto overscroll-contain rounded-lg bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10"
           >
             {menu.items.map((item, index) => (
               <button
@@ -322,8 +385,11 @@ export function Composer({ streaming, loading = false, panicLocked = false, sess
         )}
         <Textarea
           ref={textareaRef}
-          className="min-h-0 w-full resize-none border-none bg-transparent py-2 ps-3 pe-8 text-sm md:text-sm leading-5 shadow-none focus-visible:ring-0"
-          style={{ height: `${MIN_HEIGHT}px`, overflowY: "hidden" }}
+          className={cn(
+            "min-h-0 w-full flex-1 min-w-0 resize-none border-none bg-transparent py-2 ps-3 pe-8 text-sm md:text-sm leading-5 shadow-none focus-visible:ring-0",
+            isMobile && "pe-2",
+          )}
+          style={{ height: `${minHeight}px`, overflowY: "hidden" }}
           value={input}
           onChange={(event) => {
             setInput(event.target.value);
@@ -394,7 +460,12 @@ export function Composer({ streaming, loading = false, panicLocked = false, sess
             {manualExpanded ? <ChevronsDownIcon /> : <ChevronsUpIcon />}
           </Button>
         )}
-        <div className="flex items-center justify-between px-2 pb-2 pt-0.5">
+        <div
+          className={cn(
+            "flex items-center",
+            isMobile ? "shrink-0 gap-0.5 pe-1" : "justify-between px-2 pb-2 pt-0.5",
+          )}
+        >
           <Button
             variant="ghost"
             size="icon"

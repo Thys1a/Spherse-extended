@@ -21,6 +21,7 @@ const FULL_PROFILE = {
   tools: ["read_file"],
   context: ["docs/"],
   quickLinks: ["notes/world.md"],
+  quickReplies: [{ label: "Hi", text: "hello", action: "fill" }],
   output: { path: "out", naming: "flat", frontmatter: { tag: "x" } },
   timePerception: { enabled: false, epochMs: 0, startMs: 0, flowRate: 1 },
   yolo: true,
@@ -72,5 +73,6 @@ describe("GET /api/projects/:projectId/agents route", () => {
     expect(res.json().systemPrompt).toBe(FULL_PROFILE.systemPrompt);
     expect(res.json().tools).toEqual(["read_file"]);
     expect(res.json().quickLinks).toEqual(["notes/world.md"]);
+    expect(res.json().quickReplies).toEqual([{ label: "Hi", text: "hello", action: "fill" }]);
   });
 });

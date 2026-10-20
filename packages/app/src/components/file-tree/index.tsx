@@ -1,11 +1,14 @@
-import { useMemo, useRef } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
+import type { ChangeEvent, DragEvent } from "react";
 import { useI18n } from "@spherse/i18n/react";
+import { cn } from "@/lib/utils";
 import { useProjectCtx } from "../../context/project-context";
 import { useApiClient } from "../../lib/use-connection";
 import { useProjectDirectory } from "../../queries/content";
 import { useFileTreeController } from "./hooks/useFileTreeController";
 import { useFileTreeSelection } from "./hooks/useFileTreeSelection";
 import { buildTreeItems, type CreateAction } from "./tree-model";
+import { hasFileDrag, extractDroppedFiles } from "./dnd";
 import { FileTreeBlankMenu } from "./FileTreeBlankMenu";
 import { FileTreeItem } from "./FileTreeNode";
 import { FileTreeProvider } from "./file-tree-context";
@@ -24,9 +27,10 @@ export interface FileTreeProps {
   rootPath?: string;
   emptyLabel?: string;
   readOnly?: boolean;
+  uploadsEnabled?: boolean;
 }
 
-export function FileTree({ selectedFilePath, onSelectFile, onDeleted, onRenamed, onOpenInNewTab, onSplitFile, onFloatFile, floatedFilePaths, rootPath, emptyLabel, readOnly }: FileTreeProps) {
+export function FileTree({ selectedFilePath, onSelectFile, onDeleted, onRenamed, onOpenInNewTab, onSplitFile, onFloatFile, floatedFilePaths, rootPath, emptyLabel, readOnly, uploadsEnabled }: FileTreeProps) {
   const { t } = useI18n();
   const { projectId } = useProjectCtx();
   const client = useApiClient(projectId);
@@ -39,6 +43,48 @@ export function FileTree({ selectedFilePath, onSelectFile, onDeleted, onRenamed,
     () => (rootQuery.data ? buildTreeItems(rootQuery.data, basePath) : []),
     [rootQuery.data, basePath],
   );
+
+  const dropFiles = uploadsEnabled && !readOnly ? ctrl.uploadFiles : undefined;
+
+  const uploadInputRef = useRef<HTMLInputElement | null>(null);
+  const uploadDirRef = useRef("");
+  const handlePickUploadFiles = useCallback((dirPath: string) => {
+    uploadDirRef.current = dirPath;
+    uploadInputRef.current?.click();
+  }, []);
+  const pickUploadFiles = dropFiles ? handlePickUploadFiles : undefined;
+  const handleUploadInputChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const input = e.target;
+    const files = Array.from(input.files ?? []);
+    input.value = "";
+    if (files.length > 0) {
+      void dropFiles?.(uploadDirRef.current, files);
+    }
+  };
+
+  const [dropTargetDir, setDropTargetDir] = useState<string | null>(null);
+  const rootDragHandlers = dropFiles
+    ? {
+        onDragOver: (e: DragEvent) => {
+          if (!hasFileDrag(e.dataTransfer)) return;
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "copy";
+          setDropTargetDir(basePath);
+        },
+        onDragLeave: (e: DragEvent) => {
+          if (!hasFileDrag(e.dataTransfer)) return;
+          const related = e.relatedTarget;
+          if (related instanceof Node && e.currentTarget.contains(related)) return;
+          setDropTargetDir(null);
+        },
+        onDrop: (e: DragEvent) => {
+          if (!hasFileDrag(e.dataTransfer)) return;
+          e.preventDefault();
+          setDropTargetDir(null);
+          dropFiles(basePath, extractDroppedFiles(e.dataTransfer));
+        },
+      }
+    : {};
 
   const ctxValue = {
     projectId,
@@ -66,9 +112,13 @@ export function FileTree({ selectedFilePath, onSelectFile, onDeleted, onRenamed,
     requestDeleteMany: ctrl.requestDeleteMany,
     onOpenInNewTab,
     onSplitFile,
+    pickUploadFiles,
     onFloatFile,
     floatedFilePaths,
     readOnly,
+    dropFiles,
+    dropTargetDir,
+    setDropTargetDir,
   };
 
   const requestBlankCreate = (action: CreateAction) => {
@@ -104,20 +154,41 @@ export function FileTree({ selectedFilePath, onSelectFile, onDeleted, onRenamed,
           onCancel={ctrl.cancelDelete}
         />
       )}
+      {dropFiles && (
+        <input
+          ref={uploadInputRef}
+          type="file"
+          multiple
+          hidden
+          onChange={handleUploadInputChange}
+        />
+      )}
     </>
   );
 
   if (readOnly) {
     return (
-      <div ref={listRef} className="flex flex-col gap-px text-xs">
+      <div
+        ref={listRef}
+        className={cn(
+          "flex flex-col gap-px text-xs",
+          dropTargetDir === basePath && "rounded-sm bg-sidebar-accent ring-1 ring-sidebar-ring",
+        )}
+        {...rootDragHandlers}
+      >
         {list}
       </div>
     );
   }
 
   return (
-    <FileTreeBlankMenu listRef={listRef} onCreate={requestBlankCreate}>
-      {list}
-    </FileTreeBlankMenu>
+    <div
+      className={cn(dropTargetDir === basePath && "rounded-sm bg-sidebar-accent ring-1 ring-sidebar-ring")}
+      {...rootDragHandlers}
+    >
+      <FileTreeBlankMenu listRef={listRef} onCreate={requestBlankCreate}>
+        {list}
+      </FileTreeBlankMenu>
+    </div>
   );
 }

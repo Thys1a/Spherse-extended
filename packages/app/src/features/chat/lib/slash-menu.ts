@@ -62,7 +62,7 @@ export function filterSlashItems(
       items.push({ kind: "agent", name: agent.name, description: agent.description });
     }
   }
-  return items.slice(0, 8);
+  return items;
 }
 
 export function applySlashPick(

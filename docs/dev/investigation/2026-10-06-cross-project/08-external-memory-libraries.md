@@ -1347,3 +1347,23 @@ POST   /agents/:slug/memory/rebuild   // 重建索引（预留）
 ---
 
 方案已完整，可进入实施。
+
+## 十五、上游 #112 对照结论（2026-10-16，upstream merge）
+
+> 上游 commit `ca8e33a`（#112 Agent 记忆）：铲除 `memory.jsonl`（不迁不读不删），换两层存储——`.spherse/agents/{slug}/memory/core.md`（恒注入）+ `memory.db`（SQLite FTS5 trigram 主存储）+ `featureTools` 门控（profile `memory:{enabled}`）+ 5 工具 + 记忆 dialog。
+
+**判定：方向冲突，不合入**（除非用户明确 repeal 本文件 §五/§八/§九/§十三/§十四）：
+
+| 上游做法 | 冲突点 |
+|---|---|
+| sqlite FTS5 升**主存储**，jsonl 删除 | 违反 §五/§八"JSONL 唯一真相源"与"内核不并行两套记忆"；§九整个 v1.2.x 计划建在 jsonl 上，合入即全废 |
+| `featureTools` 另起门控 | 与 profile.tools 白名单+capability 装配两套真相，ADR-0013 论证过的问题在 fork 同样成立 |
+| core.md 恒注入 | 与 §十四 Phase 1 的可配置注入（recent/relevant/none）语义不同 |
+
+**可吸收**：`sqlite FTS5` **检索引擎**（非主存储）。已实测 fork 现有 better-sqlite3 自带 `ENABLE_FTS5` + trigram，零新依赖，满足"零 provider 依赖"硬约束。形态须守 §6.3 三条件：JSONL 仍是唯一真相源，FTS 索引只是派生缓存（随写同步、可整体重建），`memory_save/recall` 签名不动——即 §三/§6.2 早已预留的"混合检索 + RRF" trigram/BM25 引擎位。时机按 §五方案 C：Phase 1 零依赖排序/上限先行，FTS 作 Phase 1.5 替换子串检索。
+
+**巧合一致**（各自实现，无代码可合）：改/删工具、关闭直写通道（§十三 §四同样决定禁止直写）、core 常驻块概念。
+
+#148（memory guide 改写）是给上游模型的 guide，同理不合。
+
+关联：upstream merge 台账 `docs/dev/features/2026-10-12-upstream-merge-0.6.0/high-risk-comparison.md` §一。

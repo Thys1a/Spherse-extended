@@ -26,12 +26,14 @@ vi.mock("./hooks/useChatSession", () => ({
     thinking: false,
     runningGroupId: null,
     withdrawableUserId: null,
-    streaming: false,
+    streaming: sessionCtl.streaming,
     loading: false,
     connection: { state: "open", attempt: 0, delayMs: 0 },
     historyError: false,
     hasMore: false,
     loadingMore: false,
+    compactResult: sessionCtl.compactResult,
+    clearCompactResult: sessionCtl.clearCompactResult,
     sendMessage: vi.fn(() => true),
     retry: vi.fn(),
     withdrawLastTurn: vi.fn(),
@@ -43,6 +45,18 @@ vi.mock("./hooks/useChatSession", () => ({
     loadMore: vi.fn(),
   }),
 }));
+
+const sessionCtl = vi.hoisted(() => ({
+  streaming: false,
+  compactResult: null as { applied: boolean } | null,
+  clearCompactResult: vi.fn(),
+  refreshSessionStatus: vi.fn(),
+}));
+
+vi.mock("../../queries/project/sessions", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("../../queries/project/sessions")>();
+  return { ...mod, refreshSessionStatus: sessionCtl.refreshSessionStatus };
+});
 
 vi.mock("./hooks/useAgentTheme", async (importOriginal) => {
   const mod = await importOriginal<typeof import("./hooks/useAgentTheme")>();
@@ -159,5 +173,63 @@ describe("Chat find bar", () => {
     expect(findBar()).not.toBeNull();
     expect(countText()).toBe("1/2");
     GROUPS[0].bubbles.pop();
+  });
+
+  it("opens from the header find button", async () => {
+    renderChat();
+    expect(findBar()).toBeNull();
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /查找/ }));
+    expect(findBar()).not.toBeNull();
+  });
+
+  it("opens from the corner button when the header is hidden", async () => {
+    renderWithProviders(<Chat sessionId="s1" agent={agent} hideHeader />, {
+      bridge: createMockHostBridge(),
+      queryClient: createTestQueryClient(),
+    });
+    expect(findBar()).toBeNull();
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "查找" }));
+    expect(findBar()).not.toBeNull();
+  });
+
+  it("refreshes the session status query when streaming ends", async () => {
+    sessionCtl.streaming = true;
+    sessionCtl.refreshSessionStatus.mockClear();
+    const { rerender } = renderChat();
+    expect(sessionCtl.refreshSessionStatus).not.toHaveBeenCalled();
+
+    sessionCtl.streaming = false;
+    rerender(<Chat sessionId="s1" agent={agent} />);
+    await vi.waitFor(() => {
+      expect(sessionCtl.refreshSessionStatus).toHaveBeenCalledWith("p1", "a1", "s1");
+    });
+  });
+
+  it("refreshes the session status query when compaction is applied", async () => {
+    sessionCtl.compactResult = { applied: true };
+    sessionCtl.refreshSessionStatus.mockClear();
+    sessionCtl.clearCompactResult.mockClear();
+    const { rerender } = renderChat();
+    await vi.waitFor(() => {
+      expect(sessionCtl.refreshSessionStatus).toHaveBeenCalledWith("p1", "a1", "s1");
+    });
+    expect(sessionCtl.clearCompactResult).toHaveBeenCalled();
+    sessionCtl.compactResult = null;
+    rerender(<Chat sessionId="s1" agent={agent} />);
+  });
+
+  it("does not refresh when compaction reports not needed", async () => {
+    sessionCtl.compactResult = { applied: false };
+    sessionCtl.refreshSessionStatus.mockClear();
+    renderChat();
+    await act(async () => {
+      await sleep(50);
+    });
+    expect(sessionCtl.refreshSessionStatus).not.toHaveBeenCalled();
+    sessionCtl.compactResult = null;
   });
 });

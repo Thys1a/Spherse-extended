@@ -1,8 +1,10 @@
 import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
+import fs from "node:fs";
 import type { AddressInfo } from "node:net";
 import websocket from "@fastify/websocket";
 import multipart from "@fastify/multipart";
-import type { Logger, SamplingParams, ThinkingLevel, ModelCatalog } from "@spherse/core";
+import type { Logger } from "@spherse/core";
+import { ModelCatalog } from "@spherse/core";
 import {
   NotFoundError,
   ValidationError,
@@ -10,6 +12,10 @@ import {
   ConflictError,
 } from "@spherse/core";
 import { ProjectRegistry } from "./registry.js";
+import { ModelSettingsStore, applyModelSettingsToEnv } from "./model-settings.js";
+export { ModelSettingsStore } from "./model-settings.js";
+import { WebSearchSettingsStore, applyWebSearchEnv } from "./web-search-settings.js";
+export { WebSearchSettingsStore } from "./web-search-settings.js";
 import { createServerLogger, createPrettyStream } from "./logger.js";
 import { HttpError, errorMessage } from "./errors.js";
 import { registerAuthHook, type AuthOptions } from "./middlewares/auth.js";
@@ -40,9 +46,8 @@ export interface MultiProjectServer {
 }
 
 export interface CreateServerOptions {
-  defaultModel?: string;
-  sampling?: SamplingParams;
-  thinkingLevel?: ThinkingLevel;
+  modelSettingsPath?: string;
+  webSearchSettingsPath?: string;
   auth?: AuthOptions;
   port?: number;
   modelCatalog?: ModelCatalog;
@@ -114,11 +119,21 @@ export async function createMultiProjectServer(
 
   const chatHub = new ChatSessionHub(logger);
 
+  const modelCatalog = options?.modelCatalog ?? new ModelCatalog();
+  const modelSettingsStore = new ModelSettingsStore({ filePath: options?.modelSettingsPath });
+  if (options?.modelSettingsPath && fs.existsSync(options.modelSettingsPath)) {
+    applyModelSettingsToEnv(modelSettingsStore.get(), modelCatalog);
+  }
+  const webSearchSettingsStore = new WebSearchSettingsStore({ filePath: options?.webSearchSettingsPath });
+  if (options?.webSearchSettingsPath && fs.existsSync(options.webSearchSettingsPath)) {
+    applyWebSearchEnv(webSearchSettingsStore.get());
+  }
+
   const registry = new ProjectRegistry(logger, {
-    defaultModel: options?.defaultModel,
-    sampling: options?.sampling,
-    thinkingLevel: options?.thinkingLevel,
-    modelCatalog: options?.modelCatalog,
+    defaultModel: modelSettingsStore.get().text.defaultModel || undefined,
+    sampling: modelSettingsStore.get().text.sampling,
+    thinkingLevel: modelSettingsStore.get().text.thinkingLevel,
+    modelCatalog,
     onRuntimeRemoved: (runtime) => chatHub.closeRuntime(runtime),
   });
 
@@ -126,6 +141,9 @@ export async function createMultiProjectServer(
   registerAllRoutes(fastify, registry, {
     authRequired: Boolean(options?.auth?.accessToken),
     hub: chatHub,
+    modelSettingsStore,
+    modelCatalog,
+    webSearchSettingsStore,
   });
   handleChatWebSocket(fastify, registry, chatHub);
   handleBusWebSocket(fastify, registry);

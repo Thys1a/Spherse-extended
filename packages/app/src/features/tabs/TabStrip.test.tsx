@@ -145,4 +145,57 @@ describe("TabStrip", () => {
 
     expect(useTabStore.getState().byProject["p1"].tabs.map((t) => t.kind)).toEqual(["content", "chat"]);
   });
+
+  it("pins home tabs outside the scroll container", () => {
+    useTabStore.getState().openTab("p1", { kind: "home", label: "" });
+    renderWithProviders(<TabStrip projectId="p1" />);
+    const scroller = document.querySelector("[data-tab-scroll]");
+    if (!scroller) throw new Error("scroll container not found");
+
+    const homeTab = screen.getByText(translate("zh-CN", "tabs.home")).closest('[role="tab"]');
+    if (!homeTab) throw new Error("home tab not found");
+    expect(scroller.contains(homeTab)).toBe(false);
+
+    const chatTab = screen.getByText("Session One").closest('[role="tab"]');
+    if (!chatTab) throw new Error("chat tab not found");
+    expect(scroller.contains(chatTab)).toBe(true);
+  });
+
+  it("reorders tabs within the scroll region when a home tab is pinned", () => {
+    useTabStore.getState().openTab("p1", { kind: "home", label: "" });
+    renderWithProviders(<TabStrip projectId="p1" />);
+    expect(useTabStore.getState().byProject["p1"].tabs.map((t) => t.kind)).toEqual([
+      "chat",
+      "content",
+      "home",
+    ]);
+
+    const chatTab = screen.getByText("Session One").closest('[role="tab"]');
+    const contentTab = screen.getByText("a.md").closest('[role="tab"]');
+    if (!chatTab || !contentTab) throw new Error("tab not found");
+    fireEvent.dragStart(chatTab);
+    fireEvent.dragOver(contentTab);
+    fireEvent.drop(contentTab);
+
+    expect(useTabStore.getState().byProject["p1"].tabs.map((t) => t.kind)).toEqual([
+      "content",
+      "chat",
+      "home",
+    ]);
+  });
+
+  it("ignores drops across the pinned/scroll boundary", () => {
+    useTabStore.getState().openTab("p1", { kind: "home", label: "" });
+    renderWithProviders(<TabStrip projectId="p1" />);
+    const before = useTabStore.getState().byProject["p1"].tabs.map((t) => t.kind);
+
+    const homeTab = screen.getByText(translate("zh-CN", "tabs.home")).closest('[role="tab"]');
+    const chatTab = screen.getByText("Session One").closest('[role="tab"]');
+    if (!homeTab || !chatTab) throw new Error("tab not found");
+    fireEvent.dragStart(homeTab);
+    fireEvent.dragOver(chatTab);
+    fireEvent.drop(chatTab);
+
+    expect(useTabStore.getState().byProject["p1"].tabs.map((t) => t.kind)).toEqual(before);
+  });
 });

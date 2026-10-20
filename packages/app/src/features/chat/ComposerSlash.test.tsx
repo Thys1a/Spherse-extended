@@ -10,6 +10,10 @@ vi.mock("sonner", () => ({
   toast: { error: vi.fn(), success: vi.fn() },
 }));
 
+const { mockCommandList } = vi.hoisted(() => ({
+  mockCommandList: [{ name: "test", description: "Run tests" }],
+}));
+
 vi.mock("../../lib/use-connection", () => ({
   useApiClient: () => ({
     uploadAttachment: vi.fn(),
@@ -22,9 +26,11 @@ vi.mock("../../lib/use-connection", () => ({
       { id: "a2", name: "Writer", slug: "writer" },
     ]),
     listSkills: vi.fn(async () => [{ name: "review", description: "Review code" }]),
-    listCommands: vi.fn(async () => [{ name: "test", description: "Run tests" }]),
+    listCommands: vi.fn(async () => mockCommandList),
+    getSessionStatus: vi.fn(async () => ({ currentTokens: 0, contextWindowLimit: null })),
     setSessionModel: vi.fn(),
   }),
+  useGlobalApiClient: () => null,
   useConnection: () => ({ baseUrl: "http://localhost:5173", accessToken: null }),
 }));
 
@@ -36,6 +42,8 @@ let user: ReturnType<typeof userEvent.setup>;
 
 beforeEach(() => {
   user = userEvent.setup();
+  mockCommandList.length = 0;
+  mockCommandList.push({ name: "test", description: "Run tests" });
 });
 
 afterEach(() => {
@@ -47,7 +55,7 @@ afterEach(() => {
 function renderSlashComposer() {
   const onSend = vi.fn(() => true);
   renderWithProviders(
-    <Composer streaming={false} loading={false} sessionId="session-1" onSend={onSend} onAbort={vi.fn()} />,
+    <Composer streaming={false} loading={false} sessionId="session-1" agentId="agent-1" onSend={onSend} onAbort={vi.fn()} />,
     { queryClient: createTestQueryClient(), bridge: createMockHostBridge() },
   );
   return { onSend };
@@ -89,5 +97,42 @@ describe("Composer slash completion", () => {
 
     expect(onSend).not.toHaveBeenCalled();
     await vi.waitFor(() => expect(toast.error).toHaveBeenCalled());
+  });
+
+  it("lists all commands without truncation and follows keyboard selection", async () => {
+    mockCommandList.length = 0;
+    for (let i = 0; i < 12; i += 1) {
+      mockCommandList.push({ name: `cmd-${i}`, description: `Command ${i}` });
+    }
+    const originalScrollIntoView = Element.prototype.scrollIntoView;
+    const scrollSpy = vi.fn();
+    Element.prototype.scrollIntoView = scrollSpy;
+    try {
+      renderSlashComposer();
+      await user.type(screen.getByRole("textbox"), "/command:");
+      expect(await screen.findAllByRole("option")).toHaveLength(12);
+
+      scrollSpy.mockClear();
+      await user.keyboard("{ArrowDown}");
+      expect(scrollSpy).toHaveBeenCalled();
+      expect(
+        document.querySelector('[role="option"][aria-selected="true"]')?.textContent,
+      ).toContain("cmd-1");
+
+      await user.keyboard("{ArrowUp}");
+      await user.keyboard("{ArrowUp}");
+      expect(scrollSpy).toHaveBeenCalled();
+      expect(
+        document.querySelector('[role="option"][aria-selected="true"]')?.textContent,
+      ).toContain("cmd-11");
+    } finally {
+      mockCommandList.length = 0;
+      mockCommandList.push({ name: "test", description: "Run tests" });
+      if (originalScrollIntoView) {
+        Element.prototype.scrollIntoView = originalScrollIntoView;
+      } else {
+        delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+      }
+    }
   });
 });

@@ -16,9 +16,13 @@ files:
   - dist/**/*
   - package.json
 extraResources:
-  - from: ../presets/sample-projects
-    to: sample-projects
-    filter: ["**/*"]
+  - from: resources/tray
+    to: tray
+    filter: ["*.png"]
+  - from: build/spherse-icon.png
+    to: spherse-icon.png
+  - from: build/spherse-icon.ico
+    to: spherse-icon.ico
 npmRebuild: false
 extraMetadata:
   main: dist/main/index.js

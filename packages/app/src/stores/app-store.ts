@@ -15,16 +15,20 @@ export interface ProjectState {
   lastOpened: string;
 }
 
+interface RestoreProjectsOptions {
+  initialGate?: boolean;
+}
+
 interface AppStore {
   connection: ConnectionConfig;
   projects: Map<string, ProjectState>;
   activeProjectId: string | null;
   initializing: boolean;
-  restoreProjects: (bridge: HostBridge) => Promise<string | null>;
+  restoreProjects: (bridge: HostBridge, opts?: RestoreProjectsOptions) => Promise<string | null>;
   refreshProjects: (bridge: HostBridge) => Promise<void>;
   refreshConnection: (bridge: HostBridge) => Promise<void>;
   openProject: (bridge: HostBridge) => Promise<string | null>;
-  openSampleProject: (bridge: HostBridge, sampleId: string) => Promise<{ projectId: string | null; error?: string }>;
+  openProjectAtPath: (bridge: HostBridge, projectRoot: string) => Promise<string | null>;
   closeProject: (bridge: HostBridge, projectId: string) => Promise<string | null>;
   openProjectFolder: (bridge: HostBridge, projectId: string) => Promise<void>;
   setActiveProject: (bridge: HostBridge, projectId: string | null) => Promise<void>;
@@ -77,12 +81,16 @@ export const useAppStore = create<AppStore>((set, get) => ({
   activeProjectId: null,
   initializing: true,
 
-  async restoreProjects(bridge) {
-    set({ initializing: true });
+  async restoreProjects(bridge, opts) {
+    const initialGate = opts?.initialGate !== false;
+    if (initialGate) set({ initializing: true });
     try {
       const connection = await fetchConnection(bridge);
       if (!connection.baseUrl) {
-        set({ initializing: false, connection });
+        set((state) => ({
+          ...(initialGate ? { initializing: false } : {}),
+          ...(connectionEquals(state.connection, connection) ? {} : { connection }),
+        }));
         return null;
       }
       const restored = (await bridge.project?.restoreProjects()) ?? [];
@@ -101,10 +109,15 @@ export const useAppStore = create<AppStore>((set, get) => ({
       const lastActiveId = (await bridge.project?.getLastActiveProject()) ?? null;
       const fallbackId = projects.keys().next().value ?? null;
       const nextActiveId = lastActiveId && projects.has(lastActiveId) ? lastActiveId : fallbackId;
-      set({ connection, projects, activeProjectId: nextActiveId, initializing: false });
+      set({
+        connection,
+        projects,
+        activeProjectId: nextActiveId,
+        ...(initialGate ? { initializing: false } : {}),
+      });
       return nextActiveId;
     } catch (err) {
-      set({ initializing: false });
+      if (initialGate) set({ initializing: false });
       throw err;
     }
   },
@@ -174,26 +187,21 @@ export const useAppStore = create<AppStore>((set, get) => ({
   async openProject(bridge) {
     const dir = (await bridge.project?.selectDirectory()) ?? null;
     if (!dir) return null;
+    return get().openProjectAtPath(bridge, dir);
+  },
 
-    const existing = findProjectIdByPath(get().projects, dir);
+  async openProjectAtPath(bridge, projectRoot) {
+    const existing = findProjectIdByPath(get().projects, projectRoot);
     if (existing) {
       await get().setActiveProject(bridge, existing);
       return existing;
     }
 
-    const result = await bridge.project?.openProject(dir);
+    const result = await bridge.project?.openProject(projectRoot);
     if (!result) return null;
     const { projectId } = result;
-    await registerProject(set, get, bridge, projectId, dir);
+    await registerProject(set, get, bridge, projectId, projectRoot);
     return projectId;
-  },
-
-  async openSampleProject(bridge, sampleId) {
-    const result = await bridge.project?.openSampleProject({ sampleId });
-    if (!result) return { projectId: null };
-    if ("error" in result) return { projectId: null, error: result.error };
-    await registerProject(set, get, bridge, result.projectId, result.path);
-    return { projectId: result.projectId };
   },
 
   async closeProject(bridge, projectId) {

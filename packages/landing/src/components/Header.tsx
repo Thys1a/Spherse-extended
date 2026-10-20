@@ -12,6 +12,7 @@ interface HeaderProps {
 export function Header({ locale, onLocaleChange, t }: HeaderProps) {
   const location = useLocation();
   const isExplore = location.pathname === "/explore";
+  const isDocsArticle = /^\/docs\/[^/]+$/.test(location.pathname);
 
   return (
     <header className="flex items-center px-6 py-3">
@@ -23,7 +24,21 @@ export function Header({ locale, onLocaleChange, t }: HeaderProps) {
           ← {t("cases.backHome")}
         </Link>
       )}
+      {isDocsArticle && (
+        <Link
+          to="/docs"
+          className="inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
+        >
+          ← {t("docs.backToList")}
+        </Link>
+      )}
       <div className="ms-auto flex items-center gap-4">
+        <Link
+          to="/"
+          className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+        >
+          {t("nav.home")}
+        </Link>
         <Link
           to="/explore"
           className="text-sm text-muted-foreground transition-colors hover:text-foreground"
@@ -35,6 +50,12 @@ export function Header({ locale, onLocaleChange, t }: HeaderProps) {
           className="text-sm text-muted-foreground transition-colors hover:text-foreground"
         >
           {t("nav.download")}
+        </Link>
+        <Link
+          to="/docs"
+          className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+        >
+          {t("nav.docs")}
         </Link>
         <LanguageSwitcher locale={locale} onLocaleChange={onLocaleChange} t={t} />
       </div>

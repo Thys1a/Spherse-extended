@@ -19,13 +19,12 @@ contextBridge.exposeInMainWorld("electronAPI", {
   openProject: (projectRoot: string) =>
     ipcRenderer.invoke("open-project", projectRoot),
   getServerPort: () => ipcRenderer.invoke("get-server-port"),
-  getSettings: () => ipcRenderer.invoke("get-settings"),
-  saveSettings: (settings: unknown) =>
-    ipcRenderer.invoke("save-settings", settings),
-  getSupportedProviders: () =>
-    ipcRenderer.invoke("get-supported-providers"),
-  getImageProviders: () =>
-    ipcRenderer.invoke("get-image-providers"),
+  getGeneralPrefs: () => ipcRenderer.invoke("get-general-prefs"),
+  saveGeneralPrefs: (prefs: unknown) =>
+    ipcRenderer.invoke("save-general-prefs", prefs),
+  getDesktopPrefs: () => ipcRenderer.invoke("get-desktop-prefs"),
+  saveDesktopPrefs: (prefs: unknown) =>
+    ipcRenderer.invoke("save-desktop-prefs", prefs),
   restoreProjects: () => ipcRenderer.invoke("restore-projects"),
   addOpenProject: (projectId: string, projectRoot: string) =>
     ipcRenderer.invoke("add-open-project", projectId, projectRoot),
@@ -54,9 +53,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
   resetAppData: () => ipcRenderer.invoke("reset-app-data"),
   showSaveDialog: (options: { defaultPath?: string }) =>
     ipcRenderer.invoke("show-save-dialog", options),
-  openSampleProject: (opts: { sampleId: string }) =>
-    ipcRenderer.invoke("open-sample-project", opts),
-  getSampleManifest: () => ipcRenderer.invoke("get-sample-manifest"),
   checkForUpdates: (opts: { silent: boolean }) =>
     ipcRenderer.invoke("check-for-updates", opts),
   downloadUpdate: () => ipcRenderer.invoke("download-update"),

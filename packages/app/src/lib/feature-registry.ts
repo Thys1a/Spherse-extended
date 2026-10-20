@@ -10,6 +10,7 @@ export type FeatureName =
   | "browser"
   | "text-selection-session"
   | "open-project"
+  | "open-project-folder"
   | "tts"
   | "embedded-chat"
   | "tabs"
@@ -19,7 +20,7 @@ const ELECTRON_ONLY: ReadonlySet<HostKind> = new Set(["electron"]);
 const ALL_HOSTS: ReadonlySet<HostKind> = new Set(["electron", "web"]);
 
 export const FEATURE_HOST_MATRIX: Record<FeatureName, ReadonlySet<HostKind>> = {
-  settings: ELECTRON_ONLY,
+  settings: ALL_HOSTS,
   "agent-dialog": ALL_HOSTS,
   "agent-trigger": ALL_HOSTS,
   "agent-mcp": ALL_HOSTS,
@@ -28,6 +29,7 @@ export const FEATURE_HOST_MATRIX: Record<FeatureName, ReadonlySet<HostKind>> = {
   browser: ELECTRON_ONLY,
   "text-selection-session": ELECTRON_ONLY,
   "open-project": ELECTRON_ONLY,
+  "open-project-folder": ELECTRON_ONLY,
   tts: ELECTRON_ONLY,
   "embedded-chat": ALL_HOSTS,
   tabs: ALL_HOSTS,

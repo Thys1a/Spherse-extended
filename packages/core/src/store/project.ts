@@ -7,12 +7,14 @@ import matter from "gray-matter";
 import { nanoid } from "nanoid";
 import { PRESET_SKILL_SOURCES, AGENTS_INDEX_TEMPLATE } from "@spherse/presets";
 import type { AgentProfile } from "../types.js";
+import type { AgentMcpConfig } from "../mcp/types.js";
 import { PROJECT_META_DIR } from "../types.js";
 import { ProjectConfigStore } from "./project-config.js";
 import { SkillStore } from "./skill.js";
 import { CommandStore } from "./command.js";
 import { AgentStore } from "./agent-store.js";
 import { AgentProfileStore, assertSafeSlug } from "./agent-profile.js";
+import type { SessionChangePayload } from "./session.js";
 import type { FileWriteMutex } from "../utils/file-write-mutex.js";
 import { deriveAgentSlugBase, buildAgentDirName } from "./agent-slug.js";
 import { type Logger, createSilentLogger } from "../logger.js";
@@ -40,7 +42,8 @@ export interface AgentChangePayload {
   action: AgentChangeAction;
 }
 
-/** Emits `agent_updated` (`AgentChangePayload`) whenever an agent is created, updated or deleted. */
+/** Emits `agent_updated` (`AgentChangePayload`) whenever an agent is created, updated or deleted,
+ *  and `session_updated` (`SessionChangePayload`) whenever a session is created, renamed or deleted. */
 export class ProjectStore extends EventEmitter {
   private rootPath: string;
   private spherseDir: string;
@@ -130,7 +133,7 @@ export class ProjectStore extends EventEmitter {
       const profile = await profileStore.read();
       if (!profile) continue;
 
-      const agentStore = new AgentStore(agentDir, profile.id, this.logger, this.fileWriteMutex);
+      const agentStore = new AgentStore(agentDir, profile.id, this.logger, this.fileWriteMutex, this.forwardSessionChange);
       await agentStore.open();
       this._agents.set(profile.id, agentStore);
     }
@@ -209,7 +212,7 @@ export class ProjectStore extends EventEmitter {
       await fs.writeFile(path.join(agentDir, "theme.css"), themeContent, "utf-8");
     }
 
-    const agentStore = new AgentStore(agentDir, id, this.logger, this.fileWriteMutex);
+    const agentStore = new AgentStore(agentDir, id, this.logger, this.fileWriteMutex, this.forwardSessionChange);
     await agentStore.open();
     this._agents.set(id, agentStore);
     this.logger.info({ agentId: id, slug: dirName }, "agent created");
@@ -228,6 +231,17 @@ export class ProjectStore extends EventEmitter {
     return agentStore;
   }
 
+  async updateAgentMcp(
+    agentId: string,
+    config: { servers: ReadonlyArray<Record<string, unknown>> },
+  ): Promise<AgentMcpConfig> {
+    const agentStore = this._agents.get(agentId);
+    if (!agentStore) throw new NotFoundError(`Agent "${agentId}" not found`);
+    const normalized = await agentStore.mcp.saveConfig(config);
+    this.emitAgentChange(agentId, "updated");
+    return normalized;
+  }
+
   async deleteAgent(agentId: string): Promise<void> {
     const agentStore = this._agents.get(agentId);
     if (!agentStore) return;
@@ -243,6 +257,10 @@ export class ProjectStore extends EventEmitter {
   private emitAgentChange(agentId: string, action: AgentChangeAction): void {
     this.emit("agent_updated", { agentId, action } satisfies AgentChangePayload);
   }
+
+  private readonly forwardSessionChange = (payload: SessionChangePayload): void => {
+    this.emit("session_updated", payload);
+  };
 
   async readIndex(): Promise<string> {
     const indexPath = path.join(this.rootPath, "AGENTS.md");

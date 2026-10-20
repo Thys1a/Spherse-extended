@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import { translate } from "@spherse/i18n";
 import { renderWithProviders } from "../../test/render";
 import { Header } from "./Header";
@@ -45,5 +45,49 @@ describe("Header split entry", () => {
     renderWithProviders(<Header {...baseProps()} />);
 
     expect(screen.queryByTitle(translate("zh-CN", "tabs.splitRight"))).toBeNull();
+  });
+
+  it("shows the unsplit button when onUnsplit is provided and not editing", () => {
+    const onUnsplit = vi.fn();
+    renderWithProviders(<Header {...baseProps({ onUnsplit })} />, { locale: "en" });
+
+    const unsplit = screen.getByRole("button", { name: "Return to main window" });
+    expect(screen.queryByRole("button", { name: "Split right" })).toBeNull();
+    expect(unsplit.compareDocumentPosition(screen.getByRole("button", { name: "Close" })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    fireEvent.click(unsplit);
+    expect(onUnsplit).toHaveBeenCalledTimes(1);
+  });
+
+  it("hides the unsplit button while editing or without onUnsplit", () => {
+    renderWithProviders(<Header {...baseProps({ onUnsplit: vi.fn(), isEditing: true })} />);
+
+    expect(screen.queryByTitle(translate("zh-CN", "content-browser.unsplit"))).toBeNull();
+
+    renderWithProviders(<Header {...baseProps()} />);
+
+    expect(screen.queryByTitle(translate("zh-CN", "content-browser.unsplit"))).toBeNull();
+  });
+
+  it("places split before all text buttons for html files", () => {
+    renderWithProviders(<Header {...baseProps({ isHtml: true, onSplit: vi.fn() })} />, { locale: "en" });
+
+    const split = screen.getByRole("button", { name: "Split right" });
+    for (const name of ["Preview", "Source", "Edit"]) {
+      const other = screen.getByRole("button", { name });
+      expect(split.compareDocumentPosition(other) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    }
+  });
+
+  it("orders split before unsplit before text buttons and close", () => {
+    renderWithProviders(
+      <Header {...baseProps({ isHtml: true, onSplit: vi.fn(), onUnsplit: vi.fn() })} />,
+      { locale: "en" },
+    );
+
+    const names = ["Split right", "Return to main window", "Preview", "Source", "Edit", "Close"];
+    const buttons = names.map((name) => screen.getByRole("button", { name }));
+    for (let i = 0; i + 1 < buttons.length; i += 1) {
+      expect(buttons[i].compareDocumentPosition(buttons[i + 1]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    }
   });
 });

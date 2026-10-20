@@ -141,6 +141,7 @@ src/
 ## API 与 i18n
 
 - HTTP/WebSocket 边界复用 `@spherse/contracts` 的 schema/parser，不新增裸 `JSON.parse` 或仅靠 TypeScript 泛型的边界校验。
+- renderer 只可 `import type` 引用 `@spherse/core`：core 带 better-sqlite3 等原生依赖，运行时引用会被 Vite 打进 renderer 包；纯函数需求在 app 侧镜像 + 对比测试锁定一致（先例 `features/chat/lib/estimate-tokens`、`settings/custom-provider-defaults`）。
 - 用户可见文案必须进入 `@spherse/i18n`。
 - `packages/i18n/src/locales/zh-CN.ts` 是翻译基准；新增文案要写清 UI 位置、上下文和交互状态注释，并同步其他语言。
 

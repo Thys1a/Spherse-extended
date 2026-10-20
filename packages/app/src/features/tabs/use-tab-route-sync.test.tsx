@@ -110,4 +110,13 @@ describe("useTabRouteSync", () => {
     expect(useTabStore.getState().byProject["p1"]).toBeUndefined();
     expect(loc()).toBe("/project/p1/chat/%E0");
   });
+
+  it("keeps messageId in the URL so locate flows can finish", () => {
+    renderAt("/project/p1/chat/s9?messageId=7");
+
+    const entry = useTabStore.getState().byProject["p1"];
+    expect(entry.tabs).toHaveLength(1);
+    expect(entry.tabs[0]).toMatchObject({ kind: "chat", sessionId: "s9" });
+    expect(loc()).toBe("/project/p1/chat/s9?messageId=7");
+  });
 });

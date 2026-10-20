@@ -7,6 +7,8 @@ import type { ProjectStore } from "../../store/project.js";
 import type { Logger } from "../../logger.js";
 import { mcpContextBlock } from "./block.js";
 
+const MCP_CONTEXT_BLOCK_RE = /\n*<!-- spherse:mcp-context:start -->[\s\S]*?<!-- spherse:mcp-context:end -->/g;
+
 function dedupeToolNames(existing: AgentTool[], incoming: AgentTool[]): AgentTool[] {
   const used = new Set<string>();
   for (const t of existing) used.add(t.name);
@@ -64,18 +66,22 @@ export function createMcpCapability(deps: McpCapabilityDeps): McpCapability {
   };
 
   const turnHooks: TurnHooksFactory = (agentId, sessionId) => {
-    let mergedAtVersion: number | null = null;
+    let mergedAtRevision: number | null = null;
+    let lastMerged: ReadonlySet<string> = new Set();
     return {
       async beforeTurn(agent) {
-        const version = ensure().configVersion(agentId);
-        if (mergedAtVersion === version) return;
-        mergedAtVersion = version;
         try {
-          const { tools: mcpTools, info } = await ensure().load(agentId);
-          if (mcpTools.length > 0) {
-            const current = agent.state.tools;
-            agent.state.tools = [...current, ...dedupeToolNames(current, mcpTools)];
-          }
+          const { tools: mcpTools, info, revision } = await ensure().load(agentId);
+          if (mergedAtRevision === revision) return;
+          mergedAtRevision = revision;
+
+          const baseTools = agent.state.tools.filter((t) => !lastMerged.has(t.name));
+          const mergedTools = dedupeToolNames(baseTools, mcpTools);
+          const nextTools = [...baseTools, ...mergedTools];
+          lastMerged = new Set(mergedTools.map((t) => t.name));
+          agent.state.tools = nextTools;
+
+          agent.state.systemPrompt = agent.state.systemPrompt.replace(MCP_CONTEXT_BLOCK_RE, "");
           const block = mcpContextBlock(info);
           if (block) {
             agent.state.systemPrompt += "\n\n" + block.render();
@@ -85,7 +91,7 @@ export function createMcpCapability(deps: McpCapabilityDeps): McpCapability {
         }
       },
       onReload() {
-        mergedAtVersion = null;
+        mergedAtRevision = null;
       },
     };
   };

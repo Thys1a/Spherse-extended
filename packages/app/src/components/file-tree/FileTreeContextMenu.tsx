@@ -7,7 +7,7 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "../../components/ui/context-menu";
-import type { CreateAction, TreeItem } from "./tree-model";
+import { parentDirPath, type CreateAction, type TreeItem } from "./tree-model";
 
 export function FileTreeContextMenu({
   node,
@@ -16,6 +16,7 @@ export function FileTreeContextMenu({
   onDelete,
   onOpenInNewTab,
   onSplitFile,
+  onUploadFiles,
   onFloatFile,
   floatedFilePaths,
   onRename,
@@ -29,6 +30,7 @@ export function FileTreeContextMenu({
   onDelete: () => void;
   onOpenInNewTab?: (filePath: string) => void;
   onSplitFile?: (filePath: string) => void;
+  onUploadFiles?: (dirPath: string) => void;
   onFloatFile?: (filePath: string) => void;
   floatedFilePaths?: Set<string>;
   onRename?: () => void;
@@ -73,6 +75,17 @@ export function FileTreeContextMenu({
             <ContextMenuItem onClick={() => onCreate("new-folder")}>
               {t("file-tree.newFolder")}
             </ContextMenuItem>
+            {onUploadFiles && (
+              <ContextMenuItem
+                onClick={() =>
+                  onUploadFiles(
+                    node.type === "directory" ? node.path : parentDirPath(node.path),
+                  )
+                }
+              >
+                {t("file-tree.uploadFiles")}
+              </ContextMenuItem>
+            )}
             <ContextMenuSeparator />
           </>
         )}

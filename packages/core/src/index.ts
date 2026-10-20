@@ -1,14 +1,16 @@
 export type {
   TimePerceptionConfig,
   AgentProfile,
+  QuickReply,
   ProviderCredentials,
   SamplingParams,
   ThinkingLevel,
   ModelGroupSettings,
+  ModelSettings,
   MobileAccessSettings,
   TtsSettings,
   ProxySettings,
-  AppSettings,
+  WebSearchSettings,
   ProviderCatalog,
   ProviderCatalogItem,
   ProviderModelItem,
@@ -22,6 +24,8 @@ export {
   ModelNotConfiguredError,
   MigrationRequiredError,
 } from "./errors.js";
+export { estimateTokens } from "./context/token-estimate.js";
+export { MAX_QUICK_REPLIES, MAX_QUICK_REPLY_LABEL_LENGTH } from "./types.js";
 export type { ProjectRuntime } from "./project-runtime.js";
 export type { ProjectManager } from "./project-manager.js";
 export type { SessionManager } from "./session/session-manager.js";
@@ -35,6 +39,7 @@ export { createProject } from "./factory.js";
 export type { DataStore, DataChangeEvent, ManifestFieldRule, ManifestFieldType, OutlineResult, ReadResult, QueryResult, MutateResult, WriteResult } from "./capabilities/data/index.js";
 export type { SideEffectRef, UndoOp, UndoRecord, TurnSideEffectSource } from "./tool-attribution.js";
 export { TURN_SIDE_EFFECTS_STORE_KEY } from "./tool-attribution.js";
+export { installMarketplaceProjectZip } from "./marketplace-project.js";
 export { createDataStore } from "./capabilities/data/index.js";
 export type {
   CardStore,
@@ -95,6 +100,8 @@ export type { ImageCardDetails, ImageCardResultDetails } from "./tools/generate-
 export type { ManageAgentDetails } from "./tools/manage-agent.js";
 export type { ManageTriggerDetails } from "./tools/manage-trigger.js";
 export type { AgentChangePayload, AgentChangeAction } from "./store/project.js";
+export type { SessionChangePayload, SessionChangeAction } from "./store/session.js";
 export { isValidCron, isReservedEventName, requiresTargetSession } from "./trigger/validation.js";
 export type { Attachment } from "./attachments/index.js";
+export { WEB_SEARCH_API_KEY_ENV, WEB_SEARCH_BASE_URL_ENV, WEB_SEARCH_MODEL_ENV } from "./tools/web-search.js";
 export type { McpTransportType } from "./mcp/index.js";

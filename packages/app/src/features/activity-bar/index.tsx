@@ -5,6 +5,12 @@ import { useProjectActions } from "./use-project-actions";
 import { ProjectAvatar } from "./ProjectAvatar";
 import { Button } from "../../components/ui/button";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "../../components/ui/dropdown-menu";
+import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
@@ -13,13 +19,18 @@ import {
   ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from "../../components/ui/context-menu";
-import { PanelLeftCloseIcon, PinIcon, PlusIcon, SettingsIcon } from "lucide-react";
+import { FolderOpenIcon, GlobeIcon, PanelLeftCloseIcon, PinIcon, PlusIcon, SettingsIcon } from "lucide-react";
 import { DebugTools } from "../debug-tools";
+import { WebDisconnectButton } from "../web-disconnect";
 import { WelcomePageSettingsDialog } from "../project-settings/welcome-page-settings";
 import { ThemeSettingsDialog } from "../project-settings/theme-settings";
+import { SidePanelSettingsDialog } from "../project-settings/side-panel-settings";
+import { ProjectMarketDialog } from "../project-market/ProjectMarketDialog";
 import { useFeature } from "../../lib/use-feature";
 import { useHostBridge } from "../../context/host-bridge-context";
-import { useApiClient } from "../../lib/use-connection";
+import { useApiClient, useGlobalApiClient } from "../../lib/use-connection";
+import { useCustomSidePanel } from "../../queries/custom-side-panel";
+import { useCustomSidePanelStore } from "../../stores/custom-side-panel-store";
 import { useI18n } from "@spherse/i18n/react";
 
 interface PinToggle {
@@ -37,8 +48,10 @@ export function ActivityBar({ pinToggle }: ActivityBarProps) {
   const activeProjectId = useAppStore((state) => state.activeProjectId);
   const settingsEnabled = useFeature("settings");
   const openProjectEnabled = useFeature("open-project");
+  const openProjectFolderEnabled = useFeature("open-project-folder");
   const openSettings = useAppUiStore((s) => s.openSettings);
-  const canEditProject = useHostBridge().capabilities.content.editable;
+  const bridge = useHostBridge();
+  const canEditProject = bridge.capabilities.content.editable;
   const { handleAddProject, handleSelectProject, handleCloseProject, handleOpenProjectFolder } =
     useProjectActions();
   const [settingsProjectId, setSettingsProjectId] = useState<string | null>(null);
@@ -47,6 +60,21 @@ export function ActivityBar({ pinToggle }: ActivityBarProps) {
   const [themeSettingsProjectId, setThemeSettingsProjectId] = useState<string | null>(null);
   const themeSettingsProject = themeSettingsProjectId ? projects.get(themeSettingsProjectId) : null;
   const themeClient = useApiClient(themeSettingsProjectId);
+  const [sidePanelSettingsProjectId, setSidePanelSettingsProjectId] = useState<string | null>(null);
+  const sidePanelSettingsProject = sidePanelSettingsProjectId ? projects.get(sidePanelSettingsProjectId) : null;
+  const sidePanelSettingsClient = useApiClient(sidePanelSettingsProjectId);
+  const [marketOpen, setMarketOpen] = useState(false);
+  const globalClient = useGlobalApiClient();
+  const activeProjectClient = useApiClient(activeProjectId);
+  const { data: customSidePanelData, isError: customSidePanelError } = useCustomSidePanel(
+    activeProjectId,
+    activeProjectClient,
+  );
+  const customSidePanelPath = customSidePanelError ? null : customSidePanelData?.path;
+  const customSidePanelActive = useCustomSidePanelStore(
+    (state) => activeProjectId != null && state.isActive(activeProjectId),
+  );
+  const toggleCustomSidePanel = useCustomSidePanelStore((state) => state.toggle);
 
   return (
     <div className="h-full w-[52px] shrink-0">
@@ -69,6 +97,16 @@ export function ActivityBar({ pinToggle }: ActivityBarProps) {
                 />
               </ContextMenuTrigger>
               <ContextMenuContent>
+                {projectId === activeProjectId && (
+                  <ContextMenuItem
+                    disabled={customSidePanelPath == null}
+                    onClick={() => toggleCustomSidePanel(projectId)}
+                  >
+                    {customSidePanelActive && customSidePanelPath != null
+                      ? t("activity-bar.showDefaultSidePanel")
+                      : t("activity-bar.showCustomSidePanel")}
+                  </ContextMenuItem>
+                )}
                 {canEditProject && projectId === activeProjectId && (
                   <ContextMenuSub>
                     <ContextMenuSubTrigger>
@@ -81,12 +119,17 @@ export function ActivityBar({ pinToggle }: ActivityBarProps) {
                       <ContextMenuItem onClick={() => setThemeSettingsProjectId(projectId)}>
                         {t("activity-bar.settings.theme")}
                       </ContextMenuItem>
+                      <ContextMenuItem onClick={() => setSidePanelSettingsProjectId(projectId)}>
+                        {t("activity-bar.settings.sidePanel")}
+                      </ContextMenuItem>
                     </ContextMenuSubContent>
                   </ContextMenuSub>
                 )}
-                <ContextMenuItem onClick={() => handleOpenProjectFolder(projectId)}>
-                  {t("activity-bar.openProjectFolder")}
-                </ContextMenuItem>
+                {openProjectFolderEnabled && (
+                  <ContextMenuItem onClick={() => handleOpenProjectFolder(projectId)}>
+                    {t("activity-bar.openProjectFolder")}
+                  </ContextMenuItem>
+                )}
                 <ContextMenuItem onClick={() => handleCloseProject(projectId)}>
                   {t("activity-bar.closeProject")}
                 </ContextMenuItem>
@@ -97,6 +140,7 @@ export function ActivityBar({ pinToggle }: ActivityBarProps) {
         </div>
         <div className="mt-auto flex flex-col items-center gap-2 pb-3">
           <DebugTools />
+          <WebDisconnectButton variant="icon" />
           {pinToggle && (
             <Button
               variant="ghost"
@@ -123,15 +167,30 @@ export function ActivityBar({ pinToggle }: ActivityBarProps) {
             </Button>
           )}
           {openProjectEnabled && (
-            <Button
-              variant="outline"
-              size="icon-lg"
-              className="border-dashed"
-              onClick={handleAddProject}
-              title={t("activity-bar.addProjectTooltip")}
-            >
-              <PlusIcon />
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    variant="outline"
+                    size="icon-lg"
+                    className="border-dashed"
+                    title={t("activity-bar.addProjectTooltip")}
+                  />
+                }
+              >
+                <PlusIcon />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" side="right">
+                <DropdownMenuItem onClick={() => setMarketOpen(true)}>
+                  <GlobeIcon />
+                  {t("activity-bar.openProjectMenu.market")}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleAddProject}>
+                  <FolderOpenIcon />
+                  {t("activity-bar.openProjectMenu.local")}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
         </div>
         {settingsProject && settingsClient && settingsProjectId && (
@@ -150,6 +209,22 @@ export function ActivityBar({ pinToggle }: ActivityBarProps) {
             client={themeClient}
             open={true}
             onOpenChange={(open) => { if (!open) setThemeSettingsProjectId(null); }}
+          />
+        )}
+        {sidePanelSettingsProject && sidePanelSettingsClient && sidePanelSettingsProjectId && (
+          <SidePanelSettingsDialog
+            key={sidePanelSettingsProjectId}
+            projectId={sidePanelSettingsProjectId}
+            client={sidePanelSettingsClient}
+            open={true}
+            onOpenChange={(open) => { if (!open) setSidePanelSettingsProjectId(null); }}
+          />
+        )}
+        {globalClient && (
+          <ProjectMarketDialog
+            open={marketOpen}
+            onOpenChange={setMarketOpen}
+            client={globalClient}
           />
         )}
       </div>

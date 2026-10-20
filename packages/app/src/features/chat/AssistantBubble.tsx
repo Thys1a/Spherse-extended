@@ -35,6 +35,7 @@ interface AssistantBubbleProps {
   thinkingTruncated?: boolean;
   diagnostics?: EntryDiagnostics;
   showTime?: boolean;
+  entrySeq?: number;
   supersededToolCallIds?: Set<string>;
   onNavigateToPath?: (path: string) => void;
   onRespondApproval?: (requestId: string, approved: boolean) => void;
@@ -56,6 +57,7 @@ export function AssistantBubble({
   thinkingTruncated,
   diagnostics,
   showTime,
+  entrySeq,
   supersededToolCallIds,
   onNavigateToPath,
   onRespondApproval,
@@ -102,12 +104,24 @@ export function AssistantBubble({
     return { blocks, content: stripHtmlFences(text) };
   }, [streaming, text, allowInlineHtml]);
   const displayText = inlineHtml?.content ?? text;
+  const showTurnTokens =
+    !streaming &&
+    !error &&
+    diagnostics !== undefined &&
+    (diagnostics.promptTokens !== undefined || diagnostics.outputTokens !== undefined);
+  const turnTokenLabel = showTurnTokens
+    ? t("chat.turnTokenUsage", {
+        prompt: (diagnostics?.promptTokens ?? 0).toLocaleString(),
+        output: (diagnostics?.outputTokens ?? 0).toLocaleString(),
+      })
+    : null;
 
   return (
     <div
       className="group max-w-[90%] min-w-0 flex items-start gap-1.5 self-start flex-row"
       data-chat-message
       data-role="assistant"
+      data-entry-seq={entrySeq}
     >
       <div className="flex min-w-0 flex-col gap-1 items-start md:flex-row md:items-end md:gap-1.5">
         <div
@@ -142,6 +156,11 @@ export function AssistantBubble({
               </>
             )}
           </div>
+          {turnTokenLabel && (
+            <div className="mt-1 text-[11px] tabular-nums text-muted-foreground">
+              {turnTokenLabel}
+            </div>
+          )}
           {inlineHtml?.blocks.map((block, blockIndex) => {
             const card: HtmlCard = { type: "html", html: block.source };
             return (

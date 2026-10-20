@@ -54,6 +54,7 @@ describe("initPresets", () => {
     const profile = projectStore.listAgents().find((p) => p.name === "小助手");
     expect(profile).toBeDefined();
     expect(profile!.tools).not.toContain("run_command");
+    expect(profile!.tools).not.toContain("web_search");
     for (const tool of profile!.tools ?? []) {
       expect(tool).not.toMatch(/^mcp__/);
     }
@@ -68,6 +69,15 @@ describe("initPresets", () => {
     ]) {
       expect(profile!.tools).toContain(expected);
     }
+  });
+
+  it("creates the assistant preset with the plan-first convention", async () => {
+    const { initPresets } = await import("../presets.js");
+    await initPresets(projectStore, spherseDir, createSilentLogger());
+
+    const profile = projectStore.listAgents().find((p) => p.name === "小助手");
+    expect(profile).toBeDefined();
+    expect(profile!.systemPrompt).toContain("先计划，后执行：有疑问先提问澄清；动手前先给出计划，经确认后再执行。");
   });
 
   it("does not throw when called on empty project", async () => {

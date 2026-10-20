@@ -1,11 +1,22 @@
 export const PROJECT_META_DIR = ".spherse";
 
+export const MAX_QUICK_REPLIES = 10;
+export const MAX_QUICK_REPLY_LABEL_LENGTH = 16;
+
+export interface QuickReply {
+  label: string;
+  description?: string;
+  text: string;
+  action: "fill";
+}
+
 export interface ProjectConfig {
   id: string;
   name: string;
   created: number;
   aiAccess?: { deniedPaths: string[] };
   welcomePage?: { path: string };
+  sidePanel?: { path: string };
 }
 
 export interface TimePerceptionConfig {
@@ -27,6 +38,7 @@ export interface AgentProfile {
   tools?: string[];
   context?: string[];
   quickLinks?: string[];
+  quickReplies?: QuickReply[];
   output?: {
     path: string;
     naming: string;
@@ -119,6 +131,12 @@ export interface ModelGroupSettings {
   thinkingLevel?: ThinkingLevel;
 }
 
+export interface ModelSettings {
+  text: ModelGroupSettings;
+  image: ModelGroupSettings;
+  customProviders: CustomProviderDef[];
+}
+
 export type ThemeMode = "light" | "dark" | "system";
 
 export type MobileTunnelMode = "quick" | "manual";
@@ -141,22 +159,10 @@ export interface ProxySettings {
   noProxy?: string;
 }
 
-export interface AppSettings {
-  locale: string;
-  models: {
-    text: ModelGroupSettings;
-    image: ModelGroupSettings;
-  };
-  customProviders?: CustomProviderDef[];
-  debugToolsEnabled?: boolean;
-  theme?: ThemeMode;
-  mobileAccess?: MobileAccessSettings;
-  tts?: TtsSettings;
-  proxy?: ProxySettings;
-  notifications?: {
-    approval?: boolean;
-    trigger?: boolean;
-  };
+export interface WebSearchSettings {
+  apiKey?: string;
+  baseUrl?: string;
+  model?: string;
 }
 
 export interface ProviderCatalogItem {

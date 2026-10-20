@@ -1,21 +1,24 @@
 import { useMemo, useEffect, useRef, useState } from "react";
 import type { AgentSummary } from "../../lib/types";
 import { useNavigate } from "react-router";
+import { SearchIcon } from "lucide-react";
+import { Button } from "../../components/ui/button";
 import { useProjectCtx } from "../../context/project-context";
 import { useApiClient, useConnection } from "../../lib/use-connection";
 import { useFeature } from "../../lib/use-feature";
 import { useIsMobile } from "../../hooks/use-mobile";
 import { useProjectAgentProfile } from "../../queries/project";
+import { refreshSessionStatus } from "../../queries/project/sessions";
 import { useFloatingContentBrowserStore } from "../floating-content-browser/store";
 import { toast } from "sonner";
 import { useI18n } from "@spherse/i18n/react";
 import { stopIfSession } from "./tts/tts-controller";
 import { speak } from "./tts/tts-controller";
 import { onAssistantTurnComplete } from "./tts/bridge";
-import { useHostBridge } from "../../context/host-bridge-context";
 import { useSettingsStore } from "../../stores/settings-store";
 import { Composer } from "./Composer";
 import { Header } from "./Header";
+import { QuickReplyBar } from "./QuickReplyBar";
 import { MessageList } from "./MessageList";
 import { toSendable } from "./model/group-derivations";
 import { ConnectionBanner } from "./ConnectionBanner";
@@ -27,6 +30,7 @@ import { useChatSession } from "./hooks/useChatSession";
 import type { AttachedFile } from "./types";
 import { useSummonSend } from "./lib/use-summon-send";
 import { FindBar } from "../../components/find-bar/FindBar";
+import { useLocateMessage } from "./hooks/useLocateMessage";
 
 export interface ChatProps {
   sessionId: string;
@@ -36,14 +40,15 @@ export interface ChatProps {
   initialMessage?: string;
   onClose?: () => void;
   hideHeader?: boolean;
+  locateSeq?: number | null;
+  onLocated?: () => void;
 }
 
-export function Chat({ sessionId, agent, onNavigateToPath, onOpenSession, initialMessage, onClose, hideHeader }: ChatProps) {
+export function Chat({ sessionId, agent, onNavigateToPath, onOpenSession, initialMessage, onClose, hideHeader, locateSeq = null, onLocated }: ChatProps) {
   const { projectId } = useProjectCtx();
   const client = useApiClient(projectId);
   const { baseUrl, accessToken } = useConnection();
   const { t, locale } = useI18n();
-  const bridge = useHostBridge();
   const autoRead = useSettingsStore((s) => s.tts.autoRead ?? false);
   const navigate = useNavigate();
   const isMobile = useIsMobile();
@@ -88,7 +93,15 @@ export function Chat({ sessionId, agent, onNavigateToPath, onOpenSession, initia
     initialMessage,
     accessToken,
   });
-  const { containerRef, isAtBottom, scrollToBottom } = useChatScroll(entries, sessionId, loadingMore);
+  const { containerRef, isAtBottom, scrollToBottom } = useChatScroll(entries, sessionId, loadingMore, thinking);
+  useLocateMessage({
+    containerRef,
+    client,
+    sessionId,
+    agentId: agent.id,
+    locateSeq,
+    onLocated: onLocated ?? (() => {}),
+  });
   const themeCss = useAgentTheme(client, agent.id, agent.slug, projectId);
   const scopedThemeCss = useMemo(
     () =>
@@ -193,34 +206,41 @@ export function Chat({ sessionId, agent, onNavigateToPath, onOpenSession, initia
     stopIfSession(sessionId);
   }, [sessionId]);
 
+  const prevStreamingRef = useRef(streaming);
+  useEffect(() => {
+    if (prevStreamingRef.current && !streaming) {
+      void refreshSessionStatus(projectId, agent.id, sessionId);
+    }
+    prevStreamingRef.current = streaming;
+  }, [streaming, projectId, agent.id, sessionId]);
+
   useEffect(() => {
     if (!compactResult) return;
     if (compactResult.applied) {
       toast.success(t("chat.compactApplied"));
+      void refreshSessionStatus(projectId, agent.id, sessionId);
     } else {
       toast.info(t("chat.compactNotNeeded"));
     }
     clearCompactResult();
-  }, [compactResult, clearCompactResult, t]);
+  }, [compactResult, clearCompactResult, t, projectId, agent.id, sessionId]);
 
   useEffect(() => {
     if (!autoRead) return;
     return onAssistantTurnComplete((sid, text) => {
       if (sid !== sessionId || document.hidden) return;
-      void (async () => {
-        const settings = await bridge.getSettings();
-        speak(`${sessionId}:auto`, sessionId, text, {
-          voiceURI: settings?.tts?.voiceURI,
-          rate: settings?.tts?.rate,
-          locale,
-        });
-      })();
+      const tts = useSettingsStore.getState().tts;
+      speak(`${sessionId}:auto`, sessionId, text, {
+        voiceURI: tts?.voiceURI,
+        rate: tts?.rate,
+        locale,
+      });
     });
-  }, [autoRead, sessionId, bridge, locale]);
+  }, [autoRead, sessionId, locale]);
 
   return (
     <ChatAgentProvider agent={agentScope}>
-      <div ref={rootRef} className="flex flex-col h-full" data-chat-root data-chat-instance={sessionId}>
+      <div ref={rootRef} className={hideHeader ? "relative flex flex-col h-full" : "flex flex-col h-full"} data-chat-root data-chat-instance={sessionId}>
         {scopedThemeCss && <style data-agent-theme={sessionId}>{scopedThemeCss}</style>}
         {!hideHeader && (
           <div className="relative shrink-0">
@@ -233,6 +253,7 @@ export function Chat({ sessionId, agent, onNavigateToPath, onOpenSession, initia
               onCompact={handleCompact}
               compacting={compacting}
               compactDisabled={streaming || loading}
+              onFind={() => setFindOpen(true)}
             />
             {isMobile && activeQuickLink !== null && (
               <QuickLinkPanel projectId={projectId} path={activeQuickLink} />
@@ -245,11 +266,24 @@ export function Chat({ sessionId, agent, onNavigateToPath, onOpenSession, initia
           onReconnect={reconnect}
           onRetryHistory={retryHistory}
         />
+        {hideHeader && !findOpen && (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="absolute end-2 top-2 z-10 text-muted-foreground"
+            onClick={() => setFindOpen(true)}
+            title={t("chat.find.open")}
+            aria-label={t("chat.find.open")}
+          >
+            <SearchIcon className="size-3.5" />
+          </Button>
+        )}
         {findOpen && (
           <FindBar
             containerRef={containerRef}
             contentKey={sessionId}
             onClose={() => setFindOpen(false)}
+            labelPrefix="chat.find"
           />
         )}
         <MessageList
@@ -275,12 +309,17 @@ export function Chat({ sessionId, agent, onNavigateToPath, onOpenSession, initia
           hasMore={hasMore}
           loadingMore={loadingMore}
           onLoadMore={loadMore}
+          locateSeq={locateSeq}
         />
+        {(profileQuery.data?.quickReplies?.length ?? 0) > 0 && (
+          <QuickReplyBar sessionId={sessionId} replies={profileQuery.data?.quickReplies ?? []} />
+        )}
         <Composer
           streaming={streaming}
           loading={loading}
           panicLocked={connection.state === "failed" || connection.state === "fatal"}
           sessionId={sessionId}
+          agentId={agent.id}
           placeholder={profileQuery.data?.placeholder}
           onSend={handleSend}
           onAbort={abort}

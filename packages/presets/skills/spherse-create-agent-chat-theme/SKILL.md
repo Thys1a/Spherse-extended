@@ -44,6 +44,7 @@ Agent chat themes live in the agent directory as `theme.css` (`.spherse/agents/{
 | Chat 根级渐变/图片背景 | 在 `[data-chat-root] { ... }` 内写 `background:` / `background-image:` |
 | Header | `[data-chat-header]` |
 | Header 快捷链接按钮 | `[data-chat-quick-links]`（按钮行）/ `[data-chat-quick-links] button`（单个按钮） |
+| 输入框上方快捷回复按钮 | `[data-chat-quick-replies]`（按钮行）/ `[data-chat-quick-replies] button`（单个按钮） |
 | 移动端快捷链接滑出面板 | `[data-chat-quick-link-panel]` |
 | 消息外层行 | `[data-chat-message][data-role="user"]` 或 `[data-role="assistant"]` |
 | 消息气泡 | `[data-chat-bubble]` |
@@ -52,8 +53,8 @@ Agent chat themes live in the agent directory as `theme.css` (`.spherse/agents/{
 | HTML 卡片容器 | `[data-chat-html-card]` |
 | Trigger 对话轮折叠摘要条 | `[data-chat-turn-collapse]` |
 | 助手头像 | `[data-chat-message][data-role="assistant"]::before` |
-| Composer 外层 | `[data-chat-composer]` |
-| 输入框外框 | `[data-chat-composer-input]` |
+| Composer 外层 | `[data-chat-composer]`（移动端为透明容器，勿设 background/border-top） |
+| 输入框外框 | `[data-chat-composer-input]`（移动端为带阴影的圆角卡片，输入区背景/边框写这里） |
 | 文本输入区文字 | `[data-chat-composer] textarea` |
 | Placeholder | `[data-chat-composer] textarea::placeholder` |
 | 代码块 | `[data-md-code]` |
@@ -71,6 +72,7 @@ Agent chat themes live in the agent directory as `theme.css` (`.spherse/agents/{
 | `data-chat-root` | 聊天窗口根容器（最外层包裹） |
 | `data-chat-header` | 顶部 header |
 | `data-chat-quick-links` | Header 快捷链接按钮行 |
+| `data-chat-quick-replies` | 输入框上方快捷回复按钮行 |
 | `data-chat-quick-link-panel` | 移动端快捷链接滑出面板 |
 | `data-chat-messages` | 消息列表区 |
 | `data-chat-message` + `data-role="user"`/`"assistant"` | 单条消息外层 |
@@ -79,8 +81,8 @@ Agent chat themes live in the agent directory as `theme.css` (`.spherse/agents/{
 | `data-chat-tool-call` | 工具调用行 |
 | `data-chat-html-card` | HTML 卡片容器 |
 | `data-chat-turn-collapse` | Trigger 对话轮折叠摘要条（按钮） |
-| `data-chat-composer` | 输入区外层 |
-| `data-chat-composer-input` | 输入框外框 |
+| `data-chat-composer` | 输入区外层（桌面贴底通栏，移动端透明容器） |
+| `data-chat-composer-input` | 输入框外框（移动端为带阴影的圆角卡片） |
 | `data-chat-float-root` | 浮动窗根容器 |
 | `data-chat-float-titlebar` | 浮动窗标题栏 |
 | `data-chat-float-close` | 浮动窗关闭按钮 |
@@ -105,6 +107,15 @@ Agent chat themes live in the agent directory as `theme.css` (`.spherse/agents/{
   align-self: flex-end;
 }
 ```
+
+## Composer 与移动端
+
+Composer 有两套布局，主题 CSS 对两者同时生效：
+
+- **桌面（≥768px）**：`[data-chat-composer]` 是贴底通栏（背景 + 上边框），`[data-chat-composer-input]` 是其中的输入框外框，附件与发送按钮位于输入框下方一行。
+- **移动端（<768px）**：`[data-chat-composer]` 是**透明 padding 容器**（无背景、无边框、含底部安全区留白），`[data-chat-composer-input]` 变为带阴影的圆角卡片，附件与发送按钮与输入框同行，整体更扁。
+
+因此定制输入区背景/边框/圆角时**写在 `[data-chat-composer-input]` 上**，两种布局下都正确；对 `[data-chat-composer]` 设置 `background` / `border-top` 只适合桌面通栏效果，且会在移动端把这个透明容器重新渲染成实心条（确需时包一层 `@media (min-width: 768px)`）。
 
 ## 引用图片与字体
 
@@ -181,11 +192,6 @@ Agent chat themes live in the agent directory as `theme.css` (`.spherse/agents/{
     background: rgba(24, 23, 36, 0.9);
     border: 1px solid rgba(201, 160, 74, 0.08);
     border-radius: 18px 18px 18px 4px;
-  }
-
-  [data-chat-composer] {
-    background: rgba(12, 11, 18, 0.92);
-    border-top: 1px solid rgba(201, 160, 74, 0.08);
   }
 
   [data-chat-composer-input] {

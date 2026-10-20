@@ -74,7 +74,12 @@ export const zhCN = {
   // provider 状态标签：已填写 API Key
   "settings.provider.apiKeyProvided": "已提供 API Key",
   // provider API Key 输入框占位提示
-  "settings.provider.apiKeyPlaceholder": "API密钥",  // provider 状态标签：尚未连接
+  "settings.provider.apiKeyPlaceholder": "API密钥",
+  // 已配置 key 的输入框占位提示（server 不下发 key 明文）
+  "settings.provider.apiKeyConfigured": "已配置",
+  // 模型配置加载失败整屏提示
+  "settings.models.loadFailed": "无法加载模型配置：请检查与桌面的连接，或升级桌面端到最新版本。",
+  // provider 状态标签：尚未连接
   "settings.provider.notConnected": "未连接",
   // 模型提供商列表的搜索框占位提示（当提供商数量超过 6 个时显示，输入名称或 id 筛选）
   "settings.provider.searchPlaceholder": "搜索供应商…",
@@ -334,6 +339,8 @@ export const zhCN = {
   "common.add": "添加",
   // 通用发送按钮
   "common.send": "发送",
+  // 通用「清除输入框内容」按钮的无障碍标签（输入框尾部叉号）
+  "common.clear": "清除",
 
   // --- Activity Bar ---
   // 左侧活动栏设置图标悬停提示
@@ -352,10 +359,20 @@ export const zhCN = {
   "activity-bar.settings.welcomePage": "欢迎页",
   // 项目右键菜单 → 设置 → 主题（二级菜单项，打开主题 CSS 编辑弹窗）
   "activity-bar.settings.theme": "主题",
+  // 项目右键菜单 → 设置 → 侧边面板（二级菜单项，打开侧边面板设置弹窗）
+  "activity-bar.settings.sidePanel": "侧边面板",
+  // 项目右键菜单：显示自定义侧边面板（未配置路径时置灰）
+  "activity-bar.showCustomSidePanel": "显示自定义侧边面板",
+  // 项目右键菜单：切回默认项目面板
+  "activity-bar.showDefaultSidePanel": "显示默认侧边面板",
   // 左侧活动栏固定图标悬停提示：点击后将项目面板切换为鼠标移出后自动收起
   "activity-bar.autoCollapseSidePanelTooltip": "自动收起项目面板",
   // 左侧活动栏收起图标悬停提示：点击后将项目面板固定显示
   "activity-bar.pinSidePanelTooltip": "固定项目面板",
+  // 添加项目菜单：市场（打开项目市场弹窗）
+  "activity-bar.openProjectMenu.market": "市场",
+  // 添加项目菜单：本地（弹出系统文件管理器选择本地项目目录）
+  "activity-bar.openProjectMenu.local": "本地",
   // 移动端（窄屏）左下角浮动按钮的悬停提示与无障碍标签：点击后项目面板从左侧滑出
   "side-panel.openTooltip": "打开项目面板",
 
@@ -430,26 +447,56 @@ export const zhCN = {
   "agent-dialog.quickLinksHint": "显示为聊天窗口顶部的按钮，点击可快速打开该文件",
   // Agent 快捷链接路径输入框占位提示
   "agent-dialog.quickLinksPlaceholder": "添加文件…",
+  // Agent 快捷回复字段标签
+  "agent-dialog.quickRepliesLabel": "快捷回复",
+  // Agent 快捷回复字段 tooltip：说明展示位置、条数上限与作用
+  "agent-dialog.quickRepliesHint": "显示为聊天输入框上方的按钮（最多10条），点击填入预设文本",
+  // Agent 快捷回复「添加」按钮文案
+  "agent-dialog.quickRepliesAdd": "添加",
+  // 快捷回复条目：显示名输入框占位（最多16字）
+  "agent-dialog.quickReplyLabelPlaceholder": "显示名（最多16字）",
+  // 快捷回复条目：说明输入框占位（悬停提示，可选）
+  "agent-dialog.quickReplyDescriptionPlaceholder": "说明（可选）",
+  // 快捷回复条目：填入文本输入框占位
+  "agent-dialog.quickReplyTextPlaceholder": "点击后填入的文本",
+  // Agent 快捷回复管理按钮文案（打开管理弹窗）
+  "agent-dialog.quickRepliesManage": "管理",
+  // Agent 快捷回复条数文案，{count} 为当前条数
+  "agent-dialog.quickRepliesCount": "共 {count} 条",
+  // 快捷回复管理弹窗标题
+  "agent-dialog.quickRepliesDialogTitle": "管理快捷回复",
+  // 快捷回复条目「更新」按钮文案（编辑态）
+  "agent-dialog.quickReplyUpdate": "更新",
+  // 快捷回复管理弹窗空态提示
+  "agent-dialog.quickRepliesEmpty": "暂无快捷回复，在下方添加",
+  // 快捷回复管理弹窗「完成」按钮文案（仅关闭弹窗，落盘走编辑页保存）
+  "agent-dialog.quickRepliesDone": "完成",
   "agent-dialog.cardLinksLabel": "世界书外链",
   "agent-dialog.cardLinksHint": "把项目内 .card.json 文件链入该 Agent，命中条目每轮自动注入其 prompt",
   "agent-dialog.cardLinksPlaceholder": "添加 .card.json 文件…",
   "agent-dialog.cardLinksDangling": "{name}（已丢失）",
-  // Agent dialog 提示词模板行标签（预留，当前 UI 未强制展示）
-  "agent-dialog.templateLabel": "模板",
-  // 提示词下方预设模板按钮组的前缀文案
-  "agent-dialog.templatePresetsLabel": "预设模板：",
-  // 预制提示词模板：世界观创作助手 badge 文案
-  "agent-dialog.template.worldview-assistant": "世界观创作助手",
-  // 预制提示词模板：角色扮演 badge 文案
-  "agent-dialog.template.roleplay": "角色扮演",
-  // 提示词非空时点击模板的确认弹窗标题
-  "agent-dialog.templateConfirmTitle": "应用模板",
-  // 确认弹窗正文：提示将覆盖当前提示词
-  "agent-dialog.templateConfirmDesc": "应用模板将覆盖当前提示词内容，是否继续？",
-  // 确认弹窗「应用」按钮
-  "agent-dialog.templateConfirmApply": "应用",
-  // 确认弹窗「取消」按钮
-  "agent-dialog.templateConfirmCancel": "取消",
+  // 预设模板入口按钮：打开提示词模板市场 dialog
+  "agent-dialog.templates.browse": "浏览提示词模板…",
+  // 提示词模板市场 dialog 标题
+  "agent-dialog.templates.title": "提示词模板",
+  // 模板卡片与详情视图的「复制」按钮
+  "agent-dialog.templates.copy": "复制",
+  // 复制成功后的按钮反馈
+  "agent-dialog.templates.copied": "已复制",
+  // 模板卡片「查看」按钮：进入详情视图
+  "agent-dialog.templates.view": "查看",
+  // 详情视图「返回」按钮
+  "agent-dialog.templates.back": "返回",
+  // 模板市场加载中
+  "agent-dialog.templates.loading": "加载中…",
+  // 模板市场加载失败
+  "agent-dialog.templates.loadFailed": "加载失败",
+  // 加载失败后的「重试」按钮
+  "agent-dialog.templates.retry": "重试",
+  // 模板列表为空（含市场未发布）
+  "agent-dialog.templates.empty": "暂无模板",
+  // 分类 chips 的「全部」选项
+  "agent-dialog.templates.categoryAll": "全部",
   // Agent dialog 个性化 tab：主题区块标签
   "agent-dialog.themeLabel": "主题",
   // Agent dialog 个性化 tab：主题区块 tooltip，告知主题 CSS 的作用范围（仅当前智能体的聊天窗口）
@@ -679,8 +726,6 @@ export const zhCN = {
   "agent-mcp.transport-stdio": "本地进程",
   // 传输方式：http（Streamable HTTP）
   "agent-mcp.transport-http": "HTTP",
-  // 传输方式：sse（Server-Sent Events）
-  "agent-mcp.transport-sse": "SSE",
   // 表单（stdio）：可执行命令字段标签
   "agent-mcp.fieldCommand": "命令",
   // 表单（stdio）：可执行命令字段占位
@@ -697,13 +742,13 @@ export const zhCN = {
   "agent-mcp.fieldCwd": "工作目录",
   // 表单（stdio）：工作目录字段占位，建议绝对路径；留空则用应用进程的 cwd
   "agent-mcp.fieldCwdPlaceholder": "可选，建议绝对路径，如 /Users/me/work",
-  // 表单（http/sse）：服务地址字段标签
+  // 表单（http）：服务地址字段标签
   "agent-mcp.fieldUrl": "服务地址",
-  // 表单（http/sse）：服务地址字段占位
+  // 表单（http）：服务地址字段占位
   "agent-mcp.fieldUrlPlaceholder": "如 http://localhost:3000/mcp",
-  // 表单（http/sse）：请求头字段标签
+  // 表单（http）：请求头字段标签
   "agent-mcp.fieldHeaders": "请求头",
-  // 表单（http/sse）：请求头字段占位，每行一个 Key: Value
+  // 表单（http）：请求头字段占位，每行一个 Key: Value
   "agent-mcp.fieldHeadersPlaceholder": "每行一个，格式 Authorization: Bearer xxx",
 
   // --- Chat ---
@@ -874,6 +919,24 @@ export const zhCN = {
   "chat.questionToastMessage": "一个 Agent 正在等待你的回答",
   // 上述 toast 在能解析到 agent 名时的标题文案，{name} 为 agent 名称
   "chat.questionToastMessageWithName": "「{name}」正在等待你的回答",
+  // 聊天区 Header/浮动窗口查找按钮的悬停提示与无障碍标签，点击打开会话内查找栏
+  "chat.find.open": "查找",
+  // 会话内查找栏：输入框占位文案
+  "chat.find.placeholder": "查找",
+  // 会话内查找栏「无匹配」计数占位（输入了关键词但无任何匹配时显示）
+  "chat.find.noMatch": "无匹配",
+  // 会话内查找栏「上一个匹配」按钮的悬停提示与无障碍标签
+  "chat.find.previous": "上一个匹配",
+  // 会话内查找栏「下一个匹配」按钮的悬停提示与无障碍标签
+  "chat.find.next": "下一个匹配",
+  // 会话内查找栏「关闭查找」按钮的悬停提示与无障碍标签
+  "chat.find.close": "关闭查找",
+  // Composer 输入框 token 计数器文案，{count} 为估算值（含千分位），仅输入非空时显示
+  "chat.inputTokenEstimate": "预计约 {count} tokens",
+  // Composer 输入框计数器后半段：草稿估算 + 会话累计后的发送总量预估，{count} 含千分位
+  "chat.projectedTokenTotal": "发送后约 {count} tokens",
+  // 助手气泡每轮 token 角标文案，{prompt}/{output} 为本轮输入/输出（含千分位）
+  "chat.turnTokenUsage": "输入 {prompt} · 输出 {output}",
 
   // --- Content Browser ---
   // 内容浏览器文本查找栏：输入框占位文案，也是 Header 查找按钮与无障碍标签
@@ -932,6 +995,18 @@ export const zhCN = {
   "content-browser.taskToggleStale": "文件已被外部修改，请刷新后重试",
   // 点击 markdown 内部链接指向的文件不存在时的 toast 错误提示，{path} 为目标文件相对项目根的路径
   "content-browser.linkNotFound": "找不到文件：{path}",
+  // 回主窗口按钮（分窗 Header，图标按钮 title/aria-label）：结束分窗并将该文件打开回主区域
+  "content-browser.unsplit": "回到主窗口",
+  // 文件加载失败时按错误原因区分的提示：文件不存在
+  "content-browser.loadError.notFound": "文件不存在",
+  // 文件加载失败时按错误原因区分的提示：无访问权限
+  "content-browser.loadError.accessDenied": "无权访问此文件",
+  // 文件加载失败时按错误原因区分的提示：项目暂时不可用
+  "content-browser.loadError.unavailable": "项目暂时不可用，稍后刷新重试",
+  // 文件加载失败时按错误原因区分的提示：网络不通
+  "content-browser.loadError.network": "无法连接服务，稍后刷新重试",
+  // 文件加载失败时按错误原因区分的提示：兜底
+  "content-browser.loadError.failed": "文件加载失败",
   // 打开无法在应用内预览的二进制文件（如 PDF / Word / 音视频 / 压缩包）时，占位卡的主标题
   "content-browser.unsupported.title": "此文件类型无法在 Spherse 内预览",
   // 占位卡说明文案，解释为何不能预览（二进制文件）以及可改用系统默认应用打开
@@ -944,6 +1019,8 @@ export const zhCN = {
   "file-tree.newFile": "新建文件",
   // 新建文件夹按钮
   "file-tree.newFolder": "新建文件夹",
+  // 右键菜单：从设备上传文件到该目录
+  "file-tree.uploadFiles": "上传文件",
   // 删除确认弹窗标题
   "file-tree.confirmDeleteTitle": "确认删除",
   // 删除目录确认弹窗内容，{name} 为目录名
@@ -960,6 +1037,10 @@ export const zhCN = {
   "file-tree.createFailed": "创建失败：{message}",
   // 删除失败提示，{message} 为错误信息
   "file-tree.deleteFailed": "删除失败：{message}",
+  "file-tree.uploadFailed": "上传失败：{message}",
+  "file-tree.uploadNoFiles": "仅支持拖入文件，文件夹将被忽略",
+  "file-tree.uploadedCount": "已上传 {count} 个文件",
+  "file-tree.uploadedRenamed": "同名文件已自动重命名：{names}",
   // 文件树右键菜单：复制路径
   "file-tree.copyPath": "复制路径",
   // 文件右键菜单：在新标签页中打开
@@ -1076,6 +1157,14 @@ export const zhCN = {
   "command-panel.delete.success": "命令「{name}」已删除",
   // 删除命令失败提示，{message} 为错误信息
   "command-panel.delete.failed": "删除命令失败：{message}",
+  "global-search.search": "搜索",
+  "global-search.placeholder": "搜索聊天与文件…",
+  "global-search.initialHint": "输入关键词，搜索当前项目的聊天记录与文件名",
+  "global-search.searching": "搜索中…",
+  "global-search.noResults": "没有找到结果",
+  "global-search.searchFailed": "搜索失败，请稍后重试",
+  "global-search.chatResults": "聊天",
+  "global-search.fileResults": "文件",
 
   // --- Skill Panel ---
   // 技能面板右上角三点菜单的「创建技能」项
@@ -1150,6 +1239,34 @@ export const zhCN = {
   // 技能市场弹窗底部说明文案（技能来源与安装位置）
   "skill-panel.marketplace.note": "技能来自官方市场，安装到当前项目",
 
+  // --- Project Market ---
+  // 项目市场弹窗标题
+  "project-market.title": "项目市场",
+  // 项目市场顶部分类菜单的「全部」选项（不按分类过滤）
+  "project-market.categoryAll": "全部",
+  // 项目市场加载清单时的提示
+  "project-market.loading": "正在加载市场项目…",
+  // 项目市场清单加载失败时的提示
+  "project-market.loadFailed": "市场项目加载失败",
+  // 项目市场加载失败后的「重试」按钮
+  "project-market.retry": "重试",
+  // 项目市场没有任何项目时的空状态提示
+  "project-market.empty": "市场中暂无项目",
+  // 市场项目卡片上的「下载」按钮
+  "project-market.download": "下载",
+  // 市场项目下载中按钮文案
+  "project-market.downloading": "下载中…",
+  // 市场项目下载失败提示，{name} 为项目名，{message} 为错误信息
+  "project-market.downloadFailed": "项目「{name}」下载失败：{message}",
+  // 下载时市场清单已发生变化（版本对不上）的提示，界面会自动刷新清单
+  "project-market.manifestChanged": "市场清单已更新，请重试",
+  // 项目已下载落盘但打开失败（如取消了不安全位置确认）的提示，{name} 为项目名
+  "project-market.openFailed": "项目「{name}」已保存，但打开失败，可稍后从项目列表打开",
+  // 市场项目卡片上的发布时间，{date} 为格式化后的日期
+  "project-market.updatedAt": "更新于 {date}",
+  // 项目市场弹窗底部说明文案（项目来源与保存位置）
+  "project-market.footerNote": "项目来自官方市场，下载后保存到本地",
+
   // --- Text Selection Session ---
   // 文本选择会话的角色下拉框占位提示
   "text-selection.agentPlaceholder": "选择智能体",
@@ -1204,6 +1321,10 @@ export const zhCN = {
   "settings.debugTools": "调试工具",
   // 设置 > 通用：调试工具开关下方的说明文案
   "settings.debugToolsDesc": "在侧边栏显示调试菜单入口",
+  // 设置 > 通用：关闭至托盘开关的标题（仅桌面端显示）
+  "settings.closeToTray": "关闭至托盘",
+  // 设置 > 通用：关闭至托盘开关下方的说明文案
+  "settings.closeToTrayDesc": "关闭窗口时保持 Spherse 在后台运行，可通过托盘图标重新打开",
   // 设置 > 通用：系统通知小节标题（窗口未聚焦时弹出 OS 级通知）
   "settings.notifications.title": "系统通知",
   // 设置 > 通用：系统通知小节说明
@@ -1242,6 +1363,29 @@ export const zhCN = {
   "settings.proxy.noProxyDesc": "多个主机用英文逗号分隔",
   // 设置 > 通用：不走代理输入框占位提示
   "settings.proxy.noProxyPlaceholder": "localhost, 127.0.0.1",
+  // 设置 > 通用：联网搜索小节标题
+  "settings.webSearch.title": "联网搜索",
+  // 设置 > 通用：联网搜索小节说明
+  "settings.webSearch.desc": "为智能体提供联网搜索能力，Key 仅用于搜索请求",
+  // 设置 > 通用：搜索 Key 输入框标签
+  "settings.webSearch.apiKey": "搜索 API Key",
+  // 设置 > 通用：搜索 Key 输入框说明
+  "settings.webSearch.apiKeyDesc": "搜索请求使用的 Key，留空则禁用联网搜索",
+  // 设置 > 通用：搜索 Key 输入框占位提示
+  "settings.webSearch.apiKeyPlaceholder": "sk-...",
+  // 设置 > 通用：搜索服务地址输入框标签
+  "settings.webSearch.baseUrl": "搜索服务地址",
+  // 设置 > 通用：搜索服务地址输入框说明
+  "settings.webSearch.baseUrlDesc": "Anthropic Messages 兼容的搜索端点，留空使用默认服务",
+  // 设置 > 通用：搜索服务地址输入框占位提示
+  "settings.webSearch.baseUrlPlaceholder": "https://api.deepseek.com/anthropic",
+  // 设置 > 通用：搜索模型输入框标签
+  "settings.webSearch.model": "搜索模型",
+  // 设置 > 通用：搜索模型输入框说明
+  "settings.webSearch.modelDesc": "执行搜索的模型，留空使用默认模型",
+  // 设置 > 通用：搜索模型输入框占位提示
+  "settings.webSearch.modelPlaceholder": "deepseek-v4-flash",
+  "settings.webSearch.saveFailed": "保存 Web 搜索设置失败：{message}",
   // 标签页栏的无障碍标签
   "tabs.list": "打开的标签页",
   // 无标题标签页的回退显示
@@ -1277,9 +1421,35 @@ export const zhCN = {
   // 读取欢迎页设置失败提示，{message} 为错误信息
   "welcome-page-settings.loadFailed": "读取欢迎页设置失败：{message}",
 
+  // --- Side Panel Settings ---
+  // 侧边面板设置弹窗标题
+  "side-panel-settings.title": "设置侧边面板",
+  // 侧边面板设置弹窗的说明文案
+  "side-panel-settings.description": "选择项目内 HTML 文件作为侧边面板，在项目面板中显示。",
+  // 文件路径输入框标签
+  "side-panel-settings.pathLabel": "文件路径",
+  // 文件路径输入框占位提示
+  "side-panel-settings.pathPlaceholder": "例如 panel/index.html",
+  // 清除侧边面板路径按钮
+  "side-panel-settings.clear": "清除",
+  // 路径校验失败提示
+  "side-panel-settings.invalidPath": "路径无效，请使用项目内相对路径并确保文件扩展名为 HTML 格式",
+  // 侧边面板保存成功提示
+  "side-panel-settings.saved": "侧边面板已保存",
+  // 侧边面板保存失败提示，{message} 为错误信息
+  "side-panel-settings.saveFailed": "保存失败：{message}",
+  // 读取侧边面板设置失败提示，{message} 为错误信息
+  "side-panel-settings.loadFailed": "读取侧边面板设置失败：{message}",
+  // 侧边面板 iframe 的无障碍标题
+  "custom-side-panel.title": "侧边面板",
+  // 侧边面板页面加载失败占位文案
+  "custom-side-panel.loadFailed": "侧边面板加载失败",
+
   // --- Pages ---
   // 项目不存在时的提示文案
   "pages.projectNotFound": "项目不存在",
+  // 项目不存在时（web）返回连接页的按钮文案
+  "pages.projectNotFoundBackToConnect": "返回连接页",
 
   // --- Tool Labels ---
   // 独立工具标签：数据访问（read_data/query_data/mutate_data 三个工具，对 *.data.json 活网页数据文件的选择性读写）
@@ -1308,6 +1478,10 @@ export const zhCN = {
   "tool.generate_image": "生成图片",
   // 独立工具 tooltip：生成图片的作用说明
   "tool.generate_image_hint": "允许智能体根据文字描述生成图片",
+  // 独立工具标签：网页搜索（通过 DeepSeek API 的内置搜索能力）
+  "tool.web_search": "网页搜索",
+  // 独立工具 tooltip：网页搜索的作用说明与前置条件
+  "tool.web_search_hint": "允许智能体联网搜索最新信息。需在设置中配置搜索 API Key；搜索会产生额外 token 费用（与智能体所用模型无关）",
   // 独立工具标签：触发事件（emit trigger event，agent 在对话中调用，触发其它 agent 的事件触发器）
   "tool.emit_trigger_event": "触发事件",
   // 独立工具 tooltip：触发事件的作用说明
@@ -1410,6 +1584,20 @@ export const zhCN = {
   "debug.downloadTurnContextNoSession": "No active session",
   // 调试菜单：下载 turn 上下文失败时的 toast 提示（服务端返回错误）
   "debug.downloadTurnContextFailed": "Failed to download turn context",
+  // 调试菜单 / Turn Context 弹窗标题：打开 turn context 查看器（完整事件日志 + 下载当前 context）
+  "debug.turnContext": "Turn Context",
+  // Turn Context 弹窗：事件类型搜索框占位符
+  "debug.eventLogSearchPlaceholder": "Filter by event type…",
+  // Turn Context 弹窗：刷新事件日志按钮
+  "debug.eventLogRefresh": "Refresh",
+  // Turn Context 弹窗：事件条数统计，{count} 为筛选后的事件数
+  "debug.eventLogCount": "{count} events",
+  // Turn Context 弹窗：事件日志为空时的空状态
+  "debug.eventLogEmpty": "No events",
+  // Turn Context 弹窗：事件日志加载失败的错误提示
+  "debug.eventLogLoadFailed": "Failed to load event log",
+  // Turn Context 弹窗：单条事件一键复制按钮的提示
+  "debug.eventLogCopy": "Copy",
 
   // 欢迎页文件缺失时的错误提示，{path} 为文件路径
   "welcome-page.fileMissing": "欢迎页文件不存在：{path}",
@@ -1450,26 +1638,14 @@ export const zhCN = {
   "onboarding.subtitle": "搭建属于你自己的世界",
   // 引导卡片1按钮：打开已有项目或新建项目（合并入口，点击后弹出目录选择器，可选择已有文件夹，也可在其中新建文件夹）
   "onboarding.action.openOrCreate": "打开或创建项目",
-  // 引导卡片2按钮：打开示例项目，{name} 为示例项目名称
-  "onboarding.action.openSample": "打开示例项目：{name}",
-  // 引导卡片1描述：说明该入口同时支持打开已有项目文件夹与新建空项目文件夹
-  "onboarding.desc.openOrCreate": "选择已有项目文件夹，或新建一个文件夹从空项目开始",
-  // 引导卡片2描述
-  "onboarding.desc.openSample": "将内置示例项目拷贝到选定位置并打开",
-  // 引导页两卡片下方的「探索更多示例」文字链接：点击在系统浏览器打开 landing /explore 示例画廊
-  "onboarding.action.explore": "探索更多示例",
-  // 引导卡片2（打开示例项目）的 tooltip：说明示例项目的搭建方式与用途，鼠标悬浮于卡片时展示
-  "onboarding.tooltip.openSample": "该示例项目在 Spherse 中从零开始搭建，使用的模型为 DeepSeek V4 Flash。通过该项目熟悉 Spherse 的使用方式，从而搭建完全属于你自己的世界。",
-  // 拷贝示例项目失败时的错误提示
-  "onboarding.error.copyFailed": "拷贝示例项目失败，请重试",
-  // 示例项目拷贝成功但注册/打开失败时的错误提示（区分于拷贝失败）
-  "onboarding.error.openFailed": "打开示例项目失败，请重试",
-  // 引导页操作（打开/创建/示例）发生未预期异常时的通用错误提示
+  // 引导卡片2按钮：打开项目市场（弹窗浏览并下载市场项目），口语化邀请 + emoji，引导新用户优先尝试
+  "onboarding.action.openMarket": "🛍️ 逛逛项目市场",
+  // 引导卡片1描述：以提问区分两类用户（已有项目 / 从零开始）
+  "onboarding.desc.openOrCreate": "手头已有项目文件夹？直接打开它；或新建一个文件夹，从零开始搭建",
+  // 引导卡片2描述：面向不知从何下手的新用户，强调下载即玩
+  "onboarding.desc.openMarket": "不知道从哪儿开始？挑一个现成的世界，下载打开就能玩",
+  // 引导页操作（打开/创建）发生未预期异常时的通用错误提示
   "onboarding.error.unexpected": "操作失败，请重试",
-  // 内置示例资源缺失时的错误提示
-  "onboarding.error.sampleNotFound": "找不到内置示例，请重新安装应用",
-  // 打开示例项目时，选择示例项目拷贝目标位置的对话框标题（Electron 原生对话框）
-  "onboarding.dialog.sampleLocation": "选择示例项目的保存位置",
 
   // --- 移动端连接页（MobileConnectPage） ---
   // 移动端未连接 server 时显示的连接页主标题
@@ -1498,8 +1674,18 @@ export const zhCN = {
   "mobile-connect.connected": "已连接",
   // 移动端连接失败（fetch /api/projects 报错或 token 无效）时的错误提示，{error} 为详细错误
   "mobile-connect.connectFailed": "连接失败：{error}",
-  // 移动端扫到的 QR 不是合法的 spherse://connect 链接时的提示
+  // 移动端扫到的 QR 不是合法的连接链接（缺 base/token 或非 http(s)）时的提示
   "mobile-connect.invalidQr": "无效的二维码，请扫描 Spherse 桌面端生成的二维码",
+  // 移动端连接页提交连接后的过渡状态文案（等待项目列表恢复与版本校验）
+  "mobile-connect.connecting": "正在连接…",
+  // 移动端连接页「识别二维码图片」按钮（拍照或从相册选图后解码，摄像头不可用时的兜底）
+  "mobile-connect.decodeFromImage": "识别二维码图片",
+  // web 端侧边栏 ActivityBar 底部「断开连接」按钮（清除已存连接并回到连接页）
+  "mobile-connect.disconnect": "断开连接",
+  // web 端断开连接确认弹窗标题
+  "mobile-connect.disconnectTitle": "断开连接？",
+  // web 端断开连接确认弹窗正文
+  "mobile-connect.disconnectDescription": "将清除已保存的连接信息并返回连接页",
   // web 端检测到桌面端版本与 web 端主/次版本不一致时的硬拦截全屏页标题
   "web-version.incompatibleTitle": "桌面端版本不兼容",
   // 硬拦截全屏页正文，{appVersion} 为桌面端版本号，{webVersion} 为 web 端版本号；网页可能因缓存过旧，桌面端也可能待升级，故同时给出两个动作
@@ -1528,6 +1714,10 @@ export const zhCN = {
   "contextMenu.paste": "粘贴",
   // 文本框右键菜单「全选」
   "contextMenu.selectAll": "全选",
+  // 系统托盘右键菜单：显示主窗口
+  "tray.show": "打开 Spherse",
+  // 系统托盘右键菜单：退出应用
+  "tray.quit": "退出",
 
   // --- UI SDK ---
   // sendMessage action 收到失效/未知 sessionId 时弹出的 toast 提示

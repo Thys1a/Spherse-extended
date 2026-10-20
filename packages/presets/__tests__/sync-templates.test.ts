@@ -12,6 +12,18 @@ describe("sync-templates", () => {
     fs.readFileSync(path.join(rootDir, "presets.json"), "utf-8"),
   );
 
+  it("does not ship built-in prompt templates (OSS marketplace only)", async () => {
+    expect(presetsConfig).not.toHaveProperty("presetPromptTemplates");
+    expect(
+      fs.existsSync(path.join(rootDir, "templates", "prompt-templates", "roleplay.md")),
+    ).toBe(false);
+    expect(
+      fs.existsSync(path.join(rootDir, "templates", "prompt-templates", "worldview-assistant.md")),
+    ).toBe(false);
+    const indexSource = fs.readFileSync(path.join(rootDir, "src", "index.ts"), "utf-8");
+    expect(indexSource).not.toContain("PRESET_PROMPT_TEMPLATES");
+  });
+
   it("generates presets.ts with PRESET_SKILLS and PRESET_AGENTS matching presets.json", async () => {
     const content = fs.readFileSync(
       path.join(generatedDir, "presets.ts"),
@@ -101,33 +113,5 @@ describe("sync-templates", () => {
       "utf-8",
     );
     expect(AGENTS_INDEX_TEMPLATE).toBe(sourceFile);
-  });
-
-  it("generates prompt-templates.ts with PRESET_PROMPT_TEMPLATES matching presets.json", async () => {
-    const content = fs.readFileSync(
-      path.join(generatedDir, "prompt-templates.ts"),
-      "utf-8",
-    );
-    expect(content).toContain("export const PRESET_PROMPT_TEMPLATES");
-
-    const { PRESET_PROMPT_TEMPLATES } = await import(
-      "../src/generated/prompt-templates.js"
-    );
-
-    const declared = presetsConfig.presetPromptTemplates;
-    expect(PRESET_PROMPT_TEMPLATES.length).toBe(declared.length);
-
-    const ids = declared.map((t) => t.id);
-    expect(new Set(ids).size).toBe(ids.length);
-
-    for (const tpl of PRESET_PROMPT_TEMPLATES) {
-      const declaredTpl = declared.find((d) => d.id === tpl.id);
-      expect(declaredTpl).toBeDefined();
-      expect(tpl.name).toBe(declaredTpl.name);
-      const mdPath = path.join(rootDir, "templates", "prompt-templates", `${tpl.id}.md`);
-      expect(fs.existsSync(mdPath)).toBe(true);
-      const actual = fs.readFileSync(mdPath, "utf-8");
-      expect(tpl.prompt).toBe(actual);
-    }
   });
 });

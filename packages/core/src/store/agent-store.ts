@@ -7,6 +7,7 @@ import { SkillStore } from "./skill.js";
 import { McpConfigStore } from "./mcp-config.js";
 import type { FileWriteMutex } from "../utils/file-write-mutex.js";
 import { type Logger, createSilentLogger } from "../logger.js";
+import type { SessionChangePayload } from "./session.js";
 
 export class AgentStore {
   private agentDir: string;
@@ -19,11 +20,18 @@ export class AgentStore {
   private _mcpStore: McpConfigStore | null = null;
   private logger: Logger;
 
-  constructor(agentDir: string, agentId: string, logger?: Logger, fileWriteMutex?: FileWriteMutex) {
+  constructor(
+    agentDir: string,
+    agentId: string,
+    logger?: Logger,
+    fileWriteMutex?: FileWriteMutex,
+    onSessionChange?: (payload: SessionChangePayload) => void,
+  ) {
     this.agentDir = agentDir;
     this.agentId = agentId;
     this.logger = logger ?? createSilentLogger();
     this.fileWriteMutex = fileWriteMutex;
+    this.onSessionChange = onSessionChange;
     this._profileStore = new AgentProfileStore(
       path.join(agentDir, "profile.md"),
       path.basename(agentDir),
@@ -32,6 +40,7 @@ export class AgentStore {
   }
 
   private fileWriteMutex?: FileWriteMutex;
+  private readonly onSessionChange?: (payload: SessionChangePayload) => void;
 
   async open(): Promise<AgentProfile> {
     const profile = await this._profileStore.read();
@@ -71,6 +80,7 @@ export class AgentStore {
         path.join(this.agentDir, "sessions.db"),
         this.agentId,
         this.logger,
+        this.onSessionChange,
       );
     }
     return this._sessionStore;
@@ -89,7 +99,7 @@ export class AgentStore {
 
   get mcp(): McpConfigStore {
     if (!this._mcpStore) {
-      this._mcpStore = new McpConfigStore(this.agentDir);
+      this._mcpStore = new McpConfigStore(this.agentDir, this.logger);
     }
     return this._mcpStore;
   }

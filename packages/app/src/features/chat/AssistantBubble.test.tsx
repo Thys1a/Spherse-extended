@@ -96,4 +96,19 @@ describe("AssistantBubble", () => {
     renderBubble({ text: "hello" });
     expect(document.querySelector("[data-chat-thinking]")).toBeNull();
   });
+
+  it("shows per-turn tokens for normal diagnostics", () => {
+    renderBubble({ diagnostics: { promptTokens: 120, outputTokens: 5 } });
+    expect(screen.getByText("输入 120 · 输出 5")).toBeInTheDocument();
+  });
+
+  it("hides the token line without diagnostics", () => {
+    renderBubble({ text: "hello" });
+    expect(screen.queryByText(/输入 .* · 输出/)).not.toBeInTheDocument();
+  });
+
+  it("hides the token line while streaming even with diagnostics", () => {
+    renderBubble({ streaming: true, diagnostics: { promptTokens: 120, outputTokens: 5 } });
+    expect(screen.queryByText(/输入 .* · 输出/)).not.toBeInTheDocument();
+  });
 });

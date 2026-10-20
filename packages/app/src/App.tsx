@@ -12,6 +12,7 @@ import { useAppStore } from "./stores/app-store";
 import { useAppUiStore } from "./stores/app-ui-store";
 import { useHostBridge } from "./context/host-bridge-context";
 import { useFeature } from "./lib/use-feature";
+import { isIndexRoute } from "./lib/route-params";
 import { I18nProvider } from "@spherse/i18n/react";
 import { toast } from "sonner";
 import { DEFAULT_LOCALE, translate } from "@spherse/i18n";
@@ -28,7 +29,7 @@ export function App() {
   const settingsModalOpen = useAppUiStore((state) => state.settingsModalOpen);
   const setSettingsModalOpen = useAppUiStore((state) => state.setSettingsModalOpen);
   const locale = useSettingsStore((state) => state.locale);
-  const loadSettings = useSettingsStore((state) => state.loadLocale);
+  const loadSettings = useSettingsStore((state) => state.loadPrefs);
   const inProject = useMatch("/project/:projectId/*") !== null;
 
   // Connection-recovered compensation: re-read the project list (may have
@@ -58,15 +59,40 @@ export function App() {
 
   useEffect(() => {
     let cancelled = false;
-    restoreProjects(bridge).then((projectId) => {
-      if (cancelled || !projectId) return;
-      // Only auto-navigate when starting from the root path; if the URL already
-      // points to a specific route (deep link, E2E direct entry), respect it.
-      const hash = window.location.hash.replace(/^#/, "") || "/";
-      if (hash !== "/") return;
-      const project = useAppStore.getState().projects.get(projectId);
-      navigate(buildProjectRoute(projectId, project?.lastRoute), { replace: true });
-    });
+    restoreProjects(bridge)
+      .then((projectId) => {
+        if (cancelled) return;
+        const hash = window.location.hash.replace(/^#/, "") || "/";
+        if (!projectId) {
+          // Web without any restored project (no saved connection, or the
+          // desktop has zero open projects) has nothing to show on a project
+          // route — e.g. right after disconnect reload — so fall back to the
+          // connect page instead of stranding on "project not found".
+          // A deep link into the index route (?base=&token=...) is preserved:
+          // the connect page consumes those params itself.
+          if (bridge.kind === "web" && !isIndexRoute(hash)) {
+            navigate("/", { replace: true });
+          }
+          return;
+        }
+        // Only auto-navigate when starting from the root path; if the URL already
+        // points to a specific route (deep link, E2E direct entry), respect it.
+        if (hash !== "/") return;
+        const project = useAppStore.getState().projects.get(projectId);
+        navigate(buildProjectRoute(projectId, project?.lastRoute), { replace: true });
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        console.warn("[app] startup project restore failed:", err);
+        if (bridge.kind === "web") {
+          const locale = useSettingsStore.getState().locale ?? DEFAULT_LOCALE;
+          toast.error(translate(locale, "mobile-connect.connectFailed", { error: (err as Error).message }));
+          const hash = window.location.hash.replace(/^#/, "") || "/";
+          if (!isIndexRoute(hash)) {
+            navigate("/", { replace: true });
+          }
+        }
+      });
     void useBusStore.getState().init(bridge);
     return () => {
       cancelled = true;

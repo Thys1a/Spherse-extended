@@ -8,7 +8,7 @@ Fastify API 层，为 Spherse 桌面应用提供多项目 HTTP + WebSocket 服�
 
 `@spherse/contracts` 的 `src/` 与本包 `routes/` 按业务域同名文件一一对应；新增域时在新包 `src/index.ts` 追加 import / spread / type re-export。schema 定义规范（命名、`Type.Optional`、`Type.Unknown` 约束等）见 [`packages/contracts/README.md`](../contracts/README.md)。
 
-`src/` 目录按域而非按层组织：内聚的 WS 域收进域目录（`chat/`——hub/channel/run-snapshot/replay/projector/ws-chat/classify-run-error，对外只经 `chat/index.ts` 导出 `handleChatWebSocket` + `ChatSessionHub`，channel/projector 等是内部实现；hub 的生命周期入口为 `closeRuntime` / `close`，由 `MultiProjectServer.close()` 统一驱动，见 [ADR-0012](../../docs/dev/decisions/0012-chat-hub-lifecycle-ownership.md)；`bus/`——ws-bus 端点 + fs-watcher，对外只经 `bus/index.ts` 导出 `handleBusWebSocket`）；唯一按角色分组的例外是 `middlewares/`（auth/cors/host-guard 三件套——Fastify onRequest 请求边界防护，仅由 `index.ts` 装配点引用）。不设 `services/`、`ws/` 等其余通用层目录：跨域共享的有状态编排留顶层（`registry.ts`、`shutdown.ts`、`marketplace.ts`），无依赖纯工具进 `lib/`（`debug-sink.ts`），单文件域不开目录、长胖再升级为域目录。
+`src/` 目录按域而非按层组织：内聚的 WS 域收进域目录（`chat/`——hub/channel/run-snapshot/replay/projector/ws-chat/classify-run-error，对外只经 `chat/index.ts` 导出 `handleChatWebSocket` + `ChatSessionHub`，channel/projector 等是内部实现；hub 的生命周期入口为 `closeRuntime` / `close`，由 `MultiProjectServer.close()` 统一驱动，见 [ADR-0012](../../docs/dev/decisions/0012-chat-hub-lifecycle-ownership.md)；`bus/`——ws-bus 端点 + fs-watcher，对外只经 `bus/index.ts` 导出 `handleBusWebSocket`）；唯一按角色分组的例外是 `middlewares/`（auth/cors/host-guard 三件套——Fastify onRequest 请求边界防护，仅由 `index.ts` 装配点引用）。不设 `services/`、`ws/` 等其余通用层目录：跨域共享的有状态编排留顶层（`registry.ts`、`shutdown.ts`、`marketplace.ts`、`prompt-marketplace.ts`），无依赖纯工具进 `lib/`（`debug-sink.ts`），单文件域不开目录、长胖再升级为域目录。
 
 ### Route 绑定规范
 
@@ -44,7 +44,7 @@ Fastify API 层，为 Spherse 桌面应用提供多项目 HTTP + WebSocket 服�
    );
    ```
 
-   当前覆盖（含 pi 复杂嵌套对象或需要 handler 内双重校验的端点）：sessions 全部读端点、skills 创建/install、content 目录与读取、debug turn-context、marketplace install、data 四个 body。其余 route 一律用机制 1。
+    当前覆盖（含 pi 复杂嵌套对象或需要 handler 内双重校验的端点）：sessions 全部读端点、skills 创建/install、content 目录与读取、debug turn-context/session-events、marketplace install、data 四个 body。其余 route 一律用机制 1。
 
 3. **WebSocket** —— 不走 Fastify schema，收到的 JSON 必须通过 contract parser 校验，非法消息返回统一 error event：
 
@@ -55,7 +55,7 @@ Fastify API 层，为 Spherse 桌面应用提供多项目 HTTP + WebSocket 服�
 
 ### 错误处理规范
 
-route handler **统一通过 throw 表达错误**，不手写 `reply.code(xxx).send({ error })`。全局 `setErrorHandler`（`index.ts`）按 error 类型自动映射 HTTP 状态码，保证响应体始终为 `{ error: string }`。
+route handler **统一通过 throw 表达错误**，不手写 `reply.code(xxx).send({ error })`。全局 `setErrorHandler`（`index.ts`）按 error 类型自动映射 HTTP 状态码，保证响应体始终为 `{ error: string }`。客户端需要区分同一状态码下的不同语义时（如 content 路由「文件不存在」与项目级 404），`HttpError` 可带 `code`（`notFound(message, code)` → `{ error, code }`），code 常量属 wire 词汇，定义在 `@spherse/contracts`（如 `CONTENT_ERROR_CODES`）。
 
 错误来源：server `errors.ts` 的 `HttpError`（自带状态码）、`@spherse/core` 的语义错误（`NotFoundError`/`ValidationError`/`AccessDeniedError`）、Fastify schema 校验失败、兜底 500。具体映射见 `index.ts` 的 `setErrorHandler`。
 

@@ -2,20 +2,21 @@ import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { useI18n } from "@spherse/i18n/react";
 import { toast } from "sonner";
+import { CameraIcon, KeyboardIcon, Loader2Icon } from "lucide-react";
 import { Button } from "@spherse/app/ui/button";
-import { Input } from "@spherse/app/ui/input";
-import { Field, FieldLabel } from "@spherse/app/ui/field";
+import { WebDisconnectButton } from "@spherse/app/web-disconnect";
+import type { ConnectPayload } from "@spherse/app/connect-payload";
 import { useHostBridge } from "@spherse/app/host-bridge-context";
 import { useAppStore } from "@spherse/app/stores/app";
+import { useBusStore } from "@spherse/app/stores/bus";
 import { runWebVersionGuard } from "../version-guard";
-import { WEB_CONNECTION_STORAGE_KEY } from "../host-bridge-web";
+import { readWebConnection, WEB_CONNECTION_STORAGE_KEY } from "../host-bridge-web";
+import { ScanPanel } from "./connect/ScanPanel";
+import { ManualPanel } from "./connect/ManualPanel";
 
-interface ParsedConnection {
-  baseUrl: string;
-  token: string;
-}
+type Mode = "menu" | "scan" | "manual";
 
-function persistConnection(conn: ParsedConnection): void {
+function persistConnection(conn: ConnectPayload): void {
   localStorage.setItem(
     WEB_CONNECTION_STORAGE_KEY,
     JSON.stringify({ baseUrl: conn.baseUrl.replace(/\/+$/, ""), token: conn.token }),
@@ -28,14 +29,22 @@ export function MobileConnectPage() {
   const bridge = useHostBridge();
   const restoreProjects = useAppStore((state) => state.restoreProjects);
   const [searchParams, setSearchParams] = useSearchParams();
+  const [mode, setMode] = useState<Mode>("menu");
   const [submitting, setSubmitting] = useState(false);
+  const [manualBaseUrl, setManualBaseUrl] = useState("");
+  const [manualToken, setManualToken] = useState("");
+  const [hasSavedConnection] = useState(() => Boolean(readWebConnection()?.baseUrl));
 
-  const handleConnect = async (conn: ParsedConnection, targetPath?: string) => {
+  const handleConnect = async (conn: ConnectPayload, targetPath?: string) => {
     setSubmitting(true);
     try {
       persistConnection(conn);
-      const firstProjectId = await restoreProjects(bridge);
-      const finishConnect = () => {
+      let finish: (() => void) | undefined;
+      const [firstProjectId, compatibility] = await Promise.all([
+        restoreProjects(bridge, { initialGate: false }),
+        runWebVersionGuard(() => finish?.()),
+      ]);
+      finish = () => {
         toast.success(t("mobile-connect.connected"));
         if (targetPath) {
           navigate(targetPath, { replace: true });
@@ -45,9 +54,9 @@ export function MobileConnectPage() {
           navigate("/", { replace: true });
         }
       };
-      const compatibility = await runWebVersionGuard(finishConnect);
+      void useBusStore.getState().init(bridge);
       if (compatibility === "incompatible") return;
-      finishConnect();
+      finish();
     } catch (err) {
       toast.error(t("mobile-connect.connectFailed", { error: (err as Error).message }));
     } finally {
@@ -76,57 +85,42 @@ export function MobileConnectPage() {
         <p className="text-sm text-muted-foreground">{t("mobile-connect.subtitle")}</p>
       </header>
 
-      <ManualPanel submitting={submitting} onSubmit={handleConnect} />
+      {submitting ? (
+        <div className="flex w-full max-w-sm flex-col items-center gap-3 py-8 text-muted-foreground">
+          <Loader2Icon className="size-6 animate-spin" />
+          <p className="text-sm">{t("mobile-connect.connecting")}</p>
+        </div>
+      ) : mode === "menu" ? (
+        <div className="flex w-full max-w-sm flex-col gap-3">
+          <div className="grid grid-cols-2 gap-3">
+            <Button variant="outline" className="h-24 flex-col gap-2" onClick={() => setMode("scan")}>
+              <CameraIcon className="size-7" />
+              {t("mobile-connect.scan")}
+            </Button>
+            <Button variant="outline" className="h-24 flex-col gap-2" onClick={() => setMode("manual")}>
+              <KeyboardIcon className="size-7" />
+              {t("mobile-connect.manual")}
+            </Button>
+          </div>
+          {hasSavedConnection && <WebDisconnectButton variant="panel" className="mt-4" />}
+        </div>
+      ) : mode === "scan" ? (
+        <ScanPanel
+          onDetected={(conn) => handleConnect(conn, conn.targetPath)}
+          onSwitchToManual={() => setMode("manual")}
+          onBack={() => setMode("menu")}
+        />
+      ) : (
+        <ManualPanel
+          baseUrl={manualBaseUrl}
+          token={manualToken}
+          submitting={submitting}
+          onBaseUrlChange={setManualBaseUrl}
+          onTokenChange={setManualToken}
+          onBack={() => setMode("menu")}
+          onSubmit={handleConnect}
+        />
+      )}
     </div>
-  );
-}
-
-function ManualPanel({
-  submitting,
-  onSubmit,
-}: {
-  submitting: boolean;
-  onSubmit: (conn: ParsedConnection) => void | Promise<void>;
-}) {
-  const { t } = useI18n();
-  const [baseUrl, setBaseUrl] = useState("");
-  const [token, setToken] = useState("");
-
-  const canSubmit = baseUrl.trim() !== "" && token.trim() !== "" && !submitting;
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!canSubmit) return;
-    void onSubmit({ baseUrl: baseUrl.trim(), token: token.trim() });
-  };
-
-  return (
-    <form onSubmit={handleSubmit} className="flex w-full max-w-sm flex-col gap-4">
-      <Field>
-        <FieldLabel>{t("mobile-connect.baseUrl")}</FieldLabel>
-        <Input
-          value={baseUrl}
-          onChange={(e) => setBaseUrl(e.target.value)}
-          placeholder="https://example.trycloudflare.com"
-          autoCapitalize="off"
-          autoCorrect="off"
-          spellCheck={false}
-        />
-      </Field>
-      <Field>
-        <FieldLabel>{t("mobile-connect.token")}</FieldLabel>
-        <Input
-          value={token}
-          onChange={(e) => setToken(e.target.value)}
-          type="text"
-          autoCapitalize="off"
-          autoCorrect="off"
-          spellCheck={false}
-        />
-      </Field>
-      <Button type="submit" disabled={!canSubmit} className="w-full">
-        {submitting ? t("common.loading") : t("mobile-connect.connect")}
-      </Button>
-    </form>
   );
 }

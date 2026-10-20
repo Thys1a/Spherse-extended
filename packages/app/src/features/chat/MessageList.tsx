@@ -4,7 +4,7 @@ import type { AgentSummary } from "../../lib/types";
 import { Button } from "../../components/ui/button";
 import { ChevronDownIcon } from "lucide-react";
 import type { Bubble, MessageGroup } from "./model/message-group";
-import type { UserEntry } from "./model/entry";
+import { seqFromPersistedEntryId, type UserEntry } from "./model/entry";
 import { AssistantBubble } from "./AssistantBubble";
 import { UserBubble } from "./UserBubble";
 import { TriggerTurnGroup } from "./TriggerTurnGroup";
@@ -33,6 +33,13 @@ interface MessageListProps {
   hasMore?: boolean;
   loadingMore?: boolean;
   onLoadMore?: () => void;
+  locateSeq?: number | null;
+}
+
+function groupContainsSeq(group: MessageGroup, seq: number | null): boolean {
+  if (seq === null) return false;
+  if (group.user?.seq === seq) return true;
+  return group.bubbles.some((bubble) => bubble.seq === seq);
 }
 
 export function MessageList({
@@ -58,6 +65,7 @@ export function MessageList({
   hasMore,
   loadingMore,
   onLoadMore,
+  locateSeq = null,
 }: MessageListProps) {
   const { t } = useI18n();
 
@@ -91,6 +99,7 @@ export function MessageList({
       showTime
       slash={user.slash}
       summon={user.summon}
+      entrySeq={user.seq}
       onWithdraw={user.id === withdrawableUserId ? onWithdraw : undefined}
       onRetry={user.id === retryTargetUserId ? onRetry : undefined}
     onEdit={
@@ -105,6 +114,7 @@ export function MessageList({
   const renderBubble = (group: MessageGroup, bubble: Bubble, index: number) => {
     const showTime = index === group.bubbles.length - 1;
     const isRetryTarget = bubble.id === lastBubble?.id;
+    const entrySeq = bubble.seq ?? seqFromPersistedEntryId(bubble.entryId);
     if (bubble.kind === "tool-result") {
       return (
         <AssistantBubble
@@ -113,6 +123,7 @@ export function MessageList({
           text=""
           tools={[bubble.tool]}
           showTime={showTime}
+          entrySeq={entrySeq}
           onNavigateToPath={onNavigateToPath}
           onRespondApproval={onRespondApproval}
           onRespondQuestion={onRespondQuestion}
@@ -129,6 +140,7 @@ export function MessageList({
           error={bubble.error}
           timestamp={bubble.timestamp}
           showTime={showTime}
+          entrySeq={entrySeq}
           onRetry={isRetryTarget ? onRetry : undefined}
         />
       );
@@ -148,6 +160,7 @@ export function MessageList({
         diagnostics={bubble.diagnostics}
         showTime={showTime}
         messageId={bubble.id}
+        entrySeq={entrySeq}
         supersededToolCallIds={supersededToolCallIds}
         onNavigateToPath={onNavigateToPath}
         onRespondApproval={onRespondApproval}
@@ -160,7 +173,7 @@ export function MessageList({
 
   return (
     <div className="relative flex-1 min-h-0">
-      <div ref={containerRef} className="h-full overflow-y-auto p-4 flex flex-col-reverse gap-3" data-chat-messages>
+      <div ref={containerRef} className="h-full overflow-y-auto p-4 flex flex-col-reverse gap-3 [overflow-anchor:none]" data-chat-messages>
         {thinking && (
           <div className="self-start">
             <ThinkingIndicator />
@@ -172,6 +185,7 @@ export function MessageList({
               key={group.id}
               group={group}
               running={group.id === runningGroupId}
+              forceOpen={groupContainsSeq(group, locateSeq)}
               renderUser={(user) => renderUser(group, user)}
               renderBubble={(bubble, index) => renderBubble(group, bubble, index)}
             />

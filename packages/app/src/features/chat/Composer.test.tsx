@@ -2,6 +2,7 @@ import { act, cleanup, fireEvent, screen } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
+import { translate } from "@spherse/i18n";
 import { createMockHostBridge } from "../../test/host-bridge";
 import { createTestQueryClient, renderWithProviders } from "../../test/render";
 import { Composer } from "./Composer";
@@ -16,6 +17,10 @@ vi.mock("sonner", () => ({
 const uploadAttachment = vi.fn();
 const deleteAttachment = vi.fn();
 
+const mockSessionStatus = vi.hoisted(() => ({
+  current: { currentTokens: 12000, contextWindowLimit: 200000 },
+}));
+
 vi.mock("../../lib/use-connection", () => ({
   useApiClient: () => ({
     uploadAttachment,
@@ -25,7 +30,9 @@ vi.mock("../../lib/use-connection", () => ({
     setSessionModel: vi.fn(),
     listProjectSessions: vi.fn(async () => ({ sessions: [], byAgent: {} })),
     listAgents: vi.fn(async () => []),
+    getSessionStatus: vi.fn(async () => mockSessionStatus.current),
   }),
+  useGlobalApiClient: () => null,
   useConnection: () => ({ baseUrl: "http://localhost:5173", accessToken: null }),
 }));
 
@@ -33,10 +40,17 @@ vi.mock("./utils/compress-image", () => ({
   compressImage: vi.fn(),
 }));
 
+vi.mock("../../hooks/use-mobile", () => ({
+  useIsMobile: vi.fn(),
+}));
+
+import { useIsMobile } from "../../hooks/use-mobile";
+
 let user: ReturnType<typeof userEvent.setup>;
 
 beforeEach(() => {
   user = userEvent.setup();
+  vi.mocked(useIsMobile).mockReturnValue(false);
 });
 
 afterEach(() => {
@@ -61,6 +75,7 @@ function renderComposer(props: ComposerProps) {
       loading={props.loading ?? false}
       panicLocked={props.panicLocked ?? false}
       sessionId="session-1"
+      agentId="agent-1"
       placeholder={props.placeholder}
       onSend={onSend}
       onAbort={onAbort}
@@ -82,6 +97,7 @@ function rerenderComposer(
       loading={props.loading ?? false}
       panicLocked={props.panicLocked ?? false}
       sessionId="session-1"
+      agentId="agent-1"
       onSend={onSend}
       onAbort={onAbort}
     />,
@@ -99,6 +115,10 @@ function mockPointerCoarse(matches: boolean) {
     removeEventListener: vi.fn(),
     dispatchEvent: vi.fn(),
   })) as unknown as typeof window.matchMedia);
+}
+
+function setMobile(mobile: boolean) {
+  vi.mocked(useIsMobile).mockReturnValue(mobile);
 }
 
 describe("Composer input availability", () => {
@@ -172,6 +192,51 @@ describe("Composer input availability", () => {
   });
 });
 
+describe("Composer draft caret", () => {
+  it("restores the draft with the caret at the end after leaving and returning", async () => {
+    const draft = "First line\nSecond line";
+    const { view } = renderComposer({});
+    await user.type(screen.getByRole("textbox"), "First line{Shift>}{Enter}{/Shift}Second line");
+    view.unmount();
+
+    renderComposer({});
+    const textarea = screen.getByRole<HTMLTextAreaElement>("textbox");
+    expect(textarea).toHaveValue(draft);
+    expect(textarea).toHaveFocus();
+    expect(textarea.selectionStart).toBe(draft.length);
+    expect(textarea.selectionEnd).toBe(draft.length);
+
+    await user.keyboard(" appended");
+    expect(textarea).toHaveValue(`${draft} appended`);
+  });
+
+  it.each([{ loading: true }, { streaming: true }])(
+    "keeps the restored caret at the end when autofocus is delayed by %o",
+    (props) => {
+      const draft = "Saved draft";
+      localStorage.setItem("spherse:draft:session-1", draft);
+      const { view, onSend, onAbort } = renderComposer(props);
+
+      rerenderComposer(view, {}, onSend, onAbort);
+      const textarea = screen.getByRole<HTMLTextAreaElement>("textbox");
+      expect(textarea).toHaveFocus();
+      expect(textarea.selectionStart).toBe(draft.length);
+      expect(textarea.selectionEnd).toBe(draft.length);
+    },
+  );
+
+  it("preserves the user's selection when streaming ends", async () => {
+    const { view, onSend, onAbort } = renderComposer({ streaming: true });
+    const textarea = screen.getByRole<HTMLTextAreaElement>("textbox");
+    await user.type(textarea, "Editing a draft");
+    textarea.setSelectionRange(2, 5);
+
+    rerenderComposer(view, {}, onSend, onAbort);
+    expect(textarea.selectionStart).toBe(2);
+    expect(textarea.selectionEnd).toBe(5);
+  });
+});
+
 describe("Composer enter key behavior", () => {
   it("sends the draft on Enter with a fine pointer", async () => {
     mockPointerCoarse(false);
@@ -196,6 +261,57 @@ describe("Composer enter key behavior", () => {
     await user.type(screen.getByRole("textbox"), "touch draft");
     await user.click(screen.getByRole("button", { name: "发送" }));
     expect(onSend).toHaveBeenCalledWith("touch draft", undefined);
+  });
+});
+
+describe("Composer mobile layout", () => {
+  it("renders a compact floating composer with inline actions on mobile", async () => {
+    setMobile(true);
+    const { onSend } = renderComposer({ streaming: false });
+
+    const composer = document.querySelector("[data-chat-composer]");
+    expect(composer?.className).toContain("bg-transparent");
+    expect(composer?.className).toContain("safe-area-inset-bottom");
+    expect(composer?.className).toContain("safe-area-inset-left");
+
+    const inputFrame = document.querySelector("[data-chat-composer-input]");
+    expect(inputFrame?.className).toContain("rounded-2xl");
+    expect(inputFrame?.className).toContain("shadow-lg");
+
+    expect(screen.getByRole("textbox")).toHaveStyle({ height: "36px" });
+    expect(screen.getByRole("button", { name: translate("zh-CN", "chat.attachFile") })).toBeInTheDocument();
+
+    await user.type(screen.getByRole("textbox"), "移动端输入");
+    await user.click(screen.getByRole("button", { name: "发送" }));
+    expect(onSend).toHaveBeenCalledWith("移动端输入", undefined);
+  });
+
+  it("keeps the desktop layout on wide viewports", () => {
+    setMobile(false);
+    renderComposer({ streaming: false });
+
+    const composer = document.querySelector("[data-chat-composer]");
+    expect(composer?.className).toContain("bg-background");
+    expect(composer?.className).not.toContain("bg-transparent");
+
+    const inputFrame = document.querySelector("[data-chat-composer-input]");
+    expect(inputFrame?.className).not.toContain("rounded-2xl");
+
+    expect(screen.getByRole("textbox")).toHaveStyle({ height: "56px" });
+  });
+
+  it("recomputes the textarea height when crossing the mobile breakpoint", () => {
+    setMobile(true);
+    const { view, onSend, onAbort } = renderComposer({ streaming: false });
+    expect(screen.getByRole("textbox")).toHaveStyle({ height: "36px" });
+
+    setMobile(false);
+    rerenderComposer(view, { streaming: false }, onSend, onAbort);
+    expect(screen.getByRole("textbox")).toHaveStyle({ height: "56px" });
+
+    setMobile(true);
+    rerenderComposer(view, { streaming: false }, onSend, onAbort);
+    expect(screen.getByRole("textbox")).toHaveStyle({ height: "36px" });
   });
 });
 
@@ -338,6 +454,18 @@ describe("Composer external insert", () => {
     useComposerInsertStore.setState({ sessionId: null, text: "", nonce: 0 });
   });
 
+  it("appends inserted text on a new line when the draft is not empty", async () => {
+    renderComposer({ streaming: false });
+    await user.type(screen.getByRole("textbox"), "hello");
+    act(() => {
+      useComposerInsertStore.getState().requestInsert("session-1", "ping me");
+    });
+    await vi.waitFor(() => {
+      expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("hello\nping me");
+    });
+    useComposerInsertStore.setState({ sessionId: null, text: "", nonce: 0 });
+  });
+
   it("does not replay a consumed insert on remount", async () => {
     const first = renderComposer({ streaming: false });
     act(() => {
@@ -352,5 +480,24 @@ describe("Composer external insert", () => {
     renderComposer({ streaming: false });
     expect(screen.getByRole("textbox")).toHaveValue("");
     useComposerInsertStore.setState({ sessionId: null, text: "", nonce: 0 });
+  });
+});
+
+describe("Composer token display", () => {
+  it("shows the session tokens pill from the status query", async () => {
+    renderComposer({ streaming: false });
+    const pill = await screen.findByTitle("会话状态");
+    expect(pill.textContent).toContain("12,000");
+    expect(pill.textContent).toContain("200,000");
+    expect(pill.textContent).toContain("6%");
+  });
+
+  it("shows the input estimate and projected total while typing", async () => {
+    renderComposer({ streaming: false });
+    expect(screen.queryByText(/预计约/)).not.toBeInTheDocument();
+    await user.type(screen.getByRole("textbox"), "hello world");
+    const counter = await screen.findByTitle(/预计约 3 tokens/);
+    expect(counter.textContent).toContain("预计约 3 tokens");
+    expect(counter.textContent).toContain("发送后约 12,003 tokens");
   });
 });

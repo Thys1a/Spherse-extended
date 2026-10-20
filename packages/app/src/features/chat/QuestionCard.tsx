@@ -14,7 +14,7 @@ function QuestionText({ question }: { question: string }) {
   return (
     <div className="flex items-start gap-1.5 text-sm">
       <MessageCircleQuestionIcon className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
-      <p className="min-w-0 whitespace-pre-wrap text-foreground">{question}</p>
+      <p className="min-w-0 break-words whitespace-pre-wrap text-foreground">{question}</p>
     </div>
   );
 }
@@ -26,7 +26,7 @@ function AnsweredQuestion({ question, answer }: { question: string; answer?: str
       <QuestionText question={question} />
       <div>
         <span className="me-1.5 shrink-0 text-muted-foreground">{t("chat.questionAnswerLabel")}</span>
-        <span className="whitespace-pre-wrap text-foreground">{answer}</span>
+        <span className="break-words whitespace-pre-wrap text-foreground">{answer}</span>
       </div>
     </div>
   );
@@ -76,6 +76,7 @@ export function QuestionCardRenderer({ card, onRespondQuestion }: QuestionCardRe
               key={`${index}:${option}`}
               size="sm"
               variant="outline"
+              className="h-auto min-h-6 min-w-0 max-w-full justify-start whitespace-normal py-0.5 text-start"
               disabled={submitted}
               onClick={() => submit(option)}
             >

@@ -1,5 +1,5 @@
 import { createContext, useContext } from "react";
-import type { MouseEvent, ReactNode } from "react";
+import type { Dispatch, MouseEvent, ReactNode, SetStateAction } from "react";
 import type { ApiClient } from "../../lib/api";
 import type { CreatingState, RenamingState, CreateAction, TreeItem } from "./tree-model";
 
@@ -29,9 +29,13 @@ export interface FileTreeContextValue {
   requestDeleteMany: (paths: string[]) => void;
   onOpenInNewTab?: (filePath: string) => void;
   onSplitFile?: (filePath: string) => void;
+  pickUploadFiles?: (dirPath: string) => void;
   onFloatFile?: (filePath: string) => void;
   floatedFilePaths?: Set<string>;
   readOnly?: boolean;
+  dropFiles?: (dirPath: string, files: File[]) => void;
+  dropTargetDir: string | null;
+  setDropTargetDir: Dispatch<SetStateAction<string | null>>;
 }
 
 const FileTreeContext = createContext<FileTreeContextValue | null>(null);

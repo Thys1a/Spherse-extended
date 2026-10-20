@@ -1,4 +1,4 @@
-import type { ProviderCatalogItem, ModelGroupSettings, CustomProviderDef, TtsSettings, ProxySettings } from "@spherse/core";
+import type { TtsSettings, ProxySettings } from "@spherse/core";
 import type { ReactNode } from "react";
 
 export interface RestoredProject {
@@ -16,12 +16,6 @@ export interface SaveDialogFilter {
 export interface SaveDialogOptions {
   defaultPath?: string;
   filters?: SaveDialogFilter[];
-}
-
-export interface SampleManifestEntry {
-  id: string;
-  displayName: string;
-  dirName: string;
 }
 
 export type ThemeMode = "light" | "dark" | "system";
@@ -60,18 +54,27 @@ export interface NotificationSettings {
   trigger?: boolean;
 }
 
-export interface HostSettings {
-  locale?: string;
-  models?: {
-    text?: ModelGroupSettings;
-    image?: ModelGroupSettings;
-  };
-  customProviders?: CustomProviderDef[];
-  debugToolsEnabled?: boolean;
-  theme?: ThemeMode;
+export interface GeneralPrefs {
+  locale: string;
+}
+
+export interface DesktopPrefs {
+  theme: ThemeMode;
+  debugToolsEnabled: boolean;
+  closeToTray: boolean;
   tts?: TtsSettings;
   proxy?: ProxySettings;
   notifications?: NotificationSettings;
+}
+
+export interface HostPrefsApi {
+  getPrefs(): Promise<GeneralPrefs>;
+  savePrefs(prefs: GeneralPrefs): Promise<boolean>;
+}
+
+export interface DesktopPrefsApi {
+  getPrefs(): Promise<DesktopPrefs>;
+  savePrefs(prefs: DesktopPrefs): Promise<boolean>;
 }
 
 export type TunnelStatus = "stopped" | "starting" | "running" | "error";
@@ -116,6 +119,7 @@ export interface HostCapabilities {
   openFileExternal: boolean;
   proxy: boolean;
   notification: boolean;
+  tray: boolean;
   content: { editable: boolean };
 }
 
@@ -130,8 +134,6 @@ export interface ProjectHostApi {
   openFileExternal(absolutePath: string): Promise<void>;
   setLastActiveProject(projectId: string): Promise<void>;
   getLastActiveProject(): Promise<string | null>;
-  openSampleProject(opts: { sampleId: string }): Promise<{ projectId: string; path: string } | { error: string } | null>;
-  getSampleManifest(): Promise<SampleManifestEntry[]>;
 }
 
 export interface UpdaterHostApi {
@@ -161,16 +163,15 @@ export interface HostBridge {
   readonly kind: HostKind;
   getServerBaseUrl(): Promise<string>;
   getServerAccessToken?(): Promise<string | null>;
+  clearConnection?(): Promise<void>;
   readonly capabilities: HostCapabilities;
-  getSettings(): Promise<HostSettings | null>;
-  saveSettings(settings: HostSettings): Promise<{ success: boolean }>;
+  readonly prefs: HostPrefsApi;
+  readonly desktopPrefs?: DesktopPrefsApi;
   openExternal(url: string): Promise<void>;
   notify(title: string, body: string, opts?: NotificationOptions): void;
   onNotificationClicked?(callback: (route: string) => void): () => void;
   saveBlob?(filename: string, blob: Blob): Promise<void>;
   showSaveDialog?(options: SaveDialogOptions): Promise<string | null>;
-  getSupportedProviders?(): Promise<Record<string, ProviderCatalogItem>>;
-  getImageProviders?(): Promise<Record<string, ProviderCatalogItem>>;
   readonly project?: ProjectHostApi;
   readonly updater?: UpdaterHostApi;
   readonly devTools?: DevToolsHostApi;

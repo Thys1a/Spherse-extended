@@ -14,6 +14,7 @@ export type AssistantBubble = {
   kind: "assistant";
   id: string;
   entryId: EntryId;
+  seq?: number;
   text: string;
   tools: ToolItem[];
   streaming?: boolean;
@@ -27,8 +28,8 @@ export type AssistantBubble = {
 
 export type Bubble =
   | AssistantBubble
-  | { kind: "tool-result"; id: string; entryId: EntryId; tool: ToolItem }
-  | { kind: "error"; id: string; entryId: EntryId; error: EntryError; timestamp?: number };
+  | { kind: "tool-result"; id: string; entryId: EntryId; seq?: number; tool: ToolItem }
+  | { kind: "error"; id: string; entryId: EntryId; seq?: number; error: EntryError; timestamp?: number };
 
 export interface MessageGroup {
   id: string;
@@ -100,10 +101,12 @@ export function assembleGroups(entries: ChatEntry[]): MessageGroup[] {
         kind: "tool-result",
         id: `b:${entry.id}`,
         entryId: entry.id,
+        ...(entry.seq !== undefined ? { seq: entry.seq } : {}),
         tool: toolItemFromResult(entry),
       });
       continue;
     }
+
     current.group.hasError = true;
     const last = current.group.bubbles[current.group.bubbles.length - 1];
     if (last?.kind === "assistant" && last.streaming) {
@@ -120,6 +123,7 @@ export function assembleGroups(entries: ChatEntry[]): MessageGroup[] {
       kind: "error",
       id: `b:${entry.id}`,
       entryId: entry.id,
+      ...(entry.seq !== undefined ? { seq: entry.seq } : {}),
       error: entryError(entry),
       ...(entry.time !== undefined ? { timestamp: entry.time } : {}),
     });
@@ -127,7 +131,6 @@ export function assembleGroups(entries: ChatEntry[]): MessageGroup[] {
   close();
   return groups;
 }
-
 function entryError(entry: { message: string; code?: EntryError["code"]; retrySuppressed?: boolean }): EntryError {
   return {
     message: entry.message,
@@ -142,6 +145,7 @@ function assistantBubble(entry: AssistantEntry): AssistantBubble {
     kind: "assistant",
     id: `b:${entry.id}`,
     entryId: entry.id,
+    ...(entry.seq !== undefined ? { seq: entry.seq } : {}),
     text: entry.text,
     tools: entry.toolCalls.map((toolCall) => ({
       toolCallId: toolCall.toolCallId,

@@ -10,6 +10,8 @@ interface SplitStore {
   openSplit: (projectId: string, filePath: string) => void;
   setFile: (projectId: string, filePath: string) => void;
   closeSplit: (projectId: string) => void;
+  closeDeletedSplit: (projectId: string, path: string) => void;
+  remapSplit: (projectId: string, oldPath: string, newPath: string) => void;
   setRatio: (projectId: string, ratio: number) => void;
   clearProject: (projectId: string) => void;
 }
@@ -17,11 +19,19 @@ interface SplitStore {
 export const SPLIT_MIN_RATIO = 0.2;
 export const SPLIT_MAX_RATIO = 0.8;
 const DEFAULT_RATIO = 0.5;
+const SPLIT_MIN_MAIN_WIDTH = 400;
+const SPLIT_MIN_PANE_WIDTH = 320;
 const STORAGE_KEY = "spherse:split";
 
 function clampRatio(ratio: number): number {
   if (!Number.isFinite(ratio)) return DEFAULT_RATIO;
   return Math.min(SPLIT_MAX_RATIO, Math.max(SPLIT_MIN_RATIO, ratio));
+}
+
+export function clampRatioForWidth(ratio: number, containerWidth: number): number {
+  if (!Number.isFinite(containerWidth) || containerWidth <= 0) return clampRatio(ratio);
+  if (containerWidth < SPLIT_MIN_MAIN_WIDTH + SPLIT_MIN_PANE_WIDTH) return DEFAULT_RATIO;
+  return clampRatio(ratio);
 }
 
 function isValidSplitState(value: unknown): value is SplitState {
@@ -91,6 +101,33 @@ export const useSplitStore = create<SplitStore>((set) => ({
       if (!s.byProject[projectId]) return s;
       const byProject = { ...s.byProject };
       delete byProject[projectId];
+      persist(byProject);
+      return { byProject };
+    });
+  },
+
+  closeDeletedSplit(projectId, path) {
+    set((s) => {
+      const filePath = s.byProject[projectId]?.filePath;
+      if (!filePath || (filePath !== path && !filePath.startsWith(`${path}/`))) return s;
+      const byProject = { ...s.byProject };
+      delete byProject[projectId];
+      persist(byProject);
+      return { byProject };
+    });
+  },
+
+  remapSplit(projectId, oldPath, newPath) {
+    set((s) => {
+      const entry = s.byProject[projectId];
+      if (!entry) return s;
+      const prefix = `${oldPath}/`;
+      const { filePath } = entry;
+      if (filePath !== oldPath && !filePath.startsWith(prefix)) return s;
+      const byProject = {
+        ...s.byProject,
+        [projectId]: { ...entry, filePath: filePath === oldPath ? newPath : newPath + filePath.slice(oldPath.length) },
+      };
       persist(byProject);
       return { byProject };
     });

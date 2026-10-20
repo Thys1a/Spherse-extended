@@ -4,6 +4,8 @@ import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { SessionInfo } from "../types.js";
 import type { SessionEvent } from "../session/events.js";
 import { EVENT_SCHEMA_VERSION } from "../session/events.js";
+import { collectAbandonedSeqs } from "../session/fold.js";
+import { escapeLikePattern, matchMessageData, type MessageSearchHit } from "../session/search.js";
 import { type Logger, createSilentLogger } from "../logger.js";
 
 interface PragmaColumnInfo {
@@ -113,18 +115,32 @@ CREATE TABLE IF NOT EXISTS events (
 );
 `;
 
+export type SessionChangeAction = "created" | "updated" | "deleted";
+
+export interface SessionChangePayload {
+  agentId: string;
+  sessionId: string;
+  action: SessionChangeAction;
+}
+
 export class SessionStore {
   private agentId: string;
   private db: Database.Database;
   private logger: Logger;
+  private readonly onSessionChange?: (payload: SessionChangePayload) => void;
 
-  constructor(dbPath: string, agentId: string, logger?: Logger) {
+  constructor(dbPath: string, agentId: string, logger?: Logger, onSessionChange?: (payload: SessionChangePayload) => void) {
     this.agentId = agentId;
     this.logger = logger ?? createSilentLogger();
+    this.onSessionChange = onSessionChange;
     this.db = new Database(dbPath);
     this.db.pragma("journal_mode = WAL");
     this.applyMigrations();
     this.logger.info({ agentId, dbPath }, "session db opened for agent");
+  }
+
+  private emitSessionChange(sessionId: string, action: SessionChangeAction): void {
+    this.onSessionChange?.({ agentId: this.agentId, sessionId, action });
   }
 
   private applyMigrations(): void {
@@ -165,6 +181,7 @@ export class SessionStore {
       )
       .run(id, this.agentId, title ?? null, now, now, source ?? "manual");
     this.logger.info({ sessionId: id, agentId: this.agentId }, "session created in store");
+    this.emitSessionChange(id, "created");
     return id;
   }
 
@@ -210,9 +227,10 @@ export class SessionStore {
   }
 
   archiveSession(sessionId: string): void {
-    this.db
+    const result = this.db
       .prepare<[string]>("UPDATE sessions SET status = 'archived' WHERE id = ?")
       .run(sessionId);
+    if (result.changes > 0) this.emitSessionChange(sessionId, "deleted");
   }
 
   appendEvents(sessionId: string, events: ReadonlyArray<SessionEvent>, schemaVersion: number): void {
@@ -290,6 +308,99 @@ export class SessionStore {
       )
       .get(sessionId);
     return row?.maxSeq ?? null;
+  }
+
+  searchMessages(query: string, prefetchLimit: number): MessageSearchHit[] {
+    const trimmed = query.trim();
+    if (!trimmed || prefetchLimit <= 0) return [];
+    interface SearchRow {
+      session_id: string;
+      seq: number;
+      type: string;
+      data: string;
+      time: number;
+      schema_version: number;
+      session_title: string | null;
+    }
+    const rows = this.db
+      .prepare<[string, number], SearchRow>(
+        `SELECT e.session_id, e.seq, e.type, e.data, e.time, e.schema_version, s.title AS session_title
+         FROM events e JOIN sessions s ON s.id = e.session_id
+         WHERE e.type IN ('user/message', 'assistant/message')
+           AND s.status = 'active'
+           AND e.data LIKE ? ESCAPE '\\'
+         ORDER BY e.time DESC, e.seq DESC
+         LIMIT ?`,
+      )
+      .all(`%${escapeLikePattern(trimmed)}%`, prefetchLimit);
+    if (rows.length === 0) return [];
+
+    const hits: MessageSearchHit[] = [];
+    const sessionsWithHits = new Set<string>();
+    for (const row of rows) {
+      const match = matchMessageData(trimmed, row.data);
+      if (!match) continue;
+      hits.push({
+        sessionId: row.session_id,
+        ...(row.session_title != null ? { sessionTitle: row.session_title } : {}),
+        seq: row.seq,
+        role: match.role,
+        snippet: match.snippet,
+        time: row.time,
+      });
+      sessionsWithHits.add(row.session_id);
+    }
+    if (hits.length === 0) return [];
+
+    const abandonedBySession = this.readAbandonedSeqs([...sessionsWithHits]);
+    const compactedBySession = this.readCompactionExclusions([...sessionsWithHits]);
+    return hits.filter((hit) => {
+      if (abandonedBySession.get(hit.sessionId)?.has(hit.seq)) return false;
+      const compacted = compactedBySession.get(hit.sessionId);
+      if (compacted && (hit.seq <= compacted.anchorSeq || compacted.excludedSeqs.has(hit.seq))) {
+        return false;
+      }
+      return true;
+    });
+  }
+
+  private readAbandonedSeqs(sessionIds: string[]): Map<string, Set<number>> {
+    const result = new Map<string, Set<number>>();
+    const stmt = this.db.prepare<[string], EventRow>(
+      "SELECT * FROM events WHERE session_id = ? AND type IN ('turn/retried', 'turn/withdrawn')",
+    );
+    for (const sessionId of sessionIds) {
+      result.set(sessionId, collectAbandonedSeqs(SessionStore.rowsToEvents(stmt.all(sessionId))));
+    }
+    return result;
+  }
+
+  private readCompactionExclusions(
+    sessionIds: string[],
+  ): Map<string, { anchorSeq: number; excludedSeqs: Set<number> }> {
+    const result = new Map<string, { anchorSeq: number; excludedSeqs: Set<number> }>();
+    const stmt = this.db.prepare<[string], { data: string }>(
+      "SELECT data FROM events WHERE session_id = ? AND type = 'compaction/applied' ORDER BY seq DESC LIMIT 1",
+    );
+    for (const sessionId of sessionIds) {
+      const row = stmt.get(sessionId);
+      if (!row) continue;
+      let data: unknown;
+      try {
+        data = JSON.parse(row.data);
+      } catch {
+        continue;
+      }
+      if (typeof data !== "object" || data === null || typeof (data as { anchorSeq?: unknown }).anchorSeq !== "number") {
+        continue;
+      }
+      const rawExcluded = (data as { excludedSeqs?: unknown }).excludedSeqs;
+      const excludedSeqs = new Set(
+        (Array.isArray(rawExcluded) ? rawExcluded : []).filter((seq): seq is number => typeof seq === "number"),
+      );
+      result.set(sessionId, { anchorSeq: (data as { anchorSeq: number }).anchorSeq, excludedSeqs });
+    }
+    return result;
   }
 
   migrateEvents(
@@ -478,9 +589,10 @@ export class SessionStore {
   }
 
   updateSessionTitle(sessionId: string, title: string): void {
-    this.db
+    const result = this.db
       .prepare<[string, string]>("UPDATE sessions SET title = ? WHERE id = ?")
       .run(title, sessionId);
+    if (result.changes > 0) this.emitSessionChange(sessionId, "updated");
   }
 
   setSessionModel(sessionId: string, model: string | null): void {

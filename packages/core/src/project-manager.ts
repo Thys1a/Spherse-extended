@@ -3,6 +3,7 @@ import type { CommandInput, CommandPatch } from "./store/command.js";
 import type { AgentMcpConfig } from "./mcp/index.js";
 import { ProjectStore } from "./store/project.js";
 import type { ChangelogEntry, AgentChangePayload } from "./store/project.js";
+import type { SessionChangePayload } from "./store/session.js";
 import { FileWriteMutex } from "./utils/file-write-mutex.js";
 import { resolveProjectPath } from "./utils/path-safety.js";
 import { serverAccessPolicy } from "./access/access-policy.js";
@@ -10,10 +11,12 @@ import { type Logger, createSilentLogger } from "./logger.js";
 import { ConflictError, NotFoundError, ValidationError } from "./errors.js";
 import { deriveHistoryEntries, type DerivedMessageEntry } from "./session/fold.js";
 import type { SlashMeta, SummonMeta } from "./session/events.js";
+import type { ProjectMessageSearchHit } from "./session/search.js";
 import fs from "node:fs/promises";
 import path from "node:path";
 
 const HISTORY_CACHE_LIMIT = 32;
+const SEARCH_PREFETCH_LIMIT = 400;
 
 interface HistoryCacheEntry {
   version: number;
@@ -102,6 +105,14 @@ export class ProjectManager {
     this.projectStore.off("agent_updated", listener);
   }
 
+  onSessionChange(listener: (payload: SessionChangePayload) => void): void {
+    this.projectStore.on("session_updated", listener);
+  }
+
+  offSessionChange(listener: (payload: SessionChangePayload) => void): void {
+    this.projectStore.off("session_updated", listener);
+  }
+
   async deleteAgent(agentId: string): Promise<void> {
     await this.projectStore.deleteAgent(agentId);
   }
@@ -134,9 +145,7 @@ export class ProjectManager {
     agentId: string,
     config: { servers: ReadonlyArray<Record<string, unknown>> },
   ): Promise<AgentMcpConfig> {
-    const agentStore = this.projectStore.getAgent(agentId);
-    if (!agentStore) throw new NotFoundError(`Agent "${agentId}" not found`);
-    return agentStore.mcp.saveConfig(config);
+    return this.projectStore.updateAgentMcp(agentId, config);
   }
 
   getSession(agentId: string, sessionId: string): SessionInfo | null {
@@ -270,6 +279,20 @@ export class ProjectManager {
     agentStore.sessions.archiveSession(sessionId);
   }
 
+  searchProjectMessages(query: string, limit: number): ProjectMessageSearchHit[] {
+    const trimmed = query.trim();
+    if (!trimmed) return [];
+    const count = Number.isFinite(limit) ? Math.max(0, Math.floor(limit)) : 0;
+    const hits: ProjectMessageSearchHit[] = [];
+    for (const [agentId, agentStore] of this.projectStore.agents) {
+      for (const hit of agentStore.sessions.searchMessages(trimmed, SEARCH_PREFETCH_LIMIT)) {
+        hits.push({ ...hit, agentId });
+      }
+    }
+    hits.sort((a, b) => b.time - a.time || b.seq - a.seq);
+    return hits.slice(0, count);
+  }
+
   async listSkills(): Promise<SkillDefinition[]> {
     return this.projectStore.skill.list();
   }
@@ -320,6 +343,14 @@ export class ProjectManager {
 
   async updateWelcomePageSettings(path: string | null): Promise<{ path: string | null }> {
     return this.projectStore.config.updateWelcomePageSettings(path);
+  }
+
+  getSidePanelSettings(): { path: string | null } {
+    return this.projectStore.config.getSidePanelSettings();
+  }
+
+  async updateSidePanelSettings(path: string | null): Promise<{ path: string | null }> {
+    return this.projectStore.config.updateSidePanelSettings(path);
   }
 
   async readIndex(): Promise<string> {

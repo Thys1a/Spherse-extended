@@ -1,6 +1,9 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
+import type { ModelCatalog } from "@spherse/core";
 import type { ProjectRegistry, ProjectContextCompat } from "../registry.js";
 import type { ChatSessionHub } from "../chat/index.js";
+import type { ModelSettingsStore } from "../model-settings.js";
+import type { WebSearchSettingsStore } from "../web-search-settings.js";
 import { notFound } from "../errors.js";
 import { registerAgentRoutes } from "./agents.js";
 import { registerAgentWriteRoutes } from "./agent-write.js";
@@ -14,11 +17,14 @@ import { registerPreviewRoutes } from "./preview.js";
 import { registerSkillRoutes } from "./skills.js";
 import { registerCommandRoutes } from "./commands.js";
 import { registerMarketplaceRoutes } from "./marketplace.js";
+import { registerProjectMarketplaceRoutes } from "./project-marketplace.js";
+import { registerPromptMarketplaceRoutes } from "./prompt-marketplace.js";
 import { registerFileTreeRoutes } from "./file-tree.js";
 import { registerDebugRoutes } from "./debug.js";
 import { registerTriggerRoutes } from "./trigger.js";
 import { registerImagesRoutes } from "./images.js";
 import { registerAttachmentsRoutes } from "./attachments.js";
+import { registerUploadRoutes } from "./upload.js";
 import { registerConnectionRoutes } from "./connection.js";
 
 declare module "fastify" {
@@ -30,6 +36,9 @@ declare module "fastify" {
 export interface RouteOptions {
   authRequired?: boolean;
   hub: ChatSessionHub;
+  modelSettingsStore: ModelSettingsStore;
+  modelCatalog: ModelCatalog;
+  webSearchSettingsStore: WebSearchSettingsStore;
 }
 
 export function registerAllRoutes(
@@ -53,14 +62,21 @@ export function registerAllRoutes(
   registerContentRoutes(fastify, registry);
   registerDataRoutes(fastify, registry);
   registerCardRoutes(fastify, registry);
-  registerSettingsRoutes(fastify, registry);
+  registerSettingsRoutes(fastify, registry, {
+    modelSettingsStore: options.modelSettingsStore,
+    modelCatalog: options.modelCatalog,
+    webSearchSettingsStore: options.webSearchSettingsStore,
+  });
   registerPreviewRoutes(fastify, registry);
   registerSkillRoutes(fastify, registry);
   registerCommandRoutes(fastify, registry);
   registerMarketplaceRoutes(fastify, registry);
+  registerProjectMarketplaceRoutes(fastify);
+  registerPromptMarketplaceRoutes(fastify);
   registerFileTreeRoutes(fastify, registry);
   registerDebugRoutes(fastify, registry);
   registerTriggerRoutes(fastify, registry);
   registerImagesRoutes(fastify, registry);
   registerAttachmentsRoutes(fastify, registry);
+  registerUploadRoutes(fastify, registry);
 }

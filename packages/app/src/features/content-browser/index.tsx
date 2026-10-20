@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useI18n } from "@spherse/i18n/react";
-import type { AgentSummary, ActiveSessionInfo } from "../../lib/types";
 import { useProjectCtx } from "../../context/project-context";
 import { useApiClient } from "../../lib/use-connection";
 import { useHostBridge } from "../../context/host-bridge-context";
@@ -20,22 +19,18 @@ export interface ContentBrowserProps {
   filePath: string;
   onBack: () => void;
   onClose: () => void;
-  agents: AgentSummary[];
-  activeSessions?: ActiveSessionInfo[];
-  onStartSession?: (agentId: string, selectedText: string, sourcePath: string, comment?: string) => void;
   onNavigate?: (filePath: string) => void;
   onSplit?: () => void;
+  onUnsplit?: () => void;
 }
 
 export function ContentBrowser({
   filePath,
   onBack,
   onClose,
-  agents,
-  activeSessions,
-  onStartSession,
   onNavigate,
   onSplit,
+  onUnsplit,
 }: ContentBrowserProps) {
   const { t } = useI18n();
   const { projectId } = useProjectCtx();
@@ -129,6 +124,7 @@ export function ContentBrowser({
           else setFindOpen((v) => !v);
         }}
         onSplit={onSplit}
+        onUnsplit={onUnsplit}
       />
       {editor.conflict && editor.isEditing && (
         <ConflictBanner
@@ -137,7 +133,7 @@ export function ContentBrowser({
         />
       )}
       {editor.saveError && (
-        <div className="border-b border-destructive/20 bg-destructive/10 px-4 py-2 text-sm text-destructive">
+        <div className="border-b border-destructive/20 bg-destructive/10 px-4 py-2 text-sm break-words text-destructive">
           {t("content-browser.saveFailed", { error: editor.saveError })}
         </div>
       )}
@@ -145,10 +141,6 @@ export function ContentBrowser({
         <TextSelectionSession
           disabled={editor.isEditing}
           sourcePath={filePath}
-          agents={agents}
-          projectId={projectId}
-          activeSessions={activeSessions}
-          onStartSession={onStartSession}
         >
           {(contentRef) => (
             <ContentView

@@ -16,7 +16,12 @@ import type {
   AgentCreateResponse,
   AgentUpdateResponse,
   AiAccessSettingsResponse,
+  ModelSettingsRequest,
+  ModelSettingsResponse,
+  WebSearchSettingsRequest,
+  WebSearchSettingsResponse,
   WelcomePageSettingsResponse,
+  SidePanelSettingsResponse,
   ThemeSettingsResponse,
   AgentMcpConfig,
   McpServerConfig,
@@ -25,10 +30,12 @@ import type {
 import type {
   ProviderCatalogContract,
   TurnContextSnapshotContract,
+  SessionEventLogContract,
   SessionMessagesResponse,
   SessionMessagesPageResponse,
   SessionListPageResponse,
   SessionStatusResponse,
+  SessionSearchResponse,
   DataReadResponseContract as DataReadResponse,
   MarketplaceManifestResponse,
   CardListResponse,
@@ -44,6 +51,11 @@ import type {
   EntryPatchContract,
   CardLinkListResponse,
   CardLinkAddResponse,
+  UploadResponse,
+  MarketplaceProjectManifestResponse,
+  MarketplacePromptManifestResponse,
+  ProjectMarketplaceInstallRequest,
+  ProjectMarketplaceInstallResponse,
 } from "@spherse/contracts";
 import { parseApiResponse, schemas } from "@spherse/contracts";
 import { Type } from "@sinclair/typebox";
@@ -96,20 +108,23 @@ async function parseJsonResponse<T>(
   return parseApiResponse(schema, await res.json()) as T;
 }
 
-export function createApiClient(baseUrl: string, projectId: string, accessToken?: string | null) {
-  const apiBase = `${baseUrl}/api/projects/${projectId}`;
+function createAuthedFetch(accessToken?: string | null) {
   const authHeaders: Record<string, string> | undefined = accessToken
     ? { Authorization: `Bearer ${accessToken}` }
     : undefined;
-
-  function authedFetch(url: string, init: RequestInit = {}): Promise<Response> {
+  return function authedFetch(url: string, init: RequestInit = {}): Promise<Response> {
     if (!authHeaders) return fetch(url, init);
     const userHeaders = init.headers as Record<string, string> | undefined;
     return fetch(url, {
       ...init,
       headers: userHeaders ? { ...authHeaders, ...userHeaders } : authHeaders,
     });
-  }
+  };
+}
+
+export function createApiClient(baseUrl: string, projectId: string, accessToken?: string | null) {
+  const apiBase = `${baseUrl}/api/projects/${projectId}`;
+  const authedFetch = createAuthedFetch(accessToken);
 
   return {
     baseUrl,
@@ -188,6 +203,14 @@ export function createApiClient(baseUrl: string, projectId: string, accessToken?
       const res = await authedFetch(url);
       await assertOk(res);
       return parseJsonResponse<ProjectSessionListResponse>(res, schemas.projectSessionListResponse);
+    },
+
+    async searchSessions(q: string, opts?: { limit?: number }): Promise<SessionSearchResponse> {
+      const params = new URLSearchParams({ q });
+      if (opts?.limit !== undefined) params.set("limit", String(opts.limit));
+      const res = await authedFetch(`${apiBase}/sessions/search?${params.toString()}`);
+      await assertOk(res);
+      return parseJsonResponse<SessionSearchResponse>(res, schemas.sessionSearchResponse);
     },
 
     async getSessionMessages(agentId: string, id: string): Promise<SessionMessagesResponse> {
@@ -411,6 +434,12 @@ export function createApiClient(baseUrl: string, projectId: string, accessToken?
     async getContent(filePath: string): Promise<ContentResponse | null> {
       const res = await authedFetch(`${apiBase}/content/${encodeURIComponent(filePath)}`);
       if (!res.ok) return null;
+      return parseJsonResponse<ContentResponse>(res, schemas.contentResponse);
+    },
+
+    async readContent(filePath: string): Promise<ContentResponse> {
+      const res = await authedFetch(`${apiBase}/content/${encodeURIComponent(filePath)}`);
+      await assertOk(res);
       return parseJsonResponse<ContentResponse>(res, schemas.contentResponse);
     },
 
@@ -701,6 +730,17 @@ export function createApiClient(baseUrl: string, projectId: string, accessToken?
       return parseJsonResponse<TurnContextSnapshotContract>(res, schemas.turnContextSnapshot);
     },
 
+    async getSessionEvents(
+      agentId: string,
+      sessionId: string,
+    ): Promise<SessionEventLogContract> {
+      const res = await authedFetch(
+        `${apiBase}/debug/sessions/${encodeURIComponent(sessionId)}/events?agentId=${encodeURIComponent(agentId)}`,
+      );
+      await assertOk(res);
+      return parseJsonResponse<SessionEventLogContract>(res, schemas.sessionEventLog);
+    },
+
     getPreviewUrl(filePath: string, version?: number): string {
       const encodedPath = filePath.split("/").map(encodeURIComponent).join("/");
       const pathMiddle = accessToken ? `/preview/__auth/${encodeURIComponent(accessToken)}/${encodedPath}` : `/preview/${encodedPath}`;
@@ -761,6 +801,17 @@ export function createApiClient(baseUrl: string, projectId: string, accessToken?
       await assertOk(res);
     },
 
+    async uploadFile(dirPath: string, file: File): Promise<UploadResponse> {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await authedFetch(`${apiBase}/upload/${encodeURIComponent(dirPath)}`, {
+        method: "POST",
+        body: form,
+      });
+      await assertOk(res);
+      return parseJsonResponse<UploadResponse>(res, schemas.uploadResponse);
+    },
+
     async getAiAccessSettings(): Promise<AiAccessSettingsResponse> {
       const res = await authedFetch(`${apiBase}/settings/ai-access`);
       if (!res.ok) return { ok: false, deniedPaths: [] };
@@ -791,6 +842,22 @@ export function createApiClient(baseUrl: string, projectId: string, accessToken?
       });
       await assertOk(res);
       return parseJsonResponse<WelcomePageSettingsResponse>(res, schemas.welcomePageSettingsResponse);
+    },
+
+    async getSidePanelSettings(): Promise<SidePanelSettingsResponse> {
+      const res = await authedFetch(`${apiBase}/settings/side-panel`);
+      if (!res.ok) return { ok: false, path: null };
+      return parseJsonResponse<SidePanelSettingsResponse>(res, schemas.sidePanelSettingsResponse);
+    },
+
+    async updateSidePanelSettings(path: string | null): Promise<SidePanelSettingsResponse> {
+      const res = await authedFetch(`${apiBase}/settings/side-panel`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path }),
+      });
+      await assertOk(res);
+      return parseJsonResponse<SidePanelSettingsResponse>(res, schemas.sidePanelSettingsResponse);
     },
 
     async getThemeSettings(): Promise<ThemeSettingsResponse> {
@@ -896,6 +963,93 @@ export function createApiClient(baseUrl: string, projectId: string, accessToken?
 }
 
 export type ApiClient = ReturnType<typeof createApiClient>;
+
+export function createGlobalApiClient(baseUrl: string, accessToken?: string | null) {
+  const authedFetch = createAuthedFetch(accessToken);
+
+  return {
+    async getModelSettings(): Promise<ModelSettingsResponse> {
+      const res = await authedFetch(`${baseUrl}/api/settings/models`);
+      await assertOk(res);
+      return parseJsonResponse<ModelSettingsResponse>(res, schemas.modelSettingsResponse);
+    },
+
+    async updateModelSettings(req: ModelSettingsRequest): Promise<ModelSettingsResponse> {
+      const res = await authedFetch(`${baseUrl}/api/settings/models`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(req),
+      });
+      await assertOk(res);
+      return parseJsonResponse<ModelSettingsResponse>(res, schemas.modelSettingsResponse);
+    },
+
+    async getWebSearchSettings(): Promise<WebSearchSettingsResponse> {
+      const res = await authedFetch(`${baseUrl}/api/settings/web-search`);
+      await assertOk(res);
+      return parseJsonResponse<WebSearchSettingsResponse>(res, schemas.webSearchSettingsResponse);
+    },
+
+    async updateWebSearchSettings(req: WebSearchSettingsRequest): Promise<WebSearchSettingsResponse> {
+      const res = await authedFetch(`${baseUrl}/api/settings/web-search`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(req),
+      });
+      await assertOk(res);
+      return parseJsonResponse<WebSearchSettingsResponse>(res, schemas.webSearchSettingsResponse);
+    },
+
+    async getSupportedProviders(): Promise<ProviderCatalogContract> {
+      const res = await authedFetch(`${baseUrl}/api/settings/providers`);
+      await assertOk(res);
+      return parseJsonResponse<ProviderCatalogContract>(res, schemas.providerCatalog);
+    },
+
+    async getImageProviders(): Promise<ProviderCatalogContract> {
+      const res = await authedFetch(`${baseUrl}/api/settings/image-providers`);
+      await assertOk(res);
+      return parseJsonResponse<ProviderCatalogContract>(res, schemas.providerCatalog);
+    },
+
+    async listMarketplaceProjects(): Promise<MarketplaceProjectManifestResponse> {
+      const res = await authedFetch(`${baseUrl}/api/marketplace/projects`);
+      await assertOk(res);
+      return parseJsonResponse<MarketplaceProjectManifestResponse>(
+        res,
+        schemas.marketplaceProjectManifestResponse,
+      );
+    },
+
+    async installMarketplaceProject(
+      req: ProjectMarketplaceInstallRequest,
+    ): Promise<ProjectMarketplaceInstallResponse> {
+      const res = await authedFetch(`${baseUrl}/api/marketplace/projects/install`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(req),
+      });
+      await assertOk(res);
+      return parseJsonResponse<ProjectMarketplaceInstallResponse>(
+        res,
+        schemas.projectMarketplaceInstallResponse,
+      );
+    },
+
+    async listMarketplacePrompts(language: string): Promise<MarketplacePromptManifestResponse> {
+      const res = await authedFetch(
+        `${baseUrl}/api/marketplace/prompts?language=${encodeURIComponent(language)}`,
+      );
+      await assertOk(res);
+      return parseJsonResponse<MarketplacePromptManifestResponse>(
+        res,
+        schemas.marketplacePromptManifestResponse,
+      );
+    },
+  };
+}
+
+export type GlobalApiClient = ReturnType<typeof createGlobalApiClient>;
 
 export function buildWsUrl(baseUrl: string, path: string, accessToken?: string | null): string {
   const wsBase = baseUrl.replace(/^http/, "ws");

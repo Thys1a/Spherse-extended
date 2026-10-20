@@ -164,6 +164,44 @@ You are a world building assistant.`;
     });
   });
 
+  it("parses quickReplies from frontmatter", async () => {
+    await writeProfile(
+      "---\nname: Agent\nquickReplies:\n  - label: Greet\n    description: Say hi\n    text: Hello!\n    action: fill\n---\n\nprompt",
+    );
+    const profile = await store.read();
+    expect(profile).not.toBeNull();
+    expect(profile!.quickReplies).toEqual([
+      { label: "Greet", description: "Say hi", text: "Hello!", action: "fill" },
+    ]);
+  });
+
+  it("returns undefined quickReplies when frontmatter omits it", async () => {
+    await writeProfile(VALID_PROFILE);
+    const profile = await store.read();
+    expect(profile).not.toBeNull();
+    expect(profile!.quickReplies).toBeUndefined();
+  });
+
+  it("drops invalid quickReplies entries and truncates overlong labels", async () => {
+    await writeProfile(
+      "---\nname: Agent\nquickReplies:\n  - label: OK\n    text: hi\n  - 42\n  - label: ''\n    text: empty\n  - label: Blank\n    text: '   '\n  - label: This label is way too long for display\n    text: long\n---\n\nprompt",
+    );
+    const profile = await store.read();
+    expect(profile).not.toBeNull();
+    expect(profile!.quickReplies).toEqual([
+      { label: "OK", text: "hi", action: "fill" },
+      { label: "This label is wa", text: "long", action: "fill" },
+    ]);
+  });
+
+  it("caps quickReplies at MAX_QUICK_REPLIES", async () => {
+    const items = Array.from({ length: 12 }, (_, i) => `  - label: R${i}\n    text: t${i}`).join("\n");
+    await writeProfile(`---\nname: Agent\nquickReplies:\n${items}\n---\n\nprompt`);
+    const profile = await store.read();
+    expect(profile).not.toBeNull();
+    expect(profile!.quickReplies).toHaveLength(10);
+  });
+
   it("returns null when profile.md does not exist", async () => {
     const profile = await store.read();
     expect(profile).toBeNull();

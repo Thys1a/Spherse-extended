@@ -1,6 +1,7 @@
 import { useCallback, useEffect } from "react";
 import { useLocation, useNavigate, useNavigationType } from "react-router";
 import { useProjectCtx } from "../context/project-context";
+import { stripMessageId } from "./route-params";
 
 const projectNavStacks = new Map<string, string[]>();
 
@@ -20,7 +21,7 @@ export function useProjectNavHistory(projectId: string): void {
   const location = useLocation();
   const navigationType = useNavigationType();
   useEffect(() => {
-    const key = location.pathname + location.search;
+    const key = stripMessageId(location.pathname, location.search);
     let stack = projectNavStacks.get(projectId);
     if (!stack) {
       stack = [];

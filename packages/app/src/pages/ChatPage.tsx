@@ -1,10 +1,11 @@
 import { useEffect } from "react";
-import { useNavigate, useParams } from "react-router";
+import { useNavigate, useParams, useSearchParams } from "react-router";
 import { useI18n } from "@spherse/i18n/react";
 import { Chat } from "../features/chat";
 import { useProjectDataStore } from "../stores/project-data-store";
 import { useProjectCtx } from "../context/project-context";
 import { useApiClient } from "../lib/use-connection";
+import { parseMessageIdParam } from "../lib/route-params";
 import { useProjectAgents, useProjectSession } from "../queries/project";
 
 export function ChatPage() {
@@ -17,6 +18,8 @@ export function ChatPage() {
   const sessionQuery = useProjectSession(projectId, client, sessionId);
   const projectData = useProjectDataStore((s) => s.projects[projectId]);
   const consumeInitialMessage = useProjectDataStore((s) => s.consumeInitialMessage);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const locateSeq = parseMessageIdParam(searchParams.get("messageId"));
 
   const session = sessionQuery.data ?? null;
   const agent = session ? agents.find((a) => a.id === session.agentId) ?? null : null;
@@ -33,6 +36,13 @@ export function ChatPage() {
       navigate(`/project/${projectId}`, { replace: true });
     }
   }, [navigate, projectId, sessionQuery.data, sessionQuery.isSuccess]);
+
+  const handleLocated = () => {
+    if (!searchParams.has("messageId")) return;
+    const next = new URLSearchParams(searchParams);
+    next.delete("messageId");
+    setSearchParams(next, { replace: true });
+  };
 
   if (!session || !agent) {
     return (
@@ -51,6 +61,8 @@ export function ChatPage() {
       onOpenSession={(targetSessionId) => navigate(`/project/${projectId}/chat/${targetSessionId}`)}
       initialMessage={initialMessage}
       onClose={() => navigate(`/project/${projectId}`)}
+      locateSeq={locateSeq}
+      onLocated={handleLocated}
     />
   );
 }

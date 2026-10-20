@@ -19,18 +19,25 @@ import { SectionTitle } from "./SectionTitle";
 export function DefaultModelField({
   providers,
   apiKeys,
+  configured,
+  loadError,
   value,
   onChange,
 }: {
   providers: Record<string, ProviderConfig>;
   apiKeys: Record<string, string>;
+  configured: Record<string, boolean>;
+  loadError?: boolean;
   value: string;
   onChange: (value: string) => void;
 }) {
   const { t } = useI18n();
   const [query, setQuery] = useState("");
 
-  const configuredProviders = Object.entries(providers).filter(([id]) => apiKeys[id]?.trim());
+  const configuredProviders = Object.entries(providers).filter(
+    ([id, config]) =>
+      (apiKeys[id]?.trim() || configured[id] || config.keyless) && config.models.length > 0,
+  );
 
   const selectedLabel = (() => {
     const slashIdx = value.indexOf("/");
@@ -57,7 +64,9 @@ export function DefaultModelField({
     <Field>
       <SectionTitle as={FieldLabel}>{t("settings.models.defaultModel")}</SectionTitle>
       {configuredProviders.length === 0 ? (
-        <p className="text-xs text-muted-foreground">{t("settings.models.configureFirst")}</p>
+        loadError ? null : (
+          <p className="text-xs text-muted-foreground">{t("settings.models.configureFirst")}</p>
+        )
       ) : (
         <Combobox
           value={value || null}

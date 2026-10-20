@@ -13,6 +13,7 @@ import "./handlers/send-message";
 import "./handlers/show-toast";
 import "./handlers/unfloat-content";
 import "./handlers/unfloat-session";
+import "./handlers/upload-file";
 
 export { dispatchAction } from "./registry";
 export { UiSdkBridge } from "./UiSdkBridge";

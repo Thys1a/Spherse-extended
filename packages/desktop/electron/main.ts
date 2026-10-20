@@ -1,7 +1,10 @@
 import { app, crashReporter, type BrowserWindow } from "electron";
+import path from "node:path";
 import { setGlobalDispatcher, EnvHttpProxyAgent } from "undici";
+import { resolveAppUserModelId } from "./app-id.js";
 import { createWindow, getMainWindow } from "./window.js";
-import { restoreEnvFromSettings, getMobileAccess } from "./settings.js";
+import { getMobileAccess } from "./settings.js";
+import { migrateLegacySettings } from "./migrate-legacy-settings.js";
 import { fixPath } from "./fix-path.js";
 import { ensureServer, stopServer, getServerPort } from "./server.js";
 import { registerAllIpc } from "./ipc/index.js";
@@ -15,9 +18,16 @@ import {
   resolveCrashLogDir,
   safeAppendCrashLog,
 } from "./crash-log.js";
+import { beginQuit, isQuitting } from "./lifecycle.js";
+import { removeStaleElectronShortcut } from "./stale-electron-shortcut.js";
+import { attachCloseToTray, destroyTray, showMainWindow, syncTray } from "./tray.js";
 
-if (process.platform === "win32") {
-  app.setAppUserModelId("com.spherse.app");
+const appUserModelId = resolveAppUserModelId({
+  isPackaged: app.isPackaged,
+  platform: process.platform,
+});
+if (appUserModelId) {
+  app.setAppUserModelId(appUserModelId);
 }
 
 crashReporter.start({ submitURL: "", uploadToServer: false });
@@ -57,14 +67,14 @@ app.on("render-process-gone", (_event, webContents, details) => {
   const now = Date.now();
   const decision = decideRendererRecovery({
     cleanExit,
-    quitting,
+    quitting: isQuitting(),
     windowDestroyed: destroyed,
     crashTimes: rendererCrashTimes,
     now,
   });
   rendererCrashTimes = decision.crashTimes;
   if (decision.action === "none") {
-    if (cleanExit || quitting) return;
+    if (cleanExit || isQuitting()) return;
     if (!destroyed && main) {
       showCrashErrorPage(main);
     } else {
@@ -116,13 +126,32 @@ process.on("unhandledRejection", (reason) => {
 });
 
 app.whenReady().then(async () => {
+  if (appUserModelId) {
+    try {
+      const outcome = removeStaleElectronShortcut({
+        startMenuDir: path.join(
+          app.getPath("appData"),
+          "Microsoft",
+          "Windows",
+          "Start Menu",
+          "Programs",
+        ),
+        expectedAppUserModelId: appUserModelId,
+      });
+      if (outcome === "removed") {
+        console.log("[main] removed stale Electron.lnk sharing our AppUserModelId");
+      }
+    } catch (err) {
+      console.error("[main] stale shortcut cleanup failed:", err);
+    }
+  }
   await fixPath();
-  restoreEnvFromSettings();
+  migrateLegacySettings();
   setGlobalDispatcher(new EnvHttpProxyAgent());
   await ensureServer();
-  createWindow();
-  setupContextMenu(getMainWindow()!);
+  setupMainWindow(createWindow());
   registerAllIpc(getMainWindow);
+  syncTray();
   startAutoUpdateChecks();
 
   const mobile = getMobileAccess();
@@ -138,12 +167,16 @@ app.whenReady().then(async () => {
 const TUNNEL_STOP_TIMEOUT_MS = 5_000;
 const GRACEFUL_SHUTDOWN_HARD_EXIT_MS = 30_000;
 
-let quitting = false;
+function setupMainWindow(win: BrowserWindow): void {
+  setupContextMenu(win);
+  attachCloseToTray(win);
+}
+
 async function gracefulShutdown(): Promise<void> {
-  if (quitting) return;
-  quitting = true;
+  if (!beginQuit()) return;
   setTimeout(() => {
     console.error("[main] graceful shutdown timed out, forcing app exit");
+    destroyTray();
     app.exit(1);
   }, GRACEFUL_SHUTDOWN_HARD_EXIT_MS).unref();
   await settleWithin(getTunnelManager().stop(), TUNNEL_STOP_TIMEOUT_MS, (outcome, detail) => {
@@ -160,7 +193,7 @@ async function gracefulShutdown(): Promise<void> {
 app.on("window-all-closed", () => {
   const main = getMainWindow();
   const decision = decideWindowsClosed({
-    quitting,
+    quitting: isQuitting(),
     lastCrashAt,
     backoffExhausted,
     hasLiveWindow: !!main && !main.isDestroyed(),
@@ -170,6 +203,7 @@ app.on("window-all-closed", () => {
   lastCrashAt = null;
   if (decision.recreate) {
     const win = createWindow();
+    setupMainWindow(win);
     if (decision.showErrorPage) showCrashErrorPage(win);
     return;
   }
@@ -177,8 +211,20 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", (event) => {
-  if (!quitting) {
+  if (!isQuitting()) {
     event.preventDefault();
     void gracefulShutdown();
   }
+});
+
+app.on("will-quit", () => {
+  destroyTray();
+});
+
+app.on("activate", () => {
+  void showMainWindow();
+});
+
+app.on("second-instance", () => {
+  void showMainWindow();
 });

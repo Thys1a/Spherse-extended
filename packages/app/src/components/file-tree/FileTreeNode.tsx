@@ -1,6 +1,7 @@
 import { useMemo, type DragEvent, type ReactNode } from "react";
 import { ChevronRightIcon, FileIcon, FolderIcon } from "lucide-react";
 import { useI18n } from "@spherse/i18n/react";
+import { cn } from "@/lib/utils";
 import {
   Collapsible,
   CollapsibleContent,
@@ -8,7 +9,8 @@ import {
 } from "../../components/ui/collapsible";
 import { TreeRow } from "../../components/ui/tree-row";
 import { useProjectDirectory } from "../../queries/content";
-import { FILE_TREE_DRAG_MIME, buildTreeItems, canDropEntry, childPath, type TreeItem } from "./tree-model";
+import { FILE_TREE_DRAG_MIME, buildTreeItems, canDropEntry, childPath, parentDirPath, type TreeItem } from "./tree-model";
+import { dropTargetHandlers } from "./dnd";
 import { FileTreeContextMenu } from "./FileTreeContextMenu";
 import { InlineNameInput } from "./InlineNameInput";
 import { useFileTreeCtx } from "./file-tree-context";
@@ -35,10 +37,13 @@ function FileRow({ item, depth }: { item: TreeItem; depth: number }) {
     cancelRename,
     onOpenInNewTab,
     onSplitFile,
+    pickUploadFiles,
     onFloatFile,
     floatedFilePaths,
     setDropTarget,
     readOnly,
+    dropFiles,
+    setDropTargetDir,
   } = useFileTreeCtx();
 
   const isSelected = item.path === selectedFilePath || selectedPaths.has(item.path);
@@ -59,6 +64,14 @@ function FileRow({ item, depth }: { item: TreeItem; depth: number }) {
     );
   }
 
+  const dragHandlers = dropFiles
+    ? dropTargetHandlers({
+        targetDir: parentDirPath(item.path),
+        dropFiles,
+        setDropTargetDir,
+      })
+    : {};
+
   const row = (
     <TreeRow
       depth={depth}
@@ -77,6 +90,7 @@ function FileRow({ item, depth }: { item: TreeItem; depth: number }) {
       draggable
       onDragStart={handleDragStart}
       onDragEnd={() => setDropTarget(null)}
+      {...dragHandlers}
     >
       <FileIcon className="size-4 shrink-0 text-sidebar-foreground/70" />
       <span className="overflow-hidden text-ellipsis whitespace-nowrap">
@@ -109,6 +123,7 @@ function FileRow({ item, depth }: { item: TreeItem; depth: number }) {
       onDelete={() => requestDelete(item)}
       onOpenInNewTab={onOpenInNewTab}
       onSplitFile={onSplitFile}
+      onUploadFiles={pickUploadFiles}
       onFloatFile={onFloatFile}
       floatedFilePaths={floatedFilePaths}
       onRename={() => requestRename(item)}
@@ -140,7 +155,11 @@ function DirectoryNode({ item, depth }: { item: TreeItem; depth: number }) {
     dropTarget,
     setDropTarget,
     requestDelete,
+    pickUploadFiles,
     readOnly,
+    dropFiles,
+    dropTargetDir,
+    setDropTargetDir,
   } = useFileTreeCtx();
 
   const expanded = expandedPaths.has(item.path);
@@ -175,8 +194,23 @@ function DirectoryNode({ item, depth }: { item: TreeItem; depth: number }) {
   );
   const isCreatingInThisDir = creating && creating.parentPath === item.path;
 
+  const dragHandlers = dropFiles
+    ? dropTargetHandlers({ targetDir: item.path, dropFiles, setDropTargetDir })
+    : {};
+
   const trigger = (
-    <CollapsibleTrigger render={<TreeRow depth={depth} className="group" />}>
+    <CollapsibleTrigger
+      render={
+        <TreeRow
+          depth={depth}
+          className={cn(
+            "group",
+            dropTargetDir === item.path && "bg-sidebar-accent ring-1 ring-sidebar-ring",
+          )}
+          {...dragHandlers}
+        />
+      }
+    >
       <ChevronRightIcon className="size-4 shrink-0 text-sidebar-foreground/70 transition-transform group-data-[panel-open]:rotate-90" />
       <FolderIcon className="size-4 shrink-0 text-sidebar-foreground/70" />
       <span className="overflow-hidden text-ellipsis whitespace-nowrap">
@@ -261,6 +295,7 @@ function DirectoryNode({ item, depth }: { item: TreeItem; depth: number }) {
           onCreate={(action) => requestCreate(item, action)}
           onDelete={() => requestDelete(item)}
           onRename={() => requestRename(item)}
+          onUploadFiles={pickUploadFiles}
         >
           {renamingTrigger}
         </FileTreeContextMenu>,
