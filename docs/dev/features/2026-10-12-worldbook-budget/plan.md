@@ -14,7 +14,7 @@
 ## B：core token 画像（仅 core 包）
 
 - [x] 新增纯函数 `worldbookStats(entries)` 返 `{ entryCount; enabledEntryCount; alwaysTokens; maxTurnTokens }`，口径：逐条 `estimateTokens(renderWorldbookEntry(e))`
-- [x] 常驻 = `enabled && constant`；最坏 = 常驻 + 可能命中的 enabled 条目（`selective` 需主副键均非空；普通条目需 keys 非空；无 keys 且非 constant 不计入）
+- [x] 常驻 = `enabled && constant`；最坏 = 常驻 + 可能命中的 enabled 条目（`selective` 需主副键均非空；普通条目需 keys 与 secondary_keys 合计非空；两者皆空且非 constant 不计入）
 - [x] `AgentCardLink`（`worldbook.ts:227-231`）扩展上述 4 字段；`listAgentCardLinks`（:239）解析 real path 后 `toParsedCard(fs.readFileSync(real))` 填入，`dangling`/解析失败置 0
 - [x] 从 `card/index.ts` 导出 `worldbookStats` + 新字段类型
 - [x] 测试：常驻/最坏分类、disabled 排除、selective 单边为空、无 keys 排除、CJK 估算；链接用例补新字段断言（dangling 置 0）

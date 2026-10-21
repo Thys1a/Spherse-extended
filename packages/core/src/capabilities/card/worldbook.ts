@@ -141,6 +141,7 @@ function cacheKey(projectRoot: string, slug: string): string {
 export function invalidateWorldbookCache(projectRoot?: string, slug?: string): void {
   if (projectRoot === undefined) {
     bookCache.clear();
+    statsCache.clear();
     return;
   }
   for (const key of [...bookCache.keys()]) {
@@ -150,6 +151,12 @@ export function invalidateWorldbookCache(projectRoot?: string, slug?: string): v
         : key.startsWith(`${projectRoot}\0`)
     ) {
       bookCache.delete(key);
+    }
+  }
+  const root = path.resolve(projectRoot);
+  for (const key of [...statsCache.keys()]) {
+    if (isPathInside(root, key)) {
+      statsCache.delete(key);
     }
   }
 }
@@ -248,14 +255,28 @@ const EMPTY_STATS: WorldbookFileStats = {
   maxTurnTokens: 0,
 };
 
+const statsCache = new Map<string, { fingerprint: string; stats: WorldbookFileStats }>();
+
 function statsOfCardFile(real: string): WorldbookFileStats {
+  let fingerprint: string;
   try {
-    const parsed = toParsedCard(fs.readFileSync(real));
-    if (!parsed) return EMPTY_STATS;
-    return worldbookStats(parsed.entries);
+    const fileStat = fs.statSync(real);
+    if (!fileStat.isFile()) return EMPTY_STATS;
+    fingerprint = `${fileStat.mtimeMs}:${fileStat.size}`;
   } catch {
     return EMPTY_STATS;
   }
+  const cached = statsCache.get(real);
+  if (cached && cached.fingerprint === fingerprint) return cached.stats;
+  let stats: WorldbookFileStats;
+  try {
+    const parsed = toParsedCard(fs.readFileSync(real));
+    stats = parsed ? worldbookStats(parsed.entries) : EMPTY_STATS;
+  } catch {
+    stats = EMPTY_STATS;
+  }
+  statsCache.set(real, { fingerprint, stats });
+  return stats;
 }
 
 function assertLinkName(name: string): void {
@@ -285,11 +306,12 @@ export function listAgentCardLinks(projectRoot: string, slug: string): AgentCard
     const real = linkTargetRealpath(full);
     const outside = real !== null && !isPathInside(root, real);
     const dangling = real === null || outside;
+    const stats = !dangling && real !== null ? statsOfCardFile(real) : EMPTY_STATS;
     out.push({
       name,
       target: real === null ? "" : path.relative(root, real),
       dangling,
-      ...(dangling || real === null ? EMPTY_STATS : statsOfCardFile(real)),
+      ...stats,
     });
   }
   return out;

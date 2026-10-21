@@ -41,6 +41,7 @@ worldbook 按关键词动态匹配，每轮实际注入量不可静态预知，�
 - **常驻 tokens**：`enabled && constant` 条目（每轮必注入）= 下限。
 - **最坏 tokens**：常驻 + 所有**可能命中**的 enabled 条目 = 上限。`selective` 需 primary/secondary 均非空；普通条目需 keys 非空；无 keys 且非 constant 的条目永不命中（`matchWorldbook:33-57`），不计入。
 - 每轮实际值落在两者之间，取决于最近 10 条消息 / 4000 字符的匹配结果。
+- 计量为逐条渲染之和，不含 `<worldbook>` 包裹与条目分隔符（恒定小量偏差，“最坏”恒偏小）。
 - 占比 = 最坏 tokens / 模型 `contextWindow`。
 - 不做“上一轮实际注入量”（需读某次 session 的 turn-context 快照，跨 session 无意义，成本跳档）。
 

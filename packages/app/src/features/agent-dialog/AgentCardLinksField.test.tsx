@@ -68,6 +68,8 @@ describe("AgentCardLinksField", () => {
     });
     renderField(client);
     await waitFor(() => expect(screen.getByText(/gone\.card\.json/)).not.toBeNull());
+    expect(screen.queryByText(/tok/)).toBeNull();
+    expect(screen.queryByText(/合计/)).toBeNull();
   });
 
   it("shows per-link token stats and totals with window ratio", async () => {

@@ -155,6 +155,11 @@ describe("worldbookStats", () => {
     expect(stats.alwaysTokens).toBe(0);
     expect(stats.maxTurnTokens).toBeGreaterThan(0);
   });
+
+  it("counts secondary-only plain entries as matchable", () => {
+    const stats = worldbookStats([entry({ keys: [], secondary_keys: ["k"], content: "Secondary." })]);
+    expect(stats.maxTurnTokens).toBeGreaterThan(0);
+  });
 });
 
 describe("recentTextOf (C1)", () => {
@@ -254,8 +259,8 @@ describe("worldbookProjector", () => {
     const file = path.join(slugDir, "lore.card.json");
     fs.writeFileSync(file, cardFile([{ keys: ["x"], content: "v1" }]));
     expect(readAgentWorldbook(root, "hero").map((e) => e.content)).toEqual(["v1"]);
-    fs.writeFileSync(file, cardFile([{ keys: ["x"], content: "v2" }]));
-    expect(readAgentWorldbook(root, "hero").map((e) => e.content)).toEqual(["v2"]);
+    fs.writeFileSync(file, cardFile([{ keys: ["x"], content: "v2 with more content" }]));
+    expect(readAgentWorldbook(root, "hero").map((e) => e.content)).toEqual(["v2 with more content"]);
   });
 
   it("invalidate by project root does not touch nested roots (M3)", () => {
@@ -379,6 +384,18 @@ describe.runIf(canCreateSymlinks())("agent card links", () => {
       alwaysTokens: 0,
       maxTurnTokens: 0,
     });
+  });
+
+  it("list refreshes token stats after target edits without invalidation", () => {
+    const rel = outsideCard("kings.card.json", [{ keys: ["x"], content: "v" }]);
+    addAgentCardLink(root, "hero", rel);
+    const before = listAgentCardLinks(root, "hero")[0].maxTurnTokens;
+    fs.writeFileSync(
+      path.join(root, rel),
+      cardFile([{ keys: ["x"], content: "v with considerably more content words here" }]),
+    );
+    const after = listAgentCardLinks(root, "hero")[0];
+    expect(after.maxTurnTokens).toBeGreaterThan(before);
   });
 
   it("add is idempotent for the same target", () => {
