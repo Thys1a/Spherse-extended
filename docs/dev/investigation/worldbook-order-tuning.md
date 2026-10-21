@@ -8,6 +8,7 @@
 
 - 注入位置：v1.0.3 起 worldbook 块按条目 `position` 数字插入点注入（0 = system MCP 之前，1 = system MCP 之后，2 = 历史锚点需 `depth`，3 = 当前用户消息之前（默认），4 = 队尾旧行为）；旧字符串值（`""` / `before_char` / `after_char`）读时一律归一为 3。
 - 自反馈阻断：上轮注入的 `<worldbook>` 块不计入下轮扫描文本（`recentTextOf` 剥离），否则命中条目永久续注。
+- 重算频率不对称：messages 侧（2/3/4）每次 LLM 调用重算（含附件处理后文本）；system 侧（0/1）每 user turn 在 `beforeTurn` 算一次，扫描文本为历史 + 本轮纯文本（`pendingUserText`，不含附件展开），tool loop 内为 turn 起始快照；首 turn 历史为空时 constant 仍命中（空扫描恒包含），key 条目按本轮输入匹配。
 - 匹配语义：`constant` 恒注入；`enabled: false` 跳过；`selective: true` 取 ST AND 语义（primary 与 secondary 必须同时命中，primary-only 与 secondary-only 均不触发；任一为空恒不触发）；大小写/正则复用 `search.ts` 的 `matchKeys`（正则编译附 500 条上限缓存）。
 - 卡面范围：仅 agent 目录顶层 `*.card.json`（不递归子目录）；agent 卡不进 `CardStore` 工具面（`walkCardFiles` 跳过 `.spherse`），`search_card`/`edit_card` 不可见——worldbook 卡走文件管理。
 - 排序：按 `insertion_order` 升序（数值越小越优先，与 ST 语义一致；非有限值按 0）。

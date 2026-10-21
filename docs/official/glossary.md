@@ -92,7 +92,7 @@
 | outline | `read_data` 无 path 时输出的结构大纲 + manifest 入口签名 | [data-conventions.md](data-conventions.md) |
 | HTML Card | `render_card` 渲染的 HTML 卡片；全文仅经 onUpdate 传输、不落库 | [data-conventions.md](data-conventions.md) |
 | Image Card | `generate_image` 渲染的图片卡片，三态 generating / done / error | [data-conventions.md](data-conventions.md) |
-| worldbook | agent 级世界书：`.spherse/agents/{slug}/` 下顶层 `*.card.json` 的条目集合，逐轮按 keys 扫描命中后以 `<worldbook>` user 块注入（constant 恒注入） | [architecture/capabilities.md](architecture/capabilities.md) |
+| worldbook | agent 级世界书：`.spherse/agents/{slug}/` 下顶层 `*.card.json` 的条目集合，逐轮按 keys 扫描命中后按条目 `position` 数字插入点注入（0/1 进 systemPrompt，2/3/4 为 user 块；constant 恒注入） | [architecture/capabilities.md](architecture/capabilities.md) |
 | selective | 世界书条目开关：为 true 时 primary（keys）与 secondary（secondary_keys）必须同时命中才注入（ST AND 语义） | [architecture/capabilities.md](architecture/capabilities.md) |
 | CardStore | `*.card.json` 的读写单例：解析缓存 + 原子落盘 + 回读校验，SDK / agent / server 共用 | [data-conventions.md](data-conventions.md) |
 | card tools | agent 侧世界书工具：`read_card` / `search_card` / `edit_card`（读）与 `card.entry.add/remove`（增删），对应 `card.*` 10 op | [architecture/server.md](architecture/server.md) |

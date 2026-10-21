@@ -49,7 +49,7 @@ export function defaultCapabilities(opts: DefaultCapabilitiesOptions): Capabilit
     ...builtinToolCapabilities({ dataStore: opts.dataStore, cardStore: opts.cardStore }),
     createTriggerCapability({ projectStore: opts.projectStore, logger: opts.logger }),
     createMcpCapability({ projectStore: opts.projectStore, logger: opts.logger }),
-    worldbookSystemCapability({ projectStore: opts.projectStore }),
+    worldbookSystemCapability({ projectStore: opts.projectStore, logger: opts.logger }),
     attachmentsCapability(),
     compactionCapability({ logger: opts.logger }),
     toolOutputBudgetCapability(),

@@ -3,7 +3,7 @@ import type { ContextBlock } from "../../kernel/context-block.js";
 import { escapeXmlAttr } from "../../utils/xml-escape.js";
 
 export const MCP_CONTEXT_START = "<!-- spherse:mcp-context:start -->";
-export const MCP_CONTEXT_END = "<!-- spherse:mcp-context:end -->";
+const MCP_CONTEXT_END = "<!-- spherse:mcp-context:end -->";
 
 export function mcpContextBlock(servers: McpServerInfo[]): ContextBlock | null {
   const meaningful = servers.filter(

@@ -28,7 +28,7 @@ function entry(overrides: Partial<CardEntry> = {}): CardEntry {
     constant: false,
     selective: false,
     enabled: true,
-    position: "after_char",
+    position: 3,
     insertion_order: 0,
     use_regex: false,
     extensions: {},
@@ -334,6 +334,41 @@ describe("worldbookProjector", () => {
     expect((out[0] as { content: string }).content).toContain("No depth.");
   });
 
+  it("keeps hits order for groups landing at the same index", () => {
+    fs.writeFileSync(
+      path.join(slugDir, "lore.card.json"),
+      cardFile([
+        { keys: ["x"], content: "First.", position: 2, depth: 1, insertion_order: 1 },
+        { keys: ["x"], content: "Second.", position: 3, insertion_order: 2 },
+      ]),
+    );
+    const out = worldbookProjector(view())!(messages("x here"));
+    expect(out).toHaveLength(3);
+    const first = (out[0] as { content: string }).content;
+    const second = (out[1] as { content: string }).content;
+    expect(first).toContain("First.");
+    expect(second).toContain("Second.");
+  });
+
+  it("holds insertion order through the attachments projector", async () => {
+    const { attachmentContextProjector } = await import(
+      "../capabilities/attachments/projector.js"
+    );
+    fs.writeFileSync(
+      path.join(slugDir, "lore.card.json"),
+      cardFile([{ keys: ["Winterfell"], content: "The castle." }]),
+    );
+    const withRefs = [
+      { role: "user", content: "we ride to winterfell", _attachments: [{ path: "a.png" }] },
+    ] as never;
+    const wbFirst = worldbookProjector(view())!(withRefs);
+    const out = attachmentContextProjector()(wbFirst);
+    expect(out).toHaveLength(2);
+    expect((out[0] as { content: string }).content).toContain("The castle.");
+    expect((out[1] as { content: string }).content).toBe("we ride to winterfell");
+    expect(out[1]).not.toHaveProperty("_attachments");
+  });
+
   it("leaves messages untouched without cards or hits", () => {
     const project = worldbookProjector(view());
     const noCards = project!(messages("hello"));
@@ -400,12 +435,13 @@ describe("worldbookSystemCapability", () => {
     fs.rmSync(root, { recursive: true, force: true });
   });
 
-  function hooks() {
+  function hooks(logger?: { warn: (...args: unknown[]) => void }) {
     return worldbookSystemCapability({
       projectStore: {
         getRootPath: () => root,
         getAgent: () => ({ getProfile: () => ({ slug: "hero" }) }),
       } as never,
+      ...(logger ? { logger: logger as never } : {}),
     }).turnHooks!("a1", "s1");
   }
 
@@ -471,6 +507,51 @@ describe("worldbookSystemCapability", () => {
     }).turnHooks!("a1", "s1");
     await noProfile.beforeTurn!(a);
     expect((a.state as { systemPrompt: string }).systemPrompt).toBe("base");
+  });
+
+  it("warns once for position 2 without a valid depth", async () => {
+    fs.writeFileSync(
+      path.join(slugDir, "lore.card.json"),
+      cardFile([{ keys: ["x"], content: "No depth.", position: 2 }]),
+    );
+    const warnings: unknown[][] = [];
+    const h = hooks({ warn: (...args: unknown[]) => void warnings.push(args) });
+    const a = { state: { systemPrompt: "base", messages: [{ role: "user", content: "x" } as never] } } as never;
+    await h.beforeTurn!(a);
+    await h.beforeTurn!(a);
+    expect(warnings).toHaveLength(1);
+    expect((a.state as { systemPrompt: string }).systemPrompt).toBe("base");
+  });
+
+  it("matches the pending user text that is not yet in state", async () => {
+    fs.writeFileSync(
+      path.join(slugDir, "lore.card.json"),
+      cardFile([
+        { keys: ["winterfell"], content: "The castle.", position: 1 },
+        { constant: true, content: "Always.", position: 0 },
+      ]),
+    );
+    const empty = { state: { systemPrompt: "base", messages: [] } } as never;
+    await hooks().beforeTurn!(empty, "tell me about winterfell");
+    const prompt = (empty.state as { systemPrompt: string }).systemPrompt;
+    expect(prompt).toContain("The castle.");
+    expect(prompt).toContain("Always.");
+    await hooks().beforeTurn!(empty, "talk about baking");
+    const rescanned = (empty.state as { systemPrompt: string }).systemPrompt;
+    expect(rescanned).not.toContain("The castle.");
+    expect(rescanned).toContain("Always.");
+  });
+
+  it("appends position 0 at the end when no MCP block exists", async () => {
+    fs.writeFileSync(
+      path.join(slugDir, "lore.card.json"),
+      cardFile([{ keys: ["winterfell"], content: "The castle.", position: 0 }]),
+    );
+    const a = agent("base");
+    await hooks().beforeTurn!(a, "winterfell");
+    expect((a.state as { systemPrompt: string }).systemPrompt).toMatch(
+      /^base\n\n<!-- spherse:worldbook:before-mcp:start -->/,
+    );
   });
 });
 

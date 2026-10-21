@@ -405,6 +405,10 @@ export function createCardStore(opts: CreateCardStoreOptions): CardStore {
               if (!changed.includes(key)) changed.push(key);
             }
           }
+          if (patch.position !== undefined && patch.position !== 2 && "depth" in raw) {
+            delete raw.depth;
+            if (!changed.includes("depth")) changed.push("depth");
+          }
         });
         return { id, changed, previous, version };
       });
@@ -445,6 +449,9 @@ export function createCardStore(opts: CreateCardStoreOptions): CardStore {
             previous.push({ id, entry: structuredClone(raw) });
             for (const [key, value] of Object.entries(patch)) {
               raw[key] = value;
+            }
+            if (patch.position !== undefined && patch.position !== 2 && "depth" in raw) {
+              delete raw.depth;
             }
           }
         });

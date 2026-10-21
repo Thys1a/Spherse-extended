@@ -102,9 +102,9 @@ return [...messages.slice(0, target), block, ...messages.slice(target)];
 
 新增独立 capability `worldbookSystemCapability`，注册在 `createMcpCapability` **之后**（turnHooks 按 capability 注册序串行，见 `kernel/turn-hooks.ts:29-33`、`session/runtime.ts:99-104`；card 自身在 builtin 早于 MCP，不能复用）。
 
-`beforeTurn(agent)` 每轮执行：
+`beforeTurn(agent, pendingUserText?)` 每轮执行（`pendingUserText` 由 `sendMessage` 在用户消息落库前传入，`agent-runner.ts:223`；`retryLastTurn` 无新输入，传空，此时历史里已有被重试的用户消息）：
 
-1. 用 `selectWorldbookEntries(readAgentWorldbook(...), agent.state.messages)` 取 0 / 1 分组（不读 wire 投影，避免与消息侧重复）。
+1. 用 `selectWorldbookEntries(readAgentWorldbook(...), scanMessages)` 取 0 / 1 分组，其中 `scanMessages = [...agent.state.messages, pendingUserText]`（无 pending 文本时即历史本身；不读 wire 投影，避免与消息侧重复）。首 turn 历史为空时 constant 仍命中（`matchWorldbook` 恒包含），key 条目按本轮输入匹配——不存在“一 turn 滞后”。
 2. 剥掉本 capability 的两个既有区块（哨兵注释，避免误剥 MCP 块）：
 
 ```text
@@ -120,7 +120,7 @@ projector 无 logger 可用（`SessionView` 不含 logger），“≥3 个插入
 
 效果：`getTurnContext`（`agent-runner.ts:480-490`）与 token 状态（`readCurrentTokens` 计入 systemPrompt）天然可见；`applyReload` 后下一轮自动补回。
 
-已知不对称（实现后写入 tuning doc）：messages 侧每次 LLM 调用重算，system 侧每 user turn 只算一次（`agent-runner.ts:223`），tool loop 内为 turn 起始快照。
+已知不对称（实现后写入 tuning doc）：messages 侧每次 LLM 调用重算（含附件处理后的文本），system 侧每 user turn 只算一次（`agent-runner.ts:223`），匹配文本为历史 + 本轮纯文本（不含附件展开），tool loop 内为 turn 起始快照。
 
 ## 四、写入链路触点
 
@@ -131,8 +131,9 @@ projector 无 logger 可用（`SessionView` 不含 logger），“≥3 个插入
 | `core/capabilities/card/card-store.ts` | `WRITABLE_FIELDS` 加 `depth`；`validatePatch` 按 §2.4 加规则；`canonicalEntry` 默认 `position: 3`、`depth` 条件写出；`toSummary` 透传两字段 |
 | `core/capabilities/card/search.ts` | 搜索摘要补 `position` / `depth`（与 `toSummary` 是两处） |
 | `core/capabilities/card/tools.ts` | `CardEntryBody` 加 `position`（0..4）/`depth`；`EDIT_CARD_GUIDE` 追加 §2.1 优劣说明；`errorText` 可写字段列表同步 |
-| `core/capabilities/card/worldbook.ts` | §3.1–3.3；导出 `worldbookSystemCapability` 与系统区块哨兵 |
-| `core/factory.ts` | 注册 `worldbookSystemCapability`（MCP 之后） |
+| `core/capabilities/card/worldbook.ts` | §3.1 分组（`selectWorldbookEntries` 返 `WorldbookInsertionGroup[]`）＋ §3.2 插入（`userSegmentIndex`）；缺 depth 回退 3 在此发生，warn 由 system hook 发出 |
+| `core/capabilities/card/capability.ts` | `worldbookSystemCapability`（beforeTurn 读历史 + 本轮文本 → 剥双哨兵区块 → 0/1 写入；缺 depth warn 一次/hook 实例） |
+| `core/factory.ts` | 注册 `worldbookSystemCapability`（MCP 之后，logger 透传） |
 | `core/capabilities/mcp/block.ts` | 导出 MCP 哨兵常量（供 worldbook 定位 0 号插入点） |
 | `contracts/card.ts` | `cardPosition` 改数字枚举；`entryPatch`（`additionalProperties: false`）加 `depth`；summary / entry / search 响应加两字段 |
 | `server/routes/card.ts` | 透传；补 depth 往返测试 |
@@ -149,7 +150,7 @@ projector 无 logger 可用（`SessionView` 不含 logger），“≥3 个插入
 - `t2-search-store-read.test.ts` / `t1-path-guard-parser-cache.test.ts`：`depth` optional 不破 typed literal；补解析/摘要断言。
 - `contracts/card.test.ts` / `server/card-routes.test.ts`：depth 接受、非法 position / 非法 depth 拒绝。
 
-新增：0/1 两序与 MCP 哨兵组合（有/无 MCP）、2 的 depth=1/2/超限 clamp、多 position 同时命中、系统区块剥离幂等、无命中只剥离、at_depth 缺 depth 回退 3、`getTurnContext` 可见 system 块、与 attachments/budget projector 组合顺序。
+新增：0/1 两序与 MCP 哨兵组合（有/无 MCP）、2 的 depth=1/2/超限 clamp、多 position 同时命中、系统区块剥离幂等、无命中只剥离、at_depth 缺 depth 回退 3 + warn、时序用例（state 无本轮文本 + pending 文本；`getTurnContext` 级集成未补——hook 写 state 即其读取源，见 `agent-runner.ts:480-490`，全会话集成成本过高，降为未覆盖项）、与 attachments projector 组合顺序。
 
 ## 六、与预算项的衔接
 

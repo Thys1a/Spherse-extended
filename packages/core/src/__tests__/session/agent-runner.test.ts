@@ -691,6 +691,22 @@ Agent with time perception.`,
     expect(beforeTurn).toHaveBeenCalledTimes(1);
   });
 
+  it("sendMessage passes the pending user text to beforeTurn hooks", async () => {
+    const agentStore = getAgentStore(runtime, agentId);
+    const sessionId = agentStore.sessions.createSession();
+    runConfig.update({ defaultModel: "provider/model" });
+    const beforeTurn = vi.fn();
+    deps.createTurnHooks = () => ({ beforeTurn });
+    (deps as { attachmentProcessors?: unknown[] }).attachmentProcessors = [];
+    const runner = await AgentRunner.init(deps, agentId, sessionId);
+    agentOf(runner).prompt = vi.fn().mockResolvedValue(undefined);
+
+    await runner.sendMessage("hello hook", [], () => {});
+
+    expect(beforeTurn).toHaveBeenCalledTimes(1);
+    expect(beforeTurn.mock.calls[0][1]).toBe("hello hook");
+  });
+
   it("markReloadPending defers reload until the next sendMessage", async () => {
     const agentStore = getAgentStore(runtime, agentId);
     agentStore._profile = { ...agentStore._profile, systemPrompt: "Original prompt." };

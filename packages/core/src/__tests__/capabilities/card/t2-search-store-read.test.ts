@@ -22,7 +22,7 @@ const baseEntry: CardEntry = {
   selective: true,
   insertion_order: 95,
   enabled: true,
-  position: "after_char",
+  position: 3,
   use_regex: false,
   extensions: { depth: 4 },
   words: 17,

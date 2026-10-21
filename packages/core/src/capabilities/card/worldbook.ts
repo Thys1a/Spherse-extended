@@ -449,16 +449,17 @@ export const worldbookProjector: ContextProjector = (view: SessionView) => {
   return (messages) => {
     const entries = readAgentWorldbook(projectRoot, slug);
     if (entries.length === 0) return [...messages];
-    const insertions: Array<{ index: number; block: AgentMessage }> = [];
+    const insertions: Array<{ index: number; seq: number; block: AgentMessage }> = [];
+    let seq = 0;
     for (const group of selectWorldbookEntries(entries, messages)) {
       if (group.position === 0 || group.position === 1) continue;
       const block = { role: "user", content: renderWorldbook(group.entries) } as AgentMessage;
       const index =
         group.position === 4 ? messages.length : userSegmentIndex(messages, group.depth);
-      insertions.push({ index, block });
+      insertions.push({ index, seq: seq++, block });
     }
     if (insertions.length === 0) return [...messages];
-    insertions.sort((a, b) => b.index - a.index);
+    insertions.sort((a, b) => b.index - a.index || b.seq - a.seq);
     let out = [...messages];
     for (const { index, block } of insertions) {
       out = [...out.slice(0, index), block, ...out.slice(index)];

@@ -133,6 +133,16 @@ describe("CardStore updateEntry", () => {
     expect((await store.entry(FILE, added.id)).depth).toBe(1);
   });
 
+  it("drops stale depth when position moves away from 2", async () => {
+    const added = await store.addEntry(FILE, { position: 2, depth: 3, content: "deep" });
+    const moved = await store.updateEntry(FILE, added.id, { position: 3 });
+    expect(moved.changed).toContain("depth");
+    expect((await store.entry(FILE, added.id)).depth).toBeUndefined();
+    const addedAgain = await store.addEntry(FILE, { position: 2, depth: 2, content: "deep" });
+    await store.bulkUpdate(FILE, [addedAgain.id], { position: 4 });
+    expect((await store.entry(FILE, addedAgain.id)).depth).toBeUndefined();
+  });
+
   it("keeps byte-identical formatting for untouched entries", async () => {
     const before = await fs.readFile(abs(FILE), "utf8");
     await store.updateEntry(FILE, 1, { comment: "second!" });
