@@ -14,6 +14,7 @@ import {
   CardNotFoundError,
   CardTooLargeError,
   CardWriteFailedError,
+  DEFAULT_CARD_POSITION,
   EntryNotFoundError,
   InvalidFieldError,
   type CardChangeEvent,
@@ -41,6 +42,7 @@ const WRITABLE_FIELDS: ReadonlySet<string> = new Set([
   "insertion_order",
   "enabled",
   "position",
+  "depth",
   "use_regex",
 ]);
 
@@ -75,7 +77,14 @@ function validatePatch(patch: EntryPatch): string[] {
         if (typeof value !== "number") invalid.push(key);
         break;
       case "position":
-        if (value !== "before_char" && value !== "after_char") invalid.push(key);
+        if (typeof value !== "number" || !Number.isInteger(value) || value < 0 || value > 4) {
+          invalid.push(key);
+        }
+        break;
+      case "depth":
+        if (typeof value !== "number" || !Number.isInteger(value) || value < 1) {
+          invalid.push(key);
+        }
         break;
       default:
         invalid.push(key);
@@ -99,9 +108,10 @@ function canonicalEntry(id: number, body: EntryPatch): Record<string, unknown> {
     selective: body.selective ?? false,
     insertion_order: body.insertion_order ?? 0,
     enabled: body.enabled ?? true,
-    position: body.position ?? "after_char",
+    position: body.position ?? DEFAULT_CARD_POSITION,
     use_regex: body.use_regex ?? false,
     extensions: {},
+    ...(body.depth !== undefined ? { depth: body.depth } : {}),
   };
 }
 
@@ -200,6 +210,7 @@ function toSummary(entry: CardEntry): CardEntrySummary {
     constant: entry.constant,
     enabled: entry.enabled,
     position: entry.position,
+    ...(entry.depth !== undefined ? { depth: entry.depth } : {}),
     insertion_order: entry.insertion_order,
     words: entry.words,
   };
@@ -376,6 +387,9 @@ export function createCardStore(opts: CreateCardStoreOptions): CardStore {
     ): Promise<{ id: number; changed: string[]; version: string; undo?: UndoRecord }> {
       const invalid = validatePatch(patch);
       if (invalid.length > 0) throw new InvalidFieldError(invalid);
+      if (patch.position !== undefined && patch.position !== 2 && patch.depth !== undefined) {
+        throw new InvalidFieldError(["depth"]);
+      }
       const absPath = resolveCardFile(root, file);
       const rel = toPosixRelative(root, absPath);
       const result = await mutex.run(absPath, async () => {
@@ -413,6 +427,9 @@ export function createCardStore(opts: CreateCardStoreOptions): CardStore {
     ): Promise<{ count: number; version: string; undo?: UndoRecord }> {
       const invalid = validatePatch(patch);
       if (invalid.length > 0) throw new InvalidFieldError(invalid);
+      if (patch.position !== undefined && patch.position !== 2 && patch.depth !== undefined) {
+        throw new InvalidFieldError(["depth"]);
+      }
       const absPath = resolveCardFile(root, file);
       const rel = toPosixRelative(root, absPath);
       if (ids.length === 0) {
@@ -449,6 +466,12 @@ export function createCardStore(opts: CreateCardStoreOptions): CardStore {
     ): Promise<{ id: number; version: string; undo?: UndoRecord }> {
       const invalid = validatePatch(entry);
       if (invalid.length > 0) throw new InvalidFieldError(invalid);
+      if (entry.position !== undefined && entry.position !== 2 && entry.depth !== undefined) {
+        throw new InvalidFieldError(["depth"]);
+      }
+      if ((entry.position ?? DEFAULT_CARD_POSITION) === 2 && entry.depth === undefined) {
+        throw new InvalidFieldError(["depth"]);
+      }
       const absPath = resolveCardFile(root, file);
       const rel = toPosixRelative(root, absPath);
       const result = await mutex.run(absPath, async () => {

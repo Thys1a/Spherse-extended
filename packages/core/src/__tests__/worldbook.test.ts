@@ -10,8 +10,11 @@ import {
   readAgentWorldbook,
   recentTextOf,
   removeAgentCardLink,
+  selectWorldbookEntries,
+  userSegmentIndex,
   worldbookProjector,
   worldbookStats,
+  worldbookSystemCapability,
 } from "../capabilities/card/index.js";
 import type { CardEntry } from "../capabilities/card/types.js";
 
@@ -162,6 +165,40 @@ describe("worldbookStats", () => {
   });
 });
 
+describe("userSegmentIndex", () => {
+  const convo = [
+    { role: "user", content: "u1" },
+    { role: "assistant", content: "a1" },
+    { role: "toolResult", content: "t1" },
+    { role: "user", content: "u2" },
+  ] as never;
+  it("resolves depth to user boundaries and clamps overflow", () => {
+    expect(userSegmentIndex(convo, 1)).toBe(3);
+    expect(userSegmentIndex(convo, 2)).toBe(0);
+    expect(userSegmentIndex(convo, 9)).toBe(0);
+    expect(userSegmentIndex([], 1)).toBe(0);
+  });
+});
+
+describe("selectWorldbookEntries", () => {
+  it("groups hits by position and falls back without depth", () => {
+    const groups = selectWorldbookEntries(
+      [
+        entry({ keys: ["x"], content: "a", position: 4 }),
+        entry({ keys: ["x"], content: "b", position: 2, depth: 2 }),
+        entry({ keys: ["x"], content: "c", position: 2 }),
+        entry({ keys: ["x"], content: "d", position: 1 }),
+      ],
+      [{ role: "user", content: "x" } as never],
+    );
+    const byPosition = new Map(groups.map((g) => [`${g.position}:${g.depth}`, g.entries.length]));
+    expect(byPosition.get("4:1")).toBe(1);
+    expect(byPosition.get("2:2")).toBe(1);
+    expect(byPosition.get("3:1")).toBe(1);
+    expect(byPosition.get("1:1")).toBe(1);
+  });
+});
+
 describe("recentTextOf (C1)", () => {
   it("strips previously injected worldbook blocks so they cannot retrigger", () => {
     const text = recentTextOf([
@@ -216,7 +253,7 @@ describe("worldbookProjector", () => {
     return [{ role: "user", content: text } as never];
   }
 
-  it("appends a worldbook block on keys hit", () => {
+  it("inserts the worldbook block before the current user by default", () => {
     fs.writeFileSync(
       path.join(slugDir, "lore.card.json"),
       cardFile([{ keys: ["Winterfell"], content: "The castle." }]),
@@ -225,9 +262,76 @@ describe("worldbookProjector", () => {
     expect(project).toBeDefined();
     const out = project!(messages("we ride to winterfell"));
     expect(out).toHaveLength(2);
-    expect(out[1].role).toBe("user");
-    expect((out[1] as { content: string }).content).toContain("<worldbook>");
+    expect(out[0].role).toBe("user");
+    expect((out[0] as { content: string }).content).toContain("<worldbook>");
+    expect((out[0] as { content: string }).content).toContain("The castle.");
+    expect((out[1] as { content: string }).content).toBe("we ride to winterfell");
+  });
+
+  it("appends at the tail for position 4", () => {
+    fs.writeFileSync(
+      path.join(slugDir, "lore.card.json"),
+      cardFile([{ keys: ["Winterfell"], content: "The castle.", position: 4 }]),
+    );
+    const out = worldbookProjector(view())!(messages("we ride to winterfell"));
+    expect(out).toHaveLength(2);
+    expect((out[0] as { content: string }).content).toBe("we ride to winterfell");
     expect((out[1] as { content: string }).content).toContain("The castle.");
+  });
+
+  it("inserts at the depth boundary for position 2 without splitting turns", () => {
+    fs.writeFileSync(
+      path.join(slugDir, "lore.card.json"),
+      cardFile([{ keys: ["x"], content: "Deep lore.", position: 2, depth: 2 }]),
+    );
+    const history = [
+      { role: "user", content: "first x" },
+      { role: "assistant", content: [{ type: "text", text: "answering" }] },
+      { role: "toolResult", content: [{ type: "text", text: "tool says x" }] },
+      { role: "user", content: "second" },
+    ] as never;
+    const out = worldbookProjector(view())!(history);
+    expect(out).toHaveLength(5);
+    expect((out[0] as { content: string }).content).toContain("Deep lore.");
+    expect((out[1] as { content: string }).content).toBe("first x");
+    expect((out[4] as { content: string }).content).toBe("second");
+    expect(out[0].role).toBe("user");
+  });
+
+  it("clamps over-deep positions to the front", () => {
+    fs.writeFileSync(
+      path.join(slugDir, "lore.card.json"),
+      cardFile([{ keys: ["x"], content: "Deep lore.", position: 2, depth: 9 }]),
+    );
+    const out = worldbookProjector(view())!(messages("only x here"));
+    expect(out).toHaveLength(2);
+    expect((out[0] as { content: string }).content).toContain("Deep lore.");
+  });
+
+  it("merges same-position hits into one block and skips system positions", () => {
+    fs.writeFileSync(
+      path.join(slugDir, "lore.card.json"),
+      cardFile([
+        { keys: ["x"], content: "Tail.", position: 4 },
+        { keys: ["x"], content: "Before.", position: 3 },
+        { keys: ["x"], content: "System.", position: 1 },
+      ]),
+    );
+    const out = worldbookProjector(view())!(messages("x marks it"));
+    expect(out).toHaveLength(3);
+    expect((out[0] as { content: string }).content).toContain("Before.");
+    expect((out[0] as { content: string }).content).not.toContain("System.");
+    expect((out[2] as { content: string }).content).toContain("Tail.");
+  });
+
+  it("falls back to before-current-user when depth is missing", () => {
+    fs.writeFileSync(
+      path.join(slugDir, "lore.card.json"),
+      cardFile([{ keys: ["x"], content: "No depth.", position: 2 }]),
+    );
+    const out = worldbookProjector(view())!(messages("x here"));
+    expect(out).toHaveLength(2);
+    expect((out[0] as { content: string }).content).toContain("No depth.");
   });
 
   it("leaves messages untouched without cards or hits", () => {
@@ -277,6 +381,96 @@ describe("worldbookProjector", () => {
     } finally {
       invalidateWorldbookCache();
     }
+  });
+});
+
+describe("worldbookSystemCapability", () => {
+  let root: string;
+  let slugDir: string;
+
+  beforeEach(() => {
+    root = fs.mkdtempSync(path.join(os.tmpdir(), "wb-worldbook-sys-"));
+    slugDir = path.join(root, ".spherse", "agents", "hero");
+    fs.mkdirSync(slugDir, { recursive: true });
+    invalidateWorldbookCache();
+  });
+
+  afterEach(() => {
+    invalidateWorldbookCache();
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  function hooks() {
+    return worldbookSystemCapability({
+      projectStore: {
+        getRootPath: () => root,
+        getAgent: () => ({ getProfile: () => ({ slug: "hero" }) }),
+      } as never,
+    }).turnHooks!("a1", "s1");
+  }
+
+  function agent(systemPrompt: string) {
+    return {
+      state: { systemPrompt, messages: [{ role: "user", content: "winterfell" } as never] },
+    } as never;
+  }
+
+  const MCP = "<!-- spherse:mcp-context:start -->\ntools\n<!-- spherse:mcp-context:end -->";
+
+  it("appends position 1 after the MCP block", async () => {
+    fs.writeFileSync(
+      path.join(slugDir, "lore.card.json"),
+      cardFile([{ keys: ["winterfell"], content: "The castle.", position: 1 }]),
+    );
+    const a = agent(`base\n\n${MCP}`);
+    await hooks().beforeTurn!(a);
+    const prompt = (a.state as { systemPrompt: string }).systemPrompt;
+    expect(prompt.indexOf("The castle.")).toBeGreaterThan(prompt.indexOf(MCP));
+    expect(prompt).toContain("spherse:worldbook:after-mcp:start");
+  });
+
+  it("inserts position 0 before the MCP sentinel", async () => {
+    fs.writeFileSync(
+      path.join(slugDir, "lore.card.json"),
+      cardFile([{ keys: ["winterfell"], content: "The castle.", position: 0 }]),
+    );
+    const a = agent(`base\n\n${MCP}`);
+    await hooks().beforeTurn!(a);
+    const prompt = (a.state as { systemPrompt: string }).systemPrompt;
+    expect(prompt.indexOf("The castle.")).toBeLessThan(prompt.indexOf(MCP));
+    expect(prompt).toContain("spherse:worldbook:before-mcp:start");
+  });
+
+  it("rewrites instead of duplicating on repeated turns, and strips on no hits", async () => {
+    fs.writeFileSync(
+      path.join(slugDir, "lore.card.json"),
+      cardFile([{ keys: ["winterfell"], content: "The castle.", position: 1 }]),
+    );
+    const h = hooks();
+    const a = agent("base");
+    await h.beforeTurn!(a);
+    await h.beforeTurn!(a);
+    const prompt = (a.state as { systemPrompt: string }).systemPrompt;
+    expect(prompt.match(/spherse:worldbook:after-mcp:start/g)).toHaveLength(1);
+    fs.writeFileSync(path.join(slugDir, "lore.card.json"), cardFile([]));
+    invalidateWorldbookCache(root, "hero");
+    await h.beforeTurn!(a);
+    expect((a.state as { systemPrompt: string }).systemPrompt).not.toContain("<worldbook>");
+  });
+
+  it("ignores message-side positions and missing profiles", async () => {
+    fs.writeFileSync(
+      path.join(slugDir, "lore.card.json"),
+      cardFile([{ keys: ["winterfell"], content: "The castle.", position: 3 }]),
+    );
+    const a = agent("base");
+    await hooks().beforeTurn!(a);
+    expect((a.state as { systemPrompt: string }).systemPrompt).toBe("base");
+    const noProfile = worldbookSystemCapability({
+      projectStore: { getRootPath: () => root, getAgent: () => undefined } as never,
+    }).turnHooks!("a1", "s1");
+    await noProfile.beforeTurn!(a);
+    expect((a.state as { systemPrompt: string }).systemPrompt).toBe("base");
   });
 });
 

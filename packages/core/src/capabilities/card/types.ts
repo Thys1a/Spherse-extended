@@ -10,7 +10,9 @@ export type CardErrorCode =
   | "too_large"
   | "bad_request";
 
-export type CardPosition = "before_char" | "after_char";
+export type CardPosition = 0 | 1 | 2 | 3 | 4;
+
+export const DEFAULT_CARD_POSITION: CardPosition = 3;
 
 export interface CardListItem {
   path: string;
@@ -33,7 +35,8 @@ export interface CardEntrySummary {
   keys: string[];
   constant: boolean;
   enabled: boolean;
-  position: string;
+  position: CardPosition;
+  depth?: number;
   insertion_order: number;
   words: number;
 }
@@ -70,6 +73,7 @@ export type EntryPatch = Partial<{
   insertion_order: number;
   enabled: boolean;
   position: CardPosition;
+  depth: number;
   use_regex: boolean;
 }>;
 

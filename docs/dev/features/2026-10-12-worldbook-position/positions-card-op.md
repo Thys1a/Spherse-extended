@@ -62,10 +62,10 @@
 - **方案 C**：`api.call` 加只读 card op。否决：与“card 走专用通道”规则冲突，且 `card.*` 已覆盖文件卡，只缺 agent 卡——补 A 即可。
 - 权限注意：agent 卡目录在 `.spherse/` 下，server 路由的 project 访问策略与 `canRead` 钩子要确认放行（`list` 现走 `resolveProjectPath`＋`canRead`，新方法同规格即可）；写操作本次不涉及（挂载仍走 `link_card/unlink_card`）。
 
-## 四、决策点汇总（design 前需定）
+## 四、决策点汇总（2026-10-21 已决，见同目录 `design.md`）
 
-1. P2 的 N 存哪（entry 新字段 vs 编码进 position 字符串）＋多位置块上限。
-2. `position` 缺省改 `before_current_user` 是否与 v1.0.2 位置项同批（建议同批，测试一次写完）；`system` 仅作 opt-in，不争默认（attention 强弱待 tuning 实测）。
-3. 自定义字段首批只开 `extensions.*`（建议是）＋ `spherse_` 保留规则是否立。
-4. 新 op 做到哪一层为止（store＋server＋SDK 全套，还是先 store＋server）。
-5. P3b 与 MCP 块的尾部相对顺序（两家同为 strip+append，谁后写谁在最后；MCP 只在 revision 变化时写，P3b 每轮都写）＋ prompt cache 对比实测（system 尾 bust vs user 尾 bust，结论回写 tuning doc 待验项 #2/#4）；另 `recentTextOf` 的 `<worldbook>` 剥离在 P3b 下变多余但无害（system 块不在 messages 扫描面），保留即可。
+1. P2 的 N 存哪：entry 独立 `depth` 数字字段（`position: 2` 配合）；多位置块数量不做硬限制，少于三个只落文档与工具说明（projector 无 logger，不做运行时 warn）。
+2. 缺省为数字 `3`（当前用户消息之前），旧字符串值读时一律归一；`0` / `1`（system 两序）仅作 opt-in。
+3. 自定义字段首批只开 `extensions.*`（建议是）＋ `spherse_` 保留规则是否立。（未立项，本次不做）
+4. 新 op 做到哪一层为止（store＋server＋SDK 全套，还是先 store＋server）。（未立项，本次不做）
+5. P3b 与 MCP 块的尾部相对顺序：拆为两个插入点由用户选择——`0`（MCP 之前，工具约束居末）/`1`（MCP 之后，默认，缓存友好且更靠近输入）；prompt cache 对比实测仍待真机验证（结论回写 tuning doc 待验项 #2/#4）。

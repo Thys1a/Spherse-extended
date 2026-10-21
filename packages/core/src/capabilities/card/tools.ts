@@ -24,7 +24,13 @@ const SEARCH_CARD_GUIDE =
 const EDIT_CARD_GUIDE =
   "Edit a .card.json world book entry. update patches one entry, bulk patches many, " +
   "add appends a new entry (id auto-assigned), remove deletes one. " +
-  "Only whitelisted fields are writable; id and extensions are read-only.";
+  "Only whitelisted fields are writable; id and extensions are read-only. " +
+  "Injection position per entry (default 3): 0 = system prompt before MCP (tool rules stay last, weakest lore attention), " +
+  "1 = system prompt after MCP (recommended for system; cache-friendly, closest to input), " +
+  "2 = history anchor, needs depth N (before the Nth-from-last user turn; deeper = more background-like, re-anchors after compaction), " +
+  "3 = before the current user message (recommended default), 4 = message tail (strongest recency, legacy behavior). " +
+  "Prefer fewer than 3 distinct positions per agent: each user-side block consumes a pruning segment. " +
+  "position 2 without depth falls back to 3; depth with any other position is rejected.";
 
 function errorText(err: unknown): string {
   if (err instanceof CardNotFoundError) {
@@ -34,7 +40,7 @@ function errorText(err: unknown): string {
     return `Error: entry ${err.entryId} not found in ${err.file}.`;
   }
   if (err instanceof InvalidFieldError) {
-    return `Error: invalid field(s): ${err.fields.join(", ")}. Writable: keys, secondary_keys, comment, content, constant, selective, insertion_order, enabled, position, use_regex.`;
+    return `Error: invalid field(s): ${err.fields.join(", ")}. Writable: keys, secondary_keys, comment, content, constant, selective, insertion_order, enabled, position, depth, use_regex.`;
   }
   if (err instanceof CardTooLargeError) {
     return `Error: card file too large: ${err.file}.`;
@@ -231,7 +237,12 @@ const CardEntryBody = Type.Object({
   selective: Type.Optional(Type.Boolean()),
   insertion_order: Type.Optional(Type.Number()),
   enabled: Type.Optional(Type.Boolean()),
-  position: Type.Optional(Type.Union([Type.Literal("before_char"), Type.Literal("after_char")])),
+  position: Type.Optional(
+    Type.Integer({ minimum: 0, maximum: 4, description: "Injection point: 0 system before MCP, 1 system after MCP, 2 history anchor (needs depth), 3 before current user (default), 4 message tail" }),
+  ),
+  depth: Type.Optional(
+    Type.Integer({ minimum: 1, description: "Only with position 2: insert before the Nth-from-last user turn (1 = before current user)" }),
+  ),
   use_regex: Type.Optional(Type.Boolean()),
 });
 

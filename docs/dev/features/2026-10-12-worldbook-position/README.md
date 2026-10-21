@@ -1,7 +1,7 @@
 # worldbook 注入位置修正
 
 - 日期：2026-10-12
-- 状态：已立项，待方案
+- 状态：已实现（2026-10-21，一次性落地数字插入点 0–4；真机 prompt 实测待补，见 tuning doc 待验项）
 - 版本：v1.0.3（独立条目；与状态数据外链同批，共用「插到当前用户消息之前」helper）
 - 来源：`docs/dev/investigation/2026-10-06-cross-project/06-tavern-vs-agent.md` §四 / §五（拟定 v1.0.x，两条 worldbook 提案之一）
 

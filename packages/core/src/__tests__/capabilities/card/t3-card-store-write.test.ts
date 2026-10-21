@@ -112,6 +112,27 @@ describe("CardStore updateEntry", () => {
     );
   });
 
+  it("validates numeric position and depth rules", async () => {
+    await expect(store.updateEntry(FILE, 0, { position: 2, depth: 3 })).resolves.toMatchObject({
+      id: 0,
+    });
+    expect((await store.entry(FILE, 0)).depth).toBe(3);
+    await expect(store.updateEntry(FILE, 0, { position: 5 as never })).rejects.toBeInstanceOf(
+      InvalidFieldError,
+    );
+    await expect(store.updateEntry(FILE, 0, { depth: 0 })).rejects.toBeInstanceOf(
+      InvalidFieldError,
+    );
+    await expect(
+      store.updateEntry(FILE, 0, { position: 3, depth: 2 }),
+    ).rejects.toBeInstanceOf(InvalidFieldError);
+    await expect(store.addEntry(FILE, { position: 2 } as never)).rejects.toBeInstanceOf(
+      InvalidFieldError,
+    );
+    const added = await store.addEntry(FILE, { position: 2, depth: 1, content: "deep" });
+    expect((await store.entry(FILE, added.id)).depth).toBe(1);
+  });
+
   it("keeps byte-identical formatting for untouched entries", async () => {
     const before = await fs.readFile(abs(FILE), "utf8");
     await store.updateEntry(FILE, 1, { comment: "second!" });

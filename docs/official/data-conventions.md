@@ -261,7 +261,7 @@ Full skill instructions in Markdown...
 酒馆角色卡（`chara_card_v3` 兼容）的条目级读写载体：agent 经 `read_card` / `search_card` / `edit_card` 等工具、UI SDK 经 `card.*` action、server 经 `/card/*` 路由共同读写，汇入 core `CardStore` 单例（工具 10 op 见 `architecture/server.md`）。
 
 - 路径守卫：必须 `.card.json` 后缀，不得位于 `.spherse/` 下
-- 条目字段以 `packages/contracts/src/card.ts` 的 schema 为准；`position`（如 `after_char`）与插入序在条目**顶层**，`extensions.position`（酒馆 depth 位）是另一个只读数字字段——`extensions` 整体只读（缺省 `{}`），编辑台不提供改分类入口
+- 条目字段以 `packages/contracts/src/card.ts` 的 schema 为准；`position` 为数字插入点（0 = system MCP 之前，1 = system MCP 之后，2 = 历史锚点需 `depth`，3 = 当前用户之前（默认），4 = 队尾），`depth` 仅 `position` 为 2 时有效；旧字符串值读时归一为 3；`extensions.position`（酒馆 depth 位）是另一个只读数字字段——`extensions` 整体只读（缺省 `{}`），编辑台不提供改分类入口
 - `words` 定义为 `content.length`（UTF-16 码元数，解析时计算；含空白标点，中文条目偏大约 15–45%）
 - 世界书条目匹配：`keys` / `secondary_keys`（selective 为 true 时主副 key 须同时命中）/ `constant`（恒注入）/ `enabled` / `order` / `position`，命中后以 `<worldbook>` user 块全量注入（v1.0.3 起取消每轮条目/token 上限；Agent 对话框世界书外链旁展示每卡常驻 / ≤最坏 token 画像供用户自调）
 - Agent 目录外链：`.spherse/agents/{slug}/` 下的 `*.card.json` 软链接会被跟随读取；链接名须为纯文件名且目标须在项目内（越界/悬空读取时跳过，列表标悬空）；建链经 agent 对话框或 `manage_agent` 的 `link_card` / `unlink_card`，删链只删本体不动源文件

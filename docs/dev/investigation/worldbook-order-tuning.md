@@ -6,7 +6,7 @@
 
 ## 已落定的约定
 
-- 注入位置：worldbook 块以独立 `user` 消息追加于消息尾（fold 后 messages 之末），效果顺序在 skill-catalog（含 `<memory>` / `<time>` 等 contextBlocks 产物）之后；`position` 首版忽略（before_char/after_char 不做映射）。
+- 注入位置：v1.0.3 起 worldbook 块按条目 `position` 数字插入点注入（0 = system MCP 之前，1 = system MCP 之后，2 = 历史锚点需 `depth`，3 = 当前用户消息之前（默认），4 = 队尾旧行为）；旧字符串值（`""` / `before_char` / `after_char`）读时一律归一为 3。
 - 自反馈阻断：上轮注入的 `<worldbook>` 块不计入下轮扫描文本（`recentTextOf` 剥离），否则命中条目永久续注。
 - 匹配语义：`constant` 恒注入；`enabled: false` 跳过；`selective: true` 取 ST AND 语义（primary 与 secondary 必须同时命中，primary-only 与 secondary-only 均不触发；任一为空恒不触发）；大小写/正则复用 `search.ts` 的 `matchKeys`（正则编译附 500 条上限缓存）。
 - 卡面范围：仅 agent 目录顶层 `*.card.json`（不递归子目录）；agent 卡不进 `CardStore` 工具面（`walkCardFiles` 跳过 `.spherse`），`search_card`/`edit_card` 不可见——worldbook 卡走文件管理。
@@ -21,7 +21,7 @@
 1. token 占比：worldbook 块占整窗比例（目标：常规对局 < 15%）。
 2. 指令遵循率：命中条目内容被 Agent 采纳的比例；constant 条目是否造成注意力稀释。
 3. 预算调参：v1.0.3 已取消上限，不再收紧条目数/token；若占比超标，由用户按链接旁 token 画像自行拆分卡片（常驻高者优先拆）。
-4. 位置语义：若实测证明队尾 user 块被模型忽视，再评估 before/after_char 映射（改动面：`worldbookProjector` 插入点 + 本记录更新）。
+4. 位置语义：v1.0.3 已落地数字插入点（默认 3，system 作 opt-in）；待真机验证 attention 渐变轴假设（队尾最强 → 段首渐弱 → system 最弱）。
 
 ## 判定标准
 

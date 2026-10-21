@@ -399,14 +399,70 @@ export function renderWorldbook(entries: CardEntry[]): string {
   return `<worldbook>\n${entries.map(renderWorldbookEntry).join("\n")}\n</worldbook>`;
 }
 
+export interface WorldbookInsertionGroup {
+  position: 0 | 1 | 2 | 3 | 4;
+  depth: number;
+  entries: CardEntry[];
+}
+
+export function selectWorldbookEntries(
+  entries: CardEntry[],
+  messages: readonly AgentMessage[],
+): WorldbookInsertionGroup[] {
+  const hits = matchWorldbook(recentTextOf(messages), entries);
+  const byKey = new Map<string, WorldbookInsertionGroup>();
+  for (const entry of hits) {
+    let position = entry.position;
+    let depth = 1;
+    if (position === 2) {
+      if (typeof entry.depth === "number" && Number.isInteger(entry.depth) && entry.depth >= 1) {
+        depth = entry.depth;
+      } else {
+        position = 3;
+      }
+    }
+    const key = position === 2 ? `2:${depth}` : String(position);
+    const group = byKey.get(key);
+    if (group) {
+      group.entries.push(entry);
+    } else {
+      byKey.set(key, { position, depth, entries: [entry] });
+    }
+  }
+  return [...byKey.values()];
+}
+
+export function userSegmentIndex(messages: readonly AgentMessage[], depth: number): number {
+  let seen = 0;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].role === "user") {
+      seen += 1;
+      if (seen === depth) return i;
+    }
+  }
+  return 0;
+}
+
 export const worldbookProjector: ContextProjector = (view: SessionView) => {
   const projectRoot = view.projectStore.getRootPath();
   const slug = view.profile.slug;
   return (messages) => {
     const entries = readAgentWorldbook(projectRoot, slug);
     if (entries.length === 0) return [...messages];
-    const hits = matchWorldbook(recentTextOf(messages), entries);
-    if (hits.length === 0) return [...messages];
-    return [...messages, { role: "user", content: renderWorldbook(hits) } as AgentMessage];
+    const insertions: Array<{ index: number; block: AgentMessage }> = [];
+    for (const group of selectWorldbookEntries(entries, messages)) {
+      if (group.position === 0 || group.position === 1) continue;
+      const block = { role: "user", content: renderWorldbook(group.entries) } as AgentMessage;
+      const index =
+        group.position === 4 ? messages.length : userSegmentIndex(messages, group.depth);
+      insertions.push({ index, block });
+    }
+    if (insertions.length === 0) return [...messages];
+    insertions.sort((a, b) => b.index - a.index);
+    let out = [...messages];
+    for (const { index, block } of insertions) {
+      out = [...out.slice(0, index), block, ...out.slice(index)];
+    }
+    return out;
   };
 };

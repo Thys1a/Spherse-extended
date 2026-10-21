@@ -152,6 +152,27 @@ describe("card routes (real CardStore, no mocks)", () => {
     expect(JSON.parse(bulk.body)).toEqual({ count: 2 });
   });
 
+  it("position/depth round-trip through update and entry", async () => {
+    const update = await app.inject({
+      method: "POST",
+      url: "/api/projects/p1/card/entry/update",
+      payload: { path: FILE, id: 0, patch: { position: 2, depth: 3 } },
+    });
+    expect(update.statusCode).toBe(200);
+    const entry = await app.inject({
+      method: "POST",
+      url: "/api/projects/p1/card/entry",
+      payload: { path: FILE, id: 0 },
+    });
+    expect(JSON.parse(entry.body)).toMatchObject({ position: 2, depth: 3 });
+    const badCombo = await app.inject({
+      method: "POST",
+      url: "/api/projects/p1/card/entry/update",
+      payload: { path: FILE, id: 0, patch: { position: 3, depth: 2 } },
+    });
+    expect(badCombo.statusCode).toBe(400);
+  });
+
   it("400 on schema violation, 404 on missing entry", async () => {
     const bad = await app.inject({
       method: "POST",

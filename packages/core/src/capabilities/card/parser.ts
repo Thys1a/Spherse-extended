@@ -1,4 +1,5 @@
-import type { CardEntry } from "./types.js";
+import type { CardEntry, CardPosition } from "./types.js";
+import { DEFAULT_CARD_POSITION } from "./types.js";
 
 export interface ParsedCard {
   spec: string;
@@ -18,6 +19,18 @@ function asStringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : [];
 }
 
+function normalizePosition(value: unknown): CardPosition {
+  if (typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= 4) {
+    return value as CardPosition;
+  }
+  return DEFAULT_CARD_POSITION;
+}
+
+function normalizeDepth(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isInteger(value) && value >= 1) return value;
+  return undefined;
+}
+
 function normalizeEntry(raw: unknown): CardEntry | null {
   if (!isRecord(raw)) return null;
   if (typeof raw.id !== "number" || !Number.isInteger(raw.id) || raw.id < 0) return null;
@@ -32,7 +45,8 @@ function normalizeEntry(raw: unknown): CardEntry | null {
     selective: raw.selective === true,
     insertion_order: typeof raw.insertion_order === "number" && Number.isFinite(raw.insertion_order) ? raw.insertion_order : 0,
     enabled: raw.enabled !== false,
-    position: typeof raw.position === "string" ? raw.position : "",
+    position: normalizePosition(raw.position),
+    depth: normalizeDepth(raw.depth),
     use_regex: raw.use_regex === true,
     extensions: raw.extensions ?? {},
     words: content.length,

@@ -84,6 +84,36 @@ describe("card contracts", () => {
         patch: { enabled: "yes" },
       }),
     ).toThrow(/Invalid payload/);
+    expect(() =>
+      parseContract(schemas.cardEntryUpdateRequest, {
+        path: "a.card.json",
+        id: 0,
+        patch: { position: 5 },
+      }),
+    ).toThrow(/Invalid payload/);
+    expect(() =>
+      parseContract(schemas.cardEntryUpdateRequest, {
+        path: "a.card.json",
+        id: 0,
+        patch: { depth: 0 },
+      }),
+    ).toThrow(/Invalid payload/);
+  });
+
+  it("accepts numeric position and depth", () => {
+    expect(
+      parseContract(schemas.cardEntryUpdateRequest, {
+        path: "a.card.json",
+        id: 0,
+        patch: { position: 2, depth: 3 },
+      }),
+    ).toBeTruthy();
+    expect(
+      parseContract(schemas.cardEntryAddRequest, {
+        path: "a.card.json",
+        entry: { position: 3, content: "x" },
+      }),
+    ).toBeTruthy();
   });
 
   it("rejects unknown patch keys instead of stripping them", () => {

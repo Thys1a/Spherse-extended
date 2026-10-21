@@ -96,7 +96,7 @@ return [...messages.slice(0, target), block, ...messages.slice(target)];
 - 所有插入下标先对原始数组一次算好再倒序落位，避免多块互相漂移。
 - 每个分组渲染一个 `<worldbook>` 块，包装格式不变（`recentTextOf` 剥离正则不改，不加属性）。
 - 与状态数据外链共用“插到当前用户消息之前”helper（3 即该 helper 的特例）。
-- user 侧不同插入点数量不做硬限制；≥ 3 个时记一条 warn（hook/projector 闭包内去重，每 session 一次），文档与工具说明建议少于三个（每个 user 块 +1 pruning segment，会挤压 toolResult 保留窗口）。
+- user 侧不同插入点数量不做硬限制；文档与工具说明建议少于三个（每个 user 块 +1 pruning segment，会挤压 toolResult 保留窗口）。
 
 ### 3.3 system 侧（0 / 1）
 
@@ -112,9 +112,11 @@ return [...messages.slice(0, target), block, ...messages.slice(target)];
 <!-- spherse:worldbook:after-mcp:start --> … <!-- spherse:worldbook:after-mcp:end -->
 ```
 
-3. 0：插到 MCP 哨兵 `<!-- spherse:mcp-context:start -->` 之前（`mcp/block.ts:17` 哨兵需导出为常量）；无 MCP 时插到字符串最前。
+3. 0：插到 MCP 哨兵 `<!-- spherse:mcp-context:start -->` 之前（`mcp/block.ts:17` 哨兵需导出为常量）；无 MCP 时与 1 同（追加末尾——此时“之前”无定义，追加可保持缓存友好与行为可预测）。
 4. 1：追加到 `systemPrompt` 末尾。
 5. 无命中只做剥离。
+
+projector 无 logger 可用（`SessionView` 不含 logger），“≥3 个插入点 warn”降为纯文档与工具说明建议，不做运行时 warn。
 
 效果：`getTurnContext`（`agent-runner.ts:480-490`）与 token 状态（`readCurrentTokens` 计入 systemPrompt）天然可见；`applyReload` 后下一轮自动补回。
 

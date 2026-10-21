@@ -108,6 +108,7 @@ export function searchEntries(entries: CardEntry[], opts: CardSearchOpts): CardS
       constant: entry.constant,
       enabled: entry.enabled,
       position: entry.position,
+      ...(entry.depth !== undefined ? { depth: entry.depth } : {}),
       insertion_order: entry.insertion_order,
       words: entry.words,
       matched,
