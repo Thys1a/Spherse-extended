@@ -10,7 +10,7 @@
 | [`01-narrative-creation-tool.md`](./01-narrative-creation-tool.md) | 对象 A | 本地优先、人机协同的长篇叙事创作工具——重合边界、重复投入清单、可借鉴点；含「世界观撰写辅助增强提案（v1.1.x）」与「SDK 开放工作区文件写能力可行性（v1.1.x）」 |
 | [`02-language-learning-app.md`](./02-language-learning-app.md) | 对象 B |  多语言学习应用（——语言学习功能的吸收裁决；含「用户提取的四个功能点（v1.2.x）」与「信息卡运用方向（v1.2.x）」 |
 | [`03-language-immersion-game.md`](./03-language-immersion-game.md) | 对象 C | 构建在 Agent 运行时上的语言沉浸游戏参考实现——架构纪律、单 Workspace 复现可行性；含「衍生平台能力候选（v1.1.x / v1.3.x）」 |
-| [`04-companion-os.md`](./04-companion-os.md) | 对象 D | 记忆宫殿（向量长期记忆）与主动消息（离设备生成 + 推送）是最强参考；含「可吸收点」与「Spherse 复刻裁决」 |
+| [`04-companion-os.md`](./04-companion-os.md) | 对象 D | 记忆库（向量长期记忆）与主动消息（离设备生成 + 推送）是最强参考；含「可吸收点」与「Spherse 复刻裁决」 |
 | [`10-worldview-timeline-tool.md`](./10-worldview-timeline-tool.md) | 对象 E | 世界观设定与时间轴管理 Web 应用（对象 A 的“设定侧”子集产品化）——唯一建议跟进的是顶栏常驻搜索 + `⌘K` 显式入口，正中 triage issue 3 |
 | [`05-prompt-assembly.md`](./05-prompt-assembly.md) | Spherse 自身 | 一条 prompt 的拼接内容与顺序：system 段表、tools 顺序、每轮 wire 视图与流程图 |
 | [`06-tavern-vs-agent.md`](./06-tavern-vs-agent.md) | 外部讨论 | 酒馆式提示词组装 vs Agent：worldbook 位置（近因偏见）+ 扩大注入、拼接顺序建议；「世界书挂载 tools」经复核列为不建议 |
