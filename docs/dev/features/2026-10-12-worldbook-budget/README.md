@@ -1,7 +1,7 @@
 # 扩大 worldbook 注入
 
 - 日期：2026-10-12
-- 状态：方案已定，待实现（2026-10-21 修订）
+- 状态：已实现（2026-10-21，与 plan.md A–E 一次合入；真机 prompt 实测待补，见 tuning doc 待验项）
 - 版本：v1.0.3
 - 来源：`docs/dev/investigation/2026-10-06-cross-project/06-tavern-vs-agent.md` §四（拟定 v1.0.x，两条 worldbook 提案之二）
 

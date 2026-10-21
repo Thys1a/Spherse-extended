@@ -1,19 +1,17 @@
 export { createCardStore, type CreateCardStoreOptions } from "./card-store.js";
 export {
   matchWorldbook,
-  applyWorldbookBudget,
   renderWorldbook,
   renderWorldbookEntry,
   recentTextOf,
   readAgentWorldbook,
   invalidateWorldbookCache,
   worldbookProjector,
+  worldbookStats,
   listAgentCardLinks,
   addAgentCardLink,
   removeAgentCardLink,
-  WORLDBOOK_MAX_ENTRIES,
-  WORLDBOOK_MAX_TOKENS,
-  type WorldbookBudget,
+  type WorldbookFileStats,
   type AgentCardLink,
 } from "./worldbook.js";
 export { createReadCardTool, createSearchCardTool, createEditCardTool } from "./tools.js";

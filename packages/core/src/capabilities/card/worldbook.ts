@@ -12,15 +12,8 @@ import { matchKeys } from "./search.js";
 import { escapeXmlAttr } from "../../utils/xml-escape.js";
 import type { CardEntry } from "./types.js";
 
-export const WORLDBOOK_MAX_ENTRIES = 8;
-export const WORLDBOOK_MAX_TOKENS = 2000;
 const RECENT_SCAN_MESSAGES = 10;
 const RECENT_SCAN_CHARS = 4000;
-
-export interface WorldbookBudget {
-  maxEntries?: number;
-  maxTokens?: number;
-}
 
 function escapeXmlText(value: string): string {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -61,19 +54,37 @@ export function renderWorldbookEntry(entry: CardEntry): string {
   return `<entry${keys ? ` keys="${escapeXmlAttr(keys)}"` : ""}>${escapeXmlText(entry.content)}</entry>`;
 }
 
-export function applyWorldbookBudget(entries: CardEntry[], budget?: WorldbookBudget): CardEntry[] {
-  const maxEntries = Math.max(0, budget?.maxEntries ?? WORLDBOOK_MAX_ENTRIES);
-  const maxTokens = Math.max(0, budget?.maxTokens ?? WORLDBOOK_MAX_TOKENS);
-  const out: CardEntry[] = [];
-  let tokens = 0;
-  const ranked = entries.slice().sort((a, b) => orderOf(a) - orderOf(b));
-  for (const entry of ranked.slice(0, maxEntries)) {
-    const cost = estimateTokens(renderWorldbookEntry(entry));
-    if (out.length > 0 && tokens + cost > maxTokens) break;
-    out.push(entry);
-    tokens += cost;
+export interface WorldbookFileStats {
+  entryCount: number;
+  enabledEntryCount: number;
+  alwaysTokens: number;
+  maxTurnTokens: number;
+}
+
+function canEverMatch(entry: CardEntry): boolean {
+  if (entry.constant) return true;
+  if (entry.selective) return entry.keys.length > 0 && entry.secondary_keys.length > 0;
+  return [...entry.keys, ...entry.secondary_keys].length > 0;
+}
+
+export function worldbookStats(entries: CardEntry[]): WorldbookFileStats {
+  let enabledEntryCount = 0;
+  let alwaysTokens = 0;
+  let maxTurnTokens = 0;
+  for (const entry of entries) {
+    if (!entry.enabled) continue;
+    enabledEntryCount += 1;
+    if (entry.constant) {
+      const cost = estimateTokens(renderWorldbookEntry(entry));
+      alwaysTokens += cost;
+      maxTurnTokens += cost;
+      continue;
+    }
+    if (canEverMatch(entry)) {
+      maxTurnTokens += estimateTokens(renderWorldbookEntry(entry));
+    }
   }
-  return out;
+  return { entryCount: entries.length, enabledEntryCount, alwaysTokens, maxTurnTokens };
 }
 
 function blockText(block: unknown): string {
@@ -224,10 +235,27 @@ export function readAgentWorldbook(projectRoot: string, slug: string): CardEntry
   return entries;
 }
 
-export interface AgentCardLink {
+export interface AgentCardLink extends WorldbookFileStats {
   name: string;
   target: string;
   dangling: boolean;
+}
+
+const EMPTY_STATS: WorldbookFileStats = {
+  entryCount: 0,
+  enabledEntryCount: 0,
+  alwaysTokens: 0,
+  maxTurnTokens: 0,
+};
+
+function statsOfCardFile(real: string): WorldbookFileStats {
+  try {
+    const parsed = toParsedCard(fs.readFileSync(real));
+    if (!parsed) return EMPTY_STATS;
+    return worldbookStats(parsed.entries);
+  } catch {
+    return EMPTY_STATS;
+  }
 }
 
 function assertLinkName(name: string): void {
@@ -256,10 +284,12 @@ export function listAgentCardLinks(projectRoot: string, slug: string): AgentCard
     }
     const real = linkTargetRealpath(full);
     const outside = real !== null && !isPathInside(root, real);
+    const dangling = real === null || outside;
     out.push({
       name,
       target: real === null ? "" : path.relative(root, real),
-      dangling: real === null || outside,
+      dangling,
+      ...(dangling || real === null ? EMPTY_STATS : statsOfCardFile(real)),
     });
   }
   return out;
@@ -294,7 +324,12 @@ export function addAgentCardLink(projectRoot: string, slug: string, targetRelPat
       const existing = linkTargetRealpath(linkPath);
       if (existing === targetAbs) {
         invalidateWorldbookCache(root, slug);
-        return { name, target: path.relative(root, targetAbs), dangling: false };
+        return {
+          name,
+          target: path.relative(root, targetAbs),
+          dangling: false,
+          ...statsOfCardFile(targetReal),
+        };
       }
       throw new ConflictError(`card link already exists: ${name}`);
     }
@@ -315,7 +350,12 @@ export function addAgentCardLink(projectRoot: string, slug: string, targetRelPat
     throw err;
   }
   invalidateWorldbookCache(root, slug);
-  return { name, target: path.relative(root, targetAbs), dangling: false };
+  return {
+    name,
+    target: path.relative(root, targetAbs),
+    dangling: false,
+    ...statsOfCardFile(targetReal),
+  };
 }
 
 export function removeAgentCardLink(projectRoot: string, slug: string, name: string): void {
@@ -343,7 +383,7 @@ export const worldbookProjector: ContextProjector = (view: SessionView) => {
   return (messages) => {
     const entries = readAgentWorldbook(projectRoot, slug);
     if (entries.length === 0) return [...messages];
-    const hits = applyWorldbookBudget(matchWorldbook(recentTextOf(messages), entries));
+    const hits = matchWorldbook(recentTextOf(messages), entries);
     if (hits.length === 0) return [...messages];
     return [...messages, { role: "user", content: renderWorldbook(hits) } as AgentMessage];
   };

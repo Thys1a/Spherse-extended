@@ -58,12 +58,28 @@ describe("agent card-link routes", () => {
 
   it("GET lists links", async () => {
     vi.mocked(listAgentCardLinks).mockReturnValue([
-      { name: "lore.card.json", target: "lore/lore.card.json", dangling: false },
+      {
+        name: "lore.card.json",
+        target: "lore/lore.card.json",
+        dangling: false,
+        entryCount: 2,
+        enabledEntryCount: 2,
+        alwaysTokens: 10,
+        maxTurnTokens: 40,
+      },
     ]);
     const res = await app.inject({ method: "GET", url: "/api/projects/p1/agents/a1/card-links" });
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual([
-      { name: "lore.card.json", target: "lore/lore.card.json", dangling: false },
+      {
+        name: "lore.card.json",
+        target: "lore/lore.card.json",
+        dangling: false,
+        entryCount: 2,
+        enabledEntryCount: 2,
+        alwaysTokens: 10,
+        maxTurnTokens: 40,
+      },
     ]);
     expect(listAgentCardLinks).toHaveBeenCalledWith(root, "demo");
   });
@@ -78,6 +94,10 @@ describe("agent card-link routes", () => {
       name: "lore.card.json",
       target: "lore/lore.card.json",
       dangling: false,
+      entryCount: 1,
+      enabledEntryCount: 1,
+      alwaysTokens: 0,
+      maxTurnTokens: 20,
     });
     const res = await app.inject({
       method: "POST",

@@ -91,6 +91,10 @@ const cardLink = Type.Object({
   name: Type.String(),
   target: Type.String(),
   dangling: Type.Boolean(),
+  entryCount: Type.Integer({ minimum: 0 }),
+  enabledEntryCount: Type.Integer({ minimum: 0 }),
+  alwaysTokens: Type.Integer({ minimum: 0 }),
+  maxTurnTokens: Type.Integer({ minimum: 0 }),
 });
 
 export const schemas = {

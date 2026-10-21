@@ -4,18 +4,15 @@ import os from "node:os";
 import path from "node:path";
 import {
   addAgentCardLink,
-  applyWorldbookBudget,
   invalidateWorldbookCache,
   listAgentCardLinks,
   matchWorldbook,
   readAgentWorldbook,
   recentTextOf,
   removeAgentCardLink,
-  renderWorldbook,
-  WORLDBOOK_MAX_ENTRIES,
   worldbookProjector,
+  worldbookStats,
 } from "../capabilities/card/index.js";
-import { estimateTokens } from "../context/token-estimate.js";
 import type { CardEntry } from "../capabilities/card/types.js";
 
 function entry(overrides: Partial<CardEntry> = {}): CardEntry {
@@ -107,40 +104,56 @@ describe("matchWorldbook (R7.1)", () => {
   });
 });
 
-describe("applyWorldbookBudget (R7.2)", () => {
-  it("caps entries at 8 by insertion_order priority", () => {
-    const entries = Array.from({ length: 10 }, (_, i) =>
+describe("unbounded injection (v1.0.3: budget removed)", () => {
+  it("injects all matched entries without caps", () => {
+    const entries = Array.from({ length: 20 }, (_, i) =>
       entry({ keys: [`k${i}`], insertion_order: i, content: `entry ${i}` }),
     );
-    const out = applyWorldbookBudget(entries);
-    expect(out).toHaveLength(Math.min(10, WORLDBOOK_MAX_ENTRIES));
-    expect(out.map((e) => e.insertion_order)).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
+    const out = matchWorldbook("k0 k1 k2 k3 k4 k5 k6 k7 k8 k9", entries);
+    expect(out).toHaveLength(10);
+    expect(out.map((e) => e.insertion_order)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+  });
+});
+
+describe("worldbookStats", () => {
+  it("counts constant entries as always-on floor", () => {
+    const stats = worldbookStats([
+      entry({ constant: true, content: "Always." }),
+      entry({ keys: ["k"], content: "Maybe." }),
+    ]);
+    expect(stats).toMatchObject({ entryCount: 2, enabledEntryCount: 2 });
+    expect(stats.alwaysTokens).toBeGreaterThan(0);
+    expect(stats.maxTurnTokens).toBeGreaterThanOrEqual(stats.alwaysTokens);
   });
 
-  it("truncates by token budget keeping order priority", () => {
-    const big = "lorem ipsum dolor sit amet ".repeat(160);
-    const entries = Array.from({ length: 6 }, (_, i) =>
-      entry({ keys: ["x"], insertion_order: i, content: `${big} ${i}` }),
-    );
-    const out = applyWorldbookBudget(entries);
-    expect(out.length).toBeLessThan(6);
-    expect(out.length).toBeGreaterThan(0);
-    expect(estimateTokens(renderWorldbook(out))).toBeLessThanOrEqual(2000);
-    expect(out.map((e) => e.insertion_order)).toEqual(
-      [...out.map((e) => e.insertion_order)].sort((a, b) => a - b),
-    );
+  it("excludes disabled entries from both bounds", () => {
+    const stats = worldbookStats([
+      entry({ enabled: false, constant: true, content: "Off." }),
+      entry({ enabled: false, keys: ["k"], content: "Off too." }),
+    ]);
+    expect(stats).toMatchObject({
+      entryCount: 2,
+      enabledEntryCount: 0,
+      alwaysTokens: 0,
+      maxTurnTokens: 0,
+    });
   });
 
-  it("honors explicit budget overrides", () => {
-    const entries = [entry({ keys: ["x"], content: "one" }), entry({ keys: ["x"], content: "two" })];
-    expect(applyWorldbookBudget(entries, { maxEntries: 1 })).toHaveLength(1);
-    expect(applyWorldbookBudget(entries, { maxTokens: 0 })).toHaveLength(1);
+  it("excludes entries that can never match from the ceiling", () => {
+    const stats = worldbookStats([
+      entry({ keys: [], content: "No keys." }),
+      entry({ keys: ["a"], selective: true, secondary_keys: [], content: "Half selective." }),
+    ]);
+    expect(stats.maxTurnTokens).toBe(0);
+    expect(stats.enabledEntryCount).toBe(2);
   });
 
-  it("ranks unsorted input by insertion_order before capping", () => {
-    const entries = [entry({ keys: ["x"], insertion_order: 9, content: "nine" }), entry({ keys: ["x"], insertion_order: 1, content: "one" })];
-    const out = applyWorldbookBudget(entries, { maxEntries: 1 });
-    expect(out.map((e) => e.content)).toEqual(["one"]);
+  it("includes fully keyed selective entries in the ceiling only", () => {
+    const stats = worldbookStats([
+      entry({ keys: ["a"], selective: true, secondary_keys: ["b"], content: "Full selective." }),
+    ]);
+    expect(stats.alwaysTokens).toBe(0);
+    expect(stats.maxTurnTokens).toBeGreaterThan(0);
   });
 });
 
@@ -336,11 +349,36 @@ describe.runIf(canCreateSymlinks())("agent card links", () => {
     const rel = outsideCard("kings.card.json", [{ keys: ["Winterfell"], content: "The castle." }]);
     const added = addAgentCardLink(root, "hero", rel);
     expect(added).toMatchObject({ name: "kings.card.json", dangling: false });
+    expect(added.entryCount).toBe(1);
+    expect(added.enabledEntryCount).toBe(1);
+    expect(added.alwaysTokens).toBe(0);
+    expect(added.maxTurnTokens).toBeGreaterThan(0);
     expect(listAgentCardLinks(root, "hero")).toHaveLength(1);
     expect(readAgentWorldbook(root, "hero").map((e) => e.content)).toEqual(["The castle."]);
     removeAgentCardLink(root, "hero", "kings.card.json");
     expect(listAgentCardLinks(root, "hero")).toHaveLength(0);
     expect(readAgentWorldbook(root, "hero")).toHaveLength(0);
+  });
+
+  it("list reports token stats per link and zeros for dangling", () => {
+    const rel = outsideCard("kings.card.json", [
+      { keys: ["x"], constant: true, content: "Always on." },
+      { keys: ["y"], content: "Sometimes." },
+    ]);
+    addAgentCardLink(root, "hero", rel);
+    const [link] = listAgentCardLinks(root, "hero");
+    expect(link).toMatchObject({ entryCount: 2, enabledEntryCount: 2, dangling: false });
+    expect(link.alwaysTokens).toBeGreaterThan(0);
+    expect(link.maxTurnTokens).toBeGreaterThan(link.alwaysTokens);
+    fs.unlinkSync(path.join(root, rel));
+    const [dangling] = listAgentCardLinks(root, "hero");
+    expect(dangling).toMatchObject({
+      dangling: true,
+      entryCount: 0,
+      enabledEntryCount: 0,
+      alwaysTokens: 0,
+      maxTurnTokens: 0,
+    });
   });
 
   it("add is idempotent for the same target", () => {

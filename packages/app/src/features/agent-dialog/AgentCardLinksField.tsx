@@ -9,7 +9,15 @@ import type { CardLinkListResponse } from "@spherse/contracts";
 import { SearchFileField } from "./SearchFileField";
 import { HintLabel } from "./HintLabel";
 
-export function AgentCardLinksField({ agentId, client }: { agentId: string; client: ApiClient }) {
+export function AgentCardLinksField({
+  agentId,
+  client,
+  contextWindow,
+}: {
+  agentId: string;
+  client: ApiClient;
+  contextWindow?: number;
+}) {
   const { t } = useI18n();
   const [links, setLinks] = useState<CardLinkListResponse>([]);
   const [error, setError] = useState<string | null>(null);
@@ -51,6 +59,18 @@ export function AgentCardLinksField({ agentId, client }: { agentId: string; clie
     [client, agentId, reload],
   );
 
+  const totals = links.reduce(
+    (acc, link) => ({
+      always: acc.always + (link.dangling ? 0 : link.alwaysTokens),
+      max: acc.max + (link.dangling ? 0 : link.maxTurnTokens),
+    }),
+    { always: 0, max: 0 },
+  );
+  const ratio =
+    contextWindow && contextWindow > 0 && totals.max > 0
+      ? Math.round((totals.max / contextWindow) * 100)
+      : null;
+
   return (
     <Field>
       <HintLabel hint={t("agent-dialog.cardLinksHint")}>{t("agent-dialog.cardLinksLabel")}</HintLabel>
@@ -59,6 +79,15 @@ export function AgentCardLinksField({ agentId, client }: { agentId: string; clie
           {links.map((link) => (
             <Badge key={link.name} variant="secondary" className="gap-1">
               {link.dangling ? t("agent-dialog.cardLinksDangling", { name: link.name }) : link.target}
+              {!link.dangling && (
+                <span className="text-muted-foreground">
+                  {t("agent-dialog.cardLinksTokens", {
+                    count: String(link.entryCount),
+                    always: link.alwaysTokens.toLocaleString(),
+                    max: link.maxTurnTokens.toLocaleString(),
+                  })}
+                </span>
+              )}
               <Button
                 type="button"
                 variant="ghost"
@@ -71,6 +100,20 @@ export function AgentCardLinksField({ agentId, client }: { agentId: string; clie
             </Badge>
           ))}
         </div>
+      )}
+      {links.some((link) => !link.dangling) && (
+        <p className="text-xs text-muted-foreground mb-2">
+          {ratio !== null
+            ? t("agent-dialog.cardLinksTotalWithRatio", {
+                tAlways: totals.always.toLocaleString(),
+                tMax: totals.max.toLocaleString(),
+                ratio: String(ratio),
+              })
+            : t("agent-dialog.cardLinksTotal", {
+                tAlways: totals.always.toLocaleString(),
+                tMax: totals.max.toLocaleString(),
+              })}
+        </p>
       )}
       <SearchFileField
         exclude={links.map((link) => link.target)}
