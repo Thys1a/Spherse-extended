@@ -113,7 +113,7 @@ export const dataQueryResponse = Type.Object({
 
 **app client**（`app/src/lib/api.ts`）：新增 `dataQuery(params)`，照抄 `dataMutate`（`api.ts:267-282`）：`parseJsonResponse(res, schemas.dataQueryResponse)`。
 
-**UI SDK**（`app/src/ui-sdk/handlers/data.ts` + `sdk/src/runtime/data.ts`）：新增 `data.query` action，照抄 `data.mutate`（`handlers/data.ts:92-115`）：`validateFileParam` 复用；`name` 非空校验；`params` 仅透传 plain object；`limit/after` 透传；`dockedSessionId` 透传；**返回完整 `QueryResult` 整包**（不是 `r.value`——页面翻页需要 `nextAfter/total`）。SDK 加一行 `query: (params) => call("data.query", params)`。`data.query` 进限流白名单（只读，与 `data.get` 同档，见 §四）。
+**UI SDK**（`app/src/ui-sdk/handlers/data.ts` + `sdk/src/runtime/data.ts`）：新增 `data.query` action，照抄 `data.mutate`（`handlers/data.ts:92-115`）：`validateFileParam` 复用；`name` 非空校验；`params` 仅透传 plain object；`limit/after` 透传；**不透传 `dockedSessionId`**（query 只读，core 签名无 session，与 get/keys/entries 同档）；**返回完整 `QueryResult` 整包**（不是 `r.value`——页面翻页需要 `nextAfter/total`）。SDK 加一行 `query: (params) => call("data.query", params)`。`data.query` 进限流白名单（只读，与 `data.get` 同档，见 §四）。
 
 **测试**：contracts 加 `dataQueryRequest/Response` 正样本 + 非法 `limit`/缺 `name` 负样本；server `data-routes.test.ts` 加往返（命中 + 未知 query 名 404 + 非法 params 400 + 非法 `after` 返回 200 空页）；app `ui-sdk/handlers/data.test.ts` 加透传用例（含整包返回）。
 
@@ -124,7 +124,7 @@ export const dataQueryResponse = Type.Object({
 ### 3.4 T1 extensions 写开放（单独 commit）
 
 - `contracts/card.ts`：`entryPatch` 加 `extensions: Type.Optional(Type.Record(Type.String(), Type.Unknown()))`。注意 `entryPatch` 被 update/bulk/add 三条路径共用（`:150,160,168`），即三条路径同时开放；顶层 `extensions: null` 拒绝（Record 要求对象），只允许键值级 `null`（删键）。
-- `card-store.ts`：`validatePatch` 加 `extensions` 对象校验；`update`/`bulk` 对 `extensions` 做浅合并（只覆盖给出键，`null` 删键；整体替换会抹 ST 原有键，不采用）；合并底值规则——已有值为 plain object 则在其上合并，否则以 `{}` 为底（脏值静默兼容，不报 400）；`changed` 比较**合并结果 vs 原值**（`bulk` 维持现状无比较）；`canonicalEntry` 保留传入的 `extensions`（缺省 `{}`）；仍拒绝顶层未知键。
+- `card-store.ts`：`validatePatch` 加 `extensions` 对象校验；`update`/`bulk` 对 `extensions` 做浅合并（只覆盖给出键，`null` 删键；整体替换会抹 ST 原有键，不采用）；合并底值规则——已有值为 plain object 则在其上合并，否则以 `{}` 为底（脏值静默兼容，不报 400）；`changed` 比较**合并结果 vs 原值**（`bulk` 维持现状无比较，空操作仍 emit change/undo）；`canonicalEntry` 保留传入的 `extensions`（缺省 `{}`，`null` 值按删键过滤）；仍拒绝顶层未知键。
 - 类型收窄：`CardEntry.extensions` 由 `unknown` 收窄为 `Record<string, unknown>`；契约 `cardEntry.extensions` 由 `Type.Unknown()` 收窄为 Record。
 - `tools.ts`：工具 schema 加字段；`EDIT_CARD_GUIDE`（`:27`）去掉“extensions 只读”，写明合并语义；`errorText` 可写清单（`:43`）加 `extensions`。
 - **既有断言反转**（T1 会直接打红，不改过不了）：core `t3-card-store-write.test.ts:100-105`（update 拒 extensions）、`:254-258`（add 拒 extensions）；contracts `card.test.ts:127-133`（bulk 拒）、`:177-182`（add 拒）。
@@ -140,7 +140,7 @@ export const dataQueryResponse = Type.Object({
 
 ### 3.6 P4 skill 文档澄清（单独 commit）
 
-`presets/skills/spherse-use-ui-sdk` 写明 `data.entries` 返回整份文档（全量下载），大文件先用 `data.get` 无 key（outline）；改完执行 presets build。
+`presets/skills/spherse-use-ui-sdk` 写明 `data.entries` 返回整份文档（全量下载）；SDK 暂不暴露 outline，大文件指引走带 manifest 的 `data.query` 或约束文件体积；改完执行 presets build。
 
 ## 四、文档同步清单（随对应 commit 做）
 

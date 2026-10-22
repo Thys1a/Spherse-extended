@@ -319,7 +319,7 @@ const keys = await spherse.data.keys({ file: "world/game.data.json" });
 
 ### `spherse.data.entries(params)` → `Promise<Record<string, any>>`
 
-返回数据文件中全部 key-value 对象（**全量下载**，大文件慎用；先看结构请用 `data.get` 不带 key 取 outline）。文件不存在时返回 `{}`。
+返回数据文件中全部 key-value 对象（**全量下载**，大文件慎用；先看结构请用带 manifest 的 `data.query`，或约束文件体积——SDK 暂不暴露 outline）。文件不存在时返回 `{}`。
 
 ```javascript
 const all = await spherse.data.entries({ file: "world/game.data.json" });
@@ -331,8 +331,8 @@ const all = await spherse.data.entries({ file: "world/game.data.json" });
 执行数据文件 `$manifest` 中声明的业务命名查询（与 agent 的 `query_data` 同一入口）。返回整包（含 `value` / `total` / `count` / `pagination` / `nextAfter`），翻页时把上一次的 `nextAfter` 传给 `after`。
 
 ```javascript
-const page = await spherse.data.query({ file: "board.data.json", name: "listTodos", params: { status: "pending" }, limit: 20 });
-// → { value: [...], total: 42, count: 20, pagination: "cursor", nextAfter: "..." }
+const page = await spherse.data.query({ file: "world/game.data.json", name: "listTodos", params: { status: "pending" }, limit: 20 });
+// → { version, value: [...], total: 42, count: 20, pagination: "cursor", nextAfter: "..." }
 ```
 
 ### 数据文件命名规范
