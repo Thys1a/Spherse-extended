@@ -20,6 +20,13 @@ function makeClient(doc: Record<string, unknown> | null) {
       return { version: "v1", value: null };
     }),
     dataMutate: vi.fn(async () => ({ version: "v9", result: { id: "n1", title: "t" } })),
+    dataQuery: vi.fn(async () => ({
+      version: "v9",
+      value: [{ id: "a" }],
+      total: 1,
+      count: 1,
+      pagination: "cursor",
+    })),
     dataRawSet: vi.fn(async () => ({ version: "v2" })),
     dataRawDelete: vi.fn(async () => ({ version: "v3" })),
   } as any;
@@ -176,6 +183,36 @@ describe("data.mutate action", () => {
     const ctx = makeCtx(client);
     await dispatchAction("data.mutate", { file: "world/game.json", name: "addTodo" }, ctx);
     await dispatchAction("data.mutate", { file: "world/game.data.json" }, ctx);
+    expect(ctx.source.postMessage).not.toHaveBeenCalled();
+  });
+});
+
+describe("data.query action", () => {
+  it("proxies to dataQuery and responds with the full result", async () => {
+    const client = makeClient({});
+    const ctx = makeCtx(client);
+    await dispatchAction(
+      "data.query",
+      { file: "world/game.data.json", name: "listTodos", params: { status: "pending" }, limit: 10 },
+      ctx,
+    );
+    expect(client.dataQuery).toHaveBeenCalledWith({
+      file: "world/game.data.json",
+      name: "listTodos",
+      params: { status: "pending" },
+      limit: 10,
+    });
+    expect(lastResponse(ctx)).toMatchObject({
+      ok: true,
+      data: { total: 1, count: 1, pagination: "cursor", value: [{ id: "a" }] },
+    });
+  });
+
+  it("is ignored for invalid file or missing name", async () => {
+    const client = makeClient({});
+    const ctx = makeCtx(client);
+    await dispatchAction("data.query", { file: "world/game.json", name: "listTodos" }, ctx);
+    await dispatchAction("data.query", { file: "world/game.data.json" }, ctx);
     expect(ctx.source.postMessage).not.toHaveBeenCalled();
   });
 });

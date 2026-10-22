@@ -82,6 +82,64 @@ describe("data routes", () => {
     expect(JSON.parse(res.body).code).toBe("file_corrupted");
   });
 
+  it("query: runs manifest query with pagination", async () => {
+    fs.writeFileSync(
+      path.join(tmpDir, "quest.data.json"),
+      JSON.stringify({
+        $manifest: {
+          version: 1,
+          queries: {
+            listTodos: {
+              path: "todos",
+              identity: "id",
+              params: { status: { type: "enum", values: ["pending", "done"] } },
+            },
+          },
+        },
+        todos: [
+          { id: "a", status: "pending" },
+          { id: "b", status: "done" },
+          { id: "c", status: "pending" },
+        ],
+      }),
+    );
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/projects/p1/data/query",
+      payload: { file: "quest.data.json", name: "listTodos", params: { status: "pending" } },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.total).toBe(2);
+    expect(body.pagination).toBe("cursor");
+    expect(body.value).toHaveLength(2);
+  });
+
+  it("query: unknown name maps to 404; invalid params to 400; bad cursor to empty 200 page", async () => {
+    const unknown = await app.inject({
+      method: "POST",
+      url: "/api/projects/p1/data/query",
+      payload: { file: "quest.data.json", name: "nope" },
+    });
+    expect(unknown.statusCode).toBe(404);
+    expect(JSON.parse(unknown.body).validNames).toEqual(["listTodos"]);
+
+    const invalid = await app.inject({
+      method: "POST",
+      url: "/api/projects/p1/data/query",
+      payload: { file: "quest.data.json", name: "listTodos", params: { status: "bogus" } },
+    });
+    expect(invalid.statusCode).toBe(400);
+
+    const badCursor = await app.inject({
+      method: "POST",
+      url: "/api/projects/p1/data/query",
+      payload: { file: "quest.data.json", name: "listTodos", params: {}, after: "not-a-cursor" },
+    });
+    expect(badCursor.statusCode).toBe(200);
+    expect(JSON.parse(badCursor.body)).toMatchObject({ count: 0, value: [] });
+  });
+
   it("mutate: runs manifest mutation with sdk origin", async () => {
     fs.writeFileSync(
       path.join(tmpDir, "mut.data.json"),

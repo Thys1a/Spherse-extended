@@ -92,7 +92,7 @@ export type {
   ContentSaveRequest,
 } from "./content.js";
 
-export type { DataReadResponseContract } from "./data.js";
+export type { DataReadResponseContract, DataQueryResponseContract } from "./data.js";
 
 export type {
   CardErrorCode,

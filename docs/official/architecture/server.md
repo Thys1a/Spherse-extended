@@ -51,7 +51,7 @@
 | agent-mcp | agent 的 MCP 连接器配置读写 |
 | sessions | 项目级批量会话目录、agent 级列表、创建、详情、messages GET/POST、status、rename、删除 |
 | content | stat、文件/目录的读写删建 |
-| data | `/data/read` `/mutate` `/raw-set` `/raw-delete` |
+| data | `/data/read` `/query` `/mutate` `/raw-set` `/raw-delete` |
 | card | `/card/list` `/meta` `/entries` `/search` `/entry` `/entry/many` `/entry/update` `/entry/bulk` `/entry/add` `/entry/remove`（`.card.json` 世界书读写） |
 | settings | 全局：文本与图片 provider 目录；项目级：ai-access / welcome-page / theme |
 | preview | 预览文件服务（见下节） |
@@ -99,7 +99,7 @@
 
 ## data 路由
 
-- 4 个 POST 端点全部 `schema.body` + handler 内 `parseContract` 双重绑定，委派 `runtime.dataStore`
+- 5 个 POST 端点全部 `schema.body` + handler 内 `parseContract` 双重绑定，委派 `runtime.dataStore`（`query` 只读具名查询）
 - 与 agent 的 `read_data` / `mutate_data` 工具共享同一 DataStore 实例与 FileWriteMutex——SDK 写入与 LLM 写入在同一把锁上串行
 - mutate 带 `origin: "sdk"` 与可选 `idempotencyKey`；乐观并发用 `ifVersion`
 
