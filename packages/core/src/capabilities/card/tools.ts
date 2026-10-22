@@ -24,7 +24,8 @@ const SEARCH_CARD_GUIDE =
 const EDIT_CARD_GUIDE =
   "Edit a .card.json world book entry. update patches one entry, bulk patches many, " +
   "add appends a new entry (id auto-assigned), remove deletes one. " +
-  "Only whitelisted fields are writable; id and extensions are read-only. " +
+  "Only whitelisted fields are writable; id is read-only. " +
+  "extensions is a namespaced metadata object: patches shallow-merge (only the given keys change, null deletes a key). " +
   "Injection position per entry (default 3): 0 = system prompt before MCP (tool rules stay last, weakest lore attention), " +
   "1 = system prompt after MCP (recommended for system; cache-friendly, closest to input), " +
   "2 = history anchor, needs depth N (before the Nth-from-last user turn; deeper = more background-like, re-anchors after compaction), " +
@@ -40,7 +41,7 @@ function errorText(err: unknown): string {
     return `Error: entry ${err.entryId} not found in ${err.file}.`;
   }
   if (err instanceof InvalidFieldError) {
-    return `Error: invalid field(s): ${err.fields.join(", ")}. Writable: keys, secondary_keys, comment, content, constant, selective, insertion_order, enabled, position, depth, use_regex.`;
+    return `Error: invalid field(s): ${err.fields.join(", ")}. Writable: keys, secondary_keys, comment, content, constant, selective, insertion_order, enabled, position, depth, use_regex, extensions.`;
   }
   if (err instanceof CardTooLargeError) {
     return `Error: card file too large: ${err.file}.`;
@@ -244,6 +245,11 @@ const CardEntryBody = Type.Object({
     Type.Integer({ minimum: 1, description: "Only with position 2: insert before the Nth-from-last user turn (1 = before current user)" }),
   ),
   use_regex: Type.Optional(Type.Boolean()),
+  extensions: Type.Optional(
+    Type.Record(Type.String(), Type.Unknown(), {
+      description: "Shallow-merged namespaced metadata; null value deletes a key",
+    }),
+  ),
 });
 
 const EditCardParams = Type.Object({

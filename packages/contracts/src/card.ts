@@ -28,6 +28,7 @@ const entryPatch = Type.Object(
     position: Type.Optional(cardPosition),
     depth: Type.Optional(Type.Integer({ minimum: 1 })),
     use_regex: Type.Optional(Type.Boolean()),
+    extensions: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
   },
   { additionalProperties: false },
 );
@@ -60,7 +61,7 @@ const cardEntry = Type.Object({
   position: cardPosition,
   depth: Type.Optional(Type.Integer({ minimum: 1 })),
   use_regex: Type.Boolean(),
-  extensions: Type.Unknown(),
+  extensions: Type.Record(Type.String(), Type.Unknown()),
 });
 
 export const cardErrorCode = Type.Union([

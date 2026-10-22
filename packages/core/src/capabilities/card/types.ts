@@ -49,7 +49,7 @@ export interface CardEntry extends CardEntrySummary {
   content: string;
   selective: boolean;
   use_regex: boolean;
-  extensions: unknown;
+  extensions: Record<string, unknown>;
 }
 
 export interface CardSearchOpts {
@@ -78,6 +78,7 @@ export type EntryPatch = Partial<{
   position: CardPosition;
   depth: number;
   use_regex: boolean;
+  extensions: Record<string, unknown>;
 }>;
 
 export type CardChangeOrigin = "sdk" | "agent";

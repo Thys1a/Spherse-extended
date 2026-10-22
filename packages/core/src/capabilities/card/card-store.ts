@@ -44,7 +44,12 @@ const WRITABLE_FIELDS: ReadonlySet<string> = new Set([
   "position",
   "depth",
   "use_regex",
+  "extensions",
 ]);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
 
 function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((v) => typeof v === "string");
@@ -86,11 +91,24 @@ function validatePatch(patch: EntryPatch): string[] {
           invalid.push(key);
         }
         break;
+      case "extensions":
+        if (!isRecord(value)) invalid.push(key);
+        break;
       default:
         invalid.push(key);
     }
   }
   return invalid;
+}
+
+/** Shallow-merge an extensions patch over the stored value. `null` values delete keys. */
+function mergeExtensions(current: unknown, patch: Record<string, unknown>): Record<string, unknown> {
+  const base = isRecord(current) ? { ...current } : {};
+  for (const [key, value] of Object.entries(patch)) {
+    if (value === null) delete base[key];
+    else base[key] = value;
+  }
+  return base;
 }
 
 function sameValue(a: unknown, b: unknown): boolean {
@@ -110,7 +128,7 @@ function canonicalEntry(id: number, body: EntryPatch): Record<string, unknown> {
     enabled: body.enabled ?? true,
     position: body.position ?? DEFAULT_CARD_POSITION,
     use_regex: body.use_regex ?? false,
-    extensions: {},
+    extensions: isRecord(body.extensions) ? { ...body.extensions } : {},
     ...(body.depth !== undefined ? { depth: body.depth } : {}),
   };
 }
@@ -403,6 +421,14 @@ export function createCardStore(opts: CreateCardStoreOptions): CardStore {
           if (!raw) throw new EntryNotFoundError(rel, id);
           previous = structuredClone(raw);
           for (const [key, value] of Object.entries(patch)) {
+            if (key === "extensions") {
+              const merged = mergeExtensions(raw[key], value as Record<string, unknown>);
+              if (!sameValue(raw[key], merged)) {
+                raw[key] = merged;
+                if (!changed.includes(key)) changed.push(key);
+              }
+              continue;
+            }
             if (!sameValue(raw[key], value)) {
               raw[key] = value;
               if (!changed.includes(key)) changed.push(key);
@@ -451,7 +477,7 @@ export function createCardStore(opts: CreateCardStoreOptions): CardStore {
             if (!raw) throw new EntryNotFoundError(rel, id);
             previous.push({ id, entry: structuredClone(raw) });
             for (const [key, value] of Object.entries(patch)) {
-              raw[key] = value;
+              raw[key] = key === "extensions" ? mergeExtensions(raw[key], value as Record<string, unknown>) : value;
             }
             if (patch.position !== undefined && patch.position !== 2 && "depth" in raw) {
               delete raw.depth;

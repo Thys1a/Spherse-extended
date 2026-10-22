@@ -128,7 +128,14 @@ describe("card contracts", () => {
       parseContract(schemas.cardEntryBulkRequest, {
         path: "a.card.json",
         ids: [0],
-        patch: { extensions: {} },
+        patch: { extensions: { tag: "x" } },
+      }),
+    ).toBeTruthy();
+    expect(() =>
+      parseContract(schemas.cardEntryBulkRequest, {
+        path: "a.card.json",
+        ids: [0],
+        patch: { extensions: "x" },
       }),
     ).toThrow(/Invalid payload/);
   });
@@ -174,11 +181,11 @@ describe("card contracts", () => {
         entry: { id: 9 },
       }),
     ).toThrow(/Invalid payload/);
-    expect(() =>
+    expect(
       parseContract(schemas.cardEntryAddRequest, {
         path: "a.card.json",
-        entry: { extensions: {} },
+        entry: { extensions: { origin: "st" } },
       }),
-    ).toThrow(/Invalid payload/);
+    ).toBeTruthy();
   });
 });

@@ -48,7 +48,7 @@ function normalizeEntry(raw: unknown): CardEntry | null {
     position: normalizePosition(raw.position),
     depth: normalizeDepth(raw.depth),
     use_regex: raw.use_regex === true,
-    extensions: raw.extensions ?? {},
+    extensions: isRecord(raw.extensions) ? raw.extensions : {},
     words: content.length,
   };
 }
