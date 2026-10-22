@@ -44,6 +44,7 @@ const WRITABLE_FIELDS: ReadonlySet<string> = new Set([
   "position",
   "depth",
   "use_regex",
+  "case_sensitive",
   "extensions",
 ]);
 
@@ -76,6 +77,7 @@ function validatePatch(patch: EntryPatch): string[] {
       case "selective":
       case "enabled":
       case "use_regex":
+      case "case_sensitive":
         if (typeof value !== "boolean") invalid.push(key);
         break;
       case "insertion_order":
@@ -128,6 +130,7 @@ function canonicalEntry(id: number, body: EntryPatch): Record<string, unknown> {
     enabled: body.enabled ?? true,
     position: body.position ?? DEFAULT_CARD_POSITION,
     use_regex: body.use_regex ?? false,
+    case_sensitive: body.case_sensitive ?? false,
     extensions: isRecord(body.extensions) ? { ...body.extensions } : {},
     ...(body.depth !== undefined ? { depth: body.depth } : {}),
   };
@@ -230,6 +233,7 @@ function toSummary(entry: CardEntry): CardEntrySummary {
     enabled: entry.enabled,
     selective: entry.selective,
     use_regex: entry.use_regex,
+    case_sensitive: entry.case_sensitive,
     position: entry.position,
     ...(entry.depth !== undefined ? { depth: entry.depth } : {}),
     insertion_order: entry.insertion_order,

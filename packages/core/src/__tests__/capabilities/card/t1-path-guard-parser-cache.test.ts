@@ -69,7 +69,17 @@ describe("parseCardBytes", () => {
       position: 3,
       insertion_order: 5,
       words: 11,
+      case_sensitive: false,
     });
+  });
+
+  it("reads case_sensitive from top level with extensions.caseSensitive fallback", () => {
+    const top = parseCardBytes(cardDoc({ extraEntries: [{ id: 1, case_sensitive: true }] }));
+    expect(top!.entries[1]).toMatchObject({ case_sensitive: true });
+    const fallback = parseCardBytes(
+      cardDoc({ extraEntries: [{ id: 1, extensions: { caseSensitive: true } }] }),
+    );
+    expect(fallback!.entries[1]).toMatchObject({ case_sensitive: true });
   });
 
   it("normalizes legacy and numeric positions plus depth", () => {

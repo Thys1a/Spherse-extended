@@ -41,7 +41,7 @@ function errorText(err: unknown): string {
     return `Error: entry ${err.entryId} not found in ${err.file}.`;
   }
   if (err instanceof InvalidFieldError) {
-    return `Error: invalid field(s): ${err.fields.join(", ")}. Writable: keys, secondary_keys, comment, content, constant, selective, insertion_order, enabled, position, depth, use_regex, extensions.`;
+    return `Error: invalid field(s): ${err.fields.join(", ")}. Writable: keys, secondary_keys, comment, content, constant, selective, insertion_order, enabled, position, depth, use_regex, case_sensitive, extensions.`;
   }
   if (err instanceof CardTooLargeError) {
     return `Error: card file too large: ${err.file}.`;
@@ -245,6 +245,9 @@ const CardEntryBody = Type.Object({
     Type.Integer({ minimum: 1, description: "Only with position 2: insert before the Nth-from-last user turn (1 = before current user)" }),
   ),
   use_regex: Type.Optional(Type.Boolean()),
+  case_sensitive: Type.Optional(
+    Type.Boolean({ description: "Match keys case-sensitively (default false)" }),
+  ),
   extensions: Type.Optional(
     Type.Record(Type.String(), Type.Unknown(), {
       description: "Shallow-merged namespaced metadata; null value deletes a key",

@@ -48,6 +48,9 @@ function normalizeEntry(raw: unknown): CardEntry | null {
     position: normalizePosition(raw.position),
     depth: normalizeDepth(raw.depth),
     use_regex: raw.use_regex === true,
+    case_sensitive:
+      raw.case_sensitive === true ||
+      (isRecord(raw.extensions) && raw.extensions.caseSensitive === true),
     extensions: isRecord(raw.extensions) ? raw.extensions : {},
     words: content.length,
   };

@@ -141,6 +141,15 @@ describe("CardStore updateEntry", () => {
     expect((await store.entry(FILE, 0)).extensions).toEqual({ a: 1 });
   });
 
+  it("writes case_sensitive and validates its type", async () => {
+    await expect(store.updateEntry(FILE, 0, { case_sensitive: "yes" as never })).rejects.toBeInstanceOf(
+      InvalidFieldError,
+    );
+    const r = await store.updateEntry(FILE, 0, { case_sensitive: true });
+    expect(r.changed).toEqual(["case_sensitive"]);
+    expect((await store.entry(FILE, 0)).case_sensitive).toBe(true);
+  });
+
   it("validates numeric position and depth rules", async () => {
     await expect(store.updateEntry(FILE, 0, { position: 2, depth: 3 })).resolves.toMatchObject({
       id: 0,
@@ -261,7 +270,7 @@ describe("CardStore bulkUpdate", () => {
 });
 
 describe("CardStore addEntry", () => {
-  it("appends a canonical 12-field entry with max+1 id", async () => {
+  it("appends a canonical 13-field entry with max+1 id", async () => {
     const { id } = await store.addEntry(FILE, { comment: "third", content: "!" });
     expect(id).toBe(2);
     const raw = JSON.parse(await fs.readFile(abs(FILE), "utf8"));
@@ -280,6 +289,7 @@ describe("CardStore addEntry", () => {
       "enabled",
       "position",
       "use_regex",
+      "case_sensitive",
       "extensions",
     ]);
     expect(added).toMatchObject({ comment: "third", extensions: {} });

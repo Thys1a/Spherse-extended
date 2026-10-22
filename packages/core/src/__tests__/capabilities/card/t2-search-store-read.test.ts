@@ -24,6 +24,7 @@ const baseEntry: CardEntry = {
   enabled: true,
   position: 3,
   use_regex: false,
+  case_sensitive: false,
   extensions: { depth: 4 },
   words: 17,
 };
@@ -90,6 +91,15 @@ describe("searchEntries", () => {
     const hits = searchEntries([badRegexEntry], { query: "[unclosed", fields: ["keys"] });
     expect(hits).toHaveLength(1);
     expect(hits[0].regexFallback).toBe(true);
+  });
+
+  it("matches case-sensitively only when case_sensitive is true", () => {
+    const sensitive = { ...baseEntry, id: 9, keys: ["Dragon"], case_sensitive: true };
+    expect(searchEntries([sensitive], { query: "dragon", fields: ["keys"] })).toHaveLength(0);
+    expect(searchEntries([sensitive], { query: "Dragon", fields: ["keys"] }).map((h) => h.id)).toEqual([9]);
+    expect(
+      searchEntries([{ ...sensitive, case_sensitive: false }], { query: "dragon", fields: ["keys"] }).map((h) => h.id),
+    ).toEqual([9]);
   });
 
   it("returns empty on empty query and respects limit", () => {

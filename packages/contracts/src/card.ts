@@ -28,6 +28,7 @@ const entryPatch = Type.Object(
     position: Type.Optional(cardPosition),
     depth: Type.Optional(Type.Integer({ minimum: 1 })),
     use_regex: Type.Optional(Type.Boolean()),
+    case_sensitive: Type.Optional(Type.Boolean()),
     extensions: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
   },
   { additionalProperties: false },
@@ -42,6 +43,7 @@ const cardEntrySummary = Type.Object({
   enabled: Type.Boolean(),
   selective: Type.Boolean(),
   use_regex: Type.Boolean(),
+  case_sensitive: Type.Boolean(),
   position: cardPosition,
   depth: Type.Optional(Type.Integer({ minimum: 1 })),
   insertion_order: Type.Number(),
@@ -61,6 +63,7 @@ const cardEntry = Type.Object({
   position: cardPosition,
   depth: Type.Optional(Type.Integer({ minimum: 1 })),
   use_regex: Type.Boolean(),
+  case_sensitive: Type.Boolean(),
   extensions: Type.Record(Type.String(), Type.Unknown()),
 });
 
@@ -131,6 +134,7 @@ export const schemas = {
         enabled: Type.Boolean(),
         selective: Type.Boolean(),
         use_regex: Type.Boolean(),
+        case_sensitive: Type.Boolean(),
         position: cardPosition,
         depth: Type.Optional(Type.Integer({ minimum: 1 })),
         insertion_order: Type.Number(),

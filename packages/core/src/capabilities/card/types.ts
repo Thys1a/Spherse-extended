@@ -38,6 +38,7 @@ export interface CardEntrySummary {
   enabled: boolean;
   selective: boolean;
   use_regex: boolean;
+  case_sensitive: boolean;
   position: CardPosition;
   depth?: number;
   insertion_order: number;
@@ -78,6 +79,7 @@ export type EntryPatch = Partial<{
   position: CardPosition;
   depth: number;
   use_regex: boolean;
+  case_sensitive: boolean;
   extensions: Record<string, unknown>;
 }>;
 

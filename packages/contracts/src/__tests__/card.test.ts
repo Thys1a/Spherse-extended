@@ -138,6 +138,13 @@ describe("card contracts", () => {
         patch: { extensions: "x" },
       }),
     ).toThrow(/Invalid payload/);
+    expect(
+      parseContract(schemas.cardEntryUpdateRequest, {
+        path: "a.card.json",
+        id: 0,
+        patch: { case_sensitive: true },
+      }),
+    ).toBeTruthy();
   });
 
   it("rejects negative ids and empty id lists", () => {

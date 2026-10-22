@@ -34,7 +34,8 @@ function cachedRegExp(key: string): RegExp | null | undefined {
 
 export function matchKeys(entry: CardEntry, query: string): { hit: boolean; regexFallback: boolean } {
   const keys = [...entry.keys, ...entry.secondary_keys];
-  const q = query.toLowerCase();
+  const cs = entry.case_sensitive;
+  const q = cs ? query : query.toLowerCase();
   let fallbackHit = false;
   for (const key of keys) {
     if (!key) continue;
@@ -44,11 +45,11 @@ export function matchKeys(entry: CardEntry, query: string): { hit: boolean; rege
         if (pattern.test(query)) return { hit: true, regexFallback: false };
         continue;
       }
-      const k = key.toLowerCase();
+      const k = cs ? key : key.toLowerCase();
       if (k.includes(q) || q.includes(k)) fallbackHit = true;
       continue;
     }
-    const k = key.toLowerCase();
+    const k = cs ? key : key.toLowerCase();
     if (k.includes(q) || q.includes(k)) return { hit: true, regexFallback: false };
   }
   return { hit: fallbackHit, regexFallback: fallbackHit };
@@ -110,6 +111,7 @@ export function searchEntries(entries: CardEntry[], opts: CardSearchOpts): CardS
       enabled: entry.enabled,
       selective: entry.selective,
       use_regex: entry.use_regex,
+      case_sensitive: entry.case_sensitive,
       position: entry.position,
       ...(entry.depth !== undefined ? { depth: entry.depth } : {}),
       insertion_order: entry.insertion_order,
