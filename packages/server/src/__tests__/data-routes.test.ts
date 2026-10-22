@@ -140,6 +140,29 @@ describe("data routes", () => {
     expect(JSON.parse(badCursor.body)).toMatchObject({ count: 0, value: [] });
   });
 
+  it("query: paginates with nextAfter cursor across two pages", async () => {
+    const first = await app.inject({
+      method: "POST",
+      url: "/api/projects/p1/data/query",
+      payload: { file: "quest.data.json", name: "listTodos", params: {}, limit: 1 },
+    });
+    expect(first.statusCode).toBe(200);
+    const p1 = JSON.parse(first.body);
+    expect(p1).toMatchObject({ total: 3, count: 1, pagination: "cursor" });
+    expect(p1.value).toHaveLength(1);
+    expect(typeof p1.nextAfter).toBe("string");
+    const second = await app.inject({
+      method: "POST",
+      url: "/api/projects/p1/data/query",
+      payload: { file: "quest.data.json", name: "listTodos", params: {}, limit: 1, after: p1.nextAfter },
+    });
+    expect(second.statusCode).toBe(200);
+    const p2 = JSON.parse(second.body);
+    expect(p2).toMatchObject({ total: 3, count: 1 });
+    expect(p2.value).toHaveLength(1);
+    expect(p2.value[0]).not.toEqual(p1.value[0]);
+  });
+
   it("mutate: runs manifest mutation with sdk origin", async () => {
     fs.writeFileSync(
       path.join(tmpDir, "mut.data.json"),

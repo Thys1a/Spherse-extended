@@ -25,7 +25,14 @@ describe("data query contracts", () => {
         pagination: "cursor",
         nextAfter: "cursor:1",
       }),
-    ).toMatchObject({ total: 1, count: 1, pagination: "cursor" });
+    ).toEqual({
+      version: "abc123",
+      value: [{ id: "a" }],
+      total: 1,
+      count: 1,
+      pagination: "cursor",
+      nextAfter: "cursor:1",
+    });
   });
 
   it("rejects missing name and out-of-range limit", () => {
@@ -37,6 +44,9 @@ describe("data query contracts", () => {
     ).toThrow(/Invalid payload/);
     expect(() =>
       parseContract(schemas.dataQueryRequest, { file: "world/board.data.json", name: "q", limit: 101 }),
+    ).toThrow(/Invalid payload/);
+    expect(() =>
+      parseContract(schemas.dataQueryRequest, { file: "world/board.data.json", name: "q", after: "" }),
     ).toThrow(/Invalid payload/);
   });
 });

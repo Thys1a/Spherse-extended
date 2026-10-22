@@ -215,6 +215,35 @@ describe("data.query action", () => {
     await dispatchAction("data.query", { file: "world/game.data.json" }, ctx);
     expect(ctx.source.postMessage).not.toHaveBeenCalled();
   });
+
+  it("passes after through and treats empty after as first page", async () => {
+    const client = makeClient({});
+    const ctx = makeCtx(client);
+    await dispatchAction(
+      "data.query",
+      { file: "world/game.data.json", name: "listTodos", after: "cursor:1" },
+      ctx,
+    );
+    expect(client.dataQuery).toHaveBeenCalledWith({
+      file: "world/game.data.json",
+      name: "listTodos",
+      after: "cursor:1",
+    });
+    const ctx2 = makeCtx(client);
+    await dispatchAction("data.query", { file: "world/game.data.json", name: "listTodos", after: "" }, ctx2);
+    expect(client.dataQuery).toHaveBeenLastCalledWith({ file: "world/game.data.json", name: "listTodos" });
+  });
+
+  it("responds ok:false when the server rejects an illegal limit", async () => {
+    const client = makeClient({});
+    client.dataQuery = vi.fn(async () => {
+      throw new Error("validation failed");
+    });
+    const ctx = makeCtx(client);
+    await dispatchAction("data.query", { file: "world/game.data.json", name: "listTodos", limit: 0 }, ctx);
+    expect(client.dataQuery).toHaveBeenCalledWith({ file: "world/game.data.json", name: "listTodos", limit: 0 });
+    expect(lastResponse(ctx)).toMatchObject({ ok: false });
+  });
 });
 
 describe("data.delete action", () => {

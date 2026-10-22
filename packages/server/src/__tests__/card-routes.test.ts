@@ -114,6 +114,12 @@ describe("card routes (real CardStore, no mocks)", () => {
     });
     expect(JSON.parse(entries.body)).toHaveLength(1);
     expect(JSON.parse(entries.body)[0]).not.toHaveProperty("content");
+    expect(JSON.parse(entries.body)[0]).toMatchObject({
+      secondary_keys: expect.any(Array),
+      selective: expect.any(Boolean),
+      use_regex: expect.any(Boolean),
+      case_sensitive: expect.any(Boolean),
+    });
   });
 
   it("search/entry/many return expected shapes", async () => {
@@ -126,6 +132,12 @@ describe("card routes (real CardStore, no mocks)", () => {
     const body = JSON.parse(search.body);
     expect(body.total).toBe(1);
     expect(body.results[0]).toMatchObject({ id: 0, matched: ["keys", "content"] });
+    expect(body.results[0]).toMatchObject({
+      secondary_keys: expect.any(Array),
+      selective: expect.any(Boolean),
+      use_regex: expect.any(Boolean),
+      case_sensitive: expect.any(Boolean),
+    });
     const entry = await app.inject({
       method: "POST",
       url: "/api/projects/p1/card/entry",
