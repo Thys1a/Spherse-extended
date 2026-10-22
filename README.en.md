@@ -135,12 +135,18 @@ Triggers allow agents to work without waiting for a new chat:
 - Execute in a new or designated existing session
 - Receive events from users, HTML pages, or other agents
 - Persist execution status and logs
+- Trigger runs land as session events: their progress and results are visible right in chat
 
 ### World books and long-term memory
 
 - World books: attach `.card.json` character books to an agent; matching entries are injected into context automatically, and multiple agents can link to one shared book
 - Long-term memory: agents remember facts across sessions with `memory_save` / `memory_recall`, and `rollback_turn` can undo a single turn's writes
 - Structured data: `.data.json` files with manifest-validated reads and writes; linked HTML cards refresh as data changes
+
+### Context management
+
+- Automatic compaction for long sessions: over-threshold history is summarized and the session continues, with a manual trigger available
+- Tool-output budgets: oversized tool results are truncated and older outputs shrink automatically, so one call can't blow up the context window
 
 ### HTML + UI SDK: from content to application
 
@@ -175,7 +181,14 @@ Spherse ships as a macOS, Windows, and Linux desktop app. A token-protected Web 
 
 ## Release notes
 
-### v1.0.0 (current)
+### v1.0.2 (current)
+
+- World-book injection scale-up: entry/token budget caps removed, all matching entries are injected; per-link token portraits next to agent dialog links
+- Optional injection positions: five slots across the system prompt, history anchors, and before the current message
+- Named data queries: HTML pages can fetch paginated results from manifest-declared queries
+- World-book editing improvements: writable extensions, case-sensitive key matching
+
+### v1.0.0
 
 - Automatic world-book injection with shared links, agent long-term memory with turn rollback
 - Validated structured data, trigger turn events, context compaction and budgets
