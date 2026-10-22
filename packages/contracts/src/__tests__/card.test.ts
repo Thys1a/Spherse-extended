@@ -116,6 +116,23 @@ describe("card contracts", () => {
     ).toBeTruthy();
   });
 
+  it("accepts writable extensions and case_sensitive patches", () => {
+    expect(
+      parseContract(schemas.cardEntryBulkRequest, {
+        path: "a.card.json",
+        ids: [0],
+        patch: { extensions: { tag: "x" } },
+      }),
+    ).toBeTruthy();
+    expect(
+      parseContract(schemas.cardEntryUpdateRequest, {
+        path: "a.card.json",
+        id: 0,
+        patch: { case_sensitive: true },
+      }),
+    ).toBeTruthy();
+  });
+
   it("rejects unknown patch keys instead of stripping them", () => {
     expect(() =>
       parseContract(schemas.cardEntryUpdateRequest, {
@@ -128,23 +145,9 @@ describe("card contracts", () => {
       parseContract(schemas.cardEntryBulkRequest, {
         path: "a.card.json",
         ids: [0],
-        patch: { extensions: { tag: "x" } },
-      }),
-    ).toBeTruthy();
-    expect(() =>
-      parseContract(schemas.cardEntryBulkRequest, {
-        path: "a.card.json",
-        ids: [0],
         patch: { extensions: "x" },
       }),
     ).toThrow(/Invalid payload/);
-    expect(
-      parseContract(schemas.cardEntryUpdateRequest, {
-        path: "a.card.json",
-        id: 0,
-        patch: { case_sensitive: true },
-      }),
-    ).toBeTruthy();
   });
 
   it("rejects negative ids and empty id lists", () => {

@@ -103,7 +103,6 @@ function validatePatch(patch: EntryPatch): string[] {
   return invalid;
 }
 
-/** Shallow-merge an extensions patch over the stored value. `null` values delete keys. */
 function mergeExtensions(current: unknown, patch: Record<string, unknown>): Record<string, unknown> {
   const base = isRecord(current) ? { ...current } : {};
   for (const [key, value] of Object.entries(patch)) {
@@ -131,7 +130,7 @@ function canonicalEntry(id: number, body: EntryPatch): Record<string, unknown> {
     position: body.position ?? DEFAULT_CARD_POSITION,
     use_regex: body.use_regex ?? false,
     case_sensitive: body.case_sensitive ?? false,
-    extensions: isRecord(body.extensions) ? { ...body.extensions } : {},
+    extensions: isRecord(body.extensions) ? mergeExtensions({}, body.extensions) : {},
     ...(body.depth !== undefined ? { depth: body.depth } : {}),
   };
 }

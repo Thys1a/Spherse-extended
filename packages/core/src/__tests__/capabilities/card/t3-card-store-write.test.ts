@@ -150,6 +150,13 @@ describe("CardStore updateEntry", () => {
     expect((await store.entry(FILE, 0)).case_sensitive).toBe(true);
   });
 
+  it("restores merged extensions on rollback", async () => {
+    const r = await store.updateEntry(FILE, 0, { extensions: { depth: null, extra: "s" } });
+    expect((await store.entry(FILE, 0)).extensions).toEqual({ position: 1, extra: "s" });
+    await store.rollbackUndo(FILE, r.undo!, r.version);
+    expect((await store.entry(FILE, 0)).extensions).toEqual({ position: 1, depth: 4 });
+  });
+
   it("validates numeric position and depth rules", async () => {
     await expect(store.updateEntry(FILE, 0, { position: 2, depth: 3 })).resolves.toMatchObject({
       id: 0,
@@ -303,6 +310,8 @@ describe("CardStore addEntry", () => {
     );
     const { id } = await store.addEntry(FILE, { comment: "kept", extensions: { origin: "st" } });
     expect((await store.entry(FILE, id)).extensions).toEqual({ origin: "st" });
+    const nulled = await store.addEntry(FILE, { comment: "nulled", extensions: { gone: null } });
+    expect((await store.entry(FILE, nulled.id)).extensions).toEqual({});
   });
 
   it("assigns unique ids under concurrent adds", async () => {

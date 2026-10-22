@@ -46,10 +46,7 @@ export interface CardEntrySummary {
 }
 
 export interface CardEntry extends CardEntrySummary {
-  secondary_keys: string[];
   content: string;
-  selective: boolean;
-  use_regex: boolean;
   extensions: Record<string, unknown>;
 }
 
