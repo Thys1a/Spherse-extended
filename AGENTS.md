@@ -132,8 +132,11 @@ npm run build:landing   # 构建 landing page（含 @spherse/i18n 依赖构建�
 6. **代码验收**：审查和记录功能完成情况和遗漏项；**分支 merge 到 dev 前必须先结清 backlog**：对照 `docs/dev/backlog.md` 勾销已完成条目，把验收中发现的新缺口补为新条目（格式见该文件头部说明），无悬挂才可 merge
 7. **收尾提 PR或merge**：加载 **doc-sync** skill 自查文档同步并更新，然后提 PR；在 PR 评论区贴上 review report（分等级，标明哪些已修、哪些未修及原因）；**合并分支只认用户验收**：code-review 通过 ≠ 可合并，在用户明确验收（提出可合并/亲自合并）前 agent 不得 merge 任何分支，因为只有用户能做最终验收
 8. **发版后版本号**：push main（stable 发版）结束后询问用户是否修改版本号（`packages/desktop/package.json` 为唯一来源），因为一次发版即开启下一版本周期，版本号必须显式决策，不能沿用旧号默默进入下个周期
-    - push dev前：修改changes.md（当前版本新增，覆盖上一个版本）
-    - push main前: 修改readme.md（补充整体功能介绍与最新更新，patch版本不修改，即只需在a.b.0版本发布时编写）
+    - push dev前：修改changes.md（当前版本新增，覆盖上一个版本），
+    - push main前: 修改readme.md
+      1. 补充整体功能介绍与功能拓展（本 fork 新增）部分
+      2. 最新更新处保留a.b.0版本发布的feature展示和最新patch版本更新内容
+      3. a.b.0版本发布（非patch版本）发布时未来计划按照排期表修订（简要写一些大版本即a.b.0版本的安排）
 
 ## 规范演进
 
