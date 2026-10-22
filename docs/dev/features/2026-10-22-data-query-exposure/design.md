@@ -79,9 +79,9 @@
 
 ### 3.1 P1 整卡直读修复（纯文案，单独 commit）
 
-- `core/src/tools/read-file.ts` description：照 binary→`render_card` 写法加条件式重定向——“`.card.json` 若有 card 工具可用，用 `read_card`（先 `entries`/`search_card` 定位再 `entry` 取全文）或 `search_card`；`.data.json` 若有 data 工具可用，用 `read_data`（不带 path 先看 outline）；不要直接打开或分页读完”。
+- `core/src/tools/read-file.ts` description：照 binary→`render_card` 写法加条件式重定向——“`.card.json` 若有 card 工具可用，用 `read_card`（先 `entries`/`search_card` 定位再 `entry` 取全文）或 `search_card`；`.data.json` 若有 data 工具可用，用 `read_data`（不带 path 先看 outline，再按 key/path 精确读或走 `query_data` 具名查询）；不要直接打开或分页读完”。
 - `core/src/capabilities/card/tools.ts` `READ_CARD_GUIDE`：平铺动作列表改成工作流——“找条目：1. `search_card` 或 `entries` 定位 id → 2. `entry`/`many` 取全文；不要读原始文件”。
-- `core/src/tools/search-content.ts` description：补一句——命中 `.card.json`/`.data.json` 时只返回原始 JSON 片段，要条目语义改用 `search_card`/`read_data`（若可用）。
+- `core/src/tools/search-content.ts` description：补一句——命中 `.card.json` 时只返回原始 JSON 片段，要条目语义改用 `search_card`；命中 `.data.json` 时改用 `read_data` / `query_data`（若可用；data 侧无子串搜索工具，子串/全文搜索属二阶段不做项，见 §五）。
 - 验证：`npm test --workspace=packages/core`（无测试断言 description 全文，无需同步）。
 
 ### 3.2 P2 data.query 打通（单独 commit）

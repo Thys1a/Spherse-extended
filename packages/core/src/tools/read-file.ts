@@ -43,7 +43,7 @@ export function createReadFileTool(
     name: "read_file",
     label: "Read File",
     description:
-      "Read the content of a text file in the project. Returns the file content as text. Binary files (images, fonts, databases, etc.) are detected and refused with a hint instead of returning garbled output — use `render_card` with `file_path` to display image files. Do not open .card.json world books or .data.json data files directly: if the card tools are available, find entries with `search_card` or `read_card` action=entries and read full text with action=entry; if the data tools are available, call `read_data` without key/path for a structure outline first. Output is capped at 32KB; use offset/limit to page through large files and check details.truncated.",
+      "Read the content of a text file in the project. Returns the file content as text. Binary files (images, fonts, databases, etc.) are detected and refused with a hint instead of returning garbled output — use `render_card` with `file_path` to display image files. Do not open .card.json world books or .data.json data files directly: if the card tools are available, find entries with `search_card` or `read_card` action=entries and read full text with action=entry; if the data tools are available, call `read_data` without key/path for a structure outline first, then read exact keys/paths with `read_data` or run manifest queries with `query_data`. Output is capped at 32KB; use offset/limit to page through large files and check details.truncated.",
     parameters: ReadFileParams,
     async execute(_toolCallId, params, _signal) {
       const resolved = resolveProjectPath(root, params.path);
