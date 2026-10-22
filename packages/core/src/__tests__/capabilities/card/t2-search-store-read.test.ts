@@ -102,6 +102,15 @@ describe("searchEntries", () => {
     ).toEqual([9]);
   });
 
+  it("applies case_sensitive to the regex path as well", () => {
+    const sensitiveRegex = { ...baseEntry, id: 10, keys: ["Dragon\\d+"], use_regex: true, case_sensitive: true };
+    expect(searchEntries([sensitiveRegex], { query: "dragon42", fields: ["keys"] })).toHaveLength(0);
+    expect(searchEntries([sensitiveRegex], { query: "Dragon42", fields: ["keys"] }).map((h) => h.id)).toEqual([10]);
+    expect(
+      searchEntries([{ ...sensitiveRegex, case_sensitive: false }], { query: "dragon42", fields: ["keys"] }).map((h) => h.id),
+    ).toEqual([10]);
+  });
+
   it("returns empty on empty query and respects limit", () => {
     expect(searchEntries(ENTRIES, { query: "  " })).toEqual([]);
     const hits = searchEntries(ENTRIES, { query: "雷", fields: ["keys", "comment", "content"], limit: 1 });

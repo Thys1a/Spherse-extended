@@ -13,17 +13,18 @@ function clamp(value: number, min: number, max: number): number {
 const REGEX_CACHE_CAPACITY = 500;
 const regexCache = new Map<string, RegExp | null>();
 
-function cachedRegExp(key: string): RegExp | null | undefined {
-  const hit = regexCache.get(key);
+function cachedRegExp(key: string, caseSensitive: boolean): RegExp | null | undefined {
+  const cacheKey = `${caseSensitive ? "s" : "i"}:${key}`;
+  const hit = regexCache.get(cacheKey);
   if (hit !== undefined) return hit;
   let compiled: RegExp | null;
   try {
-    compiled = new RegExp(key, "i");
+    compiled = new RegExp(key, caseSensitive ? "" : "i");
   } catch {
     compiled = null;
   }
-  if (regexCache.has(key)) regexCache.delete(key);
-  regexCache.set(key, compiled);
+  if (regexCache.has(cacheKey)) regexCache.delete(cacheKey);
+  regexCache.set(cacheKey, compiled);
   while (regexCache.size > REGEX_CACHE_CAPACITY) {
     const oldest = regexCache.keys().next().value;
     if (oldest === undefined) break;
@@ -40,7 +41,7 @@ export function matchKeys(entry: CardEntry, query: string): { hit: boolean; rege
   for (const key of keys) {
     if (!key) continue;
     if (entry.use_regex) {
-      const pattern = cachedRegExp(key);
+      const pattern = cachedRegExp(key, cs);
       if (pattern) {
         if (pattern.test(query)) return { hit: true, regexFallback: false };
         continue;

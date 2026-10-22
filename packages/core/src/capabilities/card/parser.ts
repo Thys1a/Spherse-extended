@@ -50,7 +50,9 @@ function normalizeEntry(raw: unknown): CardEntry | null {
     use_regex: raw.use_regex === true,
     case_sensitive:
       raw.case_sensitive === true ||
-      (isRecord(raw.extensions) && raw.extensions.caseSensitive === true),
+      (raw.case_sensitive === undefined &&
+        isRecord(raw.extensions) &&
+        raw.extensions.caseSensitive === true),
     extensions: isRecord(raw.extensions) ? raw.extensions : {},
     words: content.length,
   };

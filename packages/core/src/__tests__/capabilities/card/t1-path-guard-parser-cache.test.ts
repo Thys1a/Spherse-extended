@@ -80,6 +80,10 @@ describe("parseCardBytes", () => {
       cardDoc({ extraEntries: [{ id: 1, extensions: { caseSensitive: true } }] }),
     );
     expect(fallback!.entries[1]).toMatchObject({ case_sensitive: true });
+    const explicitOff = parseCardBytes(
+      cardDoc({ extraEntries: [{ id: 1, case_sensitive: false, extensions: { caseSensitive: true } }] }),
+    );
+    expect(explicitOff!.entries[1]).toMatchObject({ case_sensitive: false });
   });
 
   it("normalizes legacy and numeric positions plus depth", () => {
