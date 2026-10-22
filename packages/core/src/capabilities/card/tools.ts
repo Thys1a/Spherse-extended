@@ -14,8 +14,8 @@ import {
 
 const READ_CARD_GUIDE =
   "Read a .card.json world book (SillyTavern chara_card_v3 character_book entries). " +
-  "Use action=list for the file picker, meta for counts, entries for the entry list (no content), " +
-  "entry/entry.many for full entry text. Never read the raw file: entry content is long.";
+  "Workflow for finding entries: 1. locate ids with action=list (file picker), entries (entry list without content), or search_card; " +
+  "2. read full entry text with entry/entry.many. Never read the raw file: entry content is long.";
 
 const SEARCH_CARD_GUIDE =
   "Search .card.json entries by keys/comment/content. Returns matches without full text (content hits carry a snippet). " +

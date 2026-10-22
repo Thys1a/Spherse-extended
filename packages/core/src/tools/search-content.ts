@@ -158,7 +158,7 @@ export function createSearchContentTool(
   return {
     name: "search_content",
     label: "Search Content",
-    description: "Search file contents in the project for a query string. Returns matching file:line:text. Skips dotfiles, node_modules, and binary files. Long matching lines are truncated at 500 chars and total output is capped at 32KB; check details.truncated. The .spherse metadata directory is excluded by default; set include_meta=true to search it.",
+    description: "Search file contents in the project for a query string. Returns matching file:line:text. Skips dotfiles, node_modules, and binary files. Long matching lines are truncated at 500 chars and total output is capped at 32KB; check details.truncated. The .spherse metadata directory is excluded by default; set include_meta=true to search it. Hits inside .card.json/.data.json files are raw JSON fragments without entry semantics — if the card/data tools are available, use search_card or read_data for entry-level results instead.",
     parameters: SearchContentParams,
     async execute(_toolCallId, params, _signal) {
       const searchPath = params.path ? resolveProjectPath(root, params.path) : root;
