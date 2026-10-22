@@ -34,38 +34,46 @@
 - 写：`updateEntry`/`bulkUpdate` 在原始 doc 上原地改键（`card-store.ts:384-393`）——**外部预置的自定义键能存活**；但 `addEntry` 经 `canonicalEntry`（:91-106）重建，自定义键被丢弃、`extensions` 恒 `{}`；`validatePatch`（:51-85）拒绝一切非白名单键。
 - 读 API：`entry` 返回解析后 `CardEntry`（`extensions` 可见）；`entries`/`search` 返回摘要（`extensions` 不可见）；`meta` 不暴露顶层自定义字段。
 
-### 2.2 方案
+### 2.2 方案（2026-10-22 已决）
 
-- **自定义字段**：开放 `extensions.*` 写（`validatePatch` 加 `extensions` 为 record 校验；`canonicalEntry` 保留传入的 `extensions`，仍拒绝顶层未知键）。命名空间隔离避免与内建语义碰撞；undo 存整条目（`structuredClone`，:397-401），回滚天然兼容；worldbook 渲染与搜索忽略 `extensions`，零副作用。
-- **内定字段**：即 §一的 `position` 枚举扩展；另建议一条保留规则——未来 `spherse_` 前缀键为平台保留（本次只立规矩不实现，避免现在过度设计）。
+- **T1 extensions 可写（做）**：`validatePatch` 加 `extensions` 为 record 校验；`update`/`bulk` 对 `extensions` 做**浅合并**（只覆盖给出的键，值为 `null` 表示删除该键，整体替换会抹掉 ST 原有键故不采用）；`canonicalEntry` 保留传入的 `extensions`（`add` 不再清零）；仍拒绝顶层未知键。undo 存整条目（`structuredClone`，:397-401），回滚天然兼容；worldbook 渲染与搜索忽略 `extensions`，零副作用。
+- **T2 `case_sensitive`（做）**：新增**顶层可写字段**（boolean，缺省 `false`，现状行为不变），进 `WRITABLE_FIELDS`/`entryPatch`/工具 schema；**回退读** `extensions.caseSensitive`（ST 原 camelCase 名，顶层优先，只读不写）；只作用于 `matchKeys`（含正反包含，`use_regex` 分支本来敏感），不影响 search 的 comment/content。
+- **T2' ST 位置映射（不做）**：ST 的 depth 按消息条数、我方 depth 按用户回合，有损；**ST 卡统一按默认插入点 3 注入**。条目级 `scan_depth` 同不同。
+- **T3 其余运行时语义（不做）**：`probability`（工具循环内忽有忽无、破坏缓存）、`group*`（组选算法）、递归扫描、`sticky/cooldown/delay`（跨轮状态，与无状态 projector 冲突）、`role`/outlet、`match_whole_words`（中文无词边界）、`vectorized`、`automation_id`。数据在磁盘上不丢（`update`/`bulk` 原地改键，见 §2.1），运行时不认。
+- **`spherse_` 保留规则（现在不定）**：等真有平台字段要放 `extensions` 时再定。
 - **顶层自定义字段**：写侧已保留、可读侧缺 `meta` 暴露；如世界书管理 UI 需要展示（如卡级默认位置），design 时给 `meta` 加一个 `custom?: Record` 透传，成本极小。本次可先不做。
 
-## 三、新 op：获取 card 目录
+## 三、card 内容目录：项目卡无缺口，agent 卡待 UI 立项
 
-### 3.1 现状矩阵（确认缺口位置）
+### 3.1 更正：path → card 内容目录五层全通，无需新 op
 
-| 层 | card 文件列表 | agent 世界书目录 |
+2026-10-22 复核结论：`read_card action=entries` 即“给定 path 列条目目录”（`tools.ts:84` 原文 `"entries: entry list without content"`），以下五层一一对应，全部已存在：
+
+| 层 | 通道 | 返回 |
 |---|---|---|
-| `CardStore.list(dir?)` | ✅ 递归 walk，返 path/name/entryCount/bytes | ❌ 显式跳过 `.spherse`（`card-store.ts:291`） |
-| server `/card/*` | ✅ list/meta/entries/search/entry/many/update/bulk/add/remove | ❌ 无对应路由 |
-| SDK `card.*` / app 桥 | ✅ 同上 11 个 action | ❌ 无 |
-| agent 工具（`read_card` 等） | ✅ 项目卡 | ❌ `walkCardFiles` 跳过 `.spherse`，世界书卡只能走文件管理 |
-| `api.call` 白名单 | ❌ 无 card（有意为之，skill 要求走 `card.*`） | ❌ |
-| core 内 | — | `listAgentCardLinks`（`worldbook.ts:239`，仅 link 列表）经 `manage_agent link_card/unlink_card` 间接可用；合并后条目 `readAgentWorldbook` 可读但无按文件拆分 |
+| agent 工具 | `read_card entries`（`tools.ts:151-152`） | `CardEntrySummary[]` |
+| core | `CardStore.entries(path, filter?)`（`types.ts:104-107`） | 同上，`filter{enabled?, constant?}` |
+| server | `POST /card/entries`（`routes/card.ts:83-102`） | 同上 |
+| app | `client.cardEntries(path, filter?)`（`api.ts:324-335`） | 同上 |
+| SDK | `card.entries`（`handlers/card.ts:41-60`） | 同上 |
 
-缺口确认：**没有任何一层能列出 agent 的世界书卡目录**（文件＋挂载 link 状态＋条目归属）。这正是世界书管理 UI（配合 §一的位置选择）需要的。
+`CardEntrySummary`（`types.ts:32-42`）即目录形态：`id/comment/keys/constant/enabled/position/depth?/insertion_order/words`，无 `content` 全文。原 §三“没有任何一层能列出目录”的缺口确认**不成立**，特此更正。
 
-### 3.2 方案（按推荐排序）
+### 3.2 真实缺口：`.spherse/` agent 世界书卡目录（留待世界书管理 UI）
 
-- **方案 A（推荐）**：新 `CardStore` 方法 `agentCards(slug)`（或 `listAgentCards`），返回每文件 `{ name, target?, dangling?, entryCount, entries: id/comment/enabled/position 摘要 }`——复用 `listAgentCardLinks` ＋ `loadAgentCards` 按文件拆分（现 `readAgentWorldbook` 是合并返回，需拆到文件级，改动在 `worldbook.ts` 内部）。再沿现有链路逐层暴露：contracts schema → server 路由 → SDK action（`card.agentList`）→（可选）agent 工具。路径安全复用 `agentCardsDir`（`assertSafeSlug` ＋ root 内约束已具备，:146-149）。
-- **方案 B**：放宽 `CardStore.list` 加 `includeAgent` 参数。否决：`.spherse` 豁免是深思熟虑的隔离（工具面不可见 agent 卡），开口子比新方法更容易误用。
-- **方案 C**：`api.call` 加只读 card op。否决：与“card 走专用通道”规则冲突，且 `card.*` 已覆盖文件卡，只缺 agent 卡——补 A 即可。
-- 权限注意：agent 卡目录在 `.spherse/` 下，server 路由的 project 访问策略与 `canRead` 钩子要确认放行（`list` 现走 `resolveProjectPath`＋`canRead`，新方法同规格即可）；写操作本次不涉及（挂载仍走 `link_card/unlink_card`）。
+四层硬隔离（by design）：`path-guard.ts:18-25`（点查拦截）、`card-store.ts:302`（walk 跳过）、`handlers/card.ts:9-11`（SDK 拒 `.spherse`）、server `SRV_READ` 无对应类别（`access-policy.ts:46-57`）。世界书卡只能走运行时隐式注入（`readAgentWorldbook` → projector），没有任何一面能列出“agent 挂了哪些卡”。
+
+待世界书管理 UI 立项时再做，新 op 方案（按推荐排序）：
+
+- **方案 A（推荐）**：新 `CardStore` 方法 `agentCards(slug)`，返回每文件 `{ name, target?, dangling?, entryCount, entries: id/comment/enabled/position 摘要 }`——复用 `listAgentCardLinks` ＋ `loadAgentCards` 按文件拆分。再沿现有链路逐层暴露：contracts schema → server 路由 → SDK action（`card.agentList`）→（可选）agent 工具。路径安全复用 `agentCardsDir`（`assertSafeSlug` ＋ root 内约束已具备）。
+- **方案 B**：放宽 `CardStore.list` 加 `includeAgent` 参数。否决：`.spherse` 豁免是深思熟虑的隔离，开口子比新方法更容易误用。
+- **方案 C**：`api.call` 加只读 card op。否决：与“card 走专用通道”规则冲突。
+- 权限注意：server 路由的 project 访问策略与 `canRead` 钩子要确认放行；写操作本次不涉及（挂载仍走 `link_card/unlink_card`）。
 
 ## 四、决策点汇总（2026-10-21 已决，见同目录 `design.md`）
 
 1. P2 的 N 存哪：entry 独立 `depth` 数字字段（`position: 2` 配合）；多位置块数量不做硬限制，少于三个只落文档与工具说明（projector 无 logger，不做运行时 warn）。
 2. 缺省为数字 `3`（当前用户消息之前），旧字符串值读时一律归一；`0` / `1`（system 两序）仅作 opt-in。
-3. 自定义字段首批只开 `extensions.*`（建议是）＋ `spherse_` 保留规则是否立。（未立项，本次不做）
+3. 自定义字段首批只开 `extensions.*`（建议是）＋ `spherse_` 保留规则是否立。（2026-10-22 已决，见 §2.2：T1 浅合并＋`null` 删键、T2 只做 `case_sensitive`、T2'/T3 不做、`spherse_` 现在不定）
 4. 新 op 做到哪一层为止（store＋server＋SDK 全套，还是先 store＋server）。（未立项，本次不做）
 5. P3b 与 MCP 块的尾部相对顺序：拆为两个插入点由用户选择——`0`（MCP 之前，工具约束居末）/`1`（MCP 之后，默认，缓存友好且更靠近输入）；prompt cache 对比实测仍待真机验证（结论回写 tuning doc 待验项 #2/#4）。
