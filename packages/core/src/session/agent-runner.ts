@@ -220,7 +220,7 @@ export class AgentRunner {
       const text = slash?.text ?? message;
       this.ensureModel(slash?.modelOverride ?? opts?.modelOverride);
       this.ensureWritable();
-      await this.turnHooks.beforeTurn?.(this.agent);
+      await this.turnHooks.beforeTurn?.(this.agent, text);
       const sessionLogger = this.deps.logger.child({ sessionId: this.sessionId });
 
       sanitizer = createAttachmentSanitizer(attachments);

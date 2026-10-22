@@ -1,6 +1,6 @@
 # ADR-0015：worldbook 以队尾 user 块注入、selective 取 AND、缓存取指纹轮询
 
-- 状态：accepted
+- 状态：superseded（载体/预算两条由 ADR-0016 接替；selective AND 与指纹缓存两条仍然有效）
 - 日期：2026-09-19
 - 影响：`packages/core`（`capabilities/card/worldbook.ts`、`capabilities/card/parser.ts`）、`docs/official/architecture/capabilities.md`、`docs/official/glossary.md`
 

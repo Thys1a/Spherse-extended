@@ -7,7 +7,13 @@ const cardSearchField = Type.Union([
   Type.Literal("content"),
 ]);
 
-const cardPosition = Type.Union([Type.Literal("before_char"), Type.Literal("after_char")]);
+const cardPosition = Type.Union([
+  Type.Literal(0),
+  Type.Literal(1),
+  Type.Literal(2),
+  Type.Literal(3),
+  Type.Literal(4),
+]);
 
 const entryPatch = Type.Object(
   {
@@ -20,7 +26,10 @@ const entryPatch = Type.Object(
     insertion_order: Type.Optional(Type.Number()),
     enabled: Type.Optional(Type.Boolean()),
     position: Type.Optional(cardPosition),
+    depth: Type.Optional(Type.Integer({ minimum: 1 })),
     use_regex: Type.Optional(Type.Boolean()),
+    case_sensitive: Type.Optional(Type.Boolean()),
+    extensions: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
   },
   { additionalProperties: false },
 );
@@ -29,9 +38,14 @@ const cardEntrySummary = Type.Object({
   id: Type.Integer({ minimum: 0 }),
   comment: Type.String(),
   keys: Type.Array(Type.String()),
+  secondary_keys: Type.Array(Type.String()),
   constant: Type.Boolean(),
   enabled: Type.Boolean(),
-  position: Type.String(),
+  selective: Type.Boolean(),
+  use_regex: Type.Boolean(),
+  case_sensitive: Type.Boolean(),
+  position: cardPosition,
+  depth: Type.Optional(Type.Integer({ minimum: 1 })),
   insertion_order: Type.Number(),
   words: Type.Integer({ minimum: 0 }),
 });
@@ -46,9 +60,11 @@ const cardEntry = Type.Object({
   selective: Type.Boolean(),
   insertion_order: Type.Number(),
   enabled: Type.Boolean(),
-  position: Type.String(),
+  position: cardPosition,
+  depth: Type.Optional(Type.Integer({ minimum: 1 })),
   use_regex: Type.Boolean(),
-  extensions: Type.Unknown(),
+  case_sensitive: Type.Boolean(),
+  extensions: Type.Record(Type.String(), Type.Unknown()),
 });
 
 export const cardErrorCode = Type.Union([
@@ -113,9 +129,14 @@ export const schemas = {
         id: Type.Integer({ minimum: 0 }),
         comment: Type.String(),
         keys: Type.Array(Type.String()),
+        secondary_keys: Type.Array(Type.String()),
         constant: Type.Boolean(),
         enabled: Type.Boolean(),
-        position: Type.String(),
+        selective: Type.Boolean(),
+        use_regex: Type.Boolean(),
+        case_sensitive: Type.Boolean(),
+        position: cardPosition,
+        depth: Type.Optional(Type.Integer({ minimum: 1 })),
         insertion_order: Type.Number(),
         words: Type.Integer({ minimum: 0 }),
         matched: Type.Array(Type.String()),

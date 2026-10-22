@@ -114,6 +114,12 @@ describe("card routes (real CardStore, no mocks)", () => {
     });
     expect(JSON.parse(entries.body)).toHaveLength(1);
     expect(JSON.parse(entries.body)[0]).not.toHaveProperty("content");
+    expect(JSON.parse(entries.body)[0]).toMatchObject({
+      secondary_keys: expect.any(Array),
+      selective: expect.any(Boolean),
+      use_regex: expect.any(Boolean),
+      case_sensitive: expect.any(Boolean),
+    });
   });
 
   it("search/entry/many return expected shapes", async () => {
@@ -126,6 +132,12 @@ describe("card routes (real CardStore, no mocks)", () => {
     const body = JSON.parse(search.body);
     expect(body.total).toBe(1);
     expect(body.results[0]).toMatchObject({ id: 0, matched: ["keys", "content"] });
+    expect(body.results[0]).toMatchObject({
+      secondary_keys: expect.any(Array),
+      selective: expect.any(Boolean),
+      use_regex: expect.any(Boolean),
+      case_sensitive: expect.any(Boolean),
+    });
     const entry = await app.inject({
       method: "POST",
       url: "/api/projects/p1/card/entry",
@@ -150,6 +162,27 @@ describe("card routes (real CardStore, no mocks)", () => {
       payload: { path: FILE, ids: [0, 1], patch: { enabled: true } },
     });
     expect(JSON.parse(bulk.body)).toEqual({ count: 2 });
+  });
+
+  it("position/depth round-trip through update and entry", async () => {
+    const update = await app.inject({
+      method: "POST",
+      url: "/api/projects/p1/card/entry/update",
+      payload: { path: FILE, id: 0, patch: { position: 2, depth: 3 } },
+    });
+    expect(update.statusCode).toBe(200);
+    const entry = await app.inject({
+      method: "POST",
+      url: "/api/projects/p1/card/entry",
+      payload: { path: FILE, id: 0 },
+    });
+    expect(JSON.parse(entry.body)).toMatchObject({ position: 2, depth: 3 });
+    const badCombo = await app.inject({
+      method: "POST",
+      url: "/api/projects/p1/card/entry/update",
+      payload: { path: FILE, id: 0, patch: { position: 3, depth: 2 } },
+    });
+    expect(badCombo.statusCode).toBe(400);
   });
 
   it("400 on schema violation, 404 on missing entry", async () => {

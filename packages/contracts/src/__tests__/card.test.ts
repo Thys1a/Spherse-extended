@@ -84,6 +84,53 @@ describe("card contracts", () => {
         patch: { enabled: "yes" },
       }),
     ).toThrow(/Invalid payload/);
+    expect(() =>
+      parseContract(schemas.cardEntryUpdateRequest, {
+        path: "a.card.json",
+        id: 0,
+        patch: { position: 5 },
+      }),
+    ).toThrow(/Invalid payload/);
+    expect(() =>
+      parseContract(schemas.cardEntryUpdateRequest, {
+        path: "a.card.json",
+        id: 0,
+        patch: { depth: 0 },
+      }),
+    ).toThrow(/Invalid payload/);
+  });
+
+  it("accepts numeric position and depth", () => {
+    expect(
+      parseContract(schemas.cardEntryUpdateRequest, {
+        path: "a.card.json",
+        id: 0,
+        patch: { position: 2, depth: 3 },
+      }),
+    ).toBeTruthy();
+    expect(
+      parseContract(schemas.cardEntryAddRequest, {
+        path: "a.card.json",
+        entry: { position: 3, content: "x" },
+      }),
+    ).toBeTruthy();
+  });
+
+  it("accepts writable extensions and case_sensitive patches", () => {
+    expect(
+      parseContract(schemas.cardEntryBulkRequest, {
+        path: "a.card.json",
+        ids: [0],
+        patch: { extensions: { tag: "x" } },
+      }),
+    ).toBeTruthy();
+    expect(
+      parseContract(schemas.cardEntryUpdateRequest, {
+        path: "a.card.json",
+        id: 0,
+        patch: { case_sensitive: true },
+      }),
+    ).toBeTruthy();
   });
 
   it("rejects unknown patch keys instead of stripping them", () => {
@@ -98,7 +145,7 @@ describe("card contracts", () => {
       parseContract(schemas.cardEntryBulkRequest, {
         path: "a.card.json",
         ids: [0],
-        patch: { extensions: {} },
+        patch: { extensions: "x" },
       }),
     ).toThrow(/Invalid payload/);
   });
@@ -144,11 +191,11 @@ describe("card contracts", () => {
         entry: { id: 9 },
       }),
     ).toThrow(/Invalid payload/);
-    expect(() =>
+    expect(
       parseContract(schemas.cardEntryAddRequest, {
         path: "a.card.json",
-        entry: { extensions: {} },
+        entry: { extensions: { origin: "st" } },
       }),
-    ).toThrow(/Invalid payload/);
+    ).toBeTruthy();
   });
 });

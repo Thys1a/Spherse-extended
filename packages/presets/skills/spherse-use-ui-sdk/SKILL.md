@@ -31,7 +31,7 @@ SDK 已由 App 注入，**不要**再自己写 `<script>` 加载它，也**不�
 | 触发型（fire-and-forget） | `openSession` / `openFile` / `openExternalLink` / `floatSession` / `unfloatSession` / `floatContent` / `unfloatContent` / `emitAgentTriggerEvent` / `undockChat` / `toast` | 单向触发，无返回值 |
 | 请求型（Promise） | `createSession(params)` → `Promise<{ sessionId }>` | 创建会话，返回新会话 ID |
 | 请求型（Promise） | `sendMessage(params)` → `Promise` | 等待发送结果 |
-| 请求型（Promise） | `data.get` / `data.set` / `data.delete` / `data.keys` / `data.entries` / `data.mutate` | key-value 持久化 + manifest 结构性变更 |
+| 请求型（Promise） | `data.get` / `data.set` / `data.delete` / `data.keys` / `data.entries` / `data.mutate` / `data.query` | key-value 持久化 + manifest 结构性变更 |
 | 请求型（Promise） | `card.list` / `card.meta` / `card.entries` / `card.search` / `card.entry` / `card.many` / `card.update` / `card.bulk` / `card.add` / `card.remove` | `.card.json` 世界书读写（条目清单不带正文，写操作返回错误码） |
 | 请求型（Promise） | `uploadFile(params)` → `Promise<{ path, bytes, renamed }>` | 把 Blob/File 上传到项目目录 |
 | 请求型（Promise） | `api.call(op, args)` 及 `api.*` 命名方法 | 只读查询项目信息（agents / sessions / content / fileTree） |
@@ -319,11 +319,20 @@ const keys = await spherse.data.keys({ file: "world/game.data.json" });
 
 ### `spherse.data.entries(params)` → `Promise<Record<string, any>>`
 
-返回数据文件中全部 key-value 对象。文件不存在时返回 `{}`。
+返回数据文件中全部 key-value 对象（**全量下载**，大文件慎用；先看结构请用带 manifest 的 `data.query`，或约束文件体积——SDK 暂不暴露 outline）。文件不存在时返回 `{}`。
 
 ```javascript
 const all = await spherse.data.entries({ file: "world/game.data.json" });
 // → { score: 100, name: "Alice", items: [1, 2] }
+```
+
+### `spherse.data.query(params)` → `Promise<QueryResult>`
+
+执行数据文件 `$manifest` 中声明的业务命名查询（与 agent 的 `query_data` 同一入口）。返回整包（含 `value` / `total` / `count` / `pagination` / `nextAfter`），翻页时把上一次的 `nextAfter` 传给 `after`。
+
+```javascript
+const page = await spherse.data.query({ file: "world/game.data.json", name: "listTodos", params: { status: "pending" }, limit: 20 });
+// → { version, value: [...], total: 42, count: 20, pagination: "cursor", nextAfter: "..." }
 ```
 
 ### 数据文件命名规范
@@ -349,7 +358,7 @@ const all = await spherse.data.entries({ file: "world/game.data.json" });
 - 条目清单类接口（`list` / `meta` / `entries` / `search`）**永远不带正文**；只有 `entry` / `many` 返回完整字段（含 `content`）。
 - `search` 默认只返回启用的条目（`onlyEnabled` 默认 `true`）。
 - 写操作失败时 reject 的 `Error.message` 即服务端错误码：`card_not_found` / `entry_not_found` / `invalid_json` / `invalid_field` / `write_failed` / `forbidden` / `too_large`。
-- 可写字段仅：`keys` / `secondary_keys` / `comment` / `content` / `constant` / `selective` / `insertion_order` / `enabled` / `position`（`before_char` | `after_char`）/ `use_regex`；`id` 与 `extensions` 只读。
+- 可写字段仅：`keys` / `secondary_keys` / `comment` / `content` / `constant` / `selective` / `insertion_order` / `enabled` / `position`（数字插入点 0–4，默认 3，`position: 2` 需配 `depth`）/ `depth` / `use_regex` / `case_sensitive` / `extensions`（命名空间元数据对象，浅合并，`null` 删键）；`id` 只读。
 - 文件变化订阅复用 `events.on("file:update", { path }, handler)`，无新事件类型。
 
 ```javascript
@@ -599,7 +608,7 @@ document.getElementById("agent-select").innerHTML = html;
 
 - **SDK 自动注入**：App 向每个 HTML 注入 `<script src="__spherse-sdk.js">`（同源加载，保留 iframe 真实 origin）。**不要**自己加载或复制 SDK 源码
 - **媒体播放**：Preview Server 支持 mp3/mp4/wav/webm/ogg/flac/mov 等音视频格式（含 Range 请求，可拖动进度条）。HTML 中直接用相对路径的 `<audio src="music.mp3">` 或 `<video src="clip.mp4">` 即可播放
-- **频率限制**：每分钟最多触发 300 次操作，超出会被静默丢弃。`data.get`、`data.keys`、`data.entries`、`data.mutate` 与聊天面板的 dock/位置上报（SDK 内部自动发送）不受限，交互式页面仍应优先通过事件刷新而非高频轮询
+- **频率限制**：每分钟最多触发 300 次操作，超出会被静默丢弃。`data.get`、`data.keys`、`data.entries`、`data.mutate`、`data.query` 与聊天面板的 dock/位置上报（SDK 内部自动发送）不受限，交互式页面仍应优先通过事件刷新而非高频轮询
 - **事件订阅限制**：每个 HTML 最多同时订阅 100 个事件；订阅控制消息不计入 action 频率限制
 - **无 script-src 加载失败时**：若 HTML 自身设了限制性 CSP（如 `meta http-equiv="Content-Security-Policy"` 禁止同源 script），SDK 可能无法加载。应放宽 CSP 允许同源 script 加载，不要绕开 SDK 自行拼装 `postMessage`
 - **参数校验**：缺少必填参数或类型不匹配时操作会被静默忽略

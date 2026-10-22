@@ -475,6 +475,9 @@ export const zhCN = {
   "agent-dialog.cardLinksHint": "把项目内 .card.json 文件链入该 Agent，命中条目每轮自动注入其 prompt",
   "agent-dialog.cardLinksPlaceholder": "添加 .card.json 文件…",
   "agent-dialog.cardLinksDangling": "{name}（已丢失）",
+  "agent-dialog.cardLinksTokens": "{count}条 · 常驻{always} / ≤{max} tok",
+  "agent-dialog.cardLinksTotal": "合计 常驻{tAlways} / ≤{tMax} tok",
+  "agent-dialog.cardLinksTotalWithRatio": "合计 常驻{tAlways} / ≤{tMax} tok（占窗口{ratio}%）",
   // 预设模板入口按钮：打开提示词模板市场 dialog
   "agent-dialog.templates.browse": "浏览提示词模板…",
   // 提示词模板市场 dialog 标题

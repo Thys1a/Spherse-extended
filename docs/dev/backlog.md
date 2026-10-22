@@ -8,6 +8,7 @@
 
 - [ ] **手动验证 server 浏览器安全边界加固的真实隧道链路**：`2026-08-28-server-browser-security` 已合入 always-on token + 认证制 CORS + Host 校验，自动化已覆盖 server/desktop 语义（`browser-security.test.ts` / `server.test.ts`），但缺真机回归：① cloudflared 转发到 `http://localhost:{port}` 时的实际 Host 头形态（决定 quick 模式是否依赖动态 host 注册）；② quick tunnel 全流程（含 PWA WS 连接）；③ manual domain 反代访问与 regenerate 后域名仍可访问；④ prod 打包 renderer（file:// origin）API/WS。参见 `docs/dev/features/2026-08-28-server-browser-security/plan.md` 验证节。
 - [ ] **确认 CI 跑过 desktop E2E agent-quick-replies.spec**：quickReplies 整链（seed → 详情端点 → 回复条 → 填入）单测只各钉一段，E2E spec 已仿 `agent-quick-links.spec.ts` 写好但未本地执行（本机缺 ms-playwright 环境），靠 CI e2e 覆盖；合入后看 CI 绿再销本条。参见 `docs/dev/features/2026-10-12-quick-reply/design.md` §五。
+- [ ] **手动验证 P1 后 agent 不再整卡直读**：让 agent 在测试卡中找某条目，检查 tool trace 是否仍 `read_file` 整卡（P1 仅改文案，无自动化验收）。参见 `docs/dev/features/2026-10-22-data-query-exposure/design.md` §六第 2 条。
 
 ## Bug
 
@@ -32,7 +33,9 @@
 - [ ] **长上下文工具调用标记退化探针与强制压缩**：`assistant/message` 落盘前扫描正文 `<invoke` / `<parameter` / 模板特殊 token，命中即按 `markTruncated` 路径记 `stopReason: error` + `errorMessage` 走可见可重试链；首次标记/截断轮后把实测退化点记入会话 `observedWindow` 并强制压缩一次（复用 `maybeCompactLog` 的 `thresholdRatio: 0` 路径）；历史 assistant 正文标记做展示层剥离防自我强化（不解析回 `toolCall`）。参见 `docs/dev/bugfix/2026-10-04-toolcall-markup-on-long-context/design.md`
 - [ ] **收敛 chat 历史游标回退与滚动位毒化（新 runtime）**：`session-lifecycle.ts:116` 对账无条件覆盖 `oldestSeq`（loadMore 后重连即倒退）；`useChatScroll.ts:175` 卸载回写原始值（贴底未归 0）、`:133` 重开恢复无阈值门。方向：对账仅衔接已加载区间时更新游标，回写贴底存 0、恢复加阈值+范围校验。参见 `docs/dev/bugfix/2026-09-11-chat-theme-history/design.md` Bug 2（旧 `resolvePageCursor` 路径已随重构消失，按 `history-loader`/`session-lifecycle` 重对）
 - [ ] **agent 编辑保存丢弃 disabled 的 timePerception 配置**：`buildAgentMarkdown`（`packages/app/src/features/agent-dialog/agent-markdown.ts`）只在 `timePerception.enabled` 为真时写回，`{enabled:false}` 的既有配置经任意一次 agent 编辑保存即被整块删除。方向：写回时保留 disabled 配置原样（或收敛为显式删除语义并经用户确认），补 round-trip 用例。2026-10-19 快捷回复管理弹窗 review 发现（pre-existing，非本次引入）
+- [ ] **agent 目录本体卡被注入但外链列表不显示**：`loadAgentCards`（`packages/core/src/capabilities/card/worldbook.ts`）解析 `.spherse/agents/{slug}/` 下真实 `.card.json` 并注入，`listAgentCardLinks` 只列 symlink——直接放本体的卡会出现“合计 0 tok 但实际有注入”，画像汇总误导。方向：列表纳入本体卡（标注非外链）或写路径明确拒绝本体卡。2026-10-21 budget review 发现（pre-existing，非本次引入）
 - [ ] **重做任务栏小尺寸图标可辨识度**：`packages/desktop/build/spherse-icon.png`（512）与 exe 提取小图标角落+中心全为不透明白（255,255,255,255），白底+浅灰细线在浅色任务栏上近乎隐形、呈“默认图标”观感。方向：图标去白底改透明，或为 16/32 尺寸做加粗简化版；同步验证 exe 内嵌与任务栏/托盘观感。参见 `docs/dev/bugfix/2026-10-17-ui-triage/design.md` 追记五
+- [ ] **补 data.query manifest-stale 409 的 server 测试**：`sendDataError` 有 409 分支、core 会抛 `ManifestStaleError`，但 query 路径无触发该分支的 fixture 覆盖（mutate 侧有）。参见 `docs/dev/features/2026-10-22-data-query-exposure/design.md` §3.2。
 
 ## 技术债（重构与收敛）
 
@@ -66,6 +69,15 @@
 - [ ] **yolo 审批策略泛化（条件触发：第二个审批策略需求出现时）**：`profile.yolo ? undefined : approvalGate` 泛化为 `approvalPolicy` 贡献点（白名单命令免审批/分级审批等）。
 - [ ] **data-conventions.md 拆分阈值（条件触发：文件继续增长时）**：重写后 265 行（规范上限约 200），当前单主题表格密度高、尚可维护；若继续增长（如新增数据文件类型或卡片种类），优先把「HTML Card / Image Card」两节拆出 `docs/official/cards.md`，或把「触发器 + Session 数据」合并拆出会话域文件，拆分时同步更新 core.md / chat.md / capabilities.md 中的交叉引用。
 - [ ] **shutdown 生命周期统一契约（条件触发：chat session runtime 生命周期重构或 capability 拆分立项时）**：当前 shutdown 正确性靠调用点手工防御（`ProjectRuntime.shutdown` 手工顺序 + `settleWithin` 逐 capability 包裹、desktop `closeServerHandle` 分段超时、main.ts 硬兜底，见 `docs/dev/bugfix/2026-08-29-e2e-app-close-hang/design.md`），组件 close 语义异构（`closeAll` 同步清 map 且不 abort 在跑 turn、sqlite/fs-watch 同步、MCP close 异步无界），且无 cancellation 传播——超时即放弃，底层工作泄漏至 `app.exit` 强杀。方向：统一 lifecycle 端口（`stop(signal)` 按启动逆序）、AbortSignal 两阶段升级（graceful → 取消 → 才放弃）、声明式 phase 注册（超时/隔离/逆序由结构保证，与「PM 写入门面声明式校验组合」「架构契约可测试化」同哲学）。与「refreshProjects 路径不回收 chat session runtime」「Capability 接口拆分调研」同属生命周期归属问题，触发时合并设计。
+- [ ] **read_file 执行期拦截 .card.json（条件触发：P1 文案无效、整卡直读依旧时）**：执行期拒绝并返回指引；行为变更，需单独评审（会卡死未开 card 权限组的 agent）。参见 `docs/dev/features/2026-10-22-data-query-exposure/design.md` §五。
+- [ ] **跨卡全文搜索（条件触发：世界书管理 UI 需要全局检索时）**：core `CardStore.searchAll`（walk＋聚合）→ contracts → server → app → SDK，约 9 文件。参见同上 §五。
+- [ ] **data 子串/全文搜索（条件触发：出现内容召回而非精确查询需求时）**：`query-engine.ts` 加 `contains/regex` 操作符＋`validate.ts` 加 param 类型，二阶段。参见同上 §五。
+- [ ] **`search_content` HTTP/UI 暴露（条件触发：前端/HTML 需要通用文件搜索时）**：新路由＋schema＋client＋`api.call` 白名单；先评审权限/限流。参见同上 §五。
+- [ ] **ST T2'/T3 运行时语义（条件触发：ST 卡位置保真 / 概率组递归等语义需求时）**：位置映射表（先对照 ST 源码核实枚举）或组选/递归/跨轮状态，单独 design。参见同上 §五。
+- [ ] **轻量 keys-only 接口（条件触发：outline 不够用且大文件 keys 成瓶颈时）**：outline 缓存复用或 `data/read` 加 `keysOnly` 模式。参见同上 §五。
+- [ ] **agent 世界书卡目录 op（条件触发：世界书管理 UI 立项时）**：`CardStore.agentCards(slug)` → contracts → server → SDK（`card.agentList`），方案 A。参见 `docs/dev/features/2026-10-12-worldbook-position/positions-card-op.md` §3.2。
+- [ ] **顶层自定义字段 `meta.custom` 透传（条件触发：世界书管理 UI 需要展示卡级自定义时）**：`meta` 加 `custom?: Record`。参见 `docs/dev/features/2026-10-22-data-query-exposure/design.md` §五。
+- [ ] **SDK data 方法类型收紧（条件触发：下次动 SDK 类型时）**：六个 `data.*` 共用 `Record<string, unknown>`，`query` 误传 `args` 等到运行时静默失败才发现；收紧属 breaking，要么六个一起、要么至少给 `query` 加独立 `QueryParams`。review 发现，暂记。
 
 ## 功能增强
 

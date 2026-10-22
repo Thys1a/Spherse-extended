@@ -64,6 +64,24 @@ export function registerDataRoutes(fastify: FastifyInstance, registry: ProjectRe
   );
 
   fastify.post<{ Params: { projectId: string } }>(
+    "/api/projects/:projectId/data/query",
+    { schema: { body: schemas.dataQueryRequest, response: { 200: schemas.dataQueryResponse } } },
+    async (req, reply) => {
+      const body = parseContract(schemas.dataQueryRequest, req.body);
+      const store = dataStoreOf(registry, req);
+      try {
+        const result = await store.query(body.file, body.name, body.params ?? {}, {
+          ...(body.limit !== undefined ? { limit: body.limit } : {}),
+          ...(body.after !== undefined ? { after: body.after } : {}),
+        });
+        return reply.code(200).send(result);
+      } catch (err) {
+        return sendDataError(reply, err);
+      }
+    },
+  );
+
+  fastify.post<{ Params: { projectId: string } }>(
     "/api/projects/:projectId/data/mutate",
     { schema: { body: schemas.dataMutateRequest, response: { 200: schemas.dataMutateResponse } } },
     async (req, reply) => {

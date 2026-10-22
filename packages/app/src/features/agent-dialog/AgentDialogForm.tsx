@@ -17,6 +17,7 @@ import { Label } from "../../components/ui/label";
 import { ToolPicker } from "./ToolPicker";
 import { ADVANCED_TOOL_IDS } from "./tool-registry";
 import { ModelConfigField, modelExistsInCatalog } from "./ModelConfigField";
+import { resolveModelContextWindow } from "./model-catalog";
 import { PathListField } from "./PathListField";
 import { QuickReplyField } from "./QuickReplyField";
 import { QuickReplyManagerDialog } from "./QuickReplyManagerDialog";
@@ -51,6 +52,7 @@ export function AgentDialogForm({ initial, mode, agentId, onSubmit, onCancel }: 
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [providers, setProviders] = useState<Record<string, ProviderCatalogItem> | null>(null);
   const [configuredIds, setConfiguredIds] = useState<Set<string>>(new Set());
+  const [textDefaultModel, setTextDefaultModel] = useState<string>("");
 
   useEffect(() => {
     let cancelled = false;
@@ -60,6 +62,7 @@ export function AgentDialogForm({ initial, mode, agentId, onSubmit, onCancel }: 
     ]).then(([catalog, settings]) => {
       if (cancelled) return;
       if (catalog) setProviders(catalog);
+      setTextDefaultModel(settings?.models?.text?.defaultModel ?? "");
       const stored = settings?.models?.text?.providers ?? {};
       const ids = new Set<string>();
       for (const id of new Set([...Object.keys(stored), ...Object.keys(catalog ?? {})])) {
@@ -267,7 +270,14 @@ export function AgentDialogForm({ initial, mode, agentId, onSubmit, onCancel }: 
               />
             )}
             {mode === "edit" && agentId && client && (
-              <AgentCardLinksField agentId={agentId} client={client} />
+              <AgentCardLinksField
+                agentId={agentId}
+                client={client}
+                contextWindow={resolveModelContextWindow(
+                  formData.model || textDefaultModel || undefined,
+                  providers ?? {},
+                )}
+              />
             )}
             <Field className="min-h-0 flex-1">
               <HintLabel hint={t("agent-dialog.themeScopeHint")}>{t("agent-dialog.themeLabel")}</HintLabel>

@@ -6,6 +6,19 @@ import { createMockHostBridge } from "../../test/host-bridge";
 import { AgentCardLinksField } from "./AgentCardLinksField";
 import type { ApiClient } from "../../lib/api";
 
+function link(overrides: Record<string, unknown> = {}) {
+  return {
+    name: "lore.card.json",
+    target: "lore/lore.card.json",
+    dangling: false,
+    entryCount: 2,
+    enabledEntryCount: 2,
+    alwaysTokens: 10,
+    maxTurnTokens: 40,
+    ...overrides,
+  };
+}
+
 function mockClient(overrides: Partial<ApiClient> = {}): ApiClient {
   return {
     listAgentCardLinks: vi.fn(async () => []),
@@ -13,17 +26,24 @@ function mockClient(overrides: Partial<ApiClient> = {}): ApiClient {
       name: path.split("/").pop() ?? path,
       target: path,
       dangling: false,
+      entryCount: 0,
+      enabledEntryCount: 0,
+      alwaysTokens: 0,
+      maxTurnTokens: 0,
     })),
     removeAgentCardLink: vi.fn(async () => ({ ok: true })),
     ...overrides,
   } as unknown as ApiClient;
 }
 
-function renderField(client: ApiClient) {
-  return renderWithProviders(<AgentCardLinksField agentId="a1" client={client} />, {
-    queryClient: createTestQueryClient(),
-    bridge: createMockHostBridge(),
-  });
+function renderField(client: ApiClient, contextWindow?: number) {
+  return renderWithProviders(
+    <AgentCardLinksField agentId="a1" client={client} contextWindow={contextWindow} />,
+    {
+      queryClient: createTestQueryClient(),
+      bridge: createMockHostBridge(),
+    },
+  );
 }
 
 describe("AgentCardLinksField", () => {
@@ -33,9 +53,7 @@ describe("AgentCardLinksField", () => {
 
   it("lists existing links with targets", async () => {
     const client = mockClient({
-      listAgentCardLinks: vi.fn(async () => [
-        { name: "lore.card.json", target: "lore/lore.card.json", dangling: false },
-      ]),
+      listAgentCardLinks: vi.fn(async () => [link()]),
     });
     renderField(client);
     await waitFor(() => expect(screen.getByText("lore/lore.card.json")).not.toBeNull());
@@ -45,17 +63,36 @@ describe("AgentCardLinksField", () => {
   it("marks dangling links", async () => {
     const client = mockClient({
       listAgentCardLinks: vi.fn(async () => [
-        { name: "gone.card.json", target: "", dangling: true },
+        link({ name: "gone.card.json", target: "", dangling: true }),
       ]),
     });
     renderField(client);
     await waitFor(() => expect(screen.getByText(/gone\.card\.json/)).not.toBeNull());
+    expect(screen.queryByText(/tok/)).toBeNull();
+    expect(screen.queryByText(/合计/)).toBeNull();
+  });
+
+  it("shows per-link token stats and totals with window ratio", async () => {
+    const client = mockClient({
+      listAgentCardLinks: vi.fn(async () => [link()]),
+    });
+    renderField(client, 200);
+    await waitFor(() => expect(screen.getByText(/2条/)).not.toBeNull());
+    expect(screen.getByText(/占窗口20%/)).not.toBeNull();
+  });
+
+  it("shows totals without ratio when context window is unknown", async () => {
+    const client = mockClient({
+      listAgentCardLinks: vi.fn(async () => [link()]),
+    });
+    renderField(client);
+    await waitFor(() => expect(screen.getByText(/合计/)).not.toBeNull());
+    expect(screen.queryByText(/占窗口/)).toBeNull();
   });
 
   it("removes a link and reloads", async () => {
     const client = mockClient({
-      listAgentCardLinks: vi
-        .fn(async () => [{ name: "lore.card.json", target: "lore/lore.card.json", dangling: false }]),
+      listAgentCardLinks: vi.fn(async () => [link()]),
     });
     const user = userEvent.setup();
     renderField(client);

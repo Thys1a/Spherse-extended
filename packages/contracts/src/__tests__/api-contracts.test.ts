@@ -259,6 +259,26 @@ describe("api contracts", () => {
     ).toThrow(/Invalid payload/);
   });
 
+  it("validates agent card link list response", () => {
+    const link = {
+      name: "lore.card.json",
+      target: "lore/lore.card.json",
+      dangling: false,
+      entryCount: 2,
+      enabledEntryCount: 2,
+      alwaysTokens: 10,
+      maxTurnTokens: 40,
+    };
+    expect(parseApiResponse(schemas.cardLinkListResponse, [link])).toEqual([link]);
+    expect(parseApiResponse(schemas.cardLinkAddResponse, link)).toEqual(link);
+    expect(() =>
+      parseApiResponse(schemas.cardLinkListResponse, [{ name: "lore.card.json" }]),
+    ).toThrow(/Invalid payload/);
+    expect(() =>
+      parseApiResponse(schemas.cardLinkListResponse, [{ ...link, maxTurnTokens: -1 }]),
+    ).toThrow(/Invalid payload/);
+  });
+
   it("validates session search response", () => {
     const hit = {
       agentId: "a1",

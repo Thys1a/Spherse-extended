@@ -7,7 +7,7 @@ export interface TurnEventAppender {
 }
 
 export interface TurnHooks {
-  beforeTurn?(agent: Agent): Promise<void>;
+  beforeTurn?(agent: Agent, pendingUserText?: string): Promise<void>;
   afterTurn?(agent: Agent, eventLog: TurnEventAppender): Promise<void>;
   onReload?(): void;
 }
@@ -28,8 +28,8 @@ export interface CompactionOutcome {
 
 export function composeTurnHooks(hooks: ReadonlyArray<TurnHooks>): TurnHooks {
   return {
-    async beforeTurn(agent) {
-      for (const hook of hooks) await hook.beforeTurn?.(agent);
+    async beforeTurn(agent, pendingUserText?) {
+      for (const hook of hooks) await hook.beforeTurn?.(agent, pendingUserText);
     },
     async afterTurn(agent, eventLog) {
       for (const hook of hooks) {
