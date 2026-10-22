@@ -33,8 +33,11 @@ export interface CardEntrySummary {
   id: number;
   comment: string;
   keys: string[];
+  secondary_keys: string[];
   constant: boolean;
   enabled: boolean;
+  selective: boolean;
+  use_regex: boolean;
   position: CardPosition;
   depth?: number;
   insertion_order: number;

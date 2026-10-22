@@ -165,6 +165,11 @@ describe("CardStore reads", () => {
     expect(all).toHaveLength(2);
     expect(all[0]).not.toHaveProperty("content");
     expect(all[0]).toMatchObject({ id: 0, words: 17 });
+    expect(all[0]).toMatchObject({
+      secondary_keys: expect.any(Array),
+      selective: expect.any(Boolean),
+      use_regex: expect.any(Boolean),
+    });
     expect(await store.entries("game/a.card.json", { enabled: false })).toHaveLength(1);
     expect(await store.entries("game/a.card.json", { constant: true })).toHaveLength(0);
   });
@@ -190,5 +195,10 @@ describe("CardStore reads", () => {
       fields: ["keys", "comment", "content"],
     });
     expect(hits.map((h) => h.id)).toEqual([0]);
+    expect(hits[0]).toMatchObject({
+      secondary_keys: expect.any(Array),
+      selective: expect.any(Boolean),
+      use_regex: expect.any(Boolean),
+    });
   });
 });
