@@ -124,13 +124,14 @@
 
 | 候选 | 说明 | 现状与落点 | 排期 |
 |---|---|---|---|
-| **AI 输出 → chat 渲染** | 解析输出中的 JSON 块 / 正则命中 → 卡片 / UI | 已有 fence 解析先例（`html-fence-parser`、引用围栏、`render_card`）；扩展为通用结构化块渲染器（前端渲染层） | **v1.1.x** |
+| **AI 输出 → chat 渲染** | 解析输出中的 JSON 块 / 正则命中 / 分段标记 → 卡片 / UI / 多气泡 | 已有 fence 解析先例（`html-fence-parser`、引用围栏、`render_card`）；扩展为通用输出标记解析器（前端渲染层）：结构化块 → 卡片、多气泡分段标记 → 气泡切分，共用同一 tokenizer；分段需求见 `11-chat-bubbles-stickers.md` §五，以本节为唯一出处 | **v1.1.0** |
 | **AI 输出 → trigger** | 扫描 assistant 输出 → 发 trigger 事件 | 已有 `emit_trigger_event`（原生）；补「输出后扫描」钩子（session 输出中间件） | **v1.1.x** |
 | **trigger → 跑脚本（非 agent）** | trigger 动作为「执行脚本」，不烧 agent turn；确定性自动化 | 无；需 trigger 新 action 类型 + 脚本运行时 + 沙箱 / 白名单 / 审批 | **v1.3.x 预备案** |
 
 **原则**（讨论结论）：
 
 - 结构化**副作用**优先走原生工具调用（`render_card` / `emit_trigger_event` / `mutate_data`）；**不用文本正则驱动副作用**——那是把 tool call 降级为文本协议，重蹈 backlog「长上下文工具调用写成明文标记」的脆弱性。
+- 分段标记是**展示提示**，不是副作用协议：只改变渲染（一切多泡），不写盘、不触发动作、不参与审批；模型不输出标记时退化为单气泡。标记必须在读取边界（复制 / TTS / 搜索摘要 / 导出）剥离，与 `stripHtmlFences` 同级；裸换行不得作为分泡依据（会切碎代码块 / 表格 / 列表），只认显式标记 + 围栏保护。
 - 消费方是 HTML 卡 / 外部 UI 时，走**数据文件桥**（agent 写 `.data.json`，卡 `data.*` / `file:update` 读），而非解析聊天文本。
 - 「输出 → 脚本」单独评估：把 LLM 输出当执行向量，安全面大（allowlist + 沙箱 + opt-in + 防注入），故列 **v1.3.x 预备案**。
 

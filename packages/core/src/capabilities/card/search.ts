@@ -13,17 +13,18 @@ function clamp(value: number, min: number, max: number): number {
 const REGEX_CACHE_CAPACITY = 500;
 const regexCache = new Map<string, RegExp | null>();
 
-function cachedRegExp(key: string): RegExp | null | undefined {
-  const hit = regexCache.get(key);
+function cachedRegExp(key: string, caseSensitive: boolean): RegExp | null | undefined {
+  const cacheKey = `${caseSensitive ? "s" : "i"}:${key}`;
+  const hit = regexCache.get(cacheKey);
   if (hit !== undefined) return hit;
   let compiled: RegExp | null;
   try {
-    compiled = new RegExp(key, "i");
+    compiled = new RegExp(key, caseSensitive ? "" : "i");
   } catch {
     compiled = null;
   }
-  if (regexCache.has(key)) regexCache.delete(key);
-  regexCache.set(key, compiled);
+  if (regexCache.has(cacheKey)) regexCache.delete(cacheKey);
+  regexCache.set(cacheKey, compiled);
   while (regexCache.size > REGEX_CACHE_CAPACITY) {
     const oldest = regexCache.keys().next().value;
     if (oldest === undefined) break;
@@ -34,21 +35,22 @@ function cachedRegExp(key: string): RegExp | null | undefined {
 
 export function matchKeys(entry: CardEntry, query: string): { hit: boolean; regexFallback: boolean } {
   const keys = [...entry.keys, ...entry.secondary_keys];
-  const q = query.toLowerCase();
+  const cs = entry.case_sensitive;
+  const q = cs ? query : query.toLowerCase();
   let fallbackHit = false;
   for (const key of keys) {
     if (!key) continue;
     if (entry.use_regex) {
-      const pattern = cachedRegExp(key);
+      const pattern = cachedRegExp(key, cs);
       if (pattern) {
         if (pattern.test(query)) return { hit: true, regexFallback: false };
         continue;
       }
-      const k = key.toLowerCase();
+      const k = cs ? key : key.toLowerCase();
       if (k.includes(q) || q.includes(k)) fallbackHit = true;
       continue;
     }
-    const k = key.toLowerCase();
+    const k = cs ? key : key.toLowerCase();
     if (k.includes(q) || q.includes(k)) return { hit: true, regexFallback: false };
   }
   return { hit: fallbackHit, regexFallback: fallbackHit };
@@ -105,9 +107,14 @@ export function searchEntries(entries: CardEntry[], opts: CardSearchOpts): CardS
       id: entry.id,
       comment: entry.comment,
       keys: entry.keys,
+      secondary_keys: entry.secondary_keys,
       constant: entry.constant,
       enabled: entry.enabled,
+      selective: entry.selective,
+      use_regex: entry.use_regex,
+      case_sensitive: entry.case_sensitive,
       position: entry.position,
+      ...(entry.depth !== undefined ? { depth: entry.depth } : {}),
       insertion_order: entry.insertion_order,
       words: entry.words,
       matched,

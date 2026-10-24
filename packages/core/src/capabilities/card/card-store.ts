@@ -14,6 +14,7 @@ import {
   CardNotFoundError,
   CardTooLargeError,
   CardWriteFailedError,
+  DEFAULT_CARD_POSITION,
   EntryNotFoundError,
   InvalidFieldError,
   type CardChangeEvent,
@@ -41,8 +42,15 @@ const WRITABLE_FIELDS: ReadonlySet<string> = new Set([
   "insertion_order",
   "enabled",
   "position",
+  "depth",
   "use_regex",
+  "case_sensitive",
+  "extensions",
 ]);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
 
 function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((v) => typeof v === "string");
@@ -69,19 +77,39 @@ function validatePatch(patch: EntryPatch): string[] {
       case "selective":
       case "enabled":
       case "use_regex":
+      case "case_sensitive":
         if (typeof value !== "boolean") invalid.push(key);
         break;
       case "insertion_order":
         if (typeof value !== "number") invalid.push(key);
         break;
       case "position":
-        if (value !== "before_char" && value !== "after_char") invalid.push(key);
+        if (typeof value !== "number" || !Number.isInteger(value) || value < 0 || value > 4) {
+          invalid.push(key);
+        }
+        break;
+      case "depth":
+        if (typeof value !== "number" || !Number.isInteger(value) || value < 1) {
+          invalid.push(key);
+        }
+        break;
+      case "extensions":
+        if (!isRecord(value)) invalid.push(key);
         break;
       default:
         invalid.push(key);
     }
   }
   return invalid;
+}
+
+function mergeExtensions(current: unknown, patch: Record<string, unknown>): Record<string, unknown> {
+  const base = isRecord(current) ? { ...current } : {};
+  for (const [key, value] of Object.entries(patch)) {
+    if (value === null) delete base[key];
+    else base[key] = value;
+  }
+  return base;
 }
 
 function sameValue(a: unknown, b: unknown): boolean {
@@ -99,9 +127,11 @@ function canonicalEntry(id: number, body: EntryPatch): Record<string, unknown> {
     selective: body.selective ?? false,
     insertion_order: body.insertion_order ?? 0,
     enabled: body.enabled ?? true,
-    position: body.position ?? "after_char",
+    position: body.position ?? DEFAULT_CARD_POSITION,
     use_regex: body.use_regex ?? false,
-    extensions: {},
+    case_sensitive: body.case_sensitive ?? false,
+    extensions: isRecord(body.extensions) ? mergeExtensions({}, body.extensions) : {},
+    ...(body.depth !== undefined ? { depth: body.depth } : {}),
   };
 }
 
@@ -197,9 +227,14 @@ function toSummary(entry: CardEntry): CardEntrySummary {
     id: entry.id,
     comment: entry.comment,
     keys: entry.keys,
+    secondary_keys: entry.secondary_keys,
     constant: entry.constant,
     enabled: entry.enabled,
+    selective: entry.selective,
+    use_regex: entry.use_regex,
+    case_sensitive: entry.case_sensitive,
     position: entry.position,
+    ...(entry.depth !== undefined ? { depth: entry.depth } : {}),
     insertion_order: entry.insertion_order,
     words: entry.words,
   };
@@ -376,6 +411,9 @@ export function createCardStore(opts: CreateCardStoreOptions): CardStore {
     ): Promise<{ id: number; changed: string[]; version: string; undo?: UndoRecord }> {
       const invalid = validatePatch(patch);
       if (invalid.length > 0) throw new InvalidFieldError(invalid);
+      if (patch.position !== undefined && patch.position !== 2 && patch.depth !== undefined) {
+        throw new InvalidFieldError(["depth"]);
+      }
       const absPath = resolveCardFile(root, file);
       const rel = toPosixRelative(root, absPath);
       const result = await mutex.run(absPath, async () => {
@@ -386,10 +424,22 @@ export function createCardStore(opts: CreateCardStoreOptions): CardStore {
           if (!raw) throw new EntryNotFoundError(rel, id);
           previous = structuredClone(raw);
           for (const [key, value] of Object.entries(patch)) {
+            if (key === "extensions") {
+              const merged = mergeExtensions(raw[key], value as Record<string, unknown>);
+              if (!sameValue(raw[key], merged)) {
+                raw[key] = merged;
+                if (!changed.includes(key)) changed.push(key);
+              }
+              continue;
+            }
             if (!sameValue(raw[key], value)) {
               raw[key] = value;
               if (!changed.includes(key)) changed.push(key);
             }
+          }
+          if (patch.position !== undefined && patch.position !== 2 && "depth" in raw) {
+            delete raw.depth;
+            if (!changed.includes("depth")) changed.push("depth");
           }
         });
         return { id, changed, previous, version };
@@ -413,6 +463,9 @@ export function createCardStore(opts: CreateCardStoreOptions): CardStore {
     ): Promise<{ count: number; version: string; undo?: UndoRecord }> {
       const invalid = validatePatch(patch);
       if (invalid.length > 0) throw new InvalidFieldError(invalid);
+      if (patch.position !== undefined && patch.position !== 2 && patch.depth !== undefined) {
+        throw new InvalidFieldError(["depth"]);
+      }
       const absPath = resolveCardFile(root, file);
       const rel = toPosixRelative(root, absPath);
       if (ids.length === 0) {
@@ -427,7 +480,10 @@ export function createCardStore(opts: CreateCardStoreOptions): CardStore {
             if (!raw) throw new EntryNotFoundError(rel, id);
             previous.push({ id, entry: structuredClone(raw) });
             for (const [key, value] of Object.entries(patch)) {
-              raw[key] = value;
+              raw[key] = key === "extensions" ? mergeExtensions(raw[key], value as Record<string, unknown>) : value;
+            }
+            if (patch.position !== undefined && patch.position !== 2 && "depth" in raw) {
+              delete raw.depth;
             }
           }
         });
@@ -449,6 +505,12 @@ export function createCardStore(opts: CreateCardStoreOptions): CardStore {
     ): Promise<{ id: number; version: string; undo?: UndoRecord }> {
       const invalid = validatePatch(entry);
       if (invalid.length > 0) throw new InvalidFieldError(invalid);
+      if (entry.position !== undefined && entry.position !== 2 && entry.depth !== undefined) {
+        throw new InvalidFieldError(["depth"]);
+      }
+      if ((entry.position ?? DEFAULT_CARD_POSITION) === 2 && entry.depth === undefined) {
+        throw new InvalidFieldError(["depth"]);
+      }
       const absPath = resolveCardFile(root, file);
       const rel = toPosixRelative(root, absPath);
       const result = await mutex.run(absPath, async () => {

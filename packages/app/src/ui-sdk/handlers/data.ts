@@ -114,6 +114,33 @@ registerAction("data.mutate", async (params, ctx) => {
   }
 });
 
+registerAction("data.query", async (params, ctx) => {
+  const { file, name, params: queryParams, limit, after } = params as {
+    file: unknown;
+    name: unknown;
+    params?: unknown;
+    limit?: unknown;
+    after?: unknown;
+  };
+  const validFile = validateFileParam(file);
+  if (!validFile || typeof name !== "string" || !name || !ctx.client) return;
+
+  try {
+    const r = await ctx.client.dataQuery({
+      file: validFile,
+      name,
+      ...(typeof queryParams === "object" && queryParams !== null && !Array.isArray(queryParams)
+        ? { params: queryParams as Record<string, unknown> }
+        : {}),
+      ...(typeof limit === "number" ? { limit } : {}),
+      ...(typeof after === "string" && after ? { after } : {}),
+    });
+    respond(ctx, true, r);
+  } catch {
+    respond(ctx, false);
+  }
+});
+
 registerAction("data.keys", async (params, ctx) => {
   const { file } = params as { file: unknown };
   const validFile = validateFileParam(file);

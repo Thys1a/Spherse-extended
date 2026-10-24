@@ -28,4 +28,5 @@
 | [0012](0012-chat-hub-lifecycle-ownership.md) | chat hub 生命周期与所有权收口（runtime 身份索引、channel 状态机、release 权归 core、server 单点关停） | accepted |
 | [0013](0013-turn-rollback-undo-log.md) | turn 级回滚走 undo 日志 + 版本守卫 | accepted |
 | [0014](0014-upstream-merge-chat-architecture.md) | 上游合并接受 chat 新架构，本地功能前移 | accepted |
-| [0015](0015-worldbook-injection.md) | worldbook 注入（原 0012，与上游 chat-hub 碰撞后更名） | accepted |
+| [0015](0015-worldbook-injection.md) | worldbook 注入（原 0012，与上游 chat-hub 碰撞后更名） | superseded（由 ADR-0016 接替载体/预算） |
+| [0016](0016-worldbook-positions.md) | worldbook 取消预算上限、数字插入点 0–4 | accepted |

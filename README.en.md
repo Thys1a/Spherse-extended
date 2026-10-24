@@ -51,6 +51,12 @@ The reusable, distributable unit is not merely a prompt. It is a complete Worksp
 - **System notifications**: pushed on approvals and trigger completion. OS notification when the window is blurred, in-app toast only when focused; events still land while minimized so nothing is lost on restore.
 - **Attachments**: multi-attach images and text files (txt/md/json) via the attach button.
 - **Edit and resend**: edit the last user message in place and resend it; the editor auto-grows.
+- **Message withdrawal**: withdraw the last AI turn in one click.
+- **Inline HTML rendering toggle**: HTML code blocks in chat text can switch inline rendering on or off.
+- **In-session search**: a find button in the chat header, reachable from floating and docked panels.
+- **Token usage display**: context pill (used/limit), per-turn input/output badges, composer draft estimate.
+- **Quick replies**: each Agent can carry its own reply set, shown as buttons above the composer; one click fills the input.
+- **Assistant convention**: plan first, then act — questions first, plan confirmed before doing anything (default for new projects).
 - **Slash commands**: `/skill:` invokes a skill, `/command:` invokes a project-level command (with `$ARGUMENTS`/`$1..`/`@path` expansion), managed in the Commands panel.
 - **Summon an Agent**: `>> <slug> <message>` hands a task to another Agent (fire-and-forget); the current session keeps a clickable summon card.
 - **Pet mode**: the floating window collapses into a desktop mini window (avatar circle + mini composer). Enter via "Pet mode" in the session context menu; click the avatar to return to full mode.
@@ -70,6 +76,21 @@ The reusable, distributable unit is not merely a prompt. It is a complete Worksp
 - **Tab management**: close / close others / close all from the tab context menu; split view for two files side by side.
 - **Markdown**: outline jump navigation, check/uncheck checkboxes in reading mode (saved to disk), find and replace in editing mode.
 - **File list**: blank-area context menu, rename, drag-to-move, shift multi-select with batch delete.
+
+### World books and long-term memory (not in upstream)
+
+- **Automatic world-book injection**: keyword/regex hits, constant residency, selective combination conditions; all matching entries injected with no entry/token caps; `.card.json` books can be shared via links (agent dialog + manage_agent); five optional injection positions; per-link token portraits; entries support extensions and case-sensitive matching.
+- **Rollback**: `rollback_turn` undoes one turn's data and card writes in a single call.
+- **Long-term memory**: `memory_save` / `memory_recall` remember facts across sessions.
+
+### Context engineering (not in upstream)
+
+- **Multi-turn compaction**: pre-send checks, auto-continuation after cutoff, three-layer tool-output defense, manual compaction entry, automatic shrinking of historical tool outputs.
+- **Retrieval guardrails**: `search_content` reports and skips oversized files, with per-line and total truncation.
+
+### Automation events (beyond upstream triggers)
+
+- Turn events: `sp:user-message` / `sp:assistant-message` / `sp:turn-end` can be subscribed by triggers; WS anti-forgery; trigger-chain depth protection.
 
 ## Builtin skills
 
@@ -135,12 +156,18 @@ Triggers allow agents to work without waiting for a new chat:
 - Execute in a new or designated existing session
 - Receive events from users, HTML pages, or other agents
 - Persist execution status and logs
+- Trigger runs land as session events: their progress and results are visible right in chat
 
 ### World books and long-term memory
 
 - World books: attach `.card.json` character books to an agent; matching entries are injected into context automatically, and multiple agents can link to one shared book
 - Long-term memory: agents remember facts across sessions with `memory_save` / `memory_recall`, and `rollback_turn` can undo a single turn's writes
 - Structured data: `.data.json` files with manifest-validated reads and writes; linked HTML cards refresh as data changes
+
+### Context management
+
+- Automatic compaction for long sessions: over-threshold history is summarized and the session continues, with a manual trigger available
+- Tool-output budgets: oversized tool results are truncated and older outputs shrink automatically, so one call can't blow up the context window
 
 ### HTML + UI SDK: from content to application
 
@@ -175,7 +202,14 @@ Spherse ships as a macOS, Windows, and Linux desktop app. A token-protected Web 
 
 ## Release notes
 
-### v1.0.0 (current)
+### v1.0.2 (current)
+
+- World-book injection scale-up: entry/token budget caps removed, all matching entries are injected; per-link token portraits next to agent dialog links
+- Optional injection positions: five slots across the system prompt, history anchors, and before the current message
+- Named data queries: HTML pages can fetch paginated results from manifest-declared queries
+- World-book editing improvements: writable extensions, case-sensitive key matching
+
+### v1.0.0
 
 - Automatic world-book injection with shared links, agent long-term memory with turn rollback
 - Validated structured data, trigger turn events, context compaction and budgets
@@ -183,10 +217,10 @@ Spherse ships as a macOS, Windows, and Linux desktop app. A token-protected Web 
 
 ## Roadmap
 
-- Merge the latest upstream release (v0.6.0): server-side settings, template marketplace, welcome tab, and more, merged after per-difference review
-- World-book position fix with larger budgets, session-level profiles, token display, state data links
-- Worldbuilding aids, restricted SDK writes, AI output parsing, language learning with info cards, memory upgrades
-- Script-running triggers, in-app backup, agent roundtable, swipe alternatives
+- **v1.1.0 (writing & storage)**: worldbuilding aids (with data-format visualization), restricted SDK writes, memory upgrades, world book UI, in-app backup
+- **v1.2.0 (tooling)**: AI output parsing (chat rendering / trigger integration), bubble translation with quote styling, info-card usage, kit import/export, auxiliary models
+- **v1.3.0 (mobile)**: mobile experience improvements
+- Ongoing upstream merges, applied after per-difference review
 
 ## Local development
 

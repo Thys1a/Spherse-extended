@@ -44,7 +44,7 @@ Fastify API 层，为 Spherse 桌面应用提供多项目 HTTP + WebSocket 服�
    );
    ```
 
-    当前覆盖（含 pi 复杂嵌套对象或需要 handler 内双重校验的端点）：sessions 全部读端点、skills 创建/install、content 目录与读取、debug turn-context/session-events、marketplace install、data 四个 body。其余 route 一律用机制 1。
+    当前覆盖（含 pi 复杂嵌套对象或需要 handler 内双重校验的端点）：sessions 全部读端点、skills 创建/install、content 目录与读取、debug turn-context/session-events、marketplace install、data 五个 body。其余 route 一律用机制 1。
 
 3. **WebSocket** —— 不走 Fastify schema，收到的 JSON 必须通过 contract parser 校验，非法消息返回统一 error event：
 

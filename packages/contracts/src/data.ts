@@ -34,6 +34,25 @@ export const dataMutateResponse = Type.Object({
   result: Type.Unknown(),
 });
 
+export const dataQueryRequest = Type.Object({
+  file: Type.String({ minLength: 1 }),
+  name: Type.String({ minLength: 1 }),
+  params: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
+  limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 100 })),
+  after: Type.Optional(Type.String({ minLength: 1 })),
+});
+
+export const dataQueryResponse = Type.Object({
+  version: Type.String(),
+  value: Type.Unknown(),
+  total: Type.Integer({ minimum: 0 }),
+  count: Type.Integer({ minimum: 0 }),
+  pagination: Type.Union([Type.Literal("cursor"), Type.Literal("offset-drift")]),
+  nextAfter: Type.Optional(Type.String()),
+  truncatedItems: Type.Optional(Type.Array(Type.Integer())),
+  note: Type.Optional(Type.String()),
+});
+
 export const dataRawSetRequest = Type.Object({
   file: Type.String({ minLength: 1 }),
   key: Type.String({ minLength: 1 }),
@@ -60,6 +79,8 @@ export const schemas = {
   dataMutateRequest,
   dataMutateResponse,
   dataReadResponse,
+  dataQueryRequest,
+  dataQueryResponse,
   dataRawSetRequest,
   dataRawDeleteRequest,
   dataWriteResponse,
@@ -69,6 +90,8 @@ export type DataReadRequestContract = Static<typeof dataReadRequest>;
 export type DataReadResponseContract = Static<typeof dataReadResponse>;
 export type DataMutateRequestContract = Static<typeof dataMutateRequest>;
 export type DataMutateResponseContract = Static<typeof dataMutateResponse>;
+export type DataQueryRequestContract = Static<typeof dataQueryRequest>;
+export type DataQueryResponseContract = Static<typeof dataQueryResponse>;
 export type DataRawSetRequestContract = Static<typeof dataRawSetRequest>;
 export type DataRawDeleteRequestContract = Static<typeof dataRawDeleteRequest>;
 export type DataWriteResponseContract = Static<typeof dataWriteResponse>;

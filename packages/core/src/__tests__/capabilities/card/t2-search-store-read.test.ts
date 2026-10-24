@@ -22,8 +22,9 @@ const baseEntry: CardEntry = {
   selective: true,
   insertion_order: 95,
   enabled: true,
-  position: "after_char",
+  position: 3,
   use_regex: false,
+  case_sensitive: false,
   extensions: { depth: 4 },
   words: 17,
 };
@@ -90,6 +91,24 @@ describe("searchEntries", () => {
     const hits = searchEntries([badRegexEntry], { query: "[unclosed", fields: ["keys"] });
     expect(hits).toHaveLength(1);
     expect(hits[0].regexFallback).toBe(true);
+  });
+
+  it("matches case-sensitively only when case_sensitive is true", () => {
+    const sensitive = { ...baseEntry, id: 9, keys: ["Dragon"], case_sensitive: true };
+    expect(searchEntries([sensitive], { query: "dragon", fields: ["keys"] })).toHaveLength(0);
+    expect(searchEntries([sensitive], { query: "Dragon", fields: ["keys"] }).map((h) => h.id)).toEqual([9]);
+    expect(
+      searchEntries([{ ...sensitive, case_sensitive: false }], { query: "dragon", fields: ["keys"] }).map((h) => h.id),
+    ).toEqual([9]);
+  });
+
+  it("applies case_sensitive to the regex path as well", () => {
+    const sensitiveRegex = { ...baseEntry, id: 10, keys: ["Dragon\\d+"], use_regex: true, case_sensitive: true };
+    expect(searchEntries([sensitiveRegex], { query: "dragon42", fields: ["keys"] })).toHaveLength(0);
+    expect(searchEntries([sensitiveRegex], { query: "Dragon42", fields: ["keys"] }).map((h) => h.id)).toEqual([10]);
+    expect(
+      searchEntries([{ ...sensitiveRegex, case_sensitive: false }], { query: "dragon42", fields: ["keys"] }).map((h) => h.id),
+    ).toEqual([10]);
   });
 
   it("returns empty on empty query and respects limit", () => {
@@ -165,6 +184,11 @@ describe("CardStore reads", () => {
     expect(all).toHaveLength(2);
     expect(all[0]).not.toHaveProperty("content");
     expect(all[0]).toMatchObject({ id: 0, words: 17 });
+    expect(all[0]).toMatchObject({
+      secondary_keys: expect.any(Array),
+      selective: expect.any(Boolean),
+      use_regex: expect.any(Boolean),
+    });
     expect(await store.entries("game/a.card.json", { enabled: false })).toHaveLength(1);
     expect(await store.entries("game/a.card.json", { constant: true })).toHaveLength(0);
   });
@@ -190,5 +214,10 @@ describe("CardStore reads", () => {
       fields: ["keys", "comment", "content"],
     });
     expect(hits.map((h) => h.id)).toEqual([0]);
+    expect(hits[0]).toMatchObject({
+      secondary_keys: expect.any(Array),
+      selective: expect.any(Boolean),
+      use_regex: expect.any(Boolean),
+    });
   });
 });

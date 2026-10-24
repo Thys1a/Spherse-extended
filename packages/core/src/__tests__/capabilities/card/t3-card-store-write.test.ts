@@ -97,12 +97,15 @@ describe("CardStore updateEntry", () => {
     expect(after.mtimeMs).toBe(before.mtimeMs);
   });
 
-  it("rejects id / extensions / bad values with invalid_field", async () => {
+  it("rejects id / bad values with invalid_field", async () => {
     await expect(store.updateEntry(FILE, 0, { id: 5 } as never)).rejects.toBeInstanceOf(
       InvalidFieldError,
     );
     await expect(
-      store.updateEntry(FILE, 0, { extensions: {} } as never),
+      store.updateEntry(FILE, 0, { extensions: "x" } as never),
+    ).rejects.toBeInstanceOf(InvalidFieldError);
+    await expect(
+      store.updateEntry(FILE, 0, { extensions: null } as never),
     ).rejects.toBeInstanceOf(InvalidFieldError);
     await expect(store.updateEntry(FILE, 0, { position: "middle" as never })).rejects.toBeInstanceOf(
       InvalidFieldError,
@@ -110,6 +113,79 @@ describe("CardStore updateEntry", () => {
     await expect(store.updateEntry(FILE, 0, { keys: "x" as never })).rejects.toBeInstanceOf(
       InvalidFieldError,
     );
+  });
+
+  it("shallow-merges extensions without dropping existing keys", async () => {
+    const r = await store.updateEntry(FILE, 0, { extensions: { depth: 2, extra: "s" } });
+    expect(r.changed).toEqual(["extensions"]);
+    expect(await store.entry(FILE, 0)).toMatchObject({
+      extensions: { position: 1, depth: 2, extra: "s" },
+    });
+  });
+
+  it("deletes extensions keys on null and reports no change when merge is a no-op", async () => {
+    await store.updateEntry(FILE, 0, { extensions: { extra: "s" } });
+    const r = await store.updateEntry(FILE, 0, { extensions: { depth: null, extra: null } });
+    expect(r.changed).toEqual(["extensions"]);
+    expect((await store.entry(FILE, 0)).extensions).toEqual({ position: 1 });
+    const noop = await store.updateEntry(FILE, 0, { extensions: {} });
+    expect(noop.changed).toEqual([]);
+  });
+
+  it("treats a non-object stored extensions value as empty when merging", async () => {
+    const raw = JSON.parse(await fs.readFile(abs(FILE), "utf8"));
+    raw.data.character_book.entries[0].extensions = "dirty";
+    await fs.writeFile(abs(FILE), JSON.stringify(raw));
+    const r = await store.updateEntry(FILE, 0, { extensions: { a: 1 } });
+    expect(r.changed).toEqual(["extensions"]);
+    expect((await store.entry(FILE, 0)).extensions).toEqual({ a: 1 });
+  });
+
+  it("writes case_sensitive and validates its type", async () => {
+    await expect(store.updateEntry(FILE, 0, { case_sensitive: "yes" as never })).rejects.toBeInstanceOf(
+      InvalidFieldError,
+    );
+    const r = await store.updateEntry(FILE, 0, { case_sensitive: true });
+    expect(r.changed).toEqual(["case_sensitive"]);
+    expect((await store.entry(FILE, 0)).case_sensitive).toBe(true);
+  });
+
+  it("restores merged extensions on rollback", async () => {
+    const r = await store.updateEntry(FILE, 0, { extensions: { depth: null, extra: "s" } });
+    expect((await store.entry(FILE, 0)).extensions).toEqual({ position: 1, extra: "s" });
+    await store.rollbackUndo(FILE, r.undo!, r.version);
+    expect((await store.entry(FILE, 0)).extensions).toEqual({ position: 1, depth: 4 });
+  });
+
+  it("validates numeric position and depth rules", async () => {
+    await expect(store.updateEntry(FILE, 0, { position: 2, depth: 3 })).resolves.toMatchObject({
+      id: 0,
+    });
+    expect((await store.entry(FILE, 0)).depth).toBe(3);
+    await expect(store.updateEntry(FILE, 0, { position: 5 as never })).rejects.toBeInstanceOf(
+      InvalidFieldError,
+    );
+    await expect(store.updateEntry(FILE, 0, { depth: 0 })).rejects.toBeInstanceOf(
+      InvalidFieldError,
+    );
+    await expect(
+      store.updateEntry(FILE, 0, { position: 3, depth: 2 }),
+    ).rejects.toBeInstanceOf(InvalidFieldError);
+    await expect(store.addEntry(FILE, { position: 2 } as never)).rejects.toBeInstanceOf(
+      InvalidFieldError,
+    );
+    const added = await store.addEntry(FILE, { position: 2, depth: 1, content: "deep" });
+    expect((await store.entry(FILE, added.id)).depth).toBe(1);
+  });
+
+  it("drops stale depth when position moves away from 2", async () => {
+    const added = await store.addEntry(FILE, { position: 2, depth: 3, content: "deep" });
+    const moved = await store.updateEntry(FILE, added.id, { position: 3 });
+    expect(moved.changed).toContain("depth");
+    expect((await store.entry(FILE, added.id)).depth).toBeUndefined();
+    const addedAgain = await store.addEntry(FILE, { position: 2, depth: 2, content: "deep" });
+    await store.bulkUpdate(FILE, [addedAgain.id], { position: 4 });
+    expect((await store.entry(FILE, addedAgain.id)).depth).toBeUndefined();
   });
 
   it("keeps byte-identical formatting for untouched entries", async () => {
@@ -139,6 +215,13 @@ describe("CardStore bulkUpdate", () => {
     expect(r.undo?.before).toHaveLength(2);
     expect((await store.entry(FILE, 0)).enabled).toBe(false);
     expect((await store.entry(FILE, 1)).enabled).toBe(false);
+  });
+
+  it("merges extensions per entry without dropping existing keys", async () => {
+    const r = await store.bulkUpdate(FILE, [0, 1], { extensions: { depth: null, tag: "b" } });
+    expect(r.count).toBe(2);
+    expect((await store.entry(FILE, 0)).extensions).toEqual({ position: 1, tag: "b" });
+    expect((await store.entry(FILE, 1)).extensions).toEqual({ tag: "b" });
   });
 
   it("applies 50 concurrent writes without loss", async () => {
@@ -194,7 +277,7 @@ describe("CardStore bulkUpdate", () => {
 });
 
 describe("CardStore addEntry", () => {
-  it("appends a canonical 12-field entry with max+1 id", async () => {
+  it("appends a canonical 13-field entry with max+1 id", async () => {
     const { id } = await store.addEntry(FILE, { comment: "third", content: "!" });
     expect(id).toBe(2);
     const raw = JSON.parse(await fs.readFile(abs(FILE), "utf8"));
@@ -213,6 +296,7 @@ describe("CardStore addEntry", () => {
       "enabled",
       "position",
       "use_regex",
+      "case_sensitive",
       "extensions",
     ]);
     expect(added).toMatchObject({ comment: "third", extensions: {} });
@@ -220,13 +304,14 @@ describe("CardStore addEntry", () => {
     expect(e.content).toBe("!");
   });
 
-  it("rejects id / extensions in the body with invalid_field", async () => {
+  it("rejects id in the body with invalid_field and keeps provided extensions", async () => {
     await expect(store.addEntry(FILE, { id: 9 } as never)).rejects.toBeInstanceOf(
       InvalidFieldError,
     );
-    await expect(store.addEntry(FILE, { extensions: {} } as never)).rejects.toBeInstanceOf(
-      InvalidFieldError,
-    );
+    const { id } = await store.addEntry(FILE, { comment: "kept", extensions: { origin: "st" } });
+    expect((await store.entry(FILE, id)).extensions).toEqual({ origin: "st" });
+    const nulled = await store.addEntry(FILE, { comment: "nulled", extensions: { gone: null } });
+    expect((await store.entry(FILE, nulled.id)).extensions).toEqual({});
   });
 
   it("assigns unique ids under concurrent adds", async () => {

@@ -66,10 +66,37 @@ describe("parseCardBytes", () => {
       comment: "first",
       keys: ["a"],
       enabled: true,
-      position: "after_char",
+      position: 3,
       insertion_order: 5,
       words: 11,
+      case_sensitive: false,
     });
+  });
+
+  it("reads case_sensitive from top level with extensions.caseSensitive fallback", () => {
+    const top = parseCardBytes(cardDoc({ extraEntries: [{ id: 1, case_sensitive: true }] }));
+    expect(top!.entries[1]).toMatchObject({ case_sensitive: true });
+    const fallback = parseCardBytes(
+      cardDoc({ extraEntries: [{ id: 1, extensions: { caseSensitive: true } }] }),
+    );
+    expect(fallback!.entries[1]).toMatchObject({ case_sensitive: true });
+    const explicitOff = parseCardBytes(
+      cardDoc({ extraEntries: [{ id: 1, case_sensitive: false, extensions: { caseSensitive: true } }] }),
+    );
+    expect(explicitOff!.entries[1]).toMatchObject({ case_sensitive: false });
+  });
+
+  it("normalizes legacy and numeric positions plus depth", () => {
+    const atDepth = parseCardBytes(
+      cardDoc({ extraEntries: [{ id: 1, position: 2, depth: 3 }] }),
+    );
+    expect(atDepth!.entries[1]).toMatchObject({ position: 2, depth: 3 });
+    const legacy = parseCardBytes(
+      cardDoc({ extraEntries: [{ id: 1, position: "before_char" }] }),
+    );
+    expect(legacy!.entries[1]).toMatchObject({ position: 3, depth: undefined });
+    const badDepth = parseCardBytes(cardDoc({ extraEntries: [{ id: 1, depth: 0 }] }));
+    expect(badDepth!.entries[1]).toMatchObject({ depth: undefined });
   });
 
   it("returns null for torn JSON or missing character_book", () => {

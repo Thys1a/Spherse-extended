@@ -34,6 +34,11 @@ describe("rate-limit", () => {
     expect(isRateLimitWhitelisted("data.entries")).toBe(true);
   });
 
+  it("includes data.query in the whitelist", () => {
+    expect(RATE_LIMIT_WHITELIST.has("data.query")).toBe(true);
+    expect(isRateLimitWhitelisted("data.query")).toBe(true);
+  });
+
   it("never rate-limits whitelisted actions regardless of call count", () => {
     for (let i = 0; i < MAX_CALLS_PER_MINUTE * 5; i++) {
       expect(checkRateLimit("data.get")).toBe(true);

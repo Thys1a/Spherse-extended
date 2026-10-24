@@ -37,6 +37,7 @@ import type {
   SessionStatusResponse,
   SessionSearchResponse,
   DataReadResponseContract as DataReadResponse,
+  DataQueryResponseContract as DataQueryResponse,
   MarketplaceManifestResponse,
   CardListResponse,
   CardMetaResponse,
@@ -279,6 +280,22 @@ export function createApiClient(baseUrl: string, projectId: string, accessToken?
       });
       await assertOk(res);
       return parseJsonResponse<{ version: string; result: unknown }>(res, schemas.dataMutateResponse);
+    },
+
+    async dataQuery(params: {
+      file: string;
+      name: string;
+      params?: Record<string, unknown>;
+      limit?: number;
+      after?: string;
+    }): Promise<DataQueryResponse> {
+      const res = await authedFetch(`${apiBase}/data/query`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(params),
+      });
+      await assertOk(res);
+      return parseJsonResponse<DataQueryResponse>(res, schemas.dataQueryResponse);
     },
 
     async dataRawSet(params: { file: string; key: string; value: unknown; ifVersion?: string; sessionId?: string; toolCallId?: string }): Promise<{ version: string }> {

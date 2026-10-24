@@ -10,7 +10,9 @@ export type CardErrorCode =
   | "too_large"
   | "bad_request";
 
-export type CardPosition = "before_char" | "after_char";
+export type CardPosition = 0 | 1 | 2 | 3 | 4;
+
+export const DEFAULT_CARD_POSITION: CardPosition = 3;
 
 export interface CardListItem {
   path: string;
@@ -31,19 +33,21 @@ export interface CardEntrySummary {
   id: number;
   comment: string;
   keys: string[];
+  secondary_keys: string[];
   constant: boolean;
   enabled: boolean;
-  position: string;
+  selective: boolean;
+  use_regex: boolean;
+  case_sensitive: boolean;
+  position: CardPosition;
+  depth?: number;
   insertion_order: number;
   words: number;
 }
 
 export interface CardEntry extends CardEntrySummary {
-  secondary_keys: string[];
   content: string;
-  selective: boolean;
-  use_regex: boolean;
-  extensions: unknown;
+  extensions: Record<string, unknown>;
 }
 
 export interface CardSearchOpts {
@@ -70,7 +74,10 @@ export type EntryPatch = Partial<{
   insertion_order: number;
   enabled: boolean;
   position: CardPosition;
+  depth: number;
   use_regex: boolean;
+  case_sensitive: boolean;
+  extensions: Record<string, unknown>;
 }>;
 
 export type CardChangeOrigin = "sdk" | "agent";

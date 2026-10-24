@@ -12,15 +12,8 @@ import { matchKeys } from "./search.js";
 import { escapeXmlAttr } from "../../utils/xml-escape.js";
 import type { CardEntry } from "./types.js";
 
-export const WORLDBOOK_MAX_ENTRIES = 8;
-export const WORLDBOOK_MAX_TOKENS = 2000;
 const RECENT_SCAN_MESSAGES = 10;
 const RECENT_SCAN_CHARS = 4000;
-
-export interface WorldbookBudget {
-  maxEntries?: number;
-  maxTokens?: number;
-}
 
 function escapeXmlText(value: string): string {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -61,19 +54,37 @@ export function renderWorldbookEntry(entry: CardEntry): string {
   return `<entry${keys ? ` keys="${escapeXmlAttr(keys)}"` : ""}>${escapeXmlText(entry.content)}</entry>`;
 }
 
-export function applyWorldbookBudget(entries: CardEntry[], budget?: WorldbookBudget): CardEntry[] {
-  const maxEntries = Math.max(0, budget?.maxEntries ?? WORLDBOOK_MAX_ENTRIES);
-  const maxTokens = Math.max(0, budget?.maxTokens ?? WORLDBOOK_MAX_TOKENS);
-  const out: CardEntry[] = [];
-  let tokens = 0;
-  const ranked = entries.slice().sort((a, b) => orderOf(a) - orderOf(b));
-  for (const entry of ranked.slice(0, maxEntries)) {
-    const cost = estimateTokens(renderWorldbookEntry(entry));
-    if (out.length > 0 && tokens + cost > maxTokens) break;
-    out.push(entry);
-    tokens += cost;
+export interface WorldbookFileStats {
+  entryCount: number;
+  enabledEntryCount: number;
+  alwaysTokens: number;
+  maxTurnTokens: number;
+}
+
+function canEverMatch(entry: CardEntry): boolean {
+  if (entry.constant) return true;
+  if (entry.selective) return entry.keys.length > 0 && entry.secondary_keys.length > 0;
+  return [...entry.keys, ...entry.secondary_keys].length > 0;
+}
+
+export function worldbookStats(entries: CardEntry[]): WorldbookFileStats {
+  let enabledEntryCount = 0;
+  let alwaysTokens = 0;
+  let maxTurnTokens = 0;
+  for (const entry of entries) {
+    if (!entry.enabled) continue;
+    enabledEntryCount += 1;
+    if (entry.constant) {
+      const cost = estimateTokens(renderWorldbookEntry(entry));
+      alwaysTokens += cost;
+      maxTurnTokens += cost;
+      continue;
+    }
+    if (canEverMatch(entry)) {
+      maxTurnTokens += estimateTokens(renderWorldbookEntry(entry));
+    }
   }
-  return out;
+  return { entryCount: entries.length, enabledEntryCount, alwaysTokens, maxTurnTokens };
 }
 
 function blockText(block: unknown): string {
@@ -130,6 +141,7 @@ function cacheKey(projectRoot: string, slug: string): string {
 export function invalidateWorldbookCache(projectRoot?: string, slug?: string): void {
   if (projectRoot === undefined) {
     bookCache.clear();
+    statsCache.clear();
     return;
   }
   for (const key of [...bookCache.keys()]) {
@@ -139,6 +151,12 @@ export function invalidateWorldbookCache(projectRoot?: string, slug?: string): v
         : key.startsWith(`${projectRoot}\0`)
     ) {
       bookCache.delete(key);
+    }
+  }
+  const root = path.resolve(projectRoot);
+  for (const key of [...statsCache.keys()]) {
+    if (isPathInside(root, key)) {
+      statsCache.delete(key);
     }
   }
 }
@@ -224,10 +242,41 @@ export function readAgentWorldbook(projectRoot: string, slug: string): CardEntry
   return entries;
 }
 
-export interface AgentCardLink {
+export interface AgentCardLink extends WorldbookFileStats {
   name: string;
   target: string;
   dangling: boolean;
+}
+
+const EMPTY_STATS: WorldbookFileStats = {
+  entryCount: 0,
+  enabledEntryCount: 0,
+  alwaysTokens: 0,
+  maxTurnTokens: 0,
+};
+
+const statsCache = new Map<string, { fingerprint: string; stats: WorldbookFileStats }>();
+
+function statsOfCardFile(real: string): WorldbookFileStats {
+  let fingerprint: string;
+  try {
+    const fileStat = fs.statSync(real);
+    if (!fileStat.isFile()) return EMPTY_STATS;
+    fingerprint = `${fileStat.mtimeMs}:${fileStat.size}`;
+  } catch {
+    return EMPTY_STATS;
+  }
+  const cached = statsCache.get(real);
+  if (cached && cached.fingerprint === fingerprint) return cached.stats;
+  let stats: WorldbookFileStats;
+  try {
+    const parsed = toParsedCard(fs.readFileSync(real));
+    stats = parsed ? worldbookStats(parsed.entries) : EMPTY_STATS;
+  } catch {
+    stats = EMPTY_STATS;
+  }
+  statsCache.set(real, { fingerprint, stats });
+  return stats;
 }
 
 function assertLinkName(name: string): void {
@@ -256,10 +305,13 @@ export function listAgentCardLinks(projectRoot: string, slug: string): AgentCard
     }
     const real = linkTargetRealpath(full);
     const outside = real !== null && !isPathInside(root, real);
+    const dangling = real === null || outside;
+    const stats = !dangling && real !== null ? statsOfCardFile(real) : EMPTY_STATS;
     out.push({
       name,
       target: real === null ? "" : path.relative(root, real),
-      dangling: real === null || outside,
+      dangling,
+      ...stats,
     });
   }
   return out;
@@ -294,7 +346,12 @@ export function addAgentCardLink(projectRoot: string, slug: string, targetRelPat
       const existing = linkTargetRealpath(linkPath);
       if (existing === targetAbs) {
         invalidateWorldbookCache(root, slug);
-        return { name, target: path.relative(root, targetAbs), dangling: false };
+        return {
+          name,
+          target: path.relative(root, targetAbs),
+          dangling: false,
+          ...statsOfCardFile(targetReal),
+        };
       }
       throw new ConflictError(`card link already exists: ${name}`);
     }
@@ -315,7 +372,12 @@ export function addAgentCardLink(projectRoot: string, slug: string, targetRelPat
     throw err;
   }
   invalidateWorldbookCache(root, slug);
-  return { name, target: path.relative(root, targetAbs), dangling: false };
+  return {
+    name,
+    target: path.relative(root, targetAbs),
+    dangling: false,
+    ...statsOfCardFile(targetReal),
+  };
 }
 
 export function removeAgentCardLink(projectRoot: string, slug: string, name: string): void {
@@ -337,14 +399,71 @@ export function renderWorldbook(entries: CardEntry[]): string {
   return `<worldbook>\n${entries.map(renderWorldbookEntry).join("\n")}\n</worldbook>`;
 }
 
+export interface WorldbookInsertionGroup {
+  position: 0 | 1 | 2 | 3 | 4;
+  depth: number;
+  entries: CardEntry[];
+}
+
+export function selectWorldbookEntries(
+  entries: CardEntry[],
+  messages: readonly AgentMessage[],
+): WorldbookInsertionGroup[] {
+  const hits = matchWorldbook(recentTextOf(messages), entries);
+  const byKey = new Map<string, WorldbookInsertionGroup>();
+  for (const entry of hits) {
+    let position = entry.position;
+    let depth = 1;
+    if (position === 2) {
+      if (typeof entry.depth === "number" && Number.isInteger(entry.depth) && entry.depth >= 1) {
+        depth = entry.depth;
+      } else {
+        position = 3;
+      }
+    }
+    const key = position === 2 ? `2:${depth}` : String(position);
+    const group = byKey.get(key);
+    if (group) {
+      group.entries.push(entry);
+    } else {
+      byKey.set(key, { position, depth, entries: [entry] });
+    }
+  }
+  return [...byKey.values()];
+}
+
+export function userSegmentIndex(messages: readonly AgentMessage[], depth: number): number {
+  let seen = 0;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].role === "user") {
+      seen += 1;
+      if (seen === depth) return i;
+    }
+  }
+  return 0;
+}
+
 export const worldbookProjector: ContextProjector = (view: SessionView) => {
   const projectRoot = view.projectStore.getRootPath();
   const slug = view.profile.slug;
   return (messages) => {
     const entries = readAgentWorldbook(projectRoot, slug);
     if (entries.length === 0) return [...messages];
-    const hits = applyWorldbookBudget(matchWorldbook(recentTextOf(messages), entries));
-    if (hits.length === 0) return [...messages];
-    return [...messages, { role: "user", content: renderWorldbook(hits) } as AgentMessage];
+    const insertions: Array<{ index: number; seq: number; block: AgentMessage }> = [];
+    let seq = 0;
+    for (const group of selectWorldbookEntries(entries, messages)) {
+      if (group.position === 0 || group.position === 1) continue;
+      const block = { role: "user", content: renderWorldbook(group.entries) } as AgentMessage;
+      const index =
+        group.position === 4 ? messages.length : userSegmentIndex(messages, group.depth);
+      insertions.push({ index, seq: seq++, block });
+    }
+    if (insertions.length === 0) return [...messages];
+    insertions.sort((a, b) => b.index - a.index || b.seq - a.seq);
+    let out = [...messages];
+    for (const { index, block } of insertions) {
+      out = [...out.slice(0, index), block, ...out.slice(index)];
+    }
+    return out;
   };
 };

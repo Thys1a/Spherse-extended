@@ -13,4 +13,5 @@ export const data = {
   keys: (params: Params): Promise<unknown> => call("data.keys", params),
   entries: (params: Params): Promise<unknown> => call("data.entries", params),
   mutate: (params: Params): Promise<unknown> => call("data.mutate", params),
+  query: (params: Params): Promise<unknown> => call("data.query", params),
 };

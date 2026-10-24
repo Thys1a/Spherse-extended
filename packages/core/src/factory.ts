@@ -9,7 +9,7 @@ import { RunConfigHolder, createRuntimeDeps } from "./session/runtime.js";
 import { builtinToolCapabilities } from "./capabilities/builtin.js";
 import { createDataStore } from "./capabilities/data/index.js";
 import type { DataStore } from "./capabilities/data/index.js";
-import { createCardStore } from "./capabilities/card/index.js";
+import { createCardStore, worldbookSystemCapability } from "./capabilities/card/index.js";
 import type { CardStore } from "./capabilities/card/index.js";
 import { createTriggerCapability, type TriggerCapability } from "./capabilities/trigger/index.js";
 import { ToolAttributionRegistry } from "./tool-attribution.js";
@@ -49,6 +49,7 @@ export function defaultCapabilities(opts: DefaultCapabilitiesOptions): Capabilit
     ...builtinToolCapabilities({ dataStore: opts.dataStore, cardStore: opts.cardStore }),
     createTriggerCapability({ projectStore: opts.projectStore, logger: opts.logger }),
     createMcpCapability({ projectStore: opts.projectStore, logger: opts.logger }),
+    worldbookSystemCapability({ projectStore: opts.projectStore, logger: opts.logger }),
     attachmentsCapability(),
     compactionCapability({ logger: opts.logger }),
     toolOutputBudgetCapability(),
