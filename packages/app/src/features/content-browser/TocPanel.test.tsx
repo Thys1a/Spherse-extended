@@ -62,4 +62,29 @@ describe("TocPanel", () => {
     expect(scrollIntoView).toHaveBeenCalledWith({ behavior: "smooth", block: "start" });
     document.body.removeChild(root);
   });
+
+  it("calls onJump with the entry index instead of scrolling when provided", () => {
+    const scrollIntoView = vi.fn();
+    const proto = window.HTMLElement.prototype.scrollIntoView;
+    window.HTMLElement.prototype.scrollIntoView = scrollIntoView;
+    try {
+      const onJump = vi.fn();
+      renderWithProviders(
+        <TocPanel
+          entries={[
+            { id: "edit-0", text: "Title", level: 1 },
+            { id: "edit-1", text: "Section", level: 2 },
+          ]}
+          onJump={onJump}
+        />,
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: "Section" }));
+
+      expect(onJump).toHaveBeenCalledWith(1);
+      expect(scrollIntoView).not.toHaveBeenCalled();
+    } finally {
+      window.HTMLElement.prototype.scrollIntoView = proto;
+    }
+  });
 });

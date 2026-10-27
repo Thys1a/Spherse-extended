@@ -2,6 +2,7 @@ import { useRef } from "react";
 import { screen } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { translate } from "@spherse/i18n";
 import { createMockHostBridge } from "../../test/host-bridge";
 import { renderWithProviders } from "../../test/render";
 import { ContentView } from "./ContentView";
@@ -138,5 +139,36 @@ describe("ContentView find gating", () => {
     view.rerender(<ContentView {...baseProps({ findOpen: true, onFindOpenChange, binary: true, content: null })} />);
     await vi.waitFor(() => expect(onFindOpenChange).toHaveBeenCalledWith(false));
     expect(screen.queryByPlaceholderText("查找")).not.toBeInTheDocument();
+  });
+});
+
+describe("ContentView edit toc", () => {
+  const edited = "# Title\n\nbody\n\n## Sub\n";
+
+  it("renders the toc panel in edit mode and selects the heading line on click", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(
+      <ContentView {...baseProps({ isEditing: true, editedContent: edited, tocOpen: true })} />,
+      { bridge: createMockHostBridge() },
+    );
+
+    expect(
+      screen.getByRole("complementary", { name: translate("zh-CN", "content-browser.toc.title") }),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Sub" }));
+
+    const editor = screen.getByRole("textbox") as HTMLTextAreaElement;
+    expect(editor.selectionStart).toBe(edited.indexOf("## Sub"));
+    expect(editor.selectionEnd).toBe(edited.indexOf("\n", edited.indexOf("## Sub")));
+  });
+
+  it("hides the toc panel in edit mode when closed", () => {
+    renderWithProviders(
+      <ContentView {...baseProps({ isEditing: true, editedContent: edited, tocOpen: false })} />,
+      { bridge: createMockHostBridge() },
+    );
+
+    expect(screen.queryByRole("complementary")).toBeNull();
   });
 });

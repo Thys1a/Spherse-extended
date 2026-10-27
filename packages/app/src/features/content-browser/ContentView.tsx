@@ -1,4 +1,4 @@
-import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type RefObject, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { useI18n } from "@spherse/i18n/react";
 import { toast } from "sonner";
@@ -9,6 +9,8 @@ import { useApiClient } from "../../lib/use-connection";
 import { mergeRefs } from "../../lib/utils";
 import { useOpenExternalLink } from "../browser/open-external-url";
 import { EditFindReplaceBar } from "./EditFindReplaceBar";
+import { parseMarkdownToc } from "./markdown-toc";
+import { cancelCenter, scheduleCenter } from "./textarea-reveal";
 import { FindBar } from "../../components/find-bar/FindBar";
 import { FrontMatterPanel } from "./FrontMatterPanel";
 import { TocPanel } from "./TocPanel";
@@ -126,7 +128,36 @@ export function ContentView({
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const tocVisible = tocOpen && isMarkdown && !loading && !error && !binary && content !== null;
-  const tocEntries = useContentToc(scrollRef, `${filePath}#${refreshKey}`, tocVisible);
+  const readTocVisible = tocVisible && !isEditing;
+  const editTocVisible = tocOpen && isEditing && isMarkdown && !loading && !error && !binary;
+  const tocEntries = useContentToc(scrollRef, `${filePath}#${refreshKey}`, readTocVisible);
+  const deferredEdited = useDeferredValue(editedContent);
+  const editTocEntries = useMemo(
+    () => (isEditing && tocOpen ? parseMarkdownToc(deferredEdited) : []),
+    [isEditing, tocOpen, deferredEdited],
+  );
+  const editFrameRef = useRef<number | null>(null);
+
+  const handleEditTocJump = useCallback(
+    (index: number) => {
+      const entry = editTocEntries[index];
+      const textarea = textareaRef.current;
+      if (!entry || !textarea) return;
+      const lineEnd = textarea.value.indexOf("\n", entry.offset);
+      const end =
+        lineEnd === -1
+          ? textarea.value.length
+          : textarea.value[lineEnd - 1] === "\r"
+            ? lineEnd - 1
+            : lineEnd;
+      textarea.setSelectionRange(entry.offset, end);
+      textarea.focus({ preventScroll: true });
+      scheduleCenter(textarea, entry.offset, editFrameRef);
+    },
+    [editTocEntries],
+  );
+
+  useEffect(() => () => cancelCenter(editFrameRef), []);
   const [internalFindOpen, setInternalFindOpen] = useState(false);
   const findOpen = (findOpenProp ?? internalFindOpen) && findEnabled;
   const setFindOpen = onFindOpenChange ?? setInternalFindOpen;
@@ -205,13 +236,25 @@ export function ContentView({
             onClose={() => setEditFindOpen(false)}
           />
         )}
-        <Textarea
-          ref={textareaRef}
-          className="min-h-0 flex-1 resize-none rounded-none border-none bg-background p-4 font-mono !text-base leading-relaxed shadow-none focus-visible:ring-0"
-          value={editedContent}
-          onChange={(event) => onEditedContentChange(event.target.value)}
-          spellCheck={false}
-        />
+        <div className="flex min-h-0 flex-1 flex-row">
+          <Textarea
+            ref={textareaRef}
+            className="min-h-0 min-w-0 flex-1 resize-none rounded-none border-none bg-background p-4 font-mono !text-base leading-relaxed shadow-none focus-visible:ring-0"
+            value={editedContent}
+            onChange={(event) => onEditedContentChange(event.target.value)}
+            spellCheck={false}
+          />
+          {editTocVisible && (
+            <TocPanel
+              entries={editTocEntries.map((entry, idx) => ({
+                id: `edit-${idx}`,
+                text: entry.text,
+                level: entry.level,
+              }))}
+              onJump={handleEditTocJump}
+            />
+          )}
+        </div>
       </div>
     );
   }
@@ -241,7 +284,7 @@ export function ContentView({
             )
           )}
         </div>
-        {tocVisible && <TocPanel entries={tocEntries} containerRef={scrollRef} />}
+        {readTocVisible && <TocPanel entries={tocEntries} containerRef={scrollRef} />}
       </div>
     </div>
   );

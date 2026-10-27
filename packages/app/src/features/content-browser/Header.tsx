@@ -96,7 +96,7 @@ export function Header({
             <SearchIcon />
           </Button>
         )}
-        {tocAvailable && !isEditing && (
+        {tocAvailable && (
           <Button
             variant="ghost"
             size="icon-sm"

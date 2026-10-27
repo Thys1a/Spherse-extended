@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseFrontmatter } from "./frontmatter";
+import { parseFrontmatter, splitFrontmatter } from "./frontmatter";
 
 describe("parseFrontmatter", () => {
   it("returns null frontmatter when there is no front matter block", () => {
@@ -48,5 +48,28 @@ describe("parseFrontmatter", () => {
     const result = parseFrontmatter("");
     expect(result.frontmatter).toBeNull();
     expect(result.body).toBe("");
+  });
+});
+
+describe("splitFrontmatter", () => {
+  it("returns the block length and parsed object for valid front matter", () => {
+    const raw = "---\ntitle: Hello\n---\n\n# Body\n";
+    const result = splitFrontmatter(raw);
+    expect(result.blockLength).toBe(raw.indexOf("# Body") - 1);
+    expect(result.frontmatter).toEqual({ title: "Hello" });
+  });
+
+  it("returns zero length and null when there is no front matter block", () => {
+    const raw = "# Title\n\nbody text";
+    const result = splitFrontmatter(raw);
+    expect(result.blockLength).toBe(0);
+    expect(result.frontmatter).toBeNull();
+  });
+
+  it("returns zero length and null for malformed YAML", () => {
+    const raw = "---\ntitle: : bad\n  : x\n---\n\n# Body\n";
+    const result = splitFrontmatter(raw);
+    expect(result.blockLength).toBe(0);
+    expect(result.frontmatter).toBeNull();
   });
 });

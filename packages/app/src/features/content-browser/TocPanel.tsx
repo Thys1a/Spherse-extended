@@ -6,14 +6,20 @@ import type { TocEntry } from "./useContentToc";
 export function TocPanel({
   entries,
   containerRef,
+  onJump,
 }: {
   entries: TocEntry[];
-  containerRef: RefObject<HTMLDivElement | null>;
+  containerRef?: RefObject<HTMLDivElement | null>;
+  onJump?: (index: number) => void;
 }) {
   const { t } = useI18n();
 
-  const handleSelect = (id: string) => {
-    const target = containerRef.current?.querySelector(`#${CSS.escape(id)}`);
+  const handleSelect = (index: number) => {
+    if (onJump) {
+      onJump(index);
+      return;
+    }
+    const target = containerRef?.current?.querySelector(`#${CSS.escape(entries[index].id)}`);
     target?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
@@ -30,7 +36,7 @@ export function TocPanel({
           <li key={`${entry.id}#${idx}`}>
             <button
               type="button"
-              onClick={() => handleSelect(entry.id)}
+              onClick={() => handleSelect(idx)}
               title={entry.text}
               style={{ paddingLeft: (entry.level - 1) * 12 }}
               className={cn(
