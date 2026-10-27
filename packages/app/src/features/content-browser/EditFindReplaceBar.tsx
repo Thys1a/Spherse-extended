@@ -6,6 +6,7 @@ import { Button } from "../../components/ui/button";
 import { useI18n } from "@spherse/i18n/react";
 import { findMatches } from "../../components/find-bar/find-engine";
 import { replaceAllOccurrences, replaceOneAt } from "./text-replace";
+import { cancelCenter, scheduleCenter } from "./textarea-reveal";
 
 interface EditFindReplaceBarProps {
   text: string;
@@ -14,15 +15,10 @@ interface EditFindReplaceBarProps {
   onClose: () => void;
 }
 
-function scrollToOffset(textarea: HTMLTextAreaElement, offset: number): void {
-  const line = textarea.value.slice(0, offset).split("\n").length;
-  const lineHeight = Number.parseFloat(getComputedStyle(textarea).lineHeight) || 20;
-  textarea.scrollTop = Math.max(0, line * lineHeight - textarea.clientHeight / 2);
-}
-
 export function EditFindReplaceBar({ text, textareaRef, onReplace, onClose }: EditFindReplaceBarProps) {
   const { t } = useI18n();
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const frameRef = useRef<number | null>(null);
   const [query, setQuery] = useState("");
   const [replacement, setReplacement] = useState("");
   const [matchIndex, setMatchIndex] = useState(0);
@@ -49,11 +45,13 @@ export function EditFindReplaceBar({ text, textareaRef, onReplace, onClose }: Ed
     if (!pendingSelection) return;
     const textarea = textareaRef.current;
     if (!textarea) return;
-    textarea.focus();
     textarea.setSelectionRange(pendingSelection.start, pendingSelection.end);
-    scrollToOffset(textarea, pendingSelection.start);
+    textarea.focus({ preventScroll: true });
+    scheduleCenter(textarea, pendingSelection.start, frameRef);
     setPendingSelection(null);
   }, [pendingSelection, textareaRef]);
+
+  useEffect(() => () => cancelCenter(frameRef), []);
 
   useEffect(() => {
     if (refocusIndex === null) return;

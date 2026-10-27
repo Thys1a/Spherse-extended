@@ -78,4 +78,36 @@ describe("EditFindReplaceBar", () => {
     fireEvent.click(screen.getByLabelText(translate("zh-CN", "content-browser.find.previous")));
     expect(screen.getByText("1/2")).toBeInTheDocument();
   });
+
+  it("selects the match and focuses without scrolling on jump", async () => {
+    const focusSpy = vi.spyOn(HTMLTextAreaElement.prototype, "focus");
+    try {
+      renderWithProviders(<Harness />);
+      typeQuery("foo");
+
+      fireEvent.click(screen.getByLabelText(translate("zh-CN", "content-browser.find.next")));
+
+      const editor = screen.getByTestId("editor") as HTMLTextAreaElement;
+      expect(editor.selectionStart).toBe(8);
+      expect(editor.selectionEnd).toBe(11);
+      expect(focusSpy).toHaveBeenCalledWith({ preventScroll: true });
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(editor.scrollTop).toBe(0);
+    } finally {
+      focusSpy.mockRestore();
+    }
+  });
+
+  it("restores selection to the same match index after a single replace", () => {
+    renderWithProviders(<Harness />);
+    typeQuery("foo");
+    typeReplacement("baz");
+
+    fireEvent.click(screen.getByText(translate("zh-CN", "content-browser.find.replace")));
+
+    const editor = screen.getByTestId("editor") as HTMLTextAreaElement;
+    expect(editor.value).toBe("baz bar foo");
+    expect(editor.selectionStart).toBe(8);
+    expect(editor.selectionEnd).toBe(11);
+  });
 });
