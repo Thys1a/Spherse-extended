@@ -33,7 +33,25 @@ describe("parseMarkdownToc", () => {
   });
 
   it("does not treat dashes as setext without a preceding paragraph line", () => {
-    expect(parseMarkdownToc("---\n\n# Title\n")).toEqual([{ text: "Title", level: 1, offset: 5 }]);
+    expect(parseMarkdownToc("---\n\n# Title\n")).toEqual([
+      { text: "Title", level: 1, offset: 5 },
+    ]);
+  });
+
+  it("does not treat list items, indented code, or html as setext paragraphs", () => {
+    expect(parseMarkdownToc("- one\n- two\n---\n")).toEqual([]);
+    expect(parseMarkdownToc("    code\n---\n")).toEqual([]);
+    expect(parseMarkdownToc("<!-- x -->\n---\n")).toEqual([]);
+    expect(parseMarkdownToc("***\n===\n")).toEqual([]);
+    expect(parseMarkdownToc("- item\n===\n")).toEqual([]);
+    expect(parseMarkdownToc("-\n===\n")).toEqual([]);
+  });
+
+  it("takes only the last line of a multi-line setext paragraph", () => {
+    const text = "foo\nbar\n===\n";
+    expect(parseMarkdownToc(text)).toEqual([
+      { text: "bar", level: 1, offset: text.indexOf("bar") },
+    ]);
   });
 
   it("skips headings inside fenced code blocks", () => {
@@ -71,9 +89,10 @@ describe("parseMarkdownToc", () => {
 
   it("handles CRLF line endings", () => {
     const text = "# Title\r\n\r\n## Sub\r\n";
+    const normalized = "# Title\n\n## Sub\n";
     expect(parseMarkdownToc(text)).toEqual([
       { text: "Title", level: 1, offset: 0 },
-      { text: "Sub", level: 2, offset: text.indexOf("## Sub") },
+      { text: "Sub", level: 2, offset: normalized.indexOf("## Sub") },
     ]);
   });
 

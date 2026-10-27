@@ -163,6 +163,22 @@ describe("ContentView edit toc", () => {
     expect(editor.selectionEnd).toBe(edited.indexOf("\n", edited.indexOf("## Sub")));
   });
 
+  it("excludes carriage returns from the jump selection on CRLF files", async () => {
+    const user = userEvent.setup();
+    const crlf = "# Title\r\n\r\n## Sub\r\n";
+    const normalized = "# Title\n\n## Sub\n";
+    renderWithProviders(
+      <ContentView {...baseProps({ isEditing: true, editedContent: crlf, tocOpen: true })} />,
+      { bridge: createMockHostBridge() },
+    );
+
+    await user.click(screen.getByRole("button", { name: "Sub" }));
+
+    const editor = screen.getByRole("textbox") as HTMLTextAreaElement;
+    expect(editor.selectionStart).toBe(normalized.indexOf("## Sub"));
+    expect(editor.selectionEnd).toBe(normalized.indexOf("## Sub") + "## Sub".length);
+  });
+
   it("hides the toc panel in edit mode when closed", () => {
     renderWithProviders(
       <ContentView {...baseProps({ isEditing: true, editedContent: edited, tocOpen: false })} />,

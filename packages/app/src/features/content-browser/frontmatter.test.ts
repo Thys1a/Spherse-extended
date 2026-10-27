@@ -55,7 +55,8 @@ describe("splitFrontmatter", () => {
   it("returns the block length and parsed object for valid front matter", () => {
     const raw = "---\ntitle: Hello\n---\n\n# Body\n";
     const result = splitFrontmatter(raw);
-    expect(result.blockLength).toBe(raw.indexOf("# Body") - 1);
+    expect(result.blockLength).toBe("---\ntitle: Hello\n---\n".length);
+    expect(raw.slice(result.blockLength)).toBe("\n# Body\n");
     expect(result.frontmatter).toEqual({ title: "Hello" });
   });
 

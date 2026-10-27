@@ -31,7 +31,7 @@
 
 ### 4. `ContentView.tsx`＋`Header.tsx`＋单测
 
-`readTocVisible`/`editTocVisible` 拆分（阅读面板改用 `readTocVisible`）；编辑分支 row 包裹＋textarea 加 `min-w-0`；`editTocEntries`（`isEditing && tocOpen`＋`useDeferredValue`）；`handleEditTocJump`（选整行→`focus({preventScroll:true})`→`scheduleCenter`；`frameRef`＋卸载取消）；`Header.tsx:99` 去 `!isEditing`（`Header.test.tsx` 无需改）。
+`readTocVisible`/`editTocVisible` 拆分（阅读面板改用 `readTocVisible`）；编辑分支 row 包裹＋textarea 加 `min-w-0`；`editTocEntries`（`isEditing && tocOpen && isMarkdown`＋同一 `editedContent` 快照）；`handleEditTocJump`（选整行→`focus({preventScroll:true})`→`scheduleCenter`；`frameRef`＋卸载取消）；`Header.tsx:99` 去 `!isEditing`（`Header.test.tsx` 无需改）。
 
 - verify：`npm test --workspace=packages/app -- src/features/content-browser/ContentView.test.tsx`（编辑态边栏渲染＋点击选区；阅读态不受影响）。
 

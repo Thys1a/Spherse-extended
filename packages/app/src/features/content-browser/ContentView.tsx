@@ -1,4 +1,4 @@
-import { type RefObject, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { useI18n } from "@spherse/i18n/react";
 import { toast } from "sonner";
@@ -131,10 +131,9 @@ export function ContentView({
   const readTocVisible = tocVisible && !isEditing;
   const editTocVisible = tocOpen && isEditing && isMarkdown && !loading && !error && !binary;
   const tocEntries = useContentToc(scrollRef, `${filePath}#${refreshKey}`, readTocVisible);
-  const deferredEdited = useDeferredValue(editedContent);
   const editTocEntries = useMemo(
-    () => (isEditing && tocOpen ? parseMarkdownToc(deferredEdited) : []),
-    [isEditing, tocOpen, deferredEdited],
+    () => (isEditing && tocOpen && isMarkdown ? parseMarkdownToc(editedContent) : []),
+    [isEditing, tocOpen, isMarkdown, editedContent],
   );
   const editFrameRef = useRef<number | null>(null);
 

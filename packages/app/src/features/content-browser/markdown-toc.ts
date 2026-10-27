@@ -10,11 +10,15 @@ const ATX_RE = /^ {0,3}(#{1,6})(?:\s|$)/;
 const FENCE_RE = /^ {0,3}(`{3,}|~{3,})(.*)$/;
 const SETEXT_RE = /^ {0,3}(=+|-+)\s*$/;
 const BLOCKQUOTE_RE = /^ {0,3}>/;
+const LIST_ITEM_RE = /^ {0,3}(?:[*+-]|\d{1,9}[.)])(?:\s|$)/;
+const THEMATIC_RE = /^ {0,3}(?:\*(?:[ \t]*\*){2,}|-(?:[ \t]*-){2,}|_(?:[ \t]*_){2,})[ \t]*$/;
+const TAG_LINE_RE = /^ {0,3}<[A-Za-z!?/]/;
 
 export function parseMarkdownToc(text: string): EditTocEntry[] {
-  const { blockLength } = splitFrontmatter(text);
+  const normalized = text.replace(/\r\n/g, "\n");
+  const { blockLength } = splitFrontmatter(normalized);
   const entries: EditTocEntry[] = [];
-  const rawLines = text.slice(blockLength).split("\n");
+  const rawLines = normalized.slice(blockLength).split("\n");
   let index = blockLength;
   let fenceChar: "`" | "~" | null = null;
   let fenceLen = 0;
@@ -25,6 +29,12 @@ export function parseMarkdownToc(text: string): EditTocEntry[] {
     const lineStart = index;
     index += raw.length + 1;
     const line = raw.endsWith("\r") ? raw.slice(0, -1) : raw;
+    if (inHtmlComment) {
+      if (line.includes("-->")) inHtmlComment = false;
+      prevLine = "";
+      prevLineOffset = -1;
+      continue;
+    }
     const fence = line.match(FENCE_RE);
     if (fence) {
       const seq = fence[1];
@@ -40,12 +50,6 @@ export function parseMarkdownToc(text: string): EditTocEntry[] {
       continue;
     }
     if (fenceChar !== null || BLOCKQUOTE_RE.test(line)) {
-      prevLine = "";
-      prevLineOffset = -1;
-      continue;
-    }
-    if (inHtmlComment) {
-      if (line.includes("-->")) inHtmlComment = false;
       prevLine = "";
       prevLineOffset = -1;
       continue;
@@ -85,6 +89,18 @@ export function parseMarkdownToc(text: string): EditTocEntry[] {
           entries.push({ text: entryText, level, offset: lineStart });
         }
       }
+      prevLine = "";
+      prevLineOffset = -1;
+      continue;
+    }
+    if (
+      LIST_ITEM_RE.test(line) ||
+      line.startsWith("    ") ||
+      line.startsWith("\t") ||
+      THEMATIC_RE.test(line) ||
+      TAG_LINE_RE.test(line) ||
+      line.includes("<!--")
+    ) {
       prevLine = "";
       prevLineOffset = -1;
       continue;

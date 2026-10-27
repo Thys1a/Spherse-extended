@@ -31,10 +31,10 @@ export function parseMarkdownToc(text: string): EditTocEntry[]
 
 - `offset` = 标题行首在全文中的字符偏移（与 `textarea.value` 同一坐标系）；
 - frontmatter 跳过：`frontmatter.ts` 新增导出 `splitFrontmatter(raw: string): { blockLength: number; frontmatter: Record<string, unknown> | null }`，内部做唯一一次判定（正则命中后对 `match[1]` 做 `yaml.load`＋对象检查；失败时 `blockLength = 0`，保证与阅读态渲染的 body 一致——YAML 损坏时两侧都把块内 `#` 行当正文处理）；`parseFrontmatter` 改为调用它（`body` 仍走现有前导换行剥离）；`markdown-toc` 从 `blockLength` 起按行扫描；
-- 行扫描记录行首偏移，行尾 `\r` 先剥离再匹配（CRLF 安全）；
+- 先归一化换行再扫描（CRLF 安全）：入口 `text.replace(/\r\n/g, "\n")`，偏移量即 `textarea.value` 坐标系（浏览器/jsdom 会把 textarea 内 `\r\n` 归一为 `\n`，按原文算偏移会错位）；
 - 围栏跟踪：`` ``` `` / `~~~` 开启行要求 ≤3 空格缩进，记录围栏字符（`` ` ``/`~`）与长度；仅当某行同字符、长度 ≥ 开启长度、且行内无其他内容时才关闭，`` ``` `` 与 `~~~` 不互相关闭；围栏内整行跳过（用例补「长围栏包短围栏」）；
-- ATX：`^ {0,3}#{1,6}(?:\s|$)`，`level` 取 `#` 个数，`level > 3` 忽略（与阅读态只收 h1–h3 对齐）；`text` 去尾部闭合序列（`/ +#+ *$/`）后 trim，空标题跳过；
-- Setext：第 i 行为全行 `=+` / `-+`（strip 后判定）且上一行非空 → 上一行为标题（`=` level 1，`-` level 2），`offset` = 上一行行首；围栏内与 frontmatter 内不触发（CommonMark 下 `foo\n---` 本就是 setext h2，`---` 单独成段不成标题，无误判）；
+- ATX：`^ {0,3}#{1,6}(?:\s|$)`，`level` 取 `#` 个数，`level > 3` 忽略（与阅读态只收 h1–h3 对齐）；`text` 去尾部闭合序列（`/ +#+ *$/`）后 trim，空标题跳过（含整体即闭合序列的 `# ###`）；
+- Setext：第 i 行为全行 `=+` / `-+`（strip 后判定）且上一行非空且为顶层段落行 → 上一行为标题（`=` level 1，`-` level 2），`offset` = 上一行行首；围栏内与 frontmatter 内不触发（CommonMark 下 `foo\n---` 本就是 setext h2，`---` 单独成段不成标题，无误判）；
 - 只收顶层文档流标题：`>` 引用前缀行（`^ {0,3}>`）整行跳过，列表标记行天然不匹配 ATX 正则；HTML 注释块内整行跳过（跨行跟踪，阅读态也不渲染）；与阅读态（DOM 全量子查询，引用/列表内标题也收）存在已知差异，见 §四；
 - 4 空格以上缩进的 `#` 视为代码块，不收（CommonMark ATX 最多 3 空格缩进）。
 
@@ -53,7 +53,7 @@ containerRef?: RefObject<HTMLDivElement | null>;
 ### 3. `ContentView` 编辑分支接线
 
 - 拆分可见性：`readTocVisible = tocVisible && !isEditing`（修复机理见 §一.3：`enabled` 翻转触发 effect 重跑并清空）；`editTocVisible = tocOpen && isEditing && isMarkdown && !loading && !error && !binary`；阅读分支面板渲染改用 `readTocVisible`（`:244` 现用 `tocVisible`，两者在 `!isEditing` 下等价，统一名字避免并存）；
-- `editTocEntries = useMemo(() => { if (!(isEditing && tocOpen)) return []; return parseMarkdownToc(deferredEdited); }, [isEditing, tocOpen, deferredEdited])`，其中 `deferredEdited = useDeferredValue(editedContent)`（面板打开时避免每次击键 O(n) 全文扫描掉帧；阅读态 `useContentToc` 同款门控思路）；
+- `editTocEntries = useMemo(() => { if (!(isEditing && tocOpen && isMarkdown)) return []; return parseMarkdownToc(editedContent); }, [isEditing, tocOpen, isMarkdown, editedContent])`（门控避免面板关闭/非 md 时解析；与 textarea 同一 `editedContent` 快照解析，entries 与点击偏移天然一致，不引入 deferred 时间窗）；
 - 编辑分支布局：`{editFindOpen && ...}` 保持第一行；textarea 与面板包一层 `div.flex min-h-0 flex-1 flex-row`，textarea 追加 `min-w-0`（`flex-1` 保留），面板复用 `TocPanel` 现有 `w-56` 样式；
 - `handleEditTocJump(index)`：取 `entry.offset`，行尾 = 下一个 `\n`（无则文末；CRLF 下排除末尾 `\r`）→ `textarea.setSelectionRange(offset, lineEnd)` → `textarea.focus({ preventScroll: true })` → 下一帧调共享居中 `scheduleCenter(textarea, offset, frameRef)`（顺序与 bugfix §1 一致；`frameRef: useRef<number | null>` 归 `ContentView` 所有＋仅卸载 effect 调 `cancelCenter(frameRef)`，禁止在跳转 effect cleanup 里取消——机理同 bugfix C1）；
 - 居中能力契约见 `docs/dev/bugfix/2026-10-24-edit-search-shift/design.md` §2，`textarea-reveal.ts` 导出面钉死为：`measureMatchCenter(textarea, offset): number | null`、`scheduleCenter(textarea, offset, frameRef): void`、`cancelCenter(frameRef): void`；三者不负责 `setSelectionRange`/`focus`，由调用方按上式顺序执行；两个消费者收敛到同一共享模块，先合者建模块，后者直接 import；
