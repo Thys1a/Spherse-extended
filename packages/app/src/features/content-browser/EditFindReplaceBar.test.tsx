@@ -1,9 +1,20 @@
 import { useRef, useState } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { screen, fireEvent } from "@testing-library/react";
 import { translate } from "@spherse/i18n";
 import { renderWithProviders } from "../../test/render";
 import { EditFindReplaceBar } from "./EditFindReplaceBar";
+
+beforeEach(() => {
+  vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+    callback(0);
+    return 1;
+  });
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 function Harness({ initial = "foo bar foo" }: { initial?: string }) {
   const ref = useRef<HTMLTextAreaElement | null>(null);
@@ -79,23 +90,50 @@ describe("EditFindReplaceBar", () => {
     expect(screen.getByText("1/2")).toBeInTheDocument();
   });
 
-  it("selects the match and focuses without scrolling on jump", async () => {
+  it("selects the match, focuses without scrolling, and writes centered scroll on jump", () => {
     const focusSpy = vi.spyOn(HTMLTextAreaElement.prototype, "focus");
+    const style = document.createElement("div").style;
+    style.fontFamily = "monospace";
+    style.fontSize = "16px";
+    style.lineHeight = "600px";
+    style.paddingLeft = "0px";
+    style.paddingRight = "0px";
+    const styleSpy = vi.spyOn(window, "getComputedStyle").mockReturnValue(style);
     try {
       renderWithProviders(<Harness />);
       typeQuery("foo");
 
+      const editor = screen.getByTestId("editor") as HTMLTextAreaElement;
+      const setScrollTop = vi.fn();
+      Object.defineProperty(editor, "scrollTop", { set: setScrollTop, get: () => 0, configurable: true });
+      Object.defineProperty(editor, "scrollHeight", { value: 1000, configurable: true });
+      Object.defineProperty(editor, "clientHeight", { value: 200, configurable: true });
+
       fireEvent.click(screen.getByLabelText(translate("zh-CN", "content-browser.find.next")));
 
-      const editor = screen.getByTestId("editor") as HTMLTextAreaElement;
       expect(editor.selectionStart).toBe(8);
       expect(editor.selectionEnd).toBe(11);
       expect(focusSpy).toHaveBeenCalledWith({ preventScroll: true });
-      await new Promise((resolve) => setTimeout(resolve, 50));
-      expect(editor.scrollTop).toBe(0);
+      expect(setScrollTop).toHaveBeenCalledWith(200);
     } finally {
       focusSpy.mockRestore();
+      styleSpy.mockRestore();
     }
+  });
+
+  it("skips scroll writes when measurement fails", () => {
+    renderWithProviders(<Harness />);
+    typeQuery("foo");
+
+    const editor = screen.getByTestId("editor") as HTMLTextAreaElement;
+    const setScrollTop = vi.fn();
+    Object.defineProperty(editor, "scrollTop", { set: setScrollTop, get: () => 0, configurable: true });
+
+    fireEvent.click(screen.getByLabelText(translate("zh-CN", "content-browser.find.next")));
+
+    expect(editor.selectionStart).toBe(8);
+    expect(editor.selectionEnd).toBe(11);
+    expect(setScrollTop).not.toHaveBeenCalled();
   });
 
   it("restores selection to the same match index after a single replace", () => {

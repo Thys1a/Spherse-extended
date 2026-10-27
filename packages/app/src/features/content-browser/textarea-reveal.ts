@@ -12,6 +12,8 @@ export function measureMatchCenter(textarea: HTMLTextAreaElement, offset: number
     const parsed = Number.parseFloat(raw);
     return Number.isFinite(parsed) ? parsed : 0;
   };
+  const fontSize = parsePx(style.fontSize);
+  if (!(fontSize > 0)) return null;
   const mirror = doc.createElement("div");
   const marker = doc.createElement("span");
   try {
@@ -48,7 +50,6 @@ export function measureMatchCenter(textarea: HTMLTextAreaElement, offset: number
     mirror.append(marker);
     doc.body.append(mirror);
     const parsedLineHeight = Number.parseFloat(style.lineHeight);
-    const fontSize = parsePx(style.fontSize);
     const lineHeight = Number.isFinite(parsedLineHeight) ? parsedLineHeight : fontSize * 1.2;
     const center = marker.offsetTop + lineHeight / 2;
     if (!Number.isFinite(center) || (safeOffset > 0 && center <= 0)) return null;

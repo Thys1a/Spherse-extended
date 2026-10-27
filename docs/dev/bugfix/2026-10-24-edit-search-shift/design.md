@@ -65,7 +65,7 @@ export function cancelCenter(frameRef: { current: number | null }): void;
 1. `offset` 钳制到 `[0, textarea.value.length]`；
 2. 前缀长度超过 20 万字符时直接返回 `null`（审查 M4：单次跳转 O(prefix)＋两次强制布局，大文件降级为原生选区可见行为）；
 3. 创建隐藏 mirror `div`，文本用 `createTextNode`，不使用 `innerHTML`；
-4. 填入 `value.slice(0, offset)`，末尾加一个内容为 `\u200b` 的 marker（与前缀并入同一文本节点，避免独立 span 在行尾占满时多换一行）；
+4. 填入 `value.slice(0, offset)`，末尾紧邻（中间无任何空白）追加一个内容为 `\u200b` 的独立 inline marker `span`（`offsetTop` 测量需要元素载体，无法与前缀同节点；目标行恰好被文本占满时 marker 可能被挤到下一行，偏差上界一整行向下，属已知残留，见 §4）；
 5. mirror 宽度取 textarea 内容宽度：
    - `contentWidth = textarea.clientWidth - paddingLeft - paddingRight`（`clientWidth` 含 padding、不含 border/scrollbar）；
    - mirror 使用 `box-sizing: content-box`、`padding: 0`、`border: 0`；
@@ -109,6 +109,7 @@ textarea.scrollTop = Math.min(
 ### 4. 风险与回退
 
 - 字体懒加载/缩放导致镜像瞬时失配：测量在跳转后下一帧强制布局执行，`try/finally`＋第 2 节第 10 条回退保证不比现状差；
+- marker 换行残留：目标行恰好被文本占满时 `\u200b` marker 被挤到下一行，落点偏低上界一整行；方向固定、显著优于现状的系统性偏移，不单独处理；
 - 垂直居中相对内容原点，未计入顶部 padding（`p-4` 约 16px 级别偏差的一半），在人工验证容差内，不单独处理；
 - 跳转后焦点进入 textarea（现存行为，本次保留）：查找框内 `Enter` 触发一次跳转后，后续 `Enter` 落在 textarea 会插入换行并弄脏文档——属现存交互问题，不在本次修，已记 backlog，E2E 禁止用 `Enter` 连续跳转。
 
