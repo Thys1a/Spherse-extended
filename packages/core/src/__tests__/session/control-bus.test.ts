@@ -189,4 +189,37 @@ describe("SessionControlBus", () => {
       { type: "control_resolved", requestId: "rq", kind: "question", timedOut: false, aborted: true },
     ]);
   });
+
+  it("keeps an infinite-timeout request pending without firing a timer", async () => {
+    const bus = new SessionControlBus();
+    let settled = false;
+    const p = bus
+      .request(
+        { requestId: "inf", kind: "question", toolCallId: "tq", toolName: "ask_user", args: {} },
+        Number.POSITIVE_INFINITY,
+        { timedOut: true },
+      )
+      .then((d) => {
+        settled = true;
+        return d;
+      });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(settled).toBe(false);
+    expect(bus.pendingCount).toBe(1);
+    bus.resolve("inf", { answer: "yes", timedOut: false });
+    await expect(p).resolves.toEqual({ answer: "yes", timedOut: false });
+    expect(bus.pendingCount).toBe(0);
+  });
+
+  it("rejects an infinite-timeout request on rejectAll", async () => {
+    const bus = new SessionControlBus();
+    const p = bus.request(
+      { requestId: "inf2", kind: "question", toolCallId: "tq", toolName: "ask_user", args: {} },
+      Number.POSITIVE_INFINITY,
+      { timedOut: true },
+    );
+    bus.rejectAll("session aborted");
+    await expect(p).rejects.toThrow("session aborted");
+    expect(bus.pendingCount).toBe(0);
+  });
 });

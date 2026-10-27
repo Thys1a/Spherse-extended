@@ -91,6 +91,7 @@ export class AgentRunner {
     private readonly sessionId: string,
     private readonly deps: RuntimeDeps,
     private readonly controlBus: SessionControlBus,
+    private unlimitedToolCalls = false,
   ) {
     this.turnHooks = composeTurnHooks([]);
   }
@@ -104,14 +105,22 @@ export class AgentRunner {
     const agentStore = deps.projectStore.getAgent(agentId);
     if (!agentStore) throw new NotFoundError(`Agent profile "${agentId}" not found`);
     const controlBus = new SessionControlBus();
+    const profile = agentStore.getProfile();
     const agent = await buildAgent(
       deps,
-      agentStore.getProfile(),
+      profile,
       sessionId,
       createApprovalGate(controlBus),
       createAskGate(controlBus),
     );
-    const runner = new AgentRunner(agent, agentId, sessionId, deps, controlBus);
+    const runner = new AgentRunner(
+      agent,
+      agentId,
+      sessionId,
+      deps,
+      controlBus,
+      profile.unlimitedToolCalls === true,
+    );
     agent.beforeToolCall = async (context) => {
       deps.attribution?.begin(sessionId, context.toolCall.id, {
         turnSeq: runner.currentTurnSeq(),
@@ -573,6 +582,7 @@ export class AgentRunner {
       );
       this.agent.state.systemPrompt = systemPrompt;
       this.agent.state.tools = tools;
+      this.unlimitedToolCalls = profile.unlimitedToolCalls === true;
       this.applyDefaultModel(this.deps.runConfig.current().defaultModel);
       this.applyThinkingLevel(this.deps.runConfig.current().thinkingLevel);
       this.agent.streamFunction = composeStreamFn(
@@ -777,7 +787,7 @@ export class AgentRunner {
       this.lengthStreak = 0;
     }
     if (this.toolLoopStop !== null) return true;
-    if (this.toolCallTotal > MAX_TOOL_CALLS_PER_TURN) {
+    if (!this.unlimitedToolCalls && this.toolCallTotal > MAX_TOOL_CALLS_PER_TURN) {
       this.toolLoopStop = "tool-call-budget";
     } else if (this.lengthStreak >= MAX_CONSECUTIVE_TRUNCATED_TURNS) {
       this.toolLoopStop = "truncated-loop";

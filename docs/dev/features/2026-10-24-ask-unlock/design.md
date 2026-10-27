@@ -117,13 +117,12 @@ const timeoutMs = unlimitedTimeout
 
 ## 4. `control-bus` 无 timer 分支
 
-修改 `packages/core/src/session/control-bus.ts:16-60`：
+修改 `packages/core/src/session/control-bus.ts`（`request<T>(req, timeoutMs, timeoutDecision)`，超时回调 resolve `timeoutDecision` 并经 `emitResolved` 发事件，无其他计数器）：
 
 - `PendingRequest.timer` 改为可选字段：`timer?: NodeJS.Timeout`；
-- `request` 仅在 `timeoutMs` 为有限值时创建 `setTimeout`；
-- 当 `timeoutMs === Number.POSITIVE_INFINITY` 时只写入 `pending`，不创建 timer；
+- 当 `timeoutMs === Number.POSITIVE_INFINITY` 时只写入 `pending`，不创建 `setTimeout`（Node 会把 `Infinity` 截断为 1ms 超时，必须分支）；
 - 不用 `Number.isFinite(timeoutMs)` 做分支，避免改变 `NaN` 或其他非法值的原有行为；
-- `resolve` 和 `rejectAll` 只在 timer 存在时调用 `clearTimeout`；
+- `rejectAll` 只在 timer 存在时调用 `clearTimeout`（`resolve` 原本就有 `if (entry.timer)` 守卫，保持）；
 - 请求、解决、中止事件形状不变。
 
 测试需要覆盖：

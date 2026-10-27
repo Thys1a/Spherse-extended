@@ -112,16 +112,29 @@ export function AgentDialogForm({ initial, mode, agentId, onSubmit, onCancel }: 
         ? prev.tools.filter((t) => !groupToolIds.includes(t))
         : [...prev.tools, ...groupToolIds.filter((id) => !prev.tools.includes(id))];
       const hasAdvanced = nextTools.some((id) => ADVANCED_TOOL_IDS.includes(id));
-      return { ...prev, tools: nextTools, yolo: hasAdvanced ? prev.yolo : false };
+      return {
+        ...prev,
+        tools: nextTools,
+        yolo: hasAdvanced ? prev.yolo : false,
+        unlimitedAsk: nextTools.includes("ask_user") ? prev.unlimitedAsk : false,
+        unlimitedToolCalls: nextTools.length > 0 ? prev.unlimitedToolCalls : false,
+      };
     });
   };
 
   const hasAdvancedTool = formData.tools.some((id) => ADVANCED_TOOL_IDS.includes(id));
+  const hasAskUserTool = formData.tools.includes("ask_user");
+  const hasAnyTool = formData.tools.length > 0;
 
   const handleSubmit = async () => {
     if (!formData.name.trim()) { setError(t("agent-dialog.nameRequired")); return; }
     setSaving(true); setError(null);
-    const effectiveFormData = hasAdvancedTool ? formData : { ...formData, yolo: false };
+    const effectiveFormData = {
+      ...formData,
+      yolo: hasAdvancedTool ? formData.yolo : false,
+      unlimitedAsk: hasAskUserTool ? formData.unlimitedAsk : false,
+      unlimitedToolCalls: hasAnyTool ? formData.unlimitedToolCalls : false,
+    };
     const content = buildAgentMarkdown(effectiveFormData, parsed.extraFrontmatter, mode === "create");
     const slugBase = formData.name
       .trim()
@@ -201,6 +214,30 @@ export function AgentDialogForm({ initial, mode, agentId, onSubmit, onCancel }: 
                 onCheckedChange={(v) => setFormData((prev) => ({ ...prev, allowInlineHtml: v }))}
               />
             </div>
+            {hasAskUserTool && (
+              <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
+                <div className="space-y-0.5 pe-3">
+                  <Label>{t("agent-dialog.unlimitedAskLabel")}</Label>
+                  <p className="text-xs text-muted-foreground">{t("agent-dialog.unlimitedAskHint")}</p>
+                </div>
+                <Switch
+                  checked={formData.unlimitedAsk}
+                  onCheckedChange={(v) => setFormData((prev) => ({ ...prev, unlimitedAsk: v }))}
+                />
+              </div>
+            )}
+            {hasAnyTool && (
+              <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
+                <div className="space-y-0.5 pe-3">
+                  <Label>{t("agent-dialog.unlimitedToolCallsLabel")}</Label>
+                  <p className="text-xs text-muted-foreground">{t("agent-dialog.unlimitedToolCallsHint")}</p>
+                </div>
+                <Switch
+                  checked={formData.unlimitedToolCalls}
+                  onCheckedChange={(v) => setFormData((prev) => ({ ...prev, unlimitedToolCalls: v }))}
+                />
+              </div>
+            )}
             <PathListField
               paths={formData.context}
               onAdd={addContext}

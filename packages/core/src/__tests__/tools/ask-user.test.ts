@@ -115,4 +115,17 @@ describe("createAskUserTool", () => {
     expect(req.args).toEqual(params);
     expect(req.requestId).toMatch(/^[0-9a-f-]{36}$/);
   });
+
+  it("passes Infinity to the gate for unlimited agents and ignores timeout_s", async () => {
+    const gate = fakeGate({ answer: "ok", timedOut: false });
+    const tool = createAskUserTool(gate, { unlimitedTimeout: true });
+    await tool.execute("tc1", { question: "Q?", timeout_s: 30 });
+    expect(gate.ask.mock.calls[0][1]).toBe(Number.POSITIVE_INFINITY);
+  });
+
+  it("mentions waiting without a timeout only for unlimited agents", () => {
+    const gate = fakeGate({ answer: "ok", timedOut: false });
+    expect(createAskUserTool(gate).description).not.toContain("without a timeout");
+    expect(createAskUserTool(gate, { unlimitedTimeout: true }).description).toContain("without a timeout");
+  });
 });

@@ -8,7 +8,9 @@ export function interactionCapability(): Capability {
     id: "interaction",
     tools: (host) => [
       withApproval(createRunCommandTool(host.projectRoot), host.approvalGate),
-      createAskUserTool(host.askGate),
+      createAskUserTool(host.askGate, {
+        unlimitedTimeout: host.profile.unlimitedAsk === true,
+      }),
     ],
   };
 }

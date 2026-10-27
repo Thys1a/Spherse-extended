@@ -540,6 +540,14 @@ export const zhCN = {
   "agent-dialog.allowInlineHtmlLabel": "HTML 内联渲染",
   // HTML 内联渲染开关行提示语，说明渲染为只读卡片且默认源码折叠
   "agent-dialog.allowInlineHtmlHint": "启用后，该 Agent 回复中的 HTML 代码块会渲染为只读卡片。",
+  // 永不超时提问开关标签，仅 ask_user 工具选中时展示
+  "agent-dialog.unlimitedAskLabel": "永不超时提问",
+  // 永不超时提问开关行提示语，说明启用后 ask_user 一直等待且 timeout_s 被忽略
+  "agent-dialog.unlimitedAskHint": "启用后，该 Agent 的 ask_user 将一直等待用户回答，直到回答、会话中止或会话关闭；timeout_s 会被忽略。",
+  // 解除单轮工具调用次数限制开关标签，任意工具选中时展示
+  "agent-dialog.unlimitedToolCallsLabel": "解除单轮工具调用次数限制",
+  // 解除单轮工具调用次数限制开关行提示语，说明总数截断解除但重复/截断保护保留
+  "agent-dialog.unlimitedToolCallsHint": "默认单轮最多调用 30 次工具。启用后不再按总数截断，但仍保留同工具同参数连续重复 3 次和连续输出截断 3 轮的保护。",
   // Agent 默认模型选择器首项（跟随全局默认），{model} 为当前全局默认模型
   "agent-dialog.modelFollowGlobal": "跟随全局默认（当前：{model}）",
   // Agent 默认模型选择器：未配置 API Key 时的提示

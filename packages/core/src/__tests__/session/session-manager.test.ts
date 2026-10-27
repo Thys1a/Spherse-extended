@@ -471,6 +471,33 @@ describe("SessionManager lifecycle", () => {
     expect(runtime.sessionRuntime.hasActiveSession(sessionId)).toBe(false);
   });
 
+  it("destroySession aborts the runner before removing it", async () => {
+    const sessionId = await runtime.sessionRuntime.createSession(agentId);
+    const runner = (runtime.sessionRuntime as any).sessions.get(sessionId);
+    const abort = vi.spyOn(runner, "abort");
+    runtime.sessionRuntime.destroySession(sessionId);
+    expect(abort).toHaveBeenCalledTimes(1);
+    expect(runtime.sessionRuntime.hasActiveSession(sessionId)).toBe(false);
+  });
+
+  it("evictAgent aborts evicted runners", async () => {
+    const sessionId = await runtime.sessionRuntime.createSession(agentId);
+    const runner = (runtime.sessionRuntime as any).sessions.get(sessionId);
+    const abort = vi.spyOn(runner, "abort");
+    runtime.sessionRuntime.evictAgent(agentId);
+    expect(abort).toHaveBeenCalledTimes(1);
+    expect(runtime.sessionRuntime.hasActiveSession(sessionId)).toBe(false);
+  });
+
+  it("closeAll aborts every runner", async () => {
+    const sessionId = await runtime.sessionRuntime.createSession(agentId);
+    const runner = (runtime.sessionRuntime as any).sessions.get(sessionId);
+    const abort = vi.spyOn(runner, "abort");
+    await runtime.sessionRuntime.closeAll();
+    expect(abort).toHaveBeenCalledTimes(1);
+    expect(runtime.sessionRuntime.hasActiveSession(sessionId)).toBe(false);
+  });
+
   it("restoreSession is idempotent for an already-active session", async () => {
     const sessionId = await runtime.sessionRuntime.createSession(agentId);
     const before = runtime.sessionRuntime.sessions.size;

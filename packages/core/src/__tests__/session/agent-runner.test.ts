@@ -1072,6 +1072,70 @@ describe("AgentRunner yolo mode", () => {
     expect(text).toContain("yolo-reloaded");
     expect(result.details.status).toBe("completed");
   });
+
+  it("triggers tool-call-budget on the 31st tool result by default", async () => {
+    const agentStore = getAgentStore(runtime, agentId);
+    const sessionId = agentStore.sessions.createSession();
+    const runner = await AgentRunner.init(deps, agentId, sessionId);
+    const check = (runner as any).checkToolLoopStop.bind(runner);
+    for (let i = 0; i < 30; i += 1) {
+      expect(check({}, 1)).toBe(false);
+    }
+    expect(check({}, 1)).toBe(true);
+    expect((runner as any).toolLoopStop).toBe("tool-call-budget");
+  });
+
+  it("skips the tool-call budget when unlimitedToolCalls is set", async () => {
+    const agentStore = getAgentStore(runtime, agentId);
+    agentStore._profile = { ...agentStore._profile, unlimitedToolCalls: true };
+    const sessionId = agentStore.sessions.createSession();
+    const runner = await AgentRunner.init(deps, agentId, sessionId);
+    const check = (runner as any).checkToolLoopStop.bind(runner);
+    for (let i = 0; i < 100; i += 1) {
+      expect(check({}, 1)).toBe(false);
+    }
+    expect((runner as any).toolLoopStop).toBeNull();
+  });
+
+  it("keeps repeat and truncation guards with unlimitedToolCalls", async () => {
+    const agentStore = getAgentStore(runtime, agentId);
+    agentStore._profile = { ...agentStore._profile, unlimitedToolCalls: true };
+    const sessionId = agentStore.sessions.createSession();
+    const repeatRunner = await AgentRunner.init(deps, agentId, sessionId);
+    const guard = (repeatRunner as any).guardToolCall.bind(repeatRunner);
+    expect(guard("x", { a: 1 })).toBeUndefined();
+    expect(guard("x", { a: 1 })).toBeUndefined();
+    expect(guard("x", { a: 1 })?.block).toBe(true);
+
+    const truncateRunner = await AgentRunner.init(deps, agentId, sessionId);
+    const check = (truncateRunner as any).checkToolLoopStop.bind(truncateRunner);
+    expect(check({ stopReason: "length" }, 0)).toBe(false);
+    expect(check({ stopReason: "length" }, 0)).toBe(false);
+    expect(check({ stopReason: "length" }, 0)).toBe(true);
+    expect((truncateRunner as any).toolLoopStop).toBe("truncated-loop");
+  });
+
+  it("applyReload picks up unlimitedToolCalls change in both directions", async () => {
+    const agentStore = getAgentStore(runtime, agentId);
+    const sessionId = agentStore.sessions.createSession();
+    const runner = await AgentRunner.init(deps, agentId, sessionId);
+    const check = (runner as any).checkToolLoopStop.bind(runner);
+    for (let i = 0; i < 30; i += 1) check({}, 1);
+    expect(check({}, 1)).toBe(true);
+
+    (runner as any).resetToolLoopGuard();
+    agentStore._profile = { ...agentStore._profile, unlimitedToolCalls: true };
+    await runnerOf(runner).applyReload();
+    for (let i = 0; i < 100; i += 1) {
+      expect(check({}, 1)).toBe(false);
+    }
+
+    (runner as any).resetToolLoopGuard();
+    agentStore._profile = { ...agentStore._profile, unlimitedToolCalls: false };
+    await runnerOf(runner).applyReload();
+    for (let i = 0; i < 30; i += 1) check({}, 1);
+    expect(check({}, 1)).toBe(true);
+  });
 });
 
 describe("AgentRunner in-flight ownership", () => {

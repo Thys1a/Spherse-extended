@@ -134,6 +134,8 @@ export class AgentProfileStore {
         timePerception: parseTimePerception(data.timePerception),
         yolo: data.yolo === true || undefined,
         allowInlineHtml: data.allowInlineHtml === true || undefined,
+        unlimitedAsk: data.unlimitedAsk === true || undefined,
+        unlimitedToolCalls: data.unlimitedToolCalls === true || undefined,
         placeholder:
           typeof data.placeholder === "string" && data.placeholder.trim()
             ? data.placeholder

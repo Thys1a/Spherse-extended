@@ -91,6 +91,22 @@ You are a world building assistant.`;
     expect(profile!.allowInlineHtml).toBe(true);
   });
 
+  it("parses unlimitedAsk/unlimitedToolCalls true from frontmatter", async () => {
+    await writeProfile("---\nname: Agent\nunlimitedAsk: true\nunlimitedToolCalls: true\n---\n\nprompt");
+    const profile = await store.read();
+    expect(profile).not.toBeNull();
+    expect(profile!.unlimitedAsk).toBe(true);
+    expect(profile!.unlimitedToolCalls).toBe(true);
+  });
+
+  it("returns undefined unlimited flags when frontmatter omits them", async () => {
+    await writeProfile(VALID_PROFILE);
+    const profile = await store.read();
+    expect(profile).not.toBeNull();
+    expect(profile!.unlimitedAsk).toBeUndefined();
+    expect(profile!.unlimitedToolCalls).toBeUndefined();
+  });
+
   it("returns undefined allowInlineHtml when frontmatter omits it", async () => {
     await writeProfile(VALID_PROFILE);
     const profile = await store.read();

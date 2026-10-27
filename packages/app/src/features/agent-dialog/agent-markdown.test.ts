@@ -296,12 +296,33 @@ describe("parseAgentMarkdown", () => {
     const result = parseAgentMarkdown(raw);
     expect(result.extraFrontmatter).not.toHaveProperty("yolo");
   });
+
+  it("parses unlimitedAsk/unlimitedToolCalls true when present", () => {
+    const raw = "---\nname: Agent\nunlimitedAsk: true\nunlimitedToolCalls: true\n---\n\nsystem prompt";
+    const result = parseAgentMarkdown(raw);
+    expect(result.formData.unlimitedAsk).toBe(true);
+    expect(result.formData.unlimitedToolCalls).toBe(true);
+  });
+
+  it("returns false unlimited flags when fields are missing", () => {
+    const raw = "---\nname: Agent\n---\n\nsystem prompt";
+    const result = parseAgentMarkdown(raw);
+    expect(result.formData.unlimitedAsk).toBe(false);
+    expect(result.formData.unlimitedToolCalls).toBe(false);
+  });
+
+  it("does not leak unlimited flags into extra frontmatter", () => {
+    const raw = "---\nname: Agent\nunlimitedAsk: true\nunlimitedToolCalls: true\n---\n\nsystem prompt";
+    const result = parseAgentMarkdown(raw);
+    expect(result.extraFrontmatter).not.toHaveProperty("unlimitedAsk");
+    expect(result.extraFrontmatter).not.toHaveProperty("unlimitedToolCalls");
+  });
 });
 
 describe("buildAgentMarkdown", () => {
   it("writes tools array into frontmatter", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", tools: ["read_file"], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false },
+      { name: "Agent", tools: ["read_file"], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, unlimitedAsk: false, unlimitedToolCalls: false },
       {},
       false,
     );
@@ -312,7 +333,7 @@ describe("buildAgentMarkdown", () => {
 
   it("omits context when empty", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false },
+      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, unlimitedAsk: false, unlimitedToolCalls: false },
       {},
       false,
     );
@@ -321,7 +342,7 @@ describe("buildAgentMarkdown", () => {
 
   it("writes quickLinks into frontmatter and round-trips", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", tools: [], context: [], quickLinks: ["notes/world.md"], systemPrompt: "hello", yolo: false, allowInlineHtml: false },
+      { name: "Agent", tools: [], context: [], quickLinks: ["notes/world.md"], systemPrompt: "hello", yolo: false, allowInlineHtml: false, unlimitedAsk: false, unlimitedToolCalls: false },
       {},
       false,
     );
@@ -332,7 +353,7 @@ describe("buildAgentMarkdown", () => {
 
   it("omits quickLinks from frontmatter when empty", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false },
+      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, unlimitedAsk: false, unlimitedToolCalls: false },
       {},
       false,
     );
@@ -341,7 +362,7 @@ describe("buildAgentMarkdown", () => {
 
   it("preserves empty tools array through a round-trip", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false },
+      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, unlimitedAsk: false, unlimitedToolCalls: false },
       {},
       false,
     );
@@ -351,7 +372,7 @@ describe("buildAgentMarkdown", () => {
 
   it("writes alias into frontmatter when set", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", alias: "小明", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false },
+      { name: "Agent", alias: "小明", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, unlimitedAsk: false, unlimitedToolCalls: false },
       {},
       false,
     );
@@ -361,7 +382,7 @@ describe("buildAgentMarkdown", () => {
 
   it("omits alias from frontmatter when empty", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", alias: "", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false },
+      { name: "Agent", alias: "", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, unlimitedAsk: false, unlimitedToolCalls: false },
       {},
       false,
     );
@@ -370,7 +391,7 @@ describe("buildAgentMarkdown", () => {
 
   it("omits alias from frontmatter when whitespace-only", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", alias: "   ", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false },
+      { name: "Agent", alias: "   ", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, unlimitedAsk: false, unlimitedToolCalls: false },
       {},
       false,
     );
@@ -402,7 +423,7 @@ describe("buildAgentMarkdown", () => {
 
   it("preserves alias through a round-trip with extra frontmatter", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", alias: "小明", tools: ["read_file"], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false },
+      { name: "Agent", alias: "小明", tools: ["read_file"], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, unlimitedAsk: false, unlimitedToolCalls: false },
       { autoRun: true },
       false,
     );
@@ -426,7 +447,7 @@ describe("buildAgentMarkdown", () => {
 
   it("omits model from frontmatter when not set", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false },
+      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, unlimitedAsk: false, unlimitedToolCalls: false },
       {},
       false,
     );
@@ -464,6 +485,8 @@ describe("buildAgentMarkdown", () => {
         systemPrompt: "hello",
         yolo: false,
         allowInlineHtml: false,
+        unlimitedAsk: false,
+        unlimitedToolCalls: false,
       },
       {},
       false,
@@ -475,7 +498,7 @@ describe("buildAgentMarkdown", () => {
 
   it("omits model and thinkingLevel when unset", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false },
+      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, unlimitedAsk: false, unlimitedToolCalls: false },
       {},
       false,
     );
@@ -485,7 +508,7 @@ describe("buildAgentMarkdown", () => {
 
   it("drops a previously set model when cleared", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", model: undefined, thinkingLevel: undefined, tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false },
+      { name: "Agent", model: undefined, thinkingLevel: undefined, tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, unlimitedAsk: false, unlimitedToolCalls: false },
       {},
       false,
     );
@@ -502,6 +525,7 @@ describe("buildAgentMarkdown", () => {
         quickLinks: [],
         systemPrompt: "hello",
         yolo: false, allowInlineHtml: false,
+        unlimitedAsk: false, unlimitedToolCalls: false,
         timePerception: {
           enabled: true,
           epochMs: 1700000000000,
@@ -533,6 +557,7 @@ describe("buildAgentMarkdown", () => {
         quickLinks: [],
         systemPrompt: "hello",
         yolo: false, allowInlineHtml: false,
+        unlimitedAsk: false, unlimitedToolCalls: false,
         timePerception: { enabled: false, epochMs: 1700000000000 },
       },
       {},
@@ -543,7 +568,7 @@ describe("buildAgentMarkdown", () => {
 
   it("writes yolo into frontmatter when true", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: true, allowInlineHtml: false },
+      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: true, allowInlineHtml: false, unlimitedAsk: false, unlimitedToolCalls: false },
       {},
       false,
     );
@@ -554,7 +579,7 @@ describe("buildAgentMarkdown", () => {
 
   it("omits yolo from frontmatter when false", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false },
+      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, unlimitedAsk: false, unlimitedToolCalls: false },
       {},
       false,
     );
@@ -563,7 +588,7 @@ describe("buildAgentMarkdown", () => {
 
   it("writes allowInlineHtml into frontmatter when true", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: true },
+      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: true, unlimitedAsk: false, unlimitedToolCalls: false },
       {},
       false,
     );
@@ -574,10 +599,33 @@ describe("buildAgentMarkdown", () => {
 
   it("omits allowInlineHtml from frontmatter when false", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false },
+      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, unlimitedAsk: false, unlimitedToolCalls: false },
       {},
       false,
     );
     expect(md).not.toContain("allowInlineHtml");
+  });
+
+  it("writes unlimited flags into frontmatter when true", () => {
+    const md = buildAgentMarkdown(
+      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, unlimitedAsk: true, unlimitedToolCalls: true },
+      {},
+      false,
+    );
+    expect(md).toContain("unlimitedAsk");
+    expect(md).toContain("unlimitedToolCalls");
+    const parsed = parseAgentMarkdown(md);
+    expect(parsed.formData.unlimitedAsk).toBe(true);
+    expect(parsed.formData.unlimitedToolCalls).toBe(true);
+  });
+
+  it("omits unlimited flags from frontmatter when false", () => {
+    const md = buildAgentMarkdown(
+      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, unlimitedAsk: false, unlimitedToolCalls: false },
+      {},
+      false,
+    );
+    expect(md).not.toContain("unlimitedAsk");
+    expect(md).not.toContain("unlimitedToolCalls");
   });
 });

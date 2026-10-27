@@ -62,6 +62,8 @@ export interface AgentFormData {
   timePerception?: TimePerceptionFormData;
   yolo: boolean;
   allowInlineHtml: boolean;
+  unlimitedAsk: boolean;
+  unlimitedToolCalls: boolean;
   placeholder?: string;
   greeting?: string;
 }
@@ -87,6 +89,8 @@ export function parseAgentMarkdown(raw: string): ParsedAgent {
         systemPrompt: raw.trim(),
         yolo: false,
         allowInlineHtml: false,
+        unlimitedAsk: false,
+        unlimitedToolCalls: false,
       },
       extraFrontmatter: {},
     };
@@ -96,7 +100,7 @@ export function parseAgentMarkdown(raw: string): ParsedAgent {
   const body = raw.slice(match[0].length).trim();
   const frontmatter = yaml.load(frontmatterRaw) as Record<string, unknown>;
 
-  const { name, alias, model, thinkingLevel, tools, context, quickLinks, quickReplies, timePerception, yolo, allowInlineHtml, placeholder, greeting, ...extra } = frontmatter;
+  const { name, alias, model, thinkingLevel, tools, context, quickLinks, quickReplies, timePerception, yolo, allowInlineHtml, unlimitedAsk, unlimitedToolCalls, placeholder, greeting, ...extra } = frontmatter;
 
   return {
     formData: {
@@ -118,6 +122,8 @@ export function parseAgentMarkdown(raw: string): ParsedAgent {
       timePerception: parseTimePerception(timePerception),
       yolo: yolo === true,
       allowInlineHtml: allowInlineHtml === true,
+      unlimitedAsk: unlimitedAsk === true,
+      unlimitedToolCalls: unlimitedToolCalls === true,
       placeholder: typeof placeholder === "string" && placeholder.trim() ? placeholder : undefined,
       greeting: typeof greeting === "string" && greeting.trim() ? greeting : undefined,
     },
@@ -170,6 +176,12 @@ export function buildAgentMarkdown(
   }
   if (formData.allowInlineHtml) {
     frontmatter.allowInlineHtml = true;
+  }
+  if (formData.unlimitedAsk) {
+    frontmatter.unlimitedAsk = true;
+  }
+  if (formData.unlimitedToolCalls) {
+    frontmatter.unlimitedToolCalls = true;
   }
   if (formData.placeholder?.trim()) {
     frontmatter.placeholder = formData.placeholder.trim();

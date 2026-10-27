@@ -135,6 +135,9 @@ describe("api contracts", () => {
     expect(
       parseApiResponse(schemas.agentProfile, { ...profile, allowInlineHtml: true }),
     ).toMatchObject({ allowInlineHtml: true });
+    expect(
+      parseApiResponse(schemas.agentProfile, { ...profile, unlimitedAsk: true, unlimitedToolCalls: true }),
+    ).toMatchObject({ unlimitedAsk: true, unlimitedToolCalls: true });
     expect(parseApiResponse(schemas.agentProfile, { ...profile, quickLinks: ["notes/world.md"] })).toMatchObject({
       quickLinks: ["notes/world.md"],
     });

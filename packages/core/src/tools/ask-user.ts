@@ -32,7 +32,7 @@ const AskUserParams = Type.Object({
   ),
   timeout_s: Type.Optional(
     Type.Number({
-      description: `How long to wait for the answer, in seconds. Default ${DEFAULT_TIMEOUT_S}, min ${MIN_TIMEOUT_S}, max ${MAX_TIMEOUT_S}.`,
+      description: `How long to wait for the answer, in seconds. Default ${DEFAULT_TIMEOUT_S}, min ${MIN_TIMEOUT_S}, max ${MAX_TIMEOUT_S}. Ignored for agents configured for unlimited waiting.`,
     }),
   ),
 });
@@ -54,18 +54,26 @@ function formatMinutes(timeoutS: number): string {
   return `${value} minute${value === "1" ? "" : "s"}`;
 }
 
-export function createAskUserTool(askGate?: AskGate): AgentTool<typeof AskUserParams, AskUserDetails> {
+export function createAskUserTool(
+  askGate?: AskGate,
+  config?: { unlimitedTimeout?: boolean },
+): AgentTool<typeof AskUserParams, AskUserDetails> {
+  const unlimitedTimeout = config?.unlimitedTimeout === true;
   return {
     name: "ask_user",
     label: "Ask User",
     description:
-      "Ask the user a question and wait for their answer. Only use this tool when you are truly blocked and only the user can provide the needed information. Do not use it to confirm actions or plans — just proceed. Do not ask about anything you can find out yourself with tools. In background or automated runs, do not ask. If the user does not answer within the timeout, continue with your best judgment instead of re-asking.",
+      "Ask the user a question and wait for their answer. Only use this tool when you are truly blocked and only the user can provide the needed information. Do not use it to confirm actions or plans — just proceed. Do not ask about anything you can find out yourself with tools. In background or automated runs, do not ask. If the user does not answer within the timeout, continue with your best judgment instead of re-asking." +
+      (unlimitedTimeout
+        ? " This agent waits without a timeout: keep waiting for the user's answer until they answer or the session is aborted or closed."
+        : ""),
     parameters: AskUserParams,
     executionMode: "sequential",
     async execute(toolCallId, params, signal) {
       const question = params.question;
       const options = sanitizeOptions(params.options);
-      const timeoutS = clampTimeoutS(params.timeout_s);
+      const timeoutS = unlimitedTimeout ? Number.POSITIVE_INFINITY : clampTimeoutS(params.timeout_s);
+      const timeoutMs = timeoutS * 1000;
 
       if (signal?.aborted) {
         return abortedResult(question, options);
@@ -92,7 +100,7 @@ export function createAskUserTool(askGate?: AskGate): AgentTool<typeof AskUserPa
             toolName: "ask_user",
             args: params,
           },
-          timeoutS * 1000,
+          timeoutMs,
         );
       } catch {
         return abortedResult(question, options);

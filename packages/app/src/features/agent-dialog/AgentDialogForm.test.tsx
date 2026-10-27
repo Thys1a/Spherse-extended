@@ -141,6 +141,74 @@ describe("AgentDialogForm allowInlineHtml switch", () => {
   });
 });
 
+describe("AgentDialogForm unlimited switches", () => {
+  const RAW_UNLIMITED = [
+    "---",
+    "name: Helper",
+    "tools: [ask_user, read_file, list_files, search_content]",
+    "unlimitedAsk: true",
+    "unlimitedToolCalls: true",
+    "---",
+    "",
+    "system prompt",
+  ].join("\n");
+
+  function renderUnlimitedForm(
+    onSubmit = vi.fn(async (_slug: string, _content: string, _theme: string) => {}),
+  ) {
+    renderWithProviders(
+      <AgentDialogForm
+        initial={{ raw: RAW_UNLIMITED, theme: "" }}
+        mode="edit"
+        onSubmit={onSubmit}
+        onCancel={vi.fn()}
+      />,
+      { queryClient: createTestQueryClient(), bridge: createMockHostBridge() },
+    );
+    return onSubmit;
+  }
+
+  function switchFor(label: string): HTMLElement {
+    const row = screen.getByText(label).closest("div.flex");
+    if (!row) throw new Error(`${label} row not rendered`);
+    return within(row as HTMLElement).getByRole("switch");
+  }
+
+  it("shows both switches on when frontmatter enables them", () => {
+    renderUnlimitedForm();
+    expect(switchFor("永不超时提问")).toHaveAttribute("aria-checked", "true");
+    expect(switchFor("解除单轮工具调用次数限制")).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("hides the ask switch and drops the flag when ask_user is removed", async () => {
+    const onSubmit = renderUnlimitedForm();
+    fireEvent.click(screen.getByRole("button", { name: "向你提问" }));
+    expect(screen.queryByText("永不超时提问")).toBeNull();
+    expect(screen.getByText("解除单轮工具调用次数限制")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "保存" }));
+    await vi.waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledTimes(1);
+    });
+    const content = onSubmit.mock.calls[0]?.[1] as unknown as string;
+    expect(content).not.toContain("unlimitedAsk");
+    expect(content).toContain("unlimitedToolCalls: true");
+  });
+
+  it("drops the tool-call flag when all tools are removed", async () => {
+    const onSubmit = renderUnlimitedForm();
+    fireEvent.click(screen.getByRole("button", { name: "向你提问" }));
+    fireEvent.click(screen.getByRole("button", { name: "读取文件" }));
+    expect(screen.queryByText("解除单轮工具调用次数限制")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "保存" }));
+    await vi.waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledTimes(1);
+    });
+    const content = onSubmit.mock.calls[0]?.[1] as unknown as string;
+    expect(content).not.toContain("unlimitedAsk");
+    expect(content).not.toContain("unlimitedToolCalls");
+  });
+});
+
 describe("AgentDialogForm host gating", () => {
   beforeEach(() => {
     getSupportedProviders.mockClear();

@@ -47,6 +47,8 @@ export interface AgentProfile {
   timePerception?: TimePerceptionConfig;
   yolo?: boolean;
   allowInlineHtml?: boolean;
+  unlimitedAsk?: boolean;
+  unlimitedToolCalls?: boolean;
   placeholder?: string;
   greeting?: string;
   systemPrompt: string;
