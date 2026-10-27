@@ -101,6 +101,8 @@ frontmatter 字段：
 | `greeting` | 否 | 新会话欢迎区文案；空串视为未设 |
 | `allowInlineHtml` | 否 | 允许该 agent 聊天里的 HTML 围栏块渲染为可交互卡片；未设默认关闭（仅渲染代码文本） |
 | `yolo` | 否 | 自动放行：true 时危险工具跳过审批门，文件访问策略不受影响；仅 Agent Dialog 可改，`manage_agent` 不管理 |
+| `unlimitedAsk` | 否 | 永不超时提问：true 时该 agent 的 `ask_user` 一直等待用户回答（`timeout_s` 被忽略），直到回答、会话中止或关闭；仅 Agent Dialog 可改（需选中 ask_user 工具），`manage_agent` 不管理 |
+| `unlimitedToolCalls` | 否 | 解除单轮 30 次工具调用总数限制（同工具同参数连续重复 3 次与连续输出截断 3 轮保护保留）；仅 Agent Dialog 可改（需选中任一工具），`manage_agent` 不管理 |
 | `timePerception` | 否 | 时间感知配置，见下 |
 | `output` | 否 | 预留字段，当前无消费方 |
 

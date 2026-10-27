@@ -74,7 +74,6 @@ export class SessionControlBus {
     if (!entry) return;
     this.pending.delete(requestId);
     if (entry.timer) clearTimeout(entry.timer);
-    this.pending.delete(requestId);
     entry.resolve(decision);
     this.emitResolved(requestId, entry.kind, decision);
   }

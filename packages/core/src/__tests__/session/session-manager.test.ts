@@ -471,31 +471,49 @@ describe("SessionManager lifecycle", () => {
     expect(runtime.sessionRuntime.hasActiveSession(sessionId)).toBe(false);
   });
 
-  it("destroySession aborts the runner before removing it", async () => {
+  it("rejects a pending infinite ask when the session is destroyed", async () => {
     const sessionId = await runtime.sessionRuntime.createSession(agentId);
     const runner = (runtime.sessionRuntime as any).sessions.get(sessionId);
+    const pending = (runner as any).controlBus.request(
+      { requestId: "q1", kind: "question", toolCallId: "tq", toolName: "ask_user", args: {} },
+      Number.POSITIVE_INFINITY,
+      { timedOut: true },
+    );
     const abort = vi.spyOn(runner, "abort");
+    const originalAbort = Object.getPrototypeOf(runner).abort.bind(runner);
+    abort.mockImplementation(() => {
+      expect(runtime.sessionRuntime.hasActiveSession(sessionId)).toBe(true);
+      originalAbort();
+    });
     runtime.sessionRuntime.destroySession(sessionId);
+    await expect(pending).rejects.toThrow("session aborted");
     expect(abort).toHaveBeenCalledTimes(1);
     expect(runtime.sessionRuntime.hasActiveSession(sessionId)).toBe(false);
   });
 
-  it("evictAgent aborts evicted runners", async () => {
+  it("rejects pending infinite asks when the agent is evicted", async () => {
     const sessionId = await runtime.sessionRuntime.createSession(agentId);
     const runner = (runtime.sessionRuntime as any).sessions.get(sessionId);
-    const abort = vi.spyOn(runner, "abort");
+    const pending = (runner as any).controlBus.request(
+      { requestId: "q2", kind: "question", toolCallId: "tq", toolName: "ask_user", args: {} },
+      Number.POSITIVE_INFINITY,
+      { timedOut: true },
+    );
     runtime.sessionRuntime.evictAgent(agentId);
-    expect(abort).toHaveBeenCalledTimes(1);
+    await expect(pending).rejects.toThrow("session aborted");
     expect(runtime.sessionRuntime.hasActiveSession(sessionId)).toBe(false);
   });
 
-  it("closeAll aborts every runner", async () => {
+  it("rejects pending infinite asks on closeAll", async () => {
     const sessionId = await runtime.sessionRuntime.createSession(agentId);
     const runner = (runtime.sessionRuntime as any).sessions.get(sessionId);
-    const abort = vi.spyOn(runner, "abort");
+    const pending = (runner as any).controlBus.request(
+      { requestId: "q3", kind: "question", toolCallId: "tq", toolName: "ask_user", args: {} },
+      Number.POSITIVE_INFINITY,
+      { timedOut: true },
+    );
     await runtime.sessionRuntime.closeAll();
-    expect(abort).toHaveBeenCalledTimes(1);
-    expect(runtime.sessionRuntime.hasActiveSession(sessionId)).toBe(false);
+    await expect(pending).rejects.toThrow("session aborted");
   });
 
   it("restoreSession is idempotent for an already-active session", async () => {

@@ -192,6 +192,8 @@ describe("SessionControlBus", () => {
 
   it("keeps an infinite-timeout request pending without firing a timer", async () => {
     const bus = new SessionControlBus();
+    const events: SessionControlEvent[] = [];
+    bus.setEventSink((e) => events.push(e));
     let settled = false;
     const p = bus
       .request(
@@ -206,6 +208,14 @@ describe("SessionControlBus", () => {
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(settled).toBe(false);
     expect(bus.pendingCount).toBe(1);
+    expect(events[0]).toEqual({
+      type: "control_request",
+      requestId: "inf",
+      kind: "question",
+      toolCallId: "tq",
+      toolName: "ask_user",
+      args: {},
+    });
     bus.resolve("inf", { answer: "yes", timedOut: false });
     await expect(p).resolves.toEqual({ answer: "yes", timedOut: false });
     expect(bus.pendingCount).toBe(0);

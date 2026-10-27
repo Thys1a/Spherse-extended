@@ -120,7 +120,20 @@ describe("createAskUserTool", () => {
     const gate = fakeGate({ answer: "ok", timedOut: false });
     const tool = createAskUserTool(gate, { unlimitedTimeout: true });
     await tool.execute("tc1", { question: "Q?", timeout_s: 30 });
-    expect(gate.ask.mock.calls[0][1]).toBe(Number.POSITIVE_INFINITY);
+    await tool.execute("tc2", { question: "Q?" });
+    await tool.execute("tc3", { question: "Q?", timeout_s: 3600 });
+    for (const call of gate.ask.mock.calls) {
+      expect(call[1]).toBe(Number.POSITIVE_INFINITY);
+    }
+  });
+
+  it("omits the duration when an unlimited wait ends without an answer", async () => {
+    const gate = fakeGate({ timedOut: true });
+    const tool = createAskUserTool(gate, { unlimitedTimeout: true });
+    const result = await tool.execute("tc1", { question: "Q?" });
+    const text = (result.content[0] as { text: string }).text;
+    expect(text).not.toContain("Infinity");
+    expect(text).toContain("without an answer");
   });
 
   it("mentions waiting without a timeout only for unlimited agents", () => {

@@ -106,17 +106,20 @@ export function createAskUserTool(
         return abortedResult(question, options);
       }
 
-      if (outcome.timedOut || outcome.answer === undefined) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `User did not answer within ${formatMinutes(timeoutS)}. Continue with your best judgment; do not call ask_user again for this question in this run.`,
-            },
-          ],
-          details: { cardType: "question", question, options, timedOut: true },
-        };
-      }
+    if (outcome.timedOut || outcome.answer === undefined) {
+      const guidance = Number.isFinite(timeoutS)
+        ? `User did not answer within ${formatMinutes(timeoutS)}. Continue with your best judgment; do not call ask_user again for this question in this run.`
+        : `The question wait ended without an answer. Continue with your best judgment; do not call ask_user again for this question in this run.`;
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: guidance,
+          },
+        ],
+        details: { cardType: "question", question, options, timedOut: true },
+      };
+    }
 
       return {
         content: [{ type: "text" as const, text: `User's answer:\n${outcome.answer}` }],
