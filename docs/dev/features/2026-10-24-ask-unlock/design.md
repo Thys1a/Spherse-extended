@@ -167,6 +167,13 @@ if (!this.unlimitedToolCalls && this.toolCallTotal > MAX_TOOL_CALLS_PER_TURN) {
 - 已有 `isBusy()` 保护的 `releaseSession` 保持不变；
 - 不引入只拒绝 promise 的轻量 `dispose()`，因为被销毁的会话同时也应停止模型执行。
 
+客户端断开即中止（2026-10-27 决策）：最后一个 WS 附件关闭时，若有未回答的 ask（仅 `question` kind，approval 仍走 5min 自动拒绝），直接 `abortSession`，不保留 pending：
+
+- `control-bus` 新增 `hasPendingQuestion()`（遍历 pending，按 kind 过滤）；
+- `AgentRunner` / `SessionManager` 透传同名查询；
+- `chat-channel.ts` 附件 `close()`：`leases === 0 && state === "open" && runtime.hasPendingQuestion(sessionId)` 时调 `abortSession`，再走原有 `cleanupIfIdle`；
+- 多连接只剩最后一个才触发；detached run 持有 lease，不受影响。
+
 跨进程重启不需要额外处理：
 
 - `derivePendingControls:122-141` 在 `turn/end` 清空 pending；

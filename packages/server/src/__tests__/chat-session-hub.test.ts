@@ -34,6 +34,7 @@ function createRuntime() {
     }),
     compactSession: vi.fn(() => Promise.resolve({ applied: true, digestSource: "llm" })),
     abortSession: vi.fn(),
+    hasPendingQuestion: vi.fn(() => false),
     resolveControlRequest: vi.fn(),
     releaseSession: vi.fn(() => true),
     subscribeSessionEvents: vi.fn(

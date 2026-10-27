@@ -1136,6 +1136,23 @@ describe("AgentRunner yolo mode", () => {
     for (let i = 0; i < 30; i += 1) check({}, 1);
     expect(check({}, 1)).toBe(true);
   });
+
+  it("reports pending questions from the control bus", async () => {
+    const agentStore = getAgentStore(runtime, agentId);
+    const sessionId = agentStore.sessions.createSession();
+    const runner = await AgentRunner.init(deps, agentId, sessionId);
+    expect(runner.hasPendingQuestion()).toBe(false);
+    const bus = (runner as any).controlBus;
+    const pending = bus.request(
+      { requestId: "q1", kind: "question", toolCallId: "tq", toolName: "ask_user", args: {} },
+      Number.POSITIVE_INFINITY,
+      { timedOut: true },
+    );
+    expect(runner.hasPendingQuestion()).toBe(true);
+    bus.rejectAll("test done");
+    await expect(pending).rejects.toThrow("test done");
+    expect(runner.hasPendingQuestion()).toBe(false);
+  });
 });
 
 describe("AgentRunner in-flight ownership", () => {

@@ -232,4 +232,26 @@ describe("SessionControlBus", () => {
     await expect(p).rejects.toThrow("session aborted");
     expect(bus.pendingCount).toBe(0);
   });
+
+  it("reports whether a question is pending", () => {
+    const bus = new SessionControlBus();
+    expect(bus.hasPendingQuestion()).toBe(false);
+    const approval = bus.request(
+      { requestId: "hp-a", kind: "approval", toolCallId: "tc", toolName: "run_command", args: {} },
+      60_000,
+      { approved: false },
+    );
+    expect(bus.hasPendingQuestion()).toBe(false);
+    const question = bus.request(
+      { requestId: "hp-q", kind: "question", toolCallId: "tq", toolName: "ask_user", args: {} },
+      Number.POSITIVE_INFINITY,
+      { timedOut: true },
+    );
+    expect(bus.hasPendingQuestion()).toBe(true);
+    bus.resolve("hp-a", { approved: true });
+    expect(bus.hasPendingQuestion()).toBe(true);
+    bus.resolve("hp-q", { answer: "yes", timedOut: false });
+    expect(bus.hasPendingQuestion()).toBe(false);
+    return Promise.all([approval, question]);
+  });
 });

@@ -132,6 +132,10 @@ export class SessionManager {
     this.sessions.get(sessionId)?.abort();
   }
 
+  hasPendingQuestion(sessionId: string): boolean {
+    return this.sessions.get(sessionId)?.hasPendingQuestion() ?? false;
+  }
+
   async retryLastTurn(
     sessionId: string,
     onEvent: RunnerEventHandler,

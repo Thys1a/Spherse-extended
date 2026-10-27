@@ -34,6 +34,13 @@ export class SessionControlBus {
     return this.pending.size;
   }
 
+  hasPendingQuestion(): boolean {
+    for (const entry of this.pending.values()) {
+      if (entry.kind === "question") return true;
+    }
+    return false;
+  }
+
   request<T>(req: ControlRequest, timeoutMs: number, timeoutDecision: T): Promise<T> {
     return new Promise<T>((resolve, reject) => {
       if (timeoutMs === Number.POSITIVE_INFINITY) {

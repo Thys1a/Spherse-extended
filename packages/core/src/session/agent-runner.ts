@@ -168,6 +168,10 @@ export class AgentRunner {
     return this.agentId;
   }
 
+  hasPendingQuestion(): boolean {
+    return this.controlBus.hasPendingQuestion();
+  }
+
   get agentRef(): Agent {
     return this.agent;
   }

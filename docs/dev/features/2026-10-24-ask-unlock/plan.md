@@ -22,11 +22,13 @@ runner 加可变 `unlimitedToolCalls`；`init` 从 profile 传入；`checkToolLo
 
 - verify：`npm test --workspace=packages/core -- src/__tests__/session/agent-runner.test.ts`（第 31 次默认触发、无限不触发、repeat/截断仍触发、reload 开关双向翻转）。
 
-### 4. 会话清理：`session/session-manager.ts`
+### 4. 会话清理：`session/session-manager.ts` + 断开即中止（2026-10-27 决策）
 
 `destroySession`/`evictAgent`/`closeAll` 删除前先 `abort()` 对应 runner；`releaseSession`（有 busy 保护）不动。
 
-- verify：无限 ask 进行中销毁会话，promise 被拒绝不悬挂（core 会话清理用例）。
+断开即中止：`control-bus.hasPendingQuestion()` → `AgentRunner`/`SessionManager` 透传；`chat-channel.ts` 附件 `close()` 在 `leases === 0 && state === "open" && hasPendingQuestion` 时调 `abortSession`（多连接剩最后一个才触发；approval 仍走 5min 自动拒绝）。
+
+- verify：无限 ask 进行中销毁/驱逐/closeAll，会话 promise 被拒绝不悬挂（core 会话清理用例，含 abort 发生在删除前的顺序断言）；最后附件关闭时有未回答 ask 即 abort、无 ask 不 abort、非最后附件关闭不 abort（server 通道用例）。
 
 ### 5. 契约：`contracts/src/agents.ts`
 
