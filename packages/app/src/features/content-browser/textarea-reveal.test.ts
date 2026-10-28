@@ -14,8 +14,12 @@ describe("toTextareaOffset", () => {
     expect(toTextareaOffset(text, 6)).toBe(4);
   });
 
-  it("maps a trailing LF of a pair onto itself", () => {
+  it("maps the LF position of a pair to the normalized LF position", () => {
     expect(toTextareaOffset("a\r\nb", 2)).toBe(1);
+  });
+
+  it("maps a trailing CRLF end offset to the normalized length", () => {
+    expect(toTextareaOffset("a\r\n", 3)).toBe(2);
   });
 
   it("ignores lone carriage returns", () => {

@@ -16,13 +16,21 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function Harness({ initial = "foo bar foo" }: { initial?: string }) {
+function Harness({ initial = "foo bar foo", onReplace }: { initial?: string; onReplace?: (nextText: string) => void }) {
   const ref = useRef<HTMLTextAreaElement | null>(null);
   const [value, setValue] = useState(initial);
   return (
     <>
       <textarea ref={ref} value={value} onChange={(e) => setValue(e.target.value)} data-testid="editor" />
-      <EditFindReplaceBar text={value} textareaRef={ref} onReplace={setValue} onClose={() => {}} />
+      <EditFindReplaceBar
+        text={value}
+        textareaRef={ref}
+        onReplace={(nextText) => {
+          onReplace?.(nextText);
+          setValue(nextText);
+        }}
+        onClose={() => {}}
+      />
     </>
   );
 }
@@ -149,7 +157,7 @@ describe("EditFindReplaceBar", () => {
     expect(editor.selectionEnd).toBe(11);
   });
 
-  it("selects the normalized range for a mid-document match in a CRLF file", () => {
+  it("selects the normalized range for a later match in a CRLF file", () => {
     renderWithProviders(<Harness initial={"line1\r\nfoo bar\r\nline3 foo"} />);
     typeQuery("foo");
 
@@ -160,13 +168,26 @@ describe("EditFindReplaceBar", () => {
     expect(editor.selectionEnd).toBe(23);
   });
 
+  it("selects the normalized range for a middle match in a CRLF file", () => {
+    renderWithProviders(<Harness initial={"a\r\nfoo\r\nb\r\nfoo\r\nc\r\nfoo"} />);
+    typeQuery("foo");
+
+    fireEvent.click(screen.getByLabelText(translate("zh-CN", "content-browser.find.next")));
+
+    const editor = screen.getByTestId("editor") as HTMLTextAreaElement;
+    expect(editor.selectionStart).toBe(8);
+    expect(editor.selectionEnd).toBe(11);
+  });
+
   it("keeps the same match index after replace in a CRLF file, in normalized coordinates", () => {
-    renderWithProviders(<Harness initial={"line1\r\nfoo bar\r\nline3 foo"} />);
+    const onReplace = vi.fn();
+    renderWithProviders(<Harness initial={"line1\r\nfoo bar\r\nline3 foo"} onReplace={onReplace} />);
     typeQuery("foo");
     typeReplacement("baz");
 
     fireEvent.click(screen.getByText(translate("zh-CN", "content-browser.find.replace")));
 
+    expect(onReplace).toHaveBeenCalledWith("line1\r\nbaz bar\r\nline3 foo");
     const editor = screen.getByTestId("editor") as HTMLTextAreaElement;
     expect(editor.value).toBe("line1\nbaz bar\nline3 foo");
     expect(editor.selectionStart).toBe(20);

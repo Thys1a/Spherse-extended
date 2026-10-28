@@ -36,7 +36,7 @@
 - [ ] **agent 目录本体卡被注入但外链列表不显示**：`loadAgentCards`（`packages/core/src/capabilities/card/worldbook.ts`）解析 `.spherse/agents/{slug}/` 下真实 `.card.json` 并注入，`listAgentCardLinks` 只列 symlink——直接放本体的卡会出现“合计 0 tok 但实际有注入”，画像汇总误导。方向：列表纳入本体卡（标注非外链）或写路径明确拒绝本体卡。2026-10-21 budget review 发现（pre-existing，非本次引入）
 - [ ] **重做任务栏小尺寸图标可辨识度**：`packages/desktop/build/spherse-icon.png`（512）与 exe 提取小图标角落+中心全为不透明白（255,255,255,255），白底+浅灰细线在浅色任务栏上近乎隐形、呈“默认图标”观感。方向：图标去白底改透明，或为 16/32 尺寸做加粗简化版；同步验证 exe 内嵌与任务栏/托盘观感。参见 `docs/dev/bugfix/2026-10-17-ui-triage/design.md` 追记五
 - [ ] **补 data.query manifest-stale 409 的 server 测试**：`sendDataError` 有 409 分支、core 会抛 `ManifestStaleError`，但 query 路径无触发该分支的 fixture 覆盖（mutate 侧有）。参见 `docs/dev/features/2026-10-22-data-query-exposure/design.md` §3.2。
-- [ ] **编辑态查找跳转后焦点离开查找框、Enter 误改文档**：`EditFindReplaceBar` 跳转 effect 把焦点移进 textarea（`EditFindReplaceBar.tsx:48-56`），此后 `Enter` 落在 textarea 会插入换行并弄脏文档（查找框的 `Enter` 跳转只在焦点还在框内时有效）。方向：跳转后焦点保留在查找框（选区仍可用 `setSelectionRange` 预置，聚焦时机另定），或 Enter 行为与焦点位置解耦。2026-10-24 edit-search-shift review 发现（pre-existing）。 参见 `docs/dev/bugfix/2026-10-24-edit-search-shift/design.md` §4
+- [ ] **编辑态查找跳转后焦点离开查找框、Enter 误改文档**：`EditFindReplaceBar` 跳转 effect 把焦点移进 textarea（`EditFindReplaceBar.tsx:48-56`），此后 `Enter` 落在 textarea 会插入换行并弄脏文档（查找框的 `Enter` 跳转只在焦点还在框内时有效）。方向：跳转后焦点保留在查找框（选区仍可用 `setSelectionRange` 预置，聚焦时机另定），或 Enter 行为与焦点位置解耦。2026-10-24 edit-search-shift review 发现（pre-existing）。参见 `docs/dev/bugfix/2026-10-24-edit-search-shift/design.md` §4
 
 ## 技术债（重构与收敛）
 
