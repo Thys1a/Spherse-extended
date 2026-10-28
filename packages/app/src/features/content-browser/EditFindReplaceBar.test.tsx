@@ -148,4 +148,28 @@ describe("EditFindReplaceBar", () => {
     expect(editor.selectionStart).toBe(8);
     expect(editor.selectionEnd).toBe(11);
   });
+
+  it("selects the normalized range for a mid-document match in a CRLF file", () => {
+    renderWithProviders(<Harness initial={"line1\r\nfoo bar\r\nline3 foo"} />);
+    typeQuery("foo");
+
+    fireEvent.click(screen.getByLabelText(translate("zh-CN", "content-browser.find.next")));
+
+    const editor = screen.getByTestId("editor") as HTMLTextAreaElement;
+    expect(editor.selectionStart).toBe(20);
+    expect(editor.selectionEnd).toBe(23);
+  });
+
+  it("keeps the same match index after replace in a CRLF file, in normalized coordinates", () => {
+    renderWithProviders(<Harness initial={"line1\r\nfoo bar\r\nline3 foo"} />);
+    typeQuery("foo");
+    typeReplacement("baz");
+
+    fireEvent.click(screen.getByText(translate("zh-CN", "content-browser.find.replace")));
+
+    const editor = screen.getByTestId("editor") as HTMLTextAreaElement;
+    expect(editor.value).toBe("line1\nbaz bar\nline3 foo");
+    expect(editor.selectionStart).toBe(20);
+    expect(editor.selectionEnd).toBe(23);
+  });
 });

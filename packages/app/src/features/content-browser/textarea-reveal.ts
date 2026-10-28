@@ -1,5 +1,16 @@
 const MAX_MIRROR_PREFIX_LENGTH = 200_000;
 
+export function toTextareaOffset(text: string, offset: number): number {
+  const safeOffset = Math.min(Math.max(0, offset), text.length);
+  let pairs = 0;
+  let from = text.indexOf("\r\n");
+  while (from !== -1 && from < safeOffset) {
+    pairs += 1;
+    from = text.indexOf("\r\n", from + 2);
+  }
+  return safeOffset - pairs;
+}
+
 export function measureMatchCenter(textarea: HTMLTextAreaElement, offset: number): number | null {
   const value = textarea.value;
   const safeOffset = Math.min(Math.max(0, offset), value.length);

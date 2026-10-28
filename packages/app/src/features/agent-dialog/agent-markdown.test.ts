@@ -400,7 +400,7 @@ describe("buildAgentMarkdown", () => {
 
   it("round-trips placeholder and greeting through frontmatter", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, placeholder: "输入消息…", greeting: "你好" },
+      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, unlimitedAsk: false, unlimitedToolCalls: false, placeholder: "输入消息…", greeting: "你好" },
       {},
       false,
     );
@@ -413,7 +413,7 @@ describe("buildAgentMarkdown", () => {
 
   it("omits blank placeholder/greeting from frontmatter", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, placeholder: "  ", greeting: "" },
+      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, unlimitedAsk: false, unlimitedToolCalls: false, placeholder: "  ", greeting: "" },
       {},
       false,
     );
@@ -435,7 +435,7 @@ describe("buildAgentMarkdown", () => {
 
   it("writes model into frontmatter when set", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, model: "gpt-4" },
+      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, unlimitedAsk: false, unlimitedToolCalls: false, model: "gpt-4" },
       {},
       false,
     );
@@ -456,7 +456,7 @@ describe("buildAgentMarkdown", () => {
 
   it("omits model from frontmatter when whitespace-only", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, model: "   " },
+      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, unlimitedAsk: false, unlimitedToolCalls: false, model: "   " },
       {},
       false,
     );
@@ -465,7 +465,7 @@ describe("buildAgentMarkdown", () => {
 
   it("does not double-write model when it is both form data and extra", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, model: "gpt-4" },
+      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, unlimitedAsk: false, unlimitedToolCalls: false, model: "gpt-4" },
       { model: "claude" },
       false,
     );

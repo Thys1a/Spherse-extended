@@ -6,7 +6,7 @@ import { Button } from "../../components/ui/button";
 import { useI18n } from "@spherse/i18n/react";
 import { findMatches } from "../../components/find-bar/find-engine";
 import { replaceAllOccurrences, replaceOneAt } from "./text-replace";
-import { cancelCenter, scheduleCenter } from "./textarea-reveal";
+import { cancelCenter, scheduleCenter, toTextareaOffset } from "./textarea-reveal";
 
 interface EditFindReplaceBarProps {
   text: string;
@@ -59,14 +59,20 @@ export function EditFindReplaceBar({ text, textareaRef, onReplace, onClose }: Ed
     if (matches.length === 0) return;
     const idx = Math.min(refocusIndex, matches.length - 1);
     setMatchIndex(idx);
-    setPendingSelection({ start: matches[idx].start, end: matches[idx].end });
+    setPendingSelection({
+      start: toTextareaOffset(text, matches[idx].start),
+      end: toTextareaOffset(text, matches[idx].end),
+    });
   }, [text, refocusIndex, matches]);
 
   const goTo = (index: number) => {
     if (matches.length === 0) return;
     const idx = (index + matches.length) % matches.length;
     setMatchIndex(idx);
-    setPendingSelection({ start: matches[idx].start, end: matches[idx].end });
+    setPendingSelection({
+      start: toTextareaOffset(text, matches[idx].start),
+      end: toTextareaOffset(text, matches[idx].end),
+    });
   };
 
   const handleReplaceOne = () => {
