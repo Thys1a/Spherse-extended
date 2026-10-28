@@ -128,10 +128,11 @@ npm run build:landing   # 构建 landing page（含 @spherse/i18n 依赖构建�
 2. **design doc**：方案商定后写成 design doc，放 `docs/dev/{features,infra}/{yyyy-MM-dd-name}/`（结构参考同类目录的近期文档；放置规则见 **doc-sync** skill）；写完开 sub agent review，反馈按 critical / important / medium / minor 分级处理
 3. **实现**：复杂需求按 design doc 拆分任务并落盘 `plan.md`，逐项实现勾选；相对简单的任务直接实现。测试不强制 TDD、按场景选：不变量密集的纯逻辑（fold、access policy、错误分类等）先写测试再实现，UI / 集成路径实现后补
 4. **commit + 代码 review**：实现完毕先 commit，再加载 **code-review** skill 派 sub agent 对照 design doc 与代码现状审查实现
-5. **反馈处理**：重点关注 critical / important 评论，逐条判断是否成立、是否值得修，有选择性地修（追加 commit）；不成立或暂不修的记录理由，留给步骤 7 回复
-6. **代码验收**：审查和记录功能完成情况和遗漏项；**分支 merge 到 dev 前必须先结清 backlog**：对照 `docs/dev/backlog.md` 勾销已完成条目，把验收中发现的新缺口补为新条目（格式见该文件头部说明），无悬挂才可 merge
-7. **收尾提 PR或merge**：加载 **doc-sync** skill 自查文档同步并更新，然后提 PR；在 PR 评论区贴上 review report（分等级，标明哪些已修、哪些未修及原因）；**合并分支只认用户验收**：code-review 通过 ≠ 可合并，在用户明确验收（提出可合并/亲自合并）前 agent 不得 merge 任何分支，因为只有用户能做最终验收
-8. **发版后版本号**：push main（stable 发版）结束后询问用户是否修改版本号（`packages/desktop/package.json` 为唯一来源），因为一次发版即开启下一版本周期，版本号必须显式决策，不能沿用旧号默默进入下个周期
+5. **反馈处理**：重点关注 critical / important 评论，逐条判断是否成立、是否值得修，有选择性地修（追加 commit）；不成立或暂不修的记录理由，留给步骤 6 回复
+6. **收尾提 PR或merge**：加载 **doc-sync** skill 自查文档同步并更新，然后提 PR；在 PR 评论区贴上 review report（分等级，标明哪些已修、哪些未修及原因）；
+   - **提PR或merge分支只认用户验收**：code-review 通过 ≠ 可合并，在用户明确验收（提出可合并/亲自合并）前 agent 不得 merge 任何分支，因为只有用户能做最终验收。注意本地merge≠可推送。
+   - **代码验收**：审查和记录功能完成情况和遗漏项；**分支 merge 到 dev 前必须先结清 backlog**：对照 `docs/dev/backlog.md` 勾销已完成条目，把验收中发现的新缺口补为新条目（格式见该文件头部说明），无悬挂才可 merge
+7. **发版后版本号**：push main（stable 发版）结束后询问用户是否修改版本号（`packages/desktop/package.json` 为唯一来源），因为一次发版即开启下一版本周期，版本号必须显式决策，不能沿用旧号默默进入下个周期
     - push dev前：修改changes.md（当前版本新增，覆盖上一个版本），
     - push main前: 修改readme.md
       1. 补充整体功能介绍与功能拓展（本 fork 新增）部分
