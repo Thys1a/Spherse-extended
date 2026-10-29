@@ -93,6 +93,13 @@ describe("SkillStore (project-only, backward compat)", () => {
     expect(skills).toHaveLength(0);
   });
 
+  it("skips SKILL.md with non-string name or description", async () => {
+    await writeFile(skillDir, "badnum/SKILL.md", "---\nname: 42\ndescription: Has body\n---\ncontent");
+    await writeFile(skillDir, "badbool/SKILL.md", "---\nname: badbool\ndescription: true\n---\ncontent");
+    const skills = await store.list();
+    expect(skills).toHaveLength(0);
+  });
+
   it("returns empty list for non-existent directory", async () => {
     const emptyStore = new SkillStore(skillDir + "/nope");
     const skills = await emptyStore.list();

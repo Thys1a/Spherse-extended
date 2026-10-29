@@ -56,6 +56,33 @@ describe("UserSkillSettingsStore", () => {
     expect(reloaded.get()).toEqual(next);
   });
 
+  it("drops relative entries and expands ~ to absolute dirs", () => {
+    const store = new UserSkillSettingsStore();
+    const home = os.homedir();
+    const next = store.applyUpdate({
+      customDirs: ["relative/skills", "~/extra-skills", ""],
+      enabled: [],
+    });
+    expect(next.customDirs).toEqual([path.normalize(path.join(home, "extra-skills"))]);
+  });
+
+  it("cascades custom dir removal to enabled entries underneath", () => {
+    const store = new UserSkillSettingsStore();
+    const root = path.join(tmpDir, "skills");
+    store.applyUpdate({ customDirs: [root], enabled: [path.join(root, "demo")] });
+    const next = store.applyUpdate({ customDirs: [] });
+    expect(next.customDirs).toEqual([]);
+    expect(next.enabled).toEqual([]);
+  });
+
+  it("prunes enabled entries whose dirs no longer exist on scan", async () => {
+    const store = new UserSkillSettingsStore();
+    const missing = path.join(tmpDir, "gone", "demo");
+    store.applyUpdate({ customDirs: [], enabled: [missing] });
+    await store.scan(tmpDir);
+    expect(store.get().enabled).toEqual([]);
+  });
+
   it("isEnabled reflects stored skill dirs", () => {
     const store = new UserSkillSettingsStore();
     store.applyUpdate({ customDirs: [], enabled: [path.join("/x", "skills", "a")] });

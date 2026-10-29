@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { listSkillsInDir, type UserSkillSource } from "@spherse/core";
+import { isPathInside, listSkillsInDir, type UserSkillSource } from "@spherse/core";
 import type { UserSkillSettingsResponse } from "@spherse/contracts";
 
 interface ResolvedUserSkillSource extends UserSkillSource {
@@ -92,11 +92,16 @@ export class UserSkillSettingsStore {
   }
 
   applyUpdate(update: { customDirs?: string[]; enabled?: string[] }): { customDirs: string[]; enabled: string[] } {
-    const next = {
-      customDirs:
-        update.customDirs === undefined ? this.settings.customDirs : cleanDirList(update.customDirs),
-      enabled: update.enabled === undefined ? this.settings.enabled : cleanDirList(update.enabled),
-    };
+    const customDirs =
+      update.customDirs === undefined ? this.settings.customDirs : cleanDirList(update.customDirs);
+    let enabled = update.enabled === undefined ? this.settings.enabled : cleanDirList(update.enabled);
+    if (update.customDirs !== undefined) {
+      const removed = this.settings.customDirs.filter((d) => !customDirs.includes(d));
+      if (removed.length > 0) {
+        enabled = enabled.filter((e) => !removed.some((r) => isPathInside(r, e)));
+      }
+    }
+    const next = { customDirs, enabled };
     this.settings = next;
     if (this.filePath) this.writeToDisk(next);
     return next;
@@ -114,8 +119,9 @@ export class UserSkillSettingsStore {
     const seen = new Set<string>();
     const result: UserSkillSettingsResponse["sources"] = [];
     for (const source of sources) {
-      if (seen.has(source.dir)) continue;
-      seen.add(source.dir);
+      const identity = process.platform === "win32" ? source.dir.toLowerCase() : source.dir;
+      if (seen.has(identity)) continue;
+      seen.add(identity);
       let exists = false;
       const skills: { name: string; description: string; dir: string; enabled: boolean }[] = [];
       try {

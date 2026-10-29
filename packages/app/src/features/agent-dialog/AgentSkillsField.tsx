@@ -18,7 +18,7 @@ export function AgentSkillsField({ skills, value, onChange }: AgentSkillsFieldPr
   const checked = (name: string) => value === undefined || value.includes(name);
 
   const toggle = (name: string, on: boolean) => {
-    const base = value ?? allNames;
+    const base = (value ?? allNames).filter((n) => allNames.includes(n));
     const next = on ? [...base, name] : base.filter((n) => n !== name);
     const unique = [...new Set(next)];
     onChange(unique.length === allNames.length && allNames.every((n) => unique.includes(n)) ? undefined : unique);

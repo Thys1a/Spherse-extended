@@ -22,9 +22,11 @@ export function createLoadSkillTool(
       "Load a skill's full instructions. Use this when you want to activate a skill from the available skills list.",
     parameters: LoadSkillParams,
     async execute(_toolCallId, params, _signal) {
-      const skill =
-        (await agentSkillStore?.get(params.skill_name)) ??
-        (await skillStore.get(params.skill_name));
+      const agentSkill = await agentSkillStore?.get(params.skill_name);
+      if (agentSkill) {
+        return renderSkill(projectRoot, agentSkill);
+      }
+      const skill = await skillStore.get(params.skill_name);
       if (!skill || isAllowed?.(skill) === false) {
         return {
           content: [
@@ -36,26 +38,29 @@ export function createLoadSkillTool(
           details: undefined,
         };
       }
-
-      let text = `<skill-content name="${skill.name}">\n${skill.instructions}`;
-      if (skill.files.length > 0) {
-        const fileList = skill.files
-          .map((f) => `- ${skillFileDisplayPath(projectRoot, skill, f)}`)
-          .join("\n");
-        text += `\n\n## Skill Files\n\nThis skill has companion files you can read with the read_file tool:\n${fileList}`;
-      }
-      text += `\n</skill-content>`;
-
-      const { text: capped, truncated } = truncateText(text);
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: capped,
-          },
-        ],
-        details: { name: skill.name, truncated },
-      };
+      return renderSkill(projectRoot, skill);
     },
+  };
+}
+
+function renderSkill(projectRoot: string, skill: SkillDefinition) {
+  let text = `<skill-content name="${skill.name}">\n${skill.instructions}`;
+  if (skill.files.length > 0) {
+    const fileList = skill.files
+      .map((f) => `- ${skillFileDisplayPath(projectRoot, skill, f)}`)
+      .join("\n");
+    text += `\n\n## Skill Files\n\nThis skill has companion files you can read with the read_file tool:\n${fileList}`;
+  }
+  text += `\n</skill-content>`;
+
+  const { text: capped, truncated } = truncateText(text);
+  return {
+    content: [
+      {
+        type: "text" as const,
+        text: capped,
+      },
+    ],
+    details: { name: skill.name, truncated },
   };
 }

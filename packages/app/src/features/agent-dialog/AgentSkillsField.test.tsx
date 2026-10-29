@@ -82,6 +82,18 @@ describe("AgentSkillsField", () => {
     expect(onChange).toHaveBeenCalledWith([]);
   });
 
+  it("drops stale names that are no longer in the project skill set", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    renderWithProviders(
+      <AgentSkillsField skills={SKILLS} value={["research", "deleted-skill"]} onChange={onChange} />,
+    );
+    const row = screen.getByText("writing").closest("div.justify-between");
+    if (!row) throw new Error("writing row not rendered");
+    await user.click(within(row as HTMLElement).getByRole("switch"));
+    expect(onChange).toHaveBeenCalledWith(undefined);
+  });
+
   it("re-checking every skill collapses back to undefined (all-on)", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();

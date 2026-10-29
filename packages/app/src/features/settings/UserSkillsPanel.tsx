@@ -11,6 +11,20 @@ import { SectionTitle } from "./SectionTitle";
 
 type UserSkillSource = UserSkillSettingsResponse["sources"][number];
 
+const KNOWN_SOURCE_KEYS = ["agents", "claude", "opencode", "codex"] as const;
+type KnownSourceKey = (typeof KNOWN_SOURCE_KEYS)[number];
+
+function isKnownSourceKey(key: string): key is KnownSourceKey {
+  return (KNOWN_SOURCE_KEYS as readonly string[]).includes(key);
+}
+
+function sourceLabel(source: UserSkillSource, t: (key: `settings.userSkills.sources.${KnownSourceKey}`) => string): string {
+  if (!source.custom && isKnownSourceKey(source.key)) {
+    return t(`settings.userSkills.sources.${source.key}`);
+  }
+  return source.dir;
+}
+
 export function UserSkillsPanel() {
   const { t } = useI18n();
   const bridge = useHostBridge();
@@ -78,7 +92,7 @@ export function UserSkillsPanel() {
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 flex-col gap-1">
           <span className="truncate text-sm font-medium leading-none" title={source.dir}>
-            {source.custom ? source.dir : t(`settings.userSkills.sources.${source.key}` as never)}
+            {sourceLabel(source, t)}
           </span>
           {!source.exists && <span className="text-xs text-muted-foreground">{t("settings.userSkills.notFound")}</span>}
         </div>

@@ -80,6 +80,7 @@ async function parseSkillInDir(
     const raw = await fs.readFile(skillMdPath, "utf-8");
     const { data, content } = matter(raw);
 
+    if (typeof data.name !== "string" || typeof data.description !== "string") return null;
     if (!data.name || !data.description) return null;
 
     const files = await collectSkillFiles(path.dirname(skillMdPath));
