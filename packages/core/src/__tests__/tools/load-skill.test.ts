@@ -121,5 +121,32 @@ describe("createLoadSkillTool", () => {
       const result = await tool.execute("tc1", { skill_name: "missing" }, undefined as any);
       expect(result.content[0].text).toContain('skill "missing" not found');
     });
+
+    it("bypasses the allowlist for agent-level skills", async () => {
+      const tool = createLoadSkillTool(
+        skillDir,
+        new SkillStore(skillDir),
+        new SkillStore(agentSkillDir),
+        () => false,
+      );
+      const result = await tool.execute("tc1", { skill_name: "agent-only" }, undefined as any);
+      expect(result.content[0].text).toContain("Agent-only skill content.");
+    });
+
+    it("applies the allowlist to project-level skills", async () => {
+      await writeFile(
+        skillDir,
+        "global-only/SKILL.md",
+        "---\nname: global-only\ndescription: Only global\n---\n\nGlobal-only content.",
+      );
+      const tool = createLoadSkillTool(
+        skillDir,
+        new SkillStore(skillDir),
+        new SkillStore(agentSkillDir),
+        (skill) => skill.name !== "global-only",
+      );
+      const result = await tool.execute("tc1", { skill_name: "global-only" }, undefined as any);
+      expect(result.content[0].text).toContain('skill "global-only" not found');
+    });
   });
 });

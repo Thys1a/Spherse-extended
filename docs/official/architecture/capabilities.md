@@ -11,10 +11,10 @@
 | 能力 | 主要贡献 |
 |---|---|
 | `fs` | 文件读写/编辑/搜索/移动/复制/生图工具 |
-| `skill` | `load_skill` 工具 + skill catalog block（按 name 去重合并，agent-level > `.spherse/skills` > `.agents/skills` > builtin） |
+| `skill` | `load_skill` 工具 + skill catalog block（按 name 去重合并，agent-level > `.spherse/skills` > `.agents/skills` > user-level > builtin；项目侧受 agent 白名单 `profile.skills` 约束，缺省全开） |
 | `changelog` | `append_changelog` 工具 |
 | `render` | `render_card` 工具 |
-| `agent-mgmt` | `manage_agent` 工具（写 action 经审批） |
+| `agent-mgmt` | `manage_agent` 工具（写 action 经审批；`skills` 参数管理项目 skill 白名单） |
 | `interaction` | `run_command`（逐次审批）、`ask_user`（问答门） |
 | `project-config` | `manage_project_config` 工具 |
 | `data` | `read_data` / `query_data` / `mutate_data` 工具（`*.data.json`） |

@@ -130,6 +130,9 @@ export class AgentProfileStore {
           ? data.quickLinks.filter((p): p is string => typeof p === "string")
           : undefined,
         quickReplies: parseQuickReplies(data.quickReplies),
+        skills: Array.isArray(data.skills)
+          ? data.skills.filter((s): s is string => typeof s === "string")
+          : undefined,
         output: data.output,
         timePerception: parseTimePerception(data.timePerception),
         yolo: data.yolo === true || undefined,

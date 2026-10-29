@@ -251,6 +251,25 @@ export const zhCN = {
   "settings.tabs.about": "关于",
   // 设置弹窗「帮助」tab 标签
   "settings.tabs.help": "帮助",
+  // 设置弹窗「技能」tab 标签（仅桌面端展示用户本地 skill 开关）
+  "settings.tabs.skills": "技能",
+  // 技能 tab 标题
+  "settings.userSkills.title": "本地技能",
+  // 技能 tab 说明：用户目录 skill 默认关闭，项目 skill 优先
+  "settings.userSkills.desc": "来自本机常用目录的技能默认全部关闭，打开后对所有项目生效；同名时项目 skill 优先。",
+  // 技能来源分组标题（agents/claude/opencode/codex 等内置来源）
+  "settings.userSkills.sources.agents": "通用技能目录",
+  "settings.userSkills.sources.claude": "Claude Code",
+  "settings.userSkills.sources.opencode": "opencode",
+  "settings.userSkills.sources.codex": "Codex",
+  // 目录不存在时的提示
+  "settings.userSkills.notFound": "目录不存在",
+  // 添加自定义目录按钮
+  "settings.userSkills.addCustomDir": "添加自定义目录",
+  // 保存失败提示，{error} 为错误信息
+  "settings.userSkills.saveFailed": "保存失败：{error}",
+  // 生效时机说明
+  "settings.userSkills.takesEffectNote": "更改将在下一次对话中生效。",
   // 帮助 tab 内的小节标题，指代在线文档资源
   "settings.help.title": "文档",
   // 帮助 tab 内的说明文案，介绍文档涵盖的内容
@@ -548,6 +567,10 @@ export const zhCN = {
   "agent-dialog.unlimitedToolCallsLabel": "解除单轮工具调用次数限制",
   // 解除单轮工具调用次数限制开关行提示语，说明总数截断解除但重复/截断保护保留
   "agent-dialog.unlimitedToolCallsHint": "默认单轮最多调用 30 次工具。启用后不再按总数截断，但仍保留同工具同参数连续重复 3 次和连续输出截断 3 轮的保护。",
+  // Agent 可用技能多选标题，列出项目 skill 供勾选（不含用户级 skill）
+  "agent-dialog.skillsLabel": "可用技能",
+  // Agent 可用技能多选提示语，说明缺省全选、取消勾选即停用
+  "agent-dialog.skillsHint": "默认全部启用；取消勾选后该 Agent 将看不到对应技能。",
   // Agent 默认模型选择器首项（跟随全局默认），{model} 为当前全局默认模型
   "agent-dialog.modelFollowGlobal": "跟随全局默认（当前：{model}）",
   // Agent 默认模型选择器：未配置 API Key 时的提示

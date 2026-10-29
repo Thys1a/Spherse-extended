@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { app } from "electron";
 import { createMultiProjectServer } from "@spherse/server";
 import type { ProjectRegistry, MultiProjectServer } from "@spherse/server";
-import { getMobileAccess, getServerToken, getModelSettingsPath, getWebSearchSettingsPath } from "./settings.js";
+import { getMobileAccess, getServerToken, getModelSettingsPath, getWebSearchSettingsPath, getUserSkillSettingsPath } from "./settings.js";
 import { getTunnelManager } from "./tunnel/manager.js";
 
 interface ServerHandle {
@@ -55,6 +55,7 @@ export async function ensureServer(): Promise<void> {
   const result = await createMultiProjectServer({
     modelSettingsPath: getModelSettingsPath(),
     webSearchSettingsPath: getWebSearchSettingsPath(),
+    skillSettingsPath: getUserSkillSettingsPath(),
     auth: { accessToken: getServerToken() },
     appVersion: app.getVersion(),
   });

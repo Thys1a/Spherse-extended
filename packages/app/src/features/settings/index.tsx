@@ -24,6 +24,7 @@ import { CustomProviderDialog } from "./CustomProviderDialog";
 import { SectionTitle } from "./SectionTitle";
 import { AdvancedSettings } from "./AdvancedSettings";
 import { UpdateChecker } from "./UpdateChecker";
+import { UserSkillsPanel } from "./UserSkillsPanel";
 import { MobileAccessPanel } from "./MobileAccessPanel";
 import { HelpPanel } from "./HelpPanel";
 import { TtsSettingsPanel } from "./TtsSettingsPanel";
@@ -282,6 +283,7 @@ function SettingsTabs() {
           <TabsTrigger value="image">{t("settings.tabs.image")}</TabsTrigger>
           <TabsTrigger value="general">{t("settings.tabs.general")}</TabsTrigger>
           {mobileAccessEnabled && <TabsTrigger value="mobile">{t("settings.tabs.mobile")}</TabsTrigger>}
+        {desktopPrefsEnabled && <TabsTrigger value="skills">{t("settings.tabs.skills")}</TabsTrigger>}
           <TabsTrigger value="help">{t("settings.tabs.help")}</TabsTrigger>
           <TabsTrigger value="about">{t("settings.tabs.about")}</TabsTrigger>
         </TabsList>
@@ -411,6 +413,12 @@ function SettingsTabs() {
         {mobileAccessEnabled && (
           <TabsContent value="mobile" className="mt-3 min-h-0 overflow-y-auto">
             <MobileAccessPanel />
+          </TabsContent>
+        )}
+
+        {desktopPrefsEnabled && (
+          <TabsContent value="skills" className="mt-3 min-h-0 overflow-y-auto">
+            <UserSkillsPanel />
           </TabsContent>
         )}
 

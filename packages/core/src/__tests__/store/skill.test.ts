@@ -3,7 +3,7 @@ import path from "node:path";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import AdmZip from "adm-zip";
 import { nanoid } from "nanoid";
-import { SkillStore } from "../../store/skill.js";
+import { SkillStore, isSkillAllowedForAgent, skillFileDisplayPath } from "../../store/skill.js";
 import { ConflictError, ValidationError } from "../../errors.js";
 import { createTempProject, cleanupDir, writeFile, pathExists } from "../helpers.js";
 
@@ -89,6 +89,13 @@ describe("SkillStore (project-only, backward compat)", () => {
 
   it("skips SKILL.md without required fields", async () => {
     await writeFile(skillDir, "bad/SKILL.md", "---\nname: only-name\n---\ncontent");
+    const skills = await store.list();
+    expect(skills).toHaveLength(0);
+  });
+
+  it("skips SKILL.md with non-string name or description", async () => {
+    await writeFile(skillDir, "badnum/SKILL.md", "---\nname: 42\ndescription: Has body\n---\ncontent");
+    await writeFile(skillDir, "badbool/SKILL.md", "---\nname: badbool\ndescription: true\n---\ncontent");
     const skills = await store.list();
     expect(skills).toHaveLength(0);
   });
@@ -604,5 +611,133 @@ describe("SkillStore installSkill overwrite", () => {
 
     expect(skill.name).toBe("fresh");
     expect(pathExists(skillDir, "fresh/SKILL.md")).toBe(true);
+  });
+});
+
+describe("SkillStore with user sources", () => {
+  let skillDir: string;
+  let userDirA: string;
+  let userDirB: string;
+
+  const enabled = (on: string[]) => {
+    const set = new Set(on);
+    return (dir: string) => set.has(dir);
+  };
+
+  beforeEach(async () => {
+    skillDir = await createTempProject();
+    userDirA = await createTempProject();
+    userDirB = await createTempProject();
+  });
+
+  afterEach(async () => {
+    await cleanupDir(skillDir);
+    await cleanupDir(userDirA);
+    await cleanupDir(userDirB);
+  });
+
+  function storeWithUser(
+    enabledDirs: string[],
+    sources?: { key: string; dir: string }[],
+  ): SkillStore {
+    return new SkillStore(skillDir, undefined, undefined, [], {
+      sources: () => sources ?? [
+        { key: "a", dir: userDirA },
+        { key: "b", dir: userDirB },
+      ],
+      isEnabled: enabled(enabledDirs),
+    });
+  }
+
+  it("lists user skills as user source and merges below project skills", async () => {
+    await writeFile(skillDir, "dup/SKILL.md", skillMd("dup", "Project dup"));
+    await writeFile(userDirA, "dup/SKILL.md", skillMd("dup", "User dup"));
+    await writeFile(userDirA, "only-a/SKILL.md", skillMd("only-a"));
+    const store = storeWithUser([path.join(userDirA, "dup"), path.join(userDirA, "only-a")]);
+
+    const skills = await store.list();
+    const byName = new Map(skills.map((s) => [s.name, s]));
+    expect(byName.get("dup")?.description).toBe("Project dup");
+    expect(byName.get("only-a")?.source).toBe("user");
+  });
+
+  it("hides disabled user skills from list and get", async () => {
+    await writeFile(userDirA, "on/SKILL.md", skillMd("on"));
+    await writeFile(userDirA, "off/SKILL.md", skillMd("off"));
+    const store = storeWithUser([path.join(userDirA, "on")]);
+
+    const names = (await store.list()).map((s) => s.name);
+    expect(names).toContain("on");
+    expect(names).not.toContain("off");
+    expect((await store.get("on"))?.source).toBe("user");
+    expect(await store.get("off")).toBeNull();
+  });
+
+  it("prefers later user sources on name collision", async () => {
+    await writeFile(userDirA, "dup/SKILL.md", skillMd("dup", "From A"));
+    await writeFile(userDirB, "dup/SKILL.md", skillMd("dup", "From B"));
+    const store = storeWithUser([path.join(userDirA, "dup"), path.join(userDirB, "dup")]);
+
+    expect((await store.get("dup"))?.description).toBe("From B");
+    expect((await store.list()).find((s) => s.name === "dup")?.description).toBe("From B");
+  });
+
+  it("reports enabled user skill directories", async () => {
+    await writeFile(userDirA, "on/SKILL.md", skillMd("on"));
+    await writeFile(userDirA, "off/SKILL.md", skillMd("off"));
+    const store = storeWithUser([path.join(userDirA, "on")]);
+
+    await expect(store.enabledUserSkillDirs()).resolves.toEqual([path.join(userDirA, "on")]);
+  });
+
+  it("keeps project-only behavior when no user config is given", async () => {
+    await writeFile(userDirA, "hidden/SKILL.md", skillMd("hidden"));
+    const store = new SkillStore(skillDir, undefined, undefined, [], undefined);
+
+    expect(await store.list()).toEqual([]);
+    expect(await store.get("hidden")).toBeNull();
+    await expect(store.enabledUserSkillDirs()).resolves.toEqual([]);
+  });
+});
+
+describe("isSkillAllowedForAgent", () => {
+  it("allows everything when the profile has no skills field", () => {
+    expect(isSkillAllowedForAgent(undefined, "anything")).toBe(true);
+    expect(isSkillAllowedForAgent({}, "anything")).toBe(true);
+  });
+
+  it("denies everything when the allowlist is empty", () => {
+    expect(isSkillAllowedForAgent({ skills: [] }, "anything")).toBe(false);
+  });
+
+  it("allows only listed skills otherwise", () => {
+    expect(isSkillAllowedForAgent({ skills: ["a", "b"] }, "a")).toBe(true);
+    expect(isSkillAllowedForAgent({ skills: ["a", "b"] }, "c")).toBe(false);
+  });
+});
+
+describe("skillFileDisplayPath", () => {
+  it("returns absolute paths for user skills", () => {
+    const skill = {
+      name: "u",
+      description: "d",
+      instructions: "i",
+      filePath: path.join("/tmp", "userskills", "u", "SKILL.md"),
+      source: "user",
+      files: ["ref.md"],
+    } as const;
+    expect(skillFileDisplayPath("/proj", skill, "ref.md")).toBe("/tmp/userskills/u/ref.md");
+  });
+
+  it("returns project-relative paths for project skills", () => {
+    const skill = {
+      name: "p",
+      description: "d",
+      instructions: "i",
+      filePath: path.join("/proj", ".spherse", "skills", "p", "SKILL.md"),
+      source: "project",
+      files: ["ref.md"],
+    } as const;
+    expect(skillFileDisplayPath("/proj", skill, "ref.md")).toBe(".spherse/skills/p/ref.md");
   });
 });

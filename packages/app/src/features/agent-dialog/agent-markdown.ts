@@ -64,6 +64,7 @@ export interface AgentFormData {
   allowInlineHtml: boolean;
   unlimitedAsk: boolean;
   unlimitedToolCalls: boolean;
+  skills?: string[];
   placeholder?: string;
   greeting?: string;
 }
@@ -91,6 +92,7 @@ export function parseAgentMarkdown(raw: string): ParsedAgent {
         allowInlineHtml: false,
         unlimitedAsk: false,
         unlimitedToolCalls: false,
+        skills: undefined,
       },
       extraFrontmatter: {},
     };
@@ -100,7 +102,7 @@ export function parseAgentMarkdown(raw: string): ParsedAgent {
   const body = raw.slice(match[0].length).trim();
   const frontmatter = yaml.load(frontmatterRaw) as Record<string, unknown>;
 
-  const { name, alias, model, thinkingLevel, tools, context, quickLinks, quickReplies, timePerception, yolo, allowInlineHtml, unlimitedAsk, unlimitedToolCalls, placeholder, greeting, ...extra } = frontmatter;
+  const { name, alias, model, thinkingLevel, tools, context, quickLinks, quickReplies, timePerception, yolo, allowInlineHtml, unlimitedAsk, unlimitedToolCalls, skills, placeholder, greeting, ...extra } = frontmatter;
 
   return {
     formData: {
@@ -124,6 +126,9 @@ export function parseAgentMarkdown(raw: string): ParsedAgent {
       allowInlineHtml: allowInlineHtml === true,
       unlimitedAsk: unlimitedAsk === true,
       unlimitedToolCalls: unlimitedToolCalls === true,
+      skills: Array.isArray(skills)
+        ? skills.filter((s): s is string => typeof s === "string")
+        : undefined,
       placeholder: typeof placeholder === "string" && placeholder.trim() ? placeholder : undefined,
       greeting: typeof greeting === "string" && greeting.trim() ? greeting : undefined,
     },
@@ -182,6 +187,9 @@ export function buildAgentMarkdown(
   }
   if (formData.unlimitedToolCalls) {
     frontmatter.unlimitedToolCalls = true;
+  }
+  if (formData.skills !== undefined) {
+    frontmatter.skills = formData.skills;
   }
   if (formData.placeholder?.trim()) {
     frontmatter.placeholder = formData.placeholder.trim();

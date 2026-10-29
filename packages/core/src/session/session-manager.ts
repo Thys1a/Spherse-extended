@@ -346,6 +346,12 @@ export class SessionManager {
     this.sessions.clear();
   }
 
+  markAllSessionsReloadPending(): void {
+    for (const session of this.sessions.values()) {
+      session.markReloadPending();
+    }
+  }
+
   setDefaultModel(model: string | undefined): void {
     this.runConfigHolder.update({ defaultModel: model });
     for (const session of this.sessions.values()) {

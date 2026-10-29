@@ -6,14 +6,14 @@
 
 ## 组合根与生命周期
 
-- `createMultiProjectServer({ defaultModel?, sampling?, thinkingLevel?, auth?, port?, modelCatalog?, appVersion? })` 创建单实例，返回 `{ fastify, registry, logger, addAllowedHosts, removeAllowedHosts, close }`
+- `createMultiProjectServer({ defaultModel?, sampling?, thinkingLevel?, auth?, port?, modelCatalog?, appVersion?, modelSettingsPath?, webSearchSettingsPath?, skillSettingsPath? })` 创建单实例，返回 `{ fastify, registry, logger, addAllowedHosts, removeAllowedHosts, close }`
 - 初始化顺序：logger → appVersion → Fastify（debug 级 + query redact）→ **Host 校验 hook → 认证制 CORS hook** → websocket → multipart（5MB）→ 错误处理器
   - 之后：ProjectRegistry → ChatSessionHub → auth hook → 全部路由 → chat / bus WS handler
   - onRequest hook 顺序固定 Host → CORS → auth；CORS hook 对 OPTIONS 直接 204 短路
   - hook 注册在根实例（`fastify.register` 封装上下文内不生效）
 - **端口**：默认固定 53972、只绑 `127.0.0.1`；`EADDRINUSE` 才回退 OS 随机端口
 - desktop 启动链：`app.whenReady` → `ensureServer()`（恒传 `auth.accessToken = getServerToken()`）→ 重放已注册项目 → 重放动态 host
-  - `ensureServer` 取 `model-settings.json` / `web-search-settings.json` 路径、server token、app 版本建服务（模型 env 与 registry 默认值由 server 启动时从 store 读取应用，不再经参数传入）
+  - `ensureServer` 取 `model-settings.json` / `web-search-settings.json` / `skill-settings.json` 路径、server token、app 版本建服务（模型 env 与 registry 默认值由 server 启动时从 store 读取应用，不再经参数传入；用户 skill 开关经 `GET/PUT /api/settings/skills` 读写，PUT 后全部会话标 reload、下一条消息生效）
   - server 重建（regenerate token）后由 `syncAllowedHosts()` 按当前 mobileAccess 状态重放动态 host
 - shutdown：tunnel stop → `server.close(options?)`（唯一关停入口，幂等共享 Promise；顺序 `chatHub.close()` → `registry.removeAll()`（allSettled）→ `fastify.close()`，阶段各自 `settleWithin` 超时/失败隔离，缺省 10s 与 logger 上报；desktop 只注入超时与日志策略，见 [ADR-0012](../../dev/decisions/0012-chat-hub-lifecycle-ownership.md)）
 
@@ -53,9 +53,9 @@
 | content | stat、文件/目录的读写删建 |
 | data | `/data/read` `/query` `/mutate` `/raw-set` `/raw-delete` |
 | card | `/card/list` `/meta` `/entries` `/search` `/entry` `/entry/many` `/entry/update` `/entry/bulk` `/entry/add` `/entry/remove`（`.card.json` 世界书读写） |
-| settings | 全局：文本与图片 provider 目录；项目级：ai-access / welcome-page / theme |
+| settings | 全局：文本与图片 provider 目录、用户 skill 设置（`GET/PUT /api/settings/skills`）；项目级：ai-access / welcome-page / theme |
 | preview | 预览文件服务（见下节） |
-| skills / marketplace | skill 列表/详情/创建/zip 安装；市场 manifest 代理与远程安装 |
+| skills / marketplace | skill 列表（`?scope=project` 排除用户 skill，供 Agent Dialog 用）/详情/创建/zip 安装；市场 manifest 代理与远程安装 |
 | file-tree | UI 用文件树（过滤 dotfile / node_modules / .git / .spherse） |
 | trigger | CRUD、手动触发、reset-binding、运行日志 |
 | debug | turn-context 导出、session 事件日志 |

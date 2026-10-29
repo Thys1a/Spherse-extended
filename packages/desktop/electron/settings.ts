@@ -48,6 +48,10 @@ export function getWebSearchSettingsPath(): string {
   return path.join(app.getPath("userData"), "web-search-settings.json");
 }
 
+export function getUserSkillSettingsPath(): string {
+  return path.join(app.getPath("userData"), "skill-settings.json");
+}
+
 function defaultHostPrefs(): DesktopPrefs & GeneralPrefs {
   return {
     locale: "zh-CN",

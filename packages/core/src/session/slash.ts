@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
-import path from "node:path";
 import { llmAccessPolicy } from "../access/access-policy.js";
+import { isSkillAllowedForAgent, skillFileDisplayPath } from "../store/skill.js";
 import type { Capability } from "../kernel/capability.js";
 import type { ProjectStore } from "../store/project.js";
 import type { SlashMeta } from "./events.js";
@@ -65,20 +65,23 @@ async function expandSkill(
   parsed: ParsedSlash,
 ): Promise<SlashExpansion> {
   const agentStore = deps.projectStore.getAgent(agentId);
+  const agentProfile =
+    agentStore && "getProfile" in agentStore ? agentStore.getProfile() : undefined;
+  const agentSkill = await agentStore?.skills.get(parsed.name);
+  const projectSkill = await deps.projectStore.skill.get(parsed.name);
   const skill =
-    (await agentStore?.skills.get(parsed.name)) ??
-    (await deps.projectStore.skill.get(parsed.name));
+    agentSkill ??
+    (projectSkill &&
+    (projectSkill.source === "user" || isSkillAllowedForAgent(agentProfile, projectSkill.name))
+      ? projectSkill
+      : undefined);
   if (!skill) {
     throw new ValidationError(`Skill "${parsed.name}" not found`);
   }
   const projectRoot = deps.projectStore.getRootPath();
   let expanded = `<skill-content name="${escapeXmlAttribute(skill.name)}">\n${skill.instructions}`;
-  if (skill.source === "project" && skill.files.length > 0) {
-    const skillDirRel = path
-      .relative(projectRoot, path.dirname(skill.filePath))
-      .split(path.sep)
-      .join("/");
-    const fileList = skill.files.map((f) => `- ${skillDirRel}/${f}`).join("\n");
+  if (skill.files.length > 0) {
+    const fileList = skill.files.map((f) => `- ${skillFileDisplayPath(projectRoot, skill, f)}`).join("\n");
     expanded += `\n\n## Skill Files\n\nThis skill has companion files you can read with the read_file tool:\n${fileList}`;
   }
   expanded += `\n</skill-content>`;

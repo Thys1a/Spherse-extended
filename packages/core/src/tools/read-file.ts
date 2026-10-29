@@ -3,7 +3,7 @@ import path from "node:path";
 import { Type } from "@sinclair/typebox";
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import type { AccessPolicyProvider } from "../access/access-policy.js";
-import { resolveProjectPath } from "../utils/path-safety.js";
+import { isPathInside, resolveProjectPath } from "../utils/path-safety.js";
 import { isBinaryBuffer } from "../utils/binary-detect.js";
 import { MAX_OUTPUT_CHARS, truncateText } from "./output-limits.js";
 
@@ -36,24 +36,50 @@ const ReadFileParams = Type.Object({
 export function createReadFileTool(
   projectRoot: string,
   getPolicy: AccessPolicyProvider,
+  options?: { externalReadRoots?: () => string[] | Promise<string[]> },
 ): AgentTool<typeof ReadFileParams> {
   const root = path.resolve(projectRoot);
+
+  async function resolveExternalReadPath(target: string): Promise<string | null> {
+    if (!path.isAbsolute(target)) return null;
+    const roots = (await options?.externalReadRoots?.()) ?? [];
+    if (roots.length === 0) return null;
+    let realTarget: string;
+    try {
+      realTarget = await fs.realpath(target);
+    } catch {
+      return null;
+    }
+    for (const allowedRoot of roots) {
+      let realRoot: string;
+      try {
+        realRoot = await fs.realpath(allowedRoot);
+      } catch {
+        continue;
+      }
+      if (isPathInside(realRoot, realTarget)) return realTarget;
+    }
+    return null;
+  }
 
   return {
     name: "read_file",
     label: "Read File",
     description:
-      "Read the content of a text file in the project. Returns the file content as text. Binary files (images, fonts, databases, etc.) are detected and refused with a hint instead of returning garbled output — use `render_card` with `file_path` to display image files. Do not open .card.json world books or .data.json data files directly: if the card tools are available, find entries with `search_card` or `read_card` action=entries and read full text with action=entry; if the data tools are available, call `read_data` without key/path for a structure outline first, then read exact keys/paths with `read_data` or run manifest queries with `query_data`. Output is capped at 32KB; use offset/limit to page through large files and check details.truncated.",
+      "Read the content of a text file in the project. Returns the file content as text. Binary files (images, fonts, databases, etc.) are detected and refused with a hint instead of returning garbled output — use `render_card` with `file_path` to display image files. Do not open .card.json world books or .data.json data files directly: if the card tools are available, find entries with `search_card` or `read_card` action=entries and read full text with action=entry; if the data tools are available, call `read_data` without key/path for a structure outline first, then read exact keys/paths with `read_data` or run manifest queries with `query_data`. Output is capped at 32KB; use offset/limit to page through large files and check details.truncated. Absolute paths outside the project are rejected, except files under an enabled user skill directory (skill companion files listed by `load_skill`).",
     parameters: ReadFileParams,
     async execute(_toolCallId, params, _signal) {
-      const resolved = resolveProjectPath(root, params.path);
-      try {
-        getPolicy().assertRead(params.path);
-      } catch (err) {
-        return {
-          content: [{ type: "text" as const, text: (err as Error).message }],
-          details: { path: params.path, denied: true },
-        };
+      const external = await resolveExternalReadPath(params.path);
+      const resolved = external ?? resolveProjectPath(root, params.path);
+      if (!external) {
+        try {
+          getPolicy().assertRead(params.path);
+        } catch (err) {
+          return {
+            content: [{ type: "text" as const, text: (err as Error).message }],
+            details: { path: params.path, denied: true },
+          };
+        }
       }
 
       let buf: Buffer;

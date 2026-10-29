@@ -4,7 +4,7 @@ import path from "node:path";
 import matter from "gray-matter";
 import AdmZip from "adm-zip";
 import { nanoid } from "nanoid";
-import type { SkillDefinition } from "../types.js";
+import type { SkillDefinition, UserSkillSource } from "../types.js";
 import { isPathInside } from "../utils/path-safety.js";
 import { shouldSkipDirEntry } from "../utils/fs-walk.js";
 import { moveDirAtomic } from "../utils/fs-move.js";
@@ -33,9 +33,94 @@ function parseSkillVersion(value: unknown): string | undefined {
   return trimmed ? trimmed : undefined;
 }
 
+export interface UserSkillConfig {
+  sources: () => UserSkillSource[];
+  isEnabled: (skillDir: string) => boolean;
+}
+
+export function isSkillAllowedForAgent(
+  profile: { skills?: string[] } | undefined,
+  skillName: string,
+): boolean {
+  const allow = profile?.skills;
+  if (allow === undefined) return true;
+  return allow.includes(skillName);
+}
+
+export function skillFileDisplayPath(projectRoot: string, skill: SkillDefinition, file: string): string {
+  if (skill.source === "user") {
+    return path.join(path.dirname(skill.filePath), file).split(path.sep).join("/");
+  }
+  return [...path.relative(projectRoot, path.dirname(skill.filePath)).split(path.sep), file].join("/");
+}
+
+export async function listSkillsInDir(
+  skillDir: string,
+  source: SkillDefinition["source"],
+): Promise<SkillDefinition[]> {
+  let entries;
+  try {
+    entries = await fs.readdir(skillDir, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  const dirs = entries.filter((e) => e.isDirectory());
+  const skills = await Promise.all(dirs.map((d) => parseSkillInDir(skillDir, d.name, source)));
+  return skills.filter((s): s is SkillDefinition => s !== null);
+}
+
+async function parseSkillInDir(
+  skillDir: string,
+  dirName: string,
+  source: SkillDefinition["source"],
+): Promise<SkillDefinition | null> {
+  const skillMdPath = path.resolve(skillDir, dirName, "SKILL.md");
+  if (!isPathInside(skillDir, skillMdPath)) return null;
+  try {
+    const raw = await fs.readFile(skillMdPath, "utf-8");
+    const { data, content } = matter(raw);
+
+    if (typeof data.name !== "string" || typeof data.description !== "string") return null;
+    if (!data.name || !data.description) return null;
+
+    const files = await collectSkillFiles(path.dirname(skillMdPath));
+    return {
+      name: data.name,
+      description: data.description,
+      instructions: content.trim(),
+      filePath: skillMdPath,
+      source,
+      files,
+      version: parseSkillVersion(data.version),
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function collectSkillFiles(skillDirAbs: string): Promise<string[]> {
+  const result: string[] = [];
+  const walk = async (dir: string, prefix: string) => {
+    const entries = await fs.readdir(dir, { withFileTypes: true }).catch(() => null);
+    if (!entries) return;
+    for (const entry of entries) {
+      if (shouldSkipDirEntry(entry.name)) continue;
+      const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) {
+        await walk(path.join(dir, entry.name), rel);
+      } else if (rel !== "SKILL.md") {
+        result.push(rel);
+      }
+    }
+  };
+  await walk(skillDirAbs, "");
+  return result.sort();
+}
+
 export class SkillStore {
   private skillDir: string;
   private additionalSkillDirs: string[];
+  private userConfig?: UserSkillConfig;
   private builtinSources?: readonly PresetSkillSource[];
   private fileWriteMutex: FileWriteMutex;
 
@@ -44,17 +129,31 @@ export class SkillStore {
     builtinSources?: readonly PresetSkillSource[],
     fileWriteMutex?: FileWriteMutex,
     additionalSkillDirs: readonly string[] = [],
+    user?: UserSkillConfig,
   ) {
     this.skillDir = path.resolve(skillDir);
     this.additionalSkillDirs = additionalSkillDirs.map((dir) => path.resolve(dir));
+    this.userConfig = user;
     this.builtinSources = builtinSources;
     this.fileWriteMutex = fileWriteMutex ?? new FileWriteMutex();
+  }
+
+  private userSources(): { key: string; dir: string }[] {
+    return (this.userConfig?.sources() ?? []).map((s) => ({ key: s.key, dir: path.resolve(s.dir) }));
+  }
+
+  private isUserSkillEnabled(skillDir: string): boolean {
+    return this.userConfig?.isEnabled(skillDir) ?? false;
   }
 
   async list(): Promise<SkillDefinition[]> {
     const byName = new Map<string, SkillDefinition>();
 
     for (const skill of this.parseBuiltin(this.builtinSources)) {
+      byName.set(skill.name, skill);
+    }
+
+    for (const skill of await this.listUserSkills()) {
       byName.set(skill.name, skill);
     }
 
@@ -73,6 +172,26 @@ export class SkillStore {
     return Array.from(byName.values());
   }
 
+  async listUserSkills(): Promise<SkillDefinition[]> {
+    const out: SkillDefinition[] = [];
+    for (const source of this.userSources()) {
+      for (const skill of await listSkillsInDir(source.dir, "user")) {
+        if (this.isUserSkillEnabled(path.dirname(skill.filePath))) {
+          out.push(skill);
+        }
+      }
+    }
+    return out;
+  }
+
+  async enabledUserSkillDirs(): Promise<string[]> {
+    const dirs = new Set<string>();
+    for (const skill of await this.listUserSkills()) {
+      dirs.add(path.dirname(skill.filePath));
+    }
+    return [...dirs];
+  }
+
   async get(name: string): Promise<SkillDefinition | null> {
     const projectSkill = await this.parseSkill(this.skillDir, name);
     if (projectSkill) return projectSkill;
@@ -81,6 +200,15 @@ export class SkillStore {
       const additionalSkill = await this.parseSkill(additionalSkillDir, name);
       if (additionalSkill) return additionalSkill;
     }
+
+    let userSkill: SkillDefinition | null = null;
+    for (const source of this.userSources()) {
+      const candidate = await parseSkillInDir(source.dir, name, "user");
+      if (candidate && this.isUserSkillEnabled(path.dirname(candidate.filePath))) {
+        userSkill = candidate;
+      }
+    }
+    if (userSkill) return userSkill;
 
     const builtin = this.parseBuiltin(this.builtinSources).find((s) => s.name === name);
     return builtin ?? null;
@@ -221,57 +349,11 @@ export class SkillStore {
   }
 
   private async listProject(skillDir: string): Promise<SkillDefinition[]> {
-    try {
-      const entries = await fs.readdir(skillDir, { withFileTypes: true });
-      const dirs = entries.filter((e) => e.isDirectory());
-      const skills = await Promise.all(dirs.map((d) => this.parseSkill(skillDir, d.name)));
-      return skills.filter((s): s is SkillDefinition => s !== null);
-    } catch {
-      return [];
-    }
+    return listSkillsInDir(skillDir, "project");
   }
 
   private async parseSkill(skillDir: string, dirName: string): Promise<SkillDefinition | null> {
-    const skillMdPath = path.resolve(skillDir, dirName, "SKILL.md");
-    if (!isPathInside(skillDir, skillMdPath)) return null;
-    try {
-      const raw = await fs.readFile(skillMdPath, "utf-8");
-      const { data, content } = matter(raw);
-
-      if (!data.name || !data.description) return null;
-
-      const files = await this.collectSkillFiles(path.dirname(skillMdPath));
-      return {
-        name: data.name,
-        description: data.description,
-        instructions: content.trim(),
-        filePath: skillMdPath,
-        source: "project",
-        files,
-        version: parseSkillVersion(data.version),
-      };
-    } catch {
-      return null;
-    }
-  }
-
-  private async collectSkillFiles(skillDirAbs: string): Promise<string[]> {
-    const result: string[] = [];
-    const walk = async (dir: string, prefix: string) => {
-      const entries = await fs.readdir(dir, { withFileTypes: true }).catch(() => null);
-      if (!entries) return;
-      for (const entry of entries) {
-        if (shouldSkipDirEntry(entry.name)) continue;
-        const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
-        if (entry.isDirectory()) {
-          await walk(path.join(dir, entry.name), rel);
-        } else if (rel !== "SKILL.md") {
-          result.push(rel);
-        }
-      }
-    };
-    await walk(skillDirAbs, "");
-    return result.sort();
+    return parseSkillInDir(skillDir, dirName, "project");
   }
 
   private parseBuiltin(

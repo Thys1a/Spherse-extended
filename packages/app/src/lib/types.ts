@@ -22,6 +22,8 @@ export type {
   ModelSettingsResponse,
   WebSearchSettingsRequest,
   WebSearchSettingsResponse,
+  UserSkillSettings,
+  UserSkillSettingsResponse,
   WelcomePageSettingsResponse,
   SidePanelSettingsResponse,
   ThemeSettingsResponse,

@@ -6,7 +6,7 @@ import { projectQueryKeys } from "./keys";
 export function useProjectSkills(projectId: string, client: ApiClient) {
   return useQuery({
     queryKey: projectQueryKeys.skills(projectId),
-    queryFn: () => client.listSkills(),
+    queryFn: () => client.listSkills("project"),
   });
 }
 

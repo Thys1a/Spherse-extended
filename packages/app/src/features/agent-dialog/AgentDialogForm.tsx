@@ -6,6 +6,7 @@ import { parseAgentMarkdown, buildAgentMarkdown } from "./agent-markdown";
 import type { AgentFormData } from "./agent-markdown";
 import { useProjectCtx } from "../../context/project-context";
 import { useApiClient, useGlobalApiClient } from "../../lib/use-connection";
+import { useProjectSkills } from "../../queries/skills";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../../components/ui/tabs";
 import { Button } from "../../components/ui/button";
 import { DialogFooter } from "../../components/ui/dialog";
@@ -15,6 +16,7 @@ import { Textarea } from "../../components/ui/textarea";
 import { Switch } from "../../components/ui/switch";
 import { Label } from "../../components/ui/label";
 import { ToolPicker } from "./ToolPicker";
+import { AgentSkillsField } from "./AgentSkillsField";
 import { ADVANCED_TOOL_IDS } from "./tool-registry";
 import { ModelConfigField, modelExistsInCatalog } from "./ModelConfigField";
 import { resolveModelContextWindow } from "./model-catalog";
@@ -125,6 +127,7 @@ export function AgentDialogForm({ initial, mode, agentId, onSubmit, onCancel }: 
   const hasAdvancedTool = formData.tools.some((id) => ADVANCED_TOOL_IDS.includes(id));
   const hasAskUserTool = formData.tools.includes("ask_user");
   const hasAnyTool = formData.tools.length > 0;
+  const { data: projectSkills } = useProjectSkills(projectId, client);
 
   const handleSubmit = async () => {
     if (!formData.name.trim()) { setError(t("agent-dialog.nameRequired")); return; }
@@ -238,6 +241,11 @@ export function AgentDialogForm({ initial, mode, agentId, onSubmit, onCancel }: 
                 />
               </div>
             )}
+            <AgentSkillsField
+              skills={projectSkills}
+              value={formData.skills}
+              onChange={(skills) => setFormData((prev) => ({ ...prev, skills }))}
+            />
             <PathListField
               paths={formData.context}
               onAdd={addContext}

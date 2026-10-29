@@ -50,6 +50,7 @@ const agentProfile = Type.Object({
   allowInlineHtml: Type.Optional(Type.Boolean()),
   unlimitedAsk: Type.Optional(Type.Boolean()),
   unlimitedToolCalls: Type.Optional(Type.Boolean()),
+  skills: Type.Optional(Type.Array(Type.String())),
   placeholder: Type.Optional(Type.String()),
   greeting: Type.Optional(Type.String()),
   systemPrompt: Type.String(),
