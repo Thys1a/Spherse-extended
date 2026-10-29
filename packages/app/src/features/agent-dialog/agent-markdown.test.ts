@@ -317,6 +317,38 @@ describe("parseAgentMarkdown", () => {
     expect(result.extraFrontmatter).not.toHaveProperty("unlimitedAsk");
     expect(result.extraFrontmatter).not.toHaveProperty("unlimitedToolCalls");
   });
+
+  it("returns undefined skills when the field is missing (allowlist defaults to all-on)", () => {
+    const raw = "---\nname: Agent\n---\n\nsystem prompt";
+    const result = parseAgentMarkdown(raw);
+    expect(result.formData.skills).toBeUndefined();
+    expect(result.extraFrontmatter).not.toHaveProperty("skills");
+  });
+
+  it("parses an explicit skills allowlist", () => {
+    const raw = "---\nname: Agent\nskills:\n  - research\n  - writing\n---\n\nsystem prompt";
+    const result = parseAgentMarkdown(raw);
+    expect(result.formData.skills).toEqual(["research", "writing"]);
+    expect(result.extraFrontmatter).not.toHaveProperty("skills");
+  });
+
+  it("parses an empty skills list as an explicit all-off", () => {
+    const raw = "---\nname: Agent\nskills: []\n---\n\nsystem prompt";
+    const result = parseAgentMarkdown(raw);
+    expect(result.formData.skills).toEqual([]);
+  });
+
+  it("returns undefined skills when the value is not an array", () => {
+    const raw = "---\nname: Agent\nskills: research\n---\n\nsystem prompt";
+    const result = parseAgentMarkdown(raw);
+    expect(result.formData.skills).toBeUndefined();
+  });
+
+  it("filters non-string entries in the skills array", () => {
+    const raw = "---\nname: Agent\nskills:\n  - research\n  - 42\n---\n\nsystem prompt";
+    const result = parseAgentMarkdown(raw);
+    expect(result.formData.skills).toEqual(["research"]);
+  });
 });
 
 describe("buildAgentMarkdown", () => {
@@ -627,5 +659,35 @@ describe("buildAgentMarkdown", () => {
     );
     expect(md).not.toContain("unlimitedAsk");
     expect(md).not.toContain("unlimitedToolCalls");
+  });
+
+  it("omits skills from frontmatter when undefined (all-on)", () => {
+    const md = buildAgentMarkdown(
+      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, unlimitedAsk: false, unlimitedToolCalls: false, skills: undefined },
+      {},
+      false,
+    );
+    expect(md).not.toContain("skills");
+  });
+
+  it("writes an empty skills list as an explicit all-off and round-trips", () => {
+    const md = buildAgentMarkdown(
+      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, unlimitedAsk: false, unlimitedToolCalls: false, skills: [] },
+      {},
+      false,
+    );
+    expect(md).toContain("skills");
+    expect(parseAgentMarkdown(md).formData.skills).toEqual([]);
+  });
+
+  it("writes a partial skills allowlist and round-trips", () => {
+    const md = buildAgentMarkdown(
+      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, unlimitedAsk: false, unlimitedToolCalls: false, skills: ["research"] },
+      {},
+      false,
+    );
+    const parsed = parseAgentMarkdown(md);
+    expect(parsed.formData.skills).toEqual(["research"]);
+    expect(parsed.extraFrontmatter).not.toHaveProperty("skills");
   });
 });

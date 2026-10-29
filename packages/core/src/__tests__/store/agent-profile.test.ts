@@ -91,6 +91,27 @@ You are a world building assistant.`;
     expect(profile!.allowInlineHtml).toBe(true);
   });
 
+  it("parses skills allowlist from frontmatter", async () => {
+    await writeProfile("---\nname: Agent\nskills:\n  - review\n  - deploy\n---\n\nprompt");
+    const profile = await store.read();
+    expect(profile).not.toBeNull();
+    expect(profile!.skills).toEqual(["review", "deploy"]);
+  });
+
+  it("coerces non-array skills to undefined", async () => {
+    await writeProfile("---\nname: Agent\nskills: review\n---\n\nprompt");
+    const profile = await store.read();
+    expect(profile).not.toBeNull();
+    expect(profile!.skills).toBeUndefined();
+  });
+
+  it("returns undefined skills when frontmatter omits them", async () => {
+    await writeProfile(VALID_PROFILE);
+    const profile = await store.read();
+    expect(profile).not.toBeNull();
+    expect(profile!.skills).toBeUndefined();
+  });
+
   it("parses unlimitedAsk/unlimitedToolCalls true from frontmatter", async () => {
     await writeProfile("---\nname: Agent\nunlimitedAsk: true\nunlimitedToolCalls: true\n---\n\nprompt");
     const profile = await store.read();

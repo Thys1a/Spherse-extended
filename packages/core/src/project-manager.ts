@@ -293,8 +293,10 @@ export class ProjectManager {
     return hits.slice(0, count);
   }
 
-  async listSkills(): Promise<SkillDefinition[]> {
-    return this.projectStore.skill.list();
+  async listSkills(scope?: "project"): Promise<SkillDefinition[]> {
+    const skills = await this.projectStore.skill.list();
+    if (scope === "project") return skills.filter((s) => s.source !== "user");
+    return skills;
   }
 
   async getSkill(name: string): Promise<SkillDefinition | null> {

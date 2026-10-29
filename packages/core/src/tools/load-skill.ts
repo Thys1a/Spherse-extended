@@ -1,7 +1,8 @@
-import path from "node:path";
 import { Type } from "@sinclair/typebox";
 import type { AgentTool } from "@earendil-works/pi-agent-core";
+import type { SkillDefinition } from "../types.js";
 import type { SkillStore } from "../store/skill.js";
+import { skillFileDisplayPath } from "../store/skill.js";
 import { truncateText } from "./output-limits.js";
 
 const LoadSkillParams = Type.Object({
@@ -12,6 +13,7 @@ export function createLoadSkillTool(
   projectRoot: string,
   skillStore: SkillStore,
   agentSkillStore?: SkillStore,
+  isAllowed?: (skill: SkillDefinition) => boolean,
 ): AgentTool<typeof LoadSkillParams> {
   return {
     name: "load_skill",
@@ -23,7 +25,7 @@ export function createLoadSkillTool(
       const skill =
         (await agentSkillStore?.get(params.skill_name)) ??
         (await skillStore.get(params.skill_name));
-      if (!skill) {
+      if (!skill || isAllowed?.(skill) === false) {
         return {
           content: [
             {
@@ -36,12 +38,10 @@ export function createLoadSkillTool(
       }
 
       let text = `<skill-content name="${skill.name}">\n${skill.instructions}`;
-      if (skill.source === "project" && skill.files.length > 0) {
-        const skillDirRel = path
-          .relative(projectRoot, path.dirname(skill.filePath))
-          .split(path.sep)
-          .join("/");
-        const fileList = skill.files.map((f) => `- ${skillDirRel}/${f}`).join("\n");
+      if (skill.files.length > 0) {
+        const fileList = skill.files
+          .map((f) => `- ${skillFileDisplayPath(projectRoot, skill, f)}`)
+          .join("\n");
         text += `\n\n## Skill Files\n\nThis skill has companion files you can read with the read_file tool:\n${fileList}`;
       }
       text += `\n</skill-content>`;

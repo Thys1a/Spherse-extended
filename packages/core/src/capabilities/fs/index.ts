@@ -12,11 +12,13 @@ import { llmPolicyOf } from "../shared/llm-policy.js";
 export function fsCapability(): Capability {
   return {
     id: "fs",
-    tools: (host) => {
-      const { projectRoot, fileWriteMutex } = host;
-      const getPolicy = llmPolicyOf(host);
-      return [
-        createReadFileTool(projectRoot, getPolicy),
+  tools: (host) => {
+    const { projectRoot, fileWriteMutex } = host;
+    const getPolicy = llmPolicyOf(host);
+    return [
+      createReadFileTool(projectRoot, getPolicy, {
+        externalReadRoots: () => host.projectStore.skill.enabledUserSkillDirs(),
+      }),
         createWriteFileTool(projectRoot, fileWriteMutex, getPolicy),
         createEditFileTool(projectRoot, fileWriteMutex, getPolicy),
         createListFilesTool(projectRoot, getPolicy),

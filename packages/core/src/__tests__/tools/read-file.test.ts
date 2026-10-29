@@ -149,3 +149,70 @@ describe("createReadFileTool", () => {
     expect(result.details).toMatchObject({ truncated: false, paged: true, hasMore: false });
   });
 });
+
+describe("createReadFileTool external roots", () => {
+  let projectRoot: string;
+  let outsideRoot: string;
+
+  beforeEach(async () => {
+    projectRoot = await createTempProject();
+    outsideRoot = await createTempProject();
+  });
+
+  afterEach(async () => {
+    await cleanupDir(projectRoot);
+    await cleanupDir(outsideRoot);
+  });
+
+  it("reads an absolute path inside an enabled user skill dir", async () => {
+    await writeFile(outsideRoot, "ref.md", "companion content");
+    const roots = [outsideRoot];
+    const tool = createReadFileTool(projectRoot, permissivePolicy(projectRoot), {
+      externalReadRoots: () => roots,
+    });
+    const abs = path.join(outsideRoot, "ref.md");
+    const result = await tool.execute("tc1", { path: abs }, undefined as any);
+    expect(result.content[0].text).toBe("companion content");
+  });
+
+  it("rejects absolute paths outside all enabled roots", async () => {
+    await writeFile(outsideRoot, "secret.md", "nope");
+    const tool = createReadFileTool(projectRoot, permissivePolicy(projectRoot), {
+      externalReadRoots: () => [],
+    });
+    await expect(
+      tool.execute("tc1", { path: path.join(outsideRoot, "secret.md") }, undefined as any),
+    ).rejects.toThrow();
+  });
+
+  it("resolves symlinked roots before checking containment", async () => {
+    await writeFile(outsideRoot, "real.md", "real");
+    const linkDir = path.join(projectRoot, "linkroot");
+    const linkType = process.platform === "win32" ? "junction" : "dir";
+    await fs.symlink(outsideRoot, linkDir, linkType);
+    const tool = createReadFileTool(projectRoot, permissivePolicy(projectRoot), {
+      externalReadRoots: () => [linkDir],
+    });
+    const direct = await tool.execute("tc1", { path: path.join(linkDir, "real.md") }, undefined as any);
+    expect(direct.content[0].text).toBe("real");
+  });
+
+  it("rejects paths that escape the enabled root via dot segments", async () => {
+    await writeFile(outsideRoot, "outer.md", "outer");
+    const tool = createReadFileTool(projectRoot, permissivePolicy(projectRoot), {
+      externalReadRoots: () => [path.join(outsideRoot, "inner")],
+    });
+    await expect(
+      tool.execute("tc1", { path: path.join(outsideRoot, "inner", "..", "outer.md") }, undefined as any),
+    ).rejects.toThrow();
+  });
+
+  it("keeps relative paths on the project flow", async () => {
+    await writeFile(projectRoot, "hello.txt", "hello world");
+    const tool = createReadFileTool(projectRoot, permissivePolicy(projectRoot), {
+      externalReadRoots: () => [outsideRoot],
+    });
+    const result = await tool.execute("tc1", { path: "hello.txt" }, undefined as any);
+    expect(result.content[0].text).toBe("hello world");
+  });
+});

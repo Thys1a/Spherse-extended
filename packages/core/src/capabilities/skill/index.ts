@@ -2,6 +2,7 @@ import type { Capability } from "../../kernel/capability.js";
 import type { ContextBlock } from "../../kernel/context-block.js";
 import { createLoadSkillTool } from "../../tools/load-skill.js";
 import type { SkillStore } from "../../store/skill.js";
+import { isSkillAllowedForAgent } from "../../store/skill.js";
 import { escapeXmlAttr } from "../../utils/xml-escape.js";
 
 export function skillCapability(): Capability {
@@ -12,13 +13,18 @@ export function skillCapability(): Capability {
         .getAgent(host.agentId)
         ?.skills as SkillStore | undefined;
       return [
-        createLoadSkillTool(host.projectRoot, host.projectStore.skill, agentSkillStore),
+        createLoadSkillTool(host.projectRoot, host.projectStore.skill, agentSkillStore, (skill) =>
+          skill.source === "user" ? true : isSkillAllowedForAgent(host.profile, skill.name),
+        ),
       ];
     },
     contextBlocks: async (view) => {
       const globalSkills = await view.projectStore.skill.list();
       const byName = new Map<string, { name: string; description: string }>();
-      for (const s of globalSkills) byName.set(s.name, { name: s.name, description: s.description });
+      for (const s of globalSkills) {
+        if (s.source !== "user" && !isSkillAllowedForAgent(view.profile, s.name)) continue;
+        byName.set(s.name, { name: s.name, description: s.description });
+      }
       const agentSkillStore = view.projectStore.getAgent(view.agentId)?.skills as
         | SkillStore
         | undefined;
