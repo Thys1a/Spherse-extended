@@ -26,14 +26,15 @@
 3. **写入**：只在 `params.skills !== undefined` 时执行。
    - create：结果为 `null` 就不写字段，否则写数组。
    - update：结果为 `null` 就 `delete frontmatter.skills`，否则写数组。
+   - update 且未传 `skills` 时，若既有 `frontmatter.skills` 非数组则删除（修脏值到全开）。
 4. **回显**：
-   - `summarize` 增加 `skills: profile.skills`，缺省表示全开。list 和 get 都会显示。
-   - get 额外返回 `availableSkills`（项目 skill 名单）。list 不返回，免得每次 list 都扫一遍目录。
+   - `summarize` 增加 `skills: profile.skills ?? null`，`null` 明确表示全开（`JSON.stringify` 会丢 `undefined`，直接回显会让模型误判）。list 和 get 都会显示。
+   - get 额外返回 `availableSkills`（项目 skill 名单，按名排序）。list 不返回，免得每次 list 都扫一遍目录。
 5. **工具总描述**：在 `:250` 的字段清单里加上 “project skill allowlist”。
 
 ## 测试（加到 `manage-agent.test.ts`）
 
-- get 能回显 `skills` 和 `availableSkills`；未设置时 `skills` 不出现。
+- get 能回显 `skills` 和 `availableSkills`；未设置时 `skills` 为 `null`。
 - create 带部分名单时写入数组；不带时不写字段。
 - update 传部分名单时写入数组，再读回结果一致。
 - update 传 `[]` 时写入 `skills: []`。
