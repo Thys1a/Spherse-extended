@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
 import { cleanup, screen, within } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
+import { translate } from "@spherse/i18n";
 import { renderWithProviders } from "../../test/render";
 import { AgentSkillsField } from "./AgentSkillsField";
 import type { SkillSummary } from "../../lib/types";
@@ -35,27 +36,39 @@ const USER_SKILL = {
 
 const SKILLS = [PROJECT_A, PROJECT_B, USER_SKILL];
 
+function renderField(props: Partial<Parameters<typeof AgentSkillsField>[0]> = {}) {
+  renderWithProviders(
+    <AgentSkillsField
+      skills={SKILLS}
+      value={undefined}
+      onChange={vi.fn()}
+      userValue={undefined}
+      onUserChange={vi.fn()}
+      {...props}
+    />,
+  );
+}
+
 function switches(): HTMLElement[] {
   return screen.getAllByRole("switch");
 }
 
-describe("AgentSkillsField", () => {
-  it("renders nothing when there are no project skills", () => {
+describe("AgentSkillsField project group", () => {
+  it("renders nothing when there are no skills at all", () => {
     const { container } = renderWithProviders(
-      <AgentSkillsField skills={[USER_SKILL]} value={undefined} onChange={vi.fn()} />,
+      <AgentSkillsField skills={[]} value={undefined} onChange={vi.fn()} userValue={undefined} onUserChange={vi.fn()} />,
     );
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("excludes user skills from the project allowlist", () => {
-    renderWithProviders(<AgentSkillsField skills={SKILLS} value={undefined} onChange={vi.fn()} />);
+  it("keeps user skills out of the project allowlist", () => {
+    renderField();
     expect(screen.getByText("research")).toBeInTheDocument();
     expect(screen.getByText("writing")).toBeInTheDocument();
-    expect(screen.queryByText("personal")).not.toBeInTheDocument();
   });
 
   it("checks every project skill when the allowlist is undefined (all-on)", () => {
-    renderWithProviders(<AgentSkillsField skills={SKILLS} value={undefined} onChange={vi.fn()} />);
+    renderField({ skills: [PROJECT_A, PROJECT_B] });
     for (const sw of switches()) {
       expect(sw).toHaveAttribute("aria-checked", "true");
     }
@@ -64,7 +77,7 @@ describe("AgentSkillsField", () => {
   it("unchecking one skill reports the remaining names", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
-    renderWithProviders(<AgentSkillsField skills={SKILLS} value={undefined} onChange={onChange} />);
+    renderField({ skills: [PROJECT_A, PROJECT_B], onChange });
     const row = screen.getByText("research").closest("div.justify-between");
     if (!row) throw new Error("research row not rendered");
     await user.click(within(row as HTMLElement).getByRole("switch"));
@@ -75,7 +88,7 @@ describe("AgentSkillsField", () => {
   it("unchecking the last skill reports an explicit empty list (all-off)", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
-    renderWithProviders(<AgentSkillsField skills={SKILLS} value={["research"]} onChange={onChange} />);
+    renderField({ skills: [PROJECT_A, PROJECT_B], value: ["research"], onChange });
     const row = screen.getByText("research").closest("div.justify-between");
     if (!row) throw new Error("research row not rendered");
     await user.click(within(row as HTMLElement).getByRole("switch"));
@@ -85,9 +98,11 @@ describe("AgentSkillsField", () => {
   it("drops stale names that are no longer in the project skill set", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
-    renderWithProviders(
-      <AgentSkillsField skills={SKILLS} value={["research", "deleted-skill"]} onChange={onChange} />,
-    );
+    renderField({
+      skills: [PROJECT_A, PROJECT_B],
+      value: ["research", "deleted-skill"],
+      onChange,
+    });
     const row = screen.getByText("writing").closest("div.justify-between");
     if (!row) throw new Error("writing row not rendered");
     await user.click(within(row as HTMLElement).getByRole("switch"));
@@ -97,10 +112,46 @@ describe("AgentSkillsField", () => {
   it("re-checking every skill collapses back to undefined (all-on)", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
-    renderWithProviders(<AgentSkillsField skills={SKILLS} value={["research"]} onChange={onChange} />);
+    renderField({ skills: [PROJECT_A, PROJECT_B], value: ["research"], onChange });
     const row = screen.getByText("writing").closest("div.justify-between");
     if (!row) throw new Error("writing row not rendered");
     await user.click(within(row as HTMLElement).getByRole("switch"));
     expect(onChange).toHaveBeenCalledWith(undefined);
+  });
+});
+
+describe("AgentSkillsField user group", () => {
+  it("renders the user group when only user skills exist", () => {
+    renderField({ skills: [USER_SKILL] });
+    expect(screen.getByText("personal")).toBeInTheDocument();
+    expect(screen.getByText(translate("zh-CN", "agent-dialog.userSkillsLabel"))).toBeInTheDocument();
+  });
+
+  it("checks the user skill when userValue is undefined (follow global)", () => {
+    renderField({ skills: [USER_SKILL] });
+    expect(switches()).toHaveLength(1);
+    expect(switches()[0]).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("unchecking the user skill reports an explicit empty list via onUserChange", async () => {
+    const user = userEvent.setup();
+    const onUserChange = vi.fn();
+    const onChange = vi.fn();
+    renderField({ onUserChange, onChange });
+    const row = screen.getByText("personal").closest("div.justify-between");
+    if (!row) throw new Error("personal row not rendered");
+    await user.click(within(row as HTMLElement).getByRole("switch"));
+    expect(onUserChange).toHaveBeenCalledWith([]);
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("re-checking the user skill collapses back to undefined", async () => {
+    const user = userEvent.setup();
+    const onUserChange = vi.fn();
+    renderField({ userValue: [], onUserChange });
+    const row = screen.getByText("personal").closest("div.justify-between");
+    if (!row) throw new Error("personal row not rendered");
+    await user.click(within(row as HTMLElement).getByRole("switch"));
+    expect(onUserChange).toHaveBeenCalledWith(undefined);
   });
 });

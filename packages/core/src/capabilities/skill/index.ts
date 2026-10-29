@@ -2,7 +2,7 @@ import type { Capability } from "../../kernel/capability.js";
 import type { ContextBlock } from "../../kernel/context-block.js";
 import { createLoadSkillTool } from "../../tools/load-skill.js";
 import type { SkillStore } from "../../store/skill.js";
-import { isSkillAllowedForAgent } from "../../store/skill.js";
+import { isSkillAllowedForAgent, isUserSkillAllowedForAgent } from "../../store/skill.js";
 import { escapeXmlAttr } from "../../utils/xml-escape.js";
 
 export function skillCapability(): Capability {
@@ -14,7 +14,9 @@ export function skillCapability(): Capability {
         ?.skills as SkillStore | undefined;
       return [
         createLoadSkillTool(host.projectRoot, host.projectStore.skill, agentSkillStore, (skill) =>
-          skill.source === "user" ? true : isSkillAllowedForAgent(host.profile, skill.name),
+          skill.source === "user"
+            ? isUserSkillAllowedForAgent(host.profile, skill.name)
+            : isSkillAllowedForAgent(host.profile, skill.name),
         ),
       ];
     },
@@ -22,7 +24,11 @@ export function skillCapability(): Capability {
       const globalSkills = await view.projectStore.skill.list();
       const byName = new Map<string, { name: string; description: string }>();
       for (const s of globalSkills) {
-        if (s.source !== "user" && !isSkillAllowedForAgent(view.profile, s.name)) continue;
+        if (s.source === "user") {
+          if (!isUserSkillAllowedForAgent(view.profile, s.name)) continue;
+        } else if (!isSkillAllowedForAgent(view.profile, s.name)) {
+          continue;
+        }
         byName.set(s.name, { name: s.name, description: s.description });
       }
       const agentSkillStore = view.projectStore.getAgent(view.agentId)?.skills as

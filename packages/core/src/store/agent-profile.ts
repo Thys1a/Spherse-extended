@@ -133,6 +133,9 @@ export class AgentProfileStore {
         skills: Array.isArray(data.skills)
           ? data.skills.filter((s): s is string => typeof s === "string")
           : undefined,
+        userSkills: Array.isArray(data.userSkills)
+          ? data.userSkills.filter((s): s is string => typeof s === "string")
+          : undefined,
         output: data.output,
         timePerception: parseTimePerception(data.timePerception),
         yolo: data.yolo === true || undefined,

@@ -194,9 +194,11 @@ describe("createManageAgentTool", () => {
       );
       const body = JSON.parse(result.content[0].text);
       expect(body.skills).toBeNull();
-      expect(body.availableSkills).toEqual(
+      expect(body.userSkills).toBeNull();
+      expect(body.availableSkills.project).toEqual(
         expect.arrayContaining(["research", "writing", "spherse-guide"]),
       );
+      expect(body.availableSkills.user).toEqual([]);
     });
 
     it("get surfaces a stored allowlist", async () => {
@@ -211,7 +213,7 @@ describe("createManageAgentTool", () => {
       );
       const body = JSON.parse(result.content[0].text);
       expect(body.skills).toEqual(["research"]);
-      expect(body.availableSkills).toEqual(
+      expect(body.availableSkills.project).toEqual(
         expect.arrayContaining(["research", "writing", "spherse-guide"]),
       );
     });
@@ -287,7 +289,7 @@ describe("createManageAgentTool", () => {
         { action: "get", agent_id: profile.id },
         undefined as any,
       );
-      const available = JSON.parse(fetched.content[0].text).availableSkills as string[];
+      const available = JSON.parse(fetched.content[0].text).availableSkills.project as string[];
       expect(available).toEqual(expect.arrayContaining(["research", "writing"]));
       const result = await makeTool().execute(
         "tc",
@@ -417,7 +419,7 @@ describe("createManageAgentTool", () => {
       );
       const body = JSON.parse(fetched.content[0].text);
       expect(body.skills).toEqual([]);
-      expect(body.availableSkills).toEqual(expect.arrayContaining(["spherse-guide"]));
+      expect(body.availableSkills.project).toEqual(expect.arrayContaining(["spherse-guide"]));
     });
 
     it("create with the full set folds back to all-on", async () => {
@@ -428,7 +430,7 @@ describe("createManageAgentTool", () => {
         { action: "get", agent_id: probe.id },
         undefined as any,
       );
-      const available = JSON.parse(fetched.content[0].text).availableSkills as string[];
+      const available = JSON.parse(fetched.content[0].text).availableSkills.project as string[];
       const result = await makeTool().execute(
         "tc",
         { action: "create", name: "X", system_prompt: "y", skills: available },
@@ -465,6 +467,137 @@ describe("createManageAgentTool", () => {
         undefined as any,
       );
       expect(await readFrontmatter(profile.id)).not.toHaveProperty("skills");
+    });
+
+    describe("userSkills allowlist", () => {
+      async function withUserStore(
+        fn: (
+          tool: ReturnType<typeof makeTool>,
+          store2: ProjectStore,
+          agentId: string,
+        ) => Promise<void>,
+      ) {
+        const userRoot = await createTempProject();
+        try {
+          await writeFile(
+            userRoot,
+            "personal/SKILL.md",
+            "---\nname: personal\ndescription: Personal\n---\n\nBody.",
+          );
+          await writeFile(
+            userRoot,
+            "sidekick/SKILL.md",
+            "---\nname: sidekick\ndescription: Sidekick\n---\n\nBody.",
+          );
+          const store2 = new ProjectStore(projectRoot, createSilentLogger(), undefined, {
+            userSkills: { sources: () => [{ key: "t", dir: userRoot }], isEnabled: () => true },
+          });
+          await store2.open();
+          try {
+            const tool2 = createManageAgentTool(store2, KNOWN_TOOLS);
+            const agentStore = await store2.createAgent(undefined, EXISTING_PROFILE);
+            await fn(tool2, store2, agentStore.getProfile().id);
+          } finally {
+            store2.close();
+          }
+        } finally {
+          await cleanupDir(userRoot);
+        }
+      }
+
+      it("get surfaces null userSkills and the user skill list when unset", async () => {
+        await withUserStore(async (tool2, _store2, agentId) => {
+          const result = await tool2.execute("tc", { action: "get", agent_id: agentId }, undefined as any);
+          const body = JSON.parse(result.content[0].text);
+          expect(body.userSkills).toBeNull();
+          expect(body.availableSkills.user).toEqual(["personal", "sidekick"]);
+        });
+      });
+
+      it("update stores a partial user allowlist and round-trips through get", async () => {
+        await withUserStore(async (tool2, store2, agentId) => {
+          const updated = await tool2.execute(
+            "tc",
+            { action: "update", agent_id: agentId, userSkills: ["personal"] },
+            undefined as any,
+          );
+          expect(updated.details.error).toBeUndefined();
+          expect(store2.getAgent(agentId)!.getProfile().userSkills).toEqual(["personal"]);
+          const fetched = await tool2.execute("tc", { action: "get", agent_id: agentId }, undefined as any);
+          expect(JSON.parse(fetched.content[0].text).userSkills).toEqual(["personal"]);
+        });
+      });
+
+      it("update writes an empty user list as all-off", async () => {
+        await withUserStore(async (tool2, store2, agentId) => {
+          const result = await tool2.execute(
+            "tc",
+            { action: "update", agent_id: agentId, userSkills: [] },
+            undefined as any,
+          );
+          expect(result.details.error).toBeUndefined();
+          expect(store2.getAgent(agentId)!.getProfile().userSkills).toEqual([]);
+        });
+      });
+
+      it("update with the full user set clears back to follow-global", async () => {
+        await withUserStore(async (tool2, store2, agentId) => {
+          const seeded = await tool2.execute(
+            "tc",
+            { action: "update", agent_id: agentId, userSkills: ["personal"] },
+            undefined as any,
+          );
+          expect(seeded.details.error).toBeUndefined();
+          const result = await tool2.execute(
+            "tc",
+            { action: "update", agent_id: agentId, userSkills: ["sidekick", "personal"] },
+            undefined as any,
+          );
+          expect(result.details.error).toBeUndefined();
+          expect(store2.getAgent(agentId)!.getProfile().userSkills).toBeUndefined();
+        });
+      });
+
+      it("rejects unknown user skill names with the user list", async () => {
+        await withUserStore(async (tool2, _store2, agentId) => {
+          const result = await tool2.execute(
+            "tc",
+            { action: "update", agent_id: agentId, userSkills: ["nope"] },
+            undefined as any,
+          );
+          expect(result.details.error).toBe(true);
+          expect(result.content[0].text).toContain("unknown skill name(s): nope");
+          expect(result.content[0].text).toContain("User-level skills: personal, sidekick");
+        });
+      });
+
+      it("create stores a user allowlist", async () => {
+        await withUserStore(async (tool2, store2) => {
+          const result = await tool2.execute(
+            "tc",
+            { action: "create", name: "X", system_prompt: "y", userSkills: ["personal"] },
+            undefined as any,
+          );
+          expect(result.details.error).toBeUndefined();
+          expect(store2.getAgent(result.details.agentId!)!.getProfile().userSkills).toEqual([
+            "personal",
+          ]);
+        });
+      });
+
+      it("clears a non-array userSkills value when the param is omitted", async () => {
+        await withUserStore(async (tool2, store2) => {
+          const agentStore = await store2.createAgent(
+            undefined,
+            "---\nname: Messy\nuserSkills: personal\n---\n\nprompt",
+          );
+          const agentId = agentStore.getProfile().id;
+          expect(store2.getAgent(agentId)!.getProfile().userSkills).toBeUndefined();
+          await tool2.execute("tc", { action: "update", agent_id: agentId, name: "Renamed" }, undefined as any);
+          const raw = await store2.getAgent(agentId)!.profile.getRawContent();
+          expect(matter(raw).data).not.toHaveProperty("userSkills");
+        });
+      });
     });
   });
 

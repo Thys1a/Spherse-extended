@@ -10,6 +10,13 @@ export function useProjectSkills(projectId: string, client: ApiClient) {
   });
 }
 
+export function useAllSkills(projectId: string, client: ApiClient) {
+  return useQuery({
+    queryKey: projectQueryKeys.allSkills(projectId),
+    queryFn: () => client.listSkills(),
+  });
+}
+
 export function marketplaceSkillsQueryOptions(projectId: string, client: ApiClient, enabled: boolean) {
   return {
     queryKey: projectQueryKeys.marketplaceSkills(projectId),
@@ -25,6 +32,7 @@ export function useMarketplaceSkills(projectId: string, client: ApiClient, enabl
 
 export async function invalidateProjectSkillQueries(projectId: string): Promise<void> {
   await queryClient.invalidateQueries({ queryKey: projectQueryKeys.skills(projectId) });
+  await queryClient.invalidateQueries({ queryKey: projectQueryKeys.allSkills(projectId) });
 }
 
 export async function invalidateMarketplaceQueries(projectId: string): Promise<void> {

@@ -9,12 +9,11 @@ interface AgentSkillsFieldProps {
   skills: SkillSummary[] | undefined;
   value: string[] | undefined;
   onChange: (next: string[] | undefined) => void;
+  userValue: string[] | undefined;
+  onUserChange: (next: string[] | undefined) => void;
 }
 
-export function AgentSkillsField({ skills, value, onChange }: AgentSkillsFieldProps) {
-  const { t } = useI18n();
-  const projectSkills = useMemo(() => (skills ?? []).filter((s) => s.source !== "user"), [skills]);
-  const allNames = useMemo(() => projectSkills.map((s) => s.name), [projectSkills]);
+function useFoldedToggle(allNames: string[], value: string[] | undefined, onChange: (next: string[] | undefined) => void) {
   const checked = (name: string) => value === undefined || value.includes(name);
 
   const toggle = (name: string, on: boolean) => {
@@ -24,13 +23,30 @@ export function AgentSkillsField({ skills, value, onChange }: AgentSkillsFieldPr
     onChange(unique.length === allNames.length && allNames.every((n) => unique.includes(n)) ? undefined : unique);
   };
 
-  if (projectSkills.length === 0) return null;
+  return { checked, toggle };
+}
+
+function SkillToggleGroup({
+  title,
+  hint,
+  items,
+  value,
+  onChange,
+}: {
+  title: string;
+  hint: string;
+  items: { name: string; description?: string }[];
+  value: string[] | undefined;
+  onChange: (next: string[] | undefined) => void;
+}) {
+  const allNames = useMemo(() => items.map((s) => s.name), [items]);
+  const { checked, toggle } = useFoldedToggle(allNames, value, onChange);
 
   return (
     <Field>
-      <HintLabel hint={t("agent-dialog.skillsHint")}>{t("agent-dialog.skillsLabel")}</HintLabel>
+      <HintLabel hint={hint}>{title}</HintLabel>
       <div className="flex flex-col gap-2">
-        {projectSkills.map((skill) => (
+        {items.map((skill) => (
           <div key={skill.name} className="flex items-center justify-between gap-3">
             <div className="flex min-w-0 flex-col">
               <span className="truncate text-sm">{skill.name}</span>
@@ -43,5 +59,36 @@ export function AgentSkillsField({ skills, value, onChange }: AgentSkillsFieldPr
         ))}
       </div>
     </Field>
+  );
+}
+
+export function AgentSkillsField({ skills, value, onChange, userValue, onUserChange }: AgentSkillsFieldProps) {
+  const { t } = useI18n();
+  const projectSkills = useMemo(() => (skills ?? []).filter((s) => s.source !== "user"), [skills]);
+  const userSkills = useMemo(() => (skills ?? []).filter((s) => s.source === "user"), [skills]);
+
+  if (projectSkills.length === 0 && userSkills.length === 0) return null;
+
+  return (
+    <>
+      {projectSkills.length > 0 && (
+        <SkillToggleGroup
+          title={t("agent-dialog.skillsLabel")}
+          hint={t("agent-dialog.skillsHint")}
+          items={projectSkills}
+          value={value}
+          onChange={onChange}
+        />
+      )}
+      {userSkills.length > 0 && (
+        <SkillToggleGroup
+          title={t("agent-dialog.userSkillsLabel")}
+          hint={t("agent-dialog.userSkillsHint")}
+          items={userSkills}
+          value={userValue}
+          onChange={onUserChange}
+        />
+      )}
+    </>
   );
 }

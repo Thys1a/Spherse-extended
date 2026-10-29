@@ -571,6 +571,10 @@ export const zhCN = {
   "agent-dialog.skillsLabel": "可用技能",
   // Agent 可用技能多选提示语，说明缺省全选、取消勾选即停用
   "agent-dialog.skillsHint": "默认全部启用；取消勾选后该 Agent 将看不到对应技能。",
+  // Agent 全局技能多选标题，列出设置中已启用的用户级 skill（仅当前 Agent 生效）
+  "agent-dialog.userSkillsLabel": "全局技能",
+  // Agent 全局技能多选提示语，说明只影响当前 Agent、未启用的不列出
+  "agent-dialog.userSkillsHint": "在设置中启用的用户级技能。取消勾选仅对该 Agent 隐藏；全局未启用的技能不会列出。",
   // Agent 默认模型选择器首项（跟随全局默认），{model} 为当前全局默认模型
   "agent-dialog.modelFollowGlobal": "跟随全局默认（当前：{model}）",
   // Agent 默认模型选择器：未配置 API Key 时的提示

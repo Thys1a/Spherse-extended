@@ -1,6 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { createLoadSkillTool } from "../../tools/load-skill.js";
-import { SkillStore } from "../../store/skill.js";
+import {
+  SkillStore,
+  isSkillAllowedForAgent,
+  isUserSkillAllowedForAgent,
+} from "../../store/skill.js";
+import type { SkillDefinition } from "../../types.js";
 import { createTempProject, cleanupDir, writeFile } from "../helpers.js";
 
 describe("createLoadSkillTool", () => {
@@ -147,6 +152,58 @@ describe("createLoadSkillTool", () => {
       );
       const result = await tool.execute("tc1", { skill_name: "global-only" }, undefined as any);
       expect(result.content[0].text).toContain('skill "global-only" not found');
+    });
+  });
+
+  describe("user-level skill allowlist", () => {
+    let userRoot: string;
+
+    beforeEach(async () => {
+      userRoot = await createTempProject();
+      await writeFile(
+        userRoot,
+        "personal/SKILL.md",
+        "---\nname: personal\ndescription: Personal\n---\n\nPersonal content.",
+      );
+    });
+
+    afterEach(async () => {
+      await cleanupDir(userRoot);
+    });
+
+    function userTool(profile: { skills?: string[]; userSkills?: string[] }) {
+      const store = new SkillStore(skillDir, undefined, undefined, [], {
+        sources: () => [{ key: "t", dir: userRoot }],
+        isEnabled: () => true,
+      });
+      const isAllowed = (skill: SkillDefinition) =>
+        skill.source === "user"
+          ? isUserSkillAllowedForAgent(profile, skill.name)
+          : isSkillAllowedForAgent(profile, skill.name);
+      return createLoadSkillTool(skillDir, store, undefined, isAllowed);
+    }
+
+    it("loads an enabled user skill when the agent has no user allowlist", async () => {
+      const result = await userTool({}).execute("tc1", { skill_name: "personal" }, undefined as any);
+      expect(result.content[0].text).toContain("Personal content.");
+    });
+
+    it("blocks the user skill when the agent allowlist is empty", async () => {
+      const result = await userTool({ userSkills: [] }).execute(
+        "tc1",
+        { skill_name: "personal" },
+        undefined as any,
+      );
+      expect(result.content[0].text).toContain('skill "personal" not found');
+    });
+
+    it("loads the user skill when named in the agent allowlist", async () => {
+      const result = await userTool({ userSkills: ["personal"] }).execute(
+        "tc1",
+        { skill_name: "personal" },
+        undefined as any,
+      );
+      expect(result.content[0].text).toContain("Personal content.");
     });
   });
 });

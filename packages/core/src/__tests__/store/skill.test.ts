@@ -3,7 +3,7 @@ import path from "node:path";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import AdmZip from "adm-zip";
 import { nanoid } from "nanoid";
-import { SkillStore, isSkillAllowedForAgent, skillFileDisplayPath } from "../../store/skill.js";
+import { SkillStore, isSkillAllowedForAgent, isUserSkillAllowedForAgent, skillFileDisplayPath } from "../../store/skill.js";
 import { ConflictError, ValidationError } from "../../errors.js";
 import { createTempProject, cleanupDir, writeFile, pathExists } from "../helpers.js";
 
@@ -713,6 +713,23 @@ describe("isSkillAllowedForAgent", () => {
   it("allows only listed skills otherwise", () => {
     expect(isSkillAllowedForAgent({ skills: ["a", "b"] }, "a")).toBe(true);
     expect(isSkillAllowedForAgent({ skills: ["a", "b"] }, "c")).toBe(false);
+  });
+});
+
+describe("isUserSkillAllowedForAgent", () => {
+  it("follows the global switch when the profile has no userSkills field", () => {
+    expect(isUserSkillAllowedForAgent(undefined, "anything")).toBe(true);
+    expect(isUserSkillAllowedForAgent({}, "anything")).toBe(true);
+    expect(isUserSkillAllowedForAgent({ skills: ["a"] }, "anything")).toBe(true);
+  });
+
+  it("denies everything when the user allowlist is empty", () => {
+    expect(isUserSkillAllowedForAgent({ userSkills: [] }, "anything")).toBe(false);
+  });
+
+  it("allows only listed user skills otherwise", () => {
+    expect(isUserSkillAllowedForAgent({ userSkills: ["a", "b"] }, "a")).toBe(true);
+    expect(isUserSkillAllowedForAgent({ userSkills: ["a", "b"] }, "c")).toBe(false);
   });
 });
 

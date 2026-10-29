@@ -187,6 +187,12 @@ describe("api contracts", () => {
     expect(() => parseApiResponse(schemas.agentProfile, { ...profile, skills: ["a", 1] })).toThrow(
       /Invalid payload/,
     );
+    expect(
+      parseApiResponse(schemas.agentProfile, { ...profile, userSkills: ["u"] }),
+    ).toMatchObject({ userSkills: ["u"] });
+    expect(() => parseApiResponse(schemas.agentProfile, { ...profile, userSkills: "u" })).toThrow(
+      /Invalid payload/,
+    );
     const settings = { customDirs: ["/x/skills"], enabled: ["/x/skills/a"] };
     expect(parseApiResponse(schemas.userSkillSettings, settings)).toEqual(settings);
     expect(() => parseApiResponse(schemas.userSkillSettings, { customDirs: "/x" })).toThrow(/Invalid payload/);

@@ -216,6 +216,35 @@ describe("expandSlashMessage", () => {
     );
   });
 
+  it("blocks user skills outside the agent user allowlist", async () => {
+    const base = deps({
+      skills: {
+        helper: { name: "helper", instructions: "Help out.", source: "user" },
+      },
+    });
+    base.projectStore.getAgent = (() => ({
+      skills: skillStore({}),
+      getProfile: () => ({ userSkills: [] as string[] }),
+    })) as never;
+    await expect(expandSlashMessage(base, "a1", "/skill:helper")).rejects.toThrow(
+      'Skill "helper" not found',
+    );
+  });
+
+  it("lets user skills through when named in the agent user allowlist", async () => {
+    const base = deps({
+      skills: {
+        helper: { name: "helper", instructions: "Help out.", source: "user" },
+      },
+    });
+    base.projectStore.getAgent = (() => ({
+      skills: skillStore({}),
+      getProfile: () => ({ userSkills: ["helper"] }),
+    })) as never;
+    const result = await expandSlashMessage(base, "a1", "/skill:helper");
+    expect(result?.text).toContain("Help out.");
+  });
+
   it("lets agent-level skills bypass the allowlist", async () => {
     const withAgentSkill = deps({
       skills: { review: { name: "review", instructions: "Review code.", source: "project" } },

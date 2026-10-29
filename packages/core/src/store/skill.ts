@@ -47,6 +47,15 @@ export function isSkillAllowedForAgent(
   return allow.includes(skillName);
 }
 
+export function isUserSkillAllowedForAgent(
+  profile: { userSkills?: string[] } | undefined,
+  skillName: string,
+): boolean {
+  const allow = profile?.userSkills;
+  if (allow === undefined) return true;
+  return allow.includes(skillName);
+}
+
 export function skillFileDisplayPath(projectRoot: string, skill: SkillDefinition, file: string): string {
   if (skill.source === "user") {
     return path.join(path.dirname(skill.filePath), file).split(path.sep).join("/");

@@ -1,4 +1,6 @@
+import path from "node:path";
 import type { Capability } from "../../kernel/capability.js";
+import { isUserSkillAllowedForAgent } from "../../store/skill.js";
 import { createReadFileTool } from "../../tools/read-file.js";
 import { createWriteFileTool } from "../../tools/write-file.js";
 import { createEditFileTool } from "../../tools/edit-file.js";
@@ -17,7 +19,16 @@ export function fsCapability(): Capability {
     const getPolicy = llmPolicyOf(host);
     return [
       createReadFileTool(projectRoot, getPolicy, {
-        externalReadRoots: () => host.projectStore.skill.enabledUserSkillDirs(),
+        externalReadRoots: async () => {
+          const skills = await host.projectStore.skill.listUserSkills();
+          const dirs = new Set<string>();
+          for (const skill of skills) {
+            if (isUserSkillAllowedForAgent(host.profile, skill.name)) {
+              dirs.add(path.dirname(skill.filePath));
+            }
+          }
+          return [...dirs];
+        },
       }),
         createWriteFileTool(projectRoot, fileWriteMutex, getPolicy),
         createEditFileTool(projectRoot, fileWriteMutex, getPolicy),

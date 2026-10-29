@@ -338,6 +338,32 @@ describe("parseAgentMarkdown", () => {
     expect(result.formData.skills).toEqual([]);
   });
 
+  it("returns undefined userSkills when the field is missing (follow global)", () => {
+    const raw = "---\nname: Agent\n---\n\nsystem prompt";
+    const result = parseAgentMarkdown(raw);
+    expect(result.formData.userSkills).toBeUndefined();
+    expect(result.extraFrontmatter).not.toHaveProperty("userSkills");
+  });
+
+  it("parses an explicit userSkills allowlist", () => {
+    const raw = "---\nname: Agent\nuserSkills:\n  - personal\n---\n\nsystem prompt";
+    const result = parseAgentMarkdown(raw);
+    expect(result.formData.userSkills).toEqual(["personal"]);
+    expect(result.extraFrontmatter).not.toHaveProperty("userSkills");
+  });
+
+  it("parses an empty userSkills list as an explicit all-off", () => {
+    const raw = "---\nname: Agent\nuserSkills: []\n---\n\nsystem prompt";
+    const result = parseAgentMarkdown(raw);
+    expect(result.formData.userSkills).toEqual([]);
+  });
+
+  it("returns undefined userSkills when the value is not an array", () => {
+    const raw = "---\nname: Agent\nuserSkills: personal\n---\n\nsystem prompt";
+    const result = parseAgentMarkdown(raw);
+    expect(result.formData.userSkills).toBeUndefined();
+  });
+
   it("returns undefined skills when the value is not an array", () => {
     const raw = "---\nname: Agent\nskills: research\n---\n\nsystem prompt";
     const result = parseAgentMarkdown(raw);
@@ -689,5 +715,25 @@ describe("buildAgentMarkdown", () => {
     const parsed = parseAgentMarkdown(md);
     expect(parsed.formData.skills).toEqual(["research"]);
     expect(parsed.extraFrontmatter).not.toHaveProperty("skills");
+  });
+
+  it("omits userSkills from frontmatter when undefined (follow global)", () => {
+    const md = buildAgentMarkdown(
+      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, unlimitedAsk: false, unlimitedToolCalls: false, userSkills: undefined },
+      {},
+      false,
+    );
+    expect(md).not.toContain("userSkills");
+  });
+
+  it("writes a partial userSkills allowlist and round-trips", () => {
+    const md = buildAgentMarkdown(
+      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, unlimitedAsk: false, unlimitedToolCalls: false, userSkills: ["personal"] },
+      {},
+      false,
+    );
+    const parsed = parseAgentMarkdown(md);
+    expect(parsed.formData.userSkills).toEqual(["personal"]);
+    expect(parsed.extraFrontmatter).not.toHaveProperty("userSkills");
   });
 });

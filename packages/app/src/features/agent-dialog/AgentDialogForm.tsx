@@ -6,7 +6,7 @@ import { parseAgentMarkdown, buildAgentMarkdown } from "./agent-markdown";
 import type { AgentFormData } from "./agent-markdown";
 import { useProjectCtx } from "../../context/project-context";
 import { useApiClient, useGlobalApiClient } from "../../lib/use-connection";
-import { useProjectSkills } from "../../queries/skills";
+import { useAllSkills } from "../../queries/skills";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../../components/ui/tabs";
 import { Button } from "../../components/ui/button";
 import { DialogFooter } from "../../components/ui/dialog";
@@ -127,7 +127,7 @@ export function AgentDialogForm({ initial, mode, agentId, onSubmit, onCancel }: 
   const hasAdvancedTool = formData.tools.some((id) => ADVANCED_TOOL_IDS.includes(id));
   const hasAskUserTool = formData.tools.includes("ask_user");
   const hasAnyTool = formData.tools.length > 0;
-  const { data: projectSkills } = useProjectSkills(projectId, client);
+  const { data: allSkills } = useAllSkills(projectId, client);
 
   const handleSubmit = async () => {
     if (!formData.name.trim()) { setError(t("agent-dialog.nameRequired")); return; }
@@ -242,9 +242,11 @@ export function AgentDialogForm({ initial, mode, agentId, onSubmit, onCancel }: 
               </div>
             )}
             <AgentSkillsField
-              skills={projectSkills}
+              skills={allSkills}
               value={formData.skills}
               onChange={(skills) => setFormData((prev) => ({ ...prev, skills }))}
+              userValue={formData.userSkills}
+              onUserChange={(userSkills) => setFormData((prev) => ({ ...prev, userSkills }))}
             />
             <PathListField
               paths={formData.context}

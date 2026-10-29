@@ -50,6 +50,7 @@ export interface AgentProfile {
   unlimitedAsk?: boolean;
   unlimitedToolCalls?: boolean;
   skills?: string[];
+  userSkills?: string[];
   placeholder?: string;
   greeting?: string;
   systemPrompt: string;

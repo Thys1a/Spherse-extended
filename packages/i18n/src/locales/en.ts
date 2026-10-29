@@ -287,6 +287,8 @@ export const en: Record<TranslationKey, string> = {
   "agent-dialog.unlimitedToolCallsHint": "The default limit is 30 tool calls per turn. When enabled, the total-count limit is removed; same-tool repeat and consecutive truncation guards remain.",
   "agent-dialog.skillsLabel": "Available skills",
   "agent-dialog.skillsHint": "All enabled by default; unchecking hides the skill from this agent.",
+  "agent-dialog.userSkillsLabel": "Global skills",
+  "agent-dialog.userSkillsHint": "User-level skills enabled in Settings. Unchecking hides the skill from this agent only; globally disabled skills are not listed.",
   "agent-dialog.modelFollowGlobal": "Follow global default (current: {model})",
   "agent-dialog.modelConfigureFirst": "Please configure an API Key in Settings first",
   "agent-dialog.modelSearchPlaceholder": "Search models…",

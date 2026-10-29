@@ -112,6 +112,21 @@ You are a world building assistant.`;
     expect(profile!.skills).toBeUndefined();
   });
 
+  it("parses userSkills allowlist from frontmatter", async () => {
+    await writeProfile("---\nname: Agent\nuserSkills:\n  - personal\n---\n\nprompt");
+    const profile = await store.read();
+    expect(profile).not.toBeNull();
+    expect(profile!.userSkills).toEqual(["personal"]);
+    expect(profile!.skills).toBeUndefined();
+  });
+
+  it("coerces non-array userSkills to undefined", async () => {
+    await writeProfile("---\nname: Agent\nuserSkills: personal\n---\n\nprompt");
+    const profile = await store.read();
+    expect(profile).not.toBeNull();
+    expect(profile!.userSkills).toBeUndefined();
+  });
+
   it("parses unlimitedAsk/unlimitedToolCalls true from frontmatter", async () => {
     await writeProfile("---\nname: Agent\nunlimitedAsk: true\nunlimitedToolCalls: true\n---\n\nprompt");
     const profile = await store.read();

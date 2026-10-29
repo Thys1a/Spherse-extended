@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import { llmAccessPolicy } from "../access/access-policy.js";
-import { isSkillAllowedForAgent, skillFileDisplayPath } from "../store/skill.js";
+import { isSkillAllowedForAgent, isUserSkillAllowedForAgent, skillFileDisplayPath } from "../store/skill.js";
 import type { Capability } from "../kernel/capability.js";
 import type { ProjectStore } from "../store/project.js";
 import type { SlashMeta } from "./events.js";
@@ -72,7 +72,9 @@ async function expandSkill(
   const skill =
     agentSkill ??
     (projectSkill &&
-    (projectSkill.source === "user" || isSkillAllowedForAgent(agentProfile, projectSkill.name))
+    (projectSkill.source === "user"
+      ? isUserSkillAllowedForAgent(agentProfile, projectSkill.name)
+      : isSkillAllowedForAgent(agentProfile, projectSkill.name))
       ? projectSkill
       : undefined);
   if (!skill) {
