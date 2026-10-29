@@ -34,7 +34,7 @@
   - agent 级和 `source === "user"` 一律放行。
   - 其余 skill 在 `profile.skills === undefined` 或名字在列表中时放行。
 - `skillCapability`（contextBlocks 和 `load_skill`）与 `slash.ts` 都调用这个函数；不允许的 skill 报告为 not found。
-- `AgentProfile.skills?: string[]`：frontmatter 是字符串数组时读取，否则视为未设置。`manage_agent` 不管理这个字段，与 yolo、unlimited 开关一致。
+- `AgentProfile.skills?: string[]`：frontmatter 是字符串数组时读取，否则视为未设置。`manage_agent` 用 `skills` 参数管理该字段（全量替换、仅项目 skill 名、`[]`=全关、缺省不动、全量名单折叠为删字段；yolo、unlimited 开关仍不开放）。
 
 ## 外部 companion 文件（安全敏感）
 
@@ -74,7 +74,8 @@
 
 - 开关和白名单在新会话或下一次 `applyReload` 时生效，与现有 catalog 的语义一致。
 - `read_file` 的外部根目录白名单例外，实时生效。
-- 本期不做：用户 skill 导入为项目副本、web 壳展示、mtime 缓存、`manage_agent` 管理白名单。
+- 本期不做：用户 skill 导入为项目副本、web 壳展示、mtime 缓存。
+- `manage_agent` 无法表达“冻结当前 skill 集合”（传入全量名单会折叠为全开，未来新增项目 skill 自动加入）。
 
 ## 测试
 
