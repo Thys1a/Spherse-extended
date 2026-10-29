@@ -349,6 +349,97 @@ describe("createManageAgentTool", () => {
       }
     });
 
+    it("accepts a user-level name shadowed by a project skill", async () => {
+      await writeFile(
+        projectRoot,
+        ".spherse/skills/shared/SKILL.md",
+        "---\nname: shared\ndescription: Project copy\n---\n\nProject body.",
+      );
+      const userRoot = await createTempProject();
+      try {
+        await writeFile(
+          userRoot,
+          "shared/SKILL.md",
+          "---\nname: shared\ndescription: User copy\n---\n\nUser body.",
+        );
+        const store2 = new ProjectStore(projectRoot, createSilentLogger(), undefined, {
+          userSkills: { sources: () => [{ key: "t", dir: userRoot }], isEnabled: () => true },
+        });
+        await store2.open();
+        try {
+          const tool2 = createManageAgentTool(store2, KNOWN_TOOLS);
+          const agentStore = await store2.createAgent(undefined, EXISTING_PROFILE);
+          const agentId = agentStore.getProfile().id;
+          const result = await tool2.execute(
+            "tc",
+            { action: "update", agent_id: agentId, skills: ["shared"] },
+            undefined as any,
+          );
+          expect(result.details.error).toBeUndefined();
+          expect(store2.getAgent(agentId)!.getProfile().skills).toEqual(["shared"]);
+        } finally {
+          store2.close();
+        }
+      } finally {
+        await cleanupDir(userRoot);
+      }
+    });
+
+    it("rejects an agent-level-only name with the allowlist hint", async () => {
+      await seedProjectSkills();
+      const profile = await seedAgent();
+      await store
+        .getAgent(profile.id)!
+        .skills.createSkill("agentonly", "Agent-local", "Agent-local instructions.");
+      const result = await makeTool().execute(
+        "tc",
+        { action: "update", agent_id: profile.id, skills: ["agentonly"] },
+        undefined as any,
+      );
+      expect(result.details.error).toBe(true);
+      expect(result.content[0].text).toContain("unknown skill name(s): agentonly");
+      expect(result.content[0].text).toContain("not governed");
+    });
+
+    it("writes an empty list as all-off without seeding project skills", async () => {
+      const profile = await seedAgent();
+      const result = await makeTool().execute(
+        "tc",
+        { action: "update", agent_id: profile.id, skills: [] },
+        undefined as any,
+      );
+      expect(result.details.error).toBeUndefined();
+      expect(store.getAgent(profile.id)!.getProfile().skills).toEqual([]);
+      const fetched = await makeTool().execute(
+        "tc",
+        { action: "get", agent_id: profile.id },
+        undefined as any,
+      );
+      const body = JSON.parse(fetched.content[0].text);
+      expect(body.skills).toEqual([]);
+      expect(body.availableSkills).toEqual(expect.arrayContaining(["spherse-guide"]));
+    });
+
+    it("create with the full set folds back to all-on", async () => {
+      await seedProjectSkills();
+      const probe = await seedAgent();
+      const fetched = await makeTool().execute(
+        "tc",
+        { action: "get", agent_id: probe.id },
+        undefined as any,
+      );
+      const available = JSON.parse(fetched.content[0].text).availableSkills as string[];
+      const result = await makeTool().execute(
+        "tc",
+        { action: "create", name: "X", system_prompt: "y", skills: available },
+        undefined as any,
+      );
+      expect(result.details.error).toBeUndefined();
+      const profile = store.getAgent(result.details.agentId!)!.getProfile();
+      expect(profile.skills).toBeUndefined();
+      expect(await readFrontmatter(result.details.agentId!)).not.toHaveProperty("skills");
+    });
+
     it("keeps skills untouched when the param is omitted", async () => {
       await seedProjectSkills();
       const profile = await seedProfileContent(

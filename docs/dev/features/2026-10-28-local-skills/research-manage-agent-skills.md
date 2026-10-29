@@ -28,6 +28,8 @@
 
 ## 二、可行性：完全可行，模式照抄 `tools` 字段
 
+> 注：本节为决策前提案，已被 §三“D1–D4 已决策”取代；其中“直接回显 `profile.skills`”改为回显 `skills: null`，“不提供删字段回全开”改为全量名单折叠为删字段。
+
 改动清单（估计 1 个文件主体 + 测试）：
 
 1. `ManageAgentParams` 加 `skills: Type.Optional(Type.Array(Type.String()))`，描述写明：全量替换、仅项目 skill 名、空数组=全关、省略=不动、用户级 skill 名不接受。

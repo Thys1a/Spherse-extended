@@ -38,14 +38,15 @@
 - create 带部分名单时写入数组；不带时不写字段。
 - update 传部分名单时写入数组，再读回结果一致。
 - update 传 `[]` 时写入 `skills: []`。
-- update 传完整名单时删除字段，即恢复全开。
+- update 传完整名单时删除字段，即恢复全开；create 传完整名单同样折叠为不写字段。
 - 未知名被拒，报错信息里有合法名单。
 - 用户级 skill 名被拒；与项目 skill 同名的则能通过。
-- 省略 `skills` 时原字段保持不变。
+- agent 级独占名被拒，报错含“不受白名单约束”提示。
+- 省略 `skills` 时原字段保持不变；`[]` 无需项目 skill 即可写入全关。
 
 不改 contracts，没有持久化格式变化，不涉及 i18n。
 
-## 同步清理（实现时一起做）
+## 同步清理（已完成，合入后可删本节）
 
-- `design.md` 里“`manage_agent` 不管理这个字段”和“本期不做……`manage_agent` 管理白名单”两处要更新。
-- `research-manage-agent-skills.md:47` 有一段残留文字“`skills: null` shoot？”，要删掉。
+- `design.md` 两处已更新（core 节 + “本期不做”）。
+- `research-manage-agent-skills.md` 残留已删，§二已标 superseded。
