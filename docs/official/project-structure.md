@@ -154,14 +154,14 @@ spherse/
 │   │   └── src/
 │   │       ├── index.ts              # 聚合 schemas 与类型 re-export，包唯一入口
 │   │       ├── common.ts             # okResponse/errorResponse、parseContract/parseApiResponse
-│   │       ├── agents.ts             # AgentProfile、AgentCreate/Update、MCP（mcpServerConfig/AgentMcpResponse/AgentMcpUpdateRequest）Request/Response
+│   │       ├── agents.ts             # AgentProfile（含 skills 白名单）、AgentCreate/Update、MCP（mcpServerConfig/AgentMcpResponse/AgentMcpUpdateRequest）Request/Response
 │   │       ├── sessions.ts           # SessionInfo、SessionList/Messages Response、SessionMessagesPage（分页信封）、rename 请求
 │   │       ├── content.ts            # FileEntry、ContentResponse、create/save 请求
 │   │       ├── card.ts               # card.* 10 组 Request/Response + CardErrorCode（card_not_found/…/too_large）
 │   │       ├── file-tree.ts          # FileTreeResponse
 │   │       ├── settings.ts           # ProviderCatalog、AiAccess/WelcomePage/SidePanel/Theme Request/Response + ModelSettingsRequest/Response（模型 key 脱敏 sanitize 形状）+ WebSearchSettingsRequest/Response
 │   │       ├── trigger.ts            # TriggerEntry、TriggerCreate/Update 请求、List/Log Response
-│   │       ├── skills.ts             # SkillDefinition（含可选 version）、SkillList/Create/Install Request 响应与请求 schema
+│   │       ├── skills.ts             # SkillDefinition（含可选 version，source 含 user）、SkillList/Create/Install Request 响应与请求 schema + UserSkillSettings/Response（用户 skill 开关）
 │   │       ├── marketplace.ts        # MarketplaceSkillEntry、MarketplaceManifestResponse、SkillMarketplaceInstallRequest（{name, version}）
 │   │       ├── project-marketplace.ts # 项目市场 manifest/安装 wire 契约
 │   │       ├── prompt-marketplace.ts # 提示词模板市场 manifest/安装 wire 契约
@@ -182,6 +182,7 @@ spherse/
     │   │       ├── marketplace.ts        # 技能市场 service：OSS manifest 代理（30s 内存缓存，env SPHERSE_MARKETPLACE_MANIFEST_URL 可覆盖 URL）+ zip 下载（同源 SSRF 校验、50MB 上限）
     │   │       ├── model-settings.ts    # 模型配置 store（原子写/sanitize 脱敏）+ env 应用
     │   │       ├── web-search-settings.ts # 搜索配置 store（原子写/sanitize 脱敏）+ env 应用
+    │   │       ├── user-skill-settings.ts # 用户 skill 开关 store（userData/skill-settings.json 原子写 0600，customDirs/enabled 归一化 + 扫描裁剪）
     │   │       ├── prompt-marketplace.ts # 提示词模板市场 service
 │   │       ├── routes/               # REST 路由，按业务域拆分
 │   │       │   ├── index.ts          # registerAllRoutes 聚合
@@ -193,12 +194,12 @@ spherse/
 │   │       │   ├── card.ts           # .card.json 世界书 10 路由（读过 assertRead、写过 assertWrite，错误码透传）
 │   │       │   ├── file-tree.ts      # 面向 agent context 选择的项目文件列表
 │   │       │   ├── preview.ts        # HTML 文件预览服务
-│   │       │   ├── skills.ts         # Skill 列表、详情与创建/安装路由
+│   │       │   ├── skills.ts         # Skill 列表（?scope=project 排除用户 skill）、详情与创建/安装路由
     │   │       │   ├── marketplace.ts    # 技能市场路由（GET /marketplace/skills 代理 manifest；POST /skills/marketplace-install 按 {name, version} 下载 zip 并覆盖安装）
     │   │       │   ├── project-marketplace.ts # 项目市场路由（manifest 浏览/安装）
     │   │       │   ├── prompt-marketplace.ts # 提示词模板市场路由
     │   │       │   ├── upload.ts            # 文件上传路由（设备拖拽/DnD 入口）
-│   │       │   ├── settings.ts      # 文本/图片 Provider 列表 + 项目 settings API（AI 读取禁止列表、欢迎页、侧边面板、主题 CSS）+ 模型/搜索配置（GET/PUT /api/settings/models、/web-search）
+│   │       │   ├── settings.ts      # 文本/图片 Provider 列表 + 项目 settings API（AI 读取禁止列表、欢迎页、侧边面板、主题 CSS）+ 模型/搜索/用户 skill 配置（GET/PUT /api/settings/models、/web-search、/skills）
 │   │       │   ├── images.ts         # 图片导出 API（POST /api/projects/:projectId/images/export，将生成的图片复制到项目目标路径）
 │   │       │   ├── attachments.ts    # 通用附件上传/删除 API（POST/DELETE /api/projects/:projectId/attachments，图片落盘 .spherse/attachments/）
 │       │       │   ├── trigger.ts         # 触发器 CRUD 与手动触发（/triggers、/trigger-logs、/run）
@@ -302,7 +303,7 @@ spherse/
 │   │       ├── features/
 │   │       │   ├── activity-bar/         # 自治型 Activity Bar（项目头像轨、设置/添加按钮），内部读 app-store/app-ui-store 与 useProjectActions；pin 按钮通过 pinToggle prop 可选注入
 │   │       │   ├── agent-trigger/        # Agent 触发器弹窗、表单、列表与运行日志，含 running 运行态 feature store 与 TriggerEventBridge（trigger 域唯一事件接线：查询失效 + 运行态 + 通知）
-│   │       │   ├── agent-dialog/        # Agent 对话框（含 ModelConfigField、PromptTemplatesDialog 提示词模板选择、QuickReplyField 快捷回复入口行、QuickReplyManagerDialog 快捷回复管理弹窗）
+│   │       │   ├── agent-dialog/        # Agent 对话框（含 ModelConfigField、PromptTemplatesDialog 提示词模板选择、QuickReplyField 快捷回复入口行、QuickReplyManagerDialog 快捷回复管理弹窗、AgentSkillsField 项目 skill 白名单勾选 + agent-markdown 解析/写回）
 │   │       │   ├── agent-session-list/   # Agent/session 分组列表，含 AgentDialog/SearchFileField 与折叠状态 feature store
   │   │       │   ├── chat/                 # 对话 feature；model/ 放 Entry 归约、历史合并、MessageGroup 组装与卡片投影，runtime/ 放 session store、link/recovery/lifecycle/queue 等运行时模块，hooks/ 放 UI hooks（含 useSelectionMenu 选择菜单、useDataLinkedRefresh 卡片联动刷新），lib/ 放纯函数（含 slash-menu/summon 解析发送、quote-fence 引用围栏、html-fence-parser 内联 HTML 提取、attachment-type），utils/ 放图片压缩（compress-image）；根目录保留页面组件、气泡组件（UserBubble/AssistantBubble/ToolItemView）、chat-agent-context、chat 专属类型与附件 UI（AttachmentBar/MessageAttachments）；扩展组件含 SelectionMenu（划选复制/引用）、SpeakButton + tts/（本地朗读）、SessionModelPill（会话级模型）、SessionTokensPill（会话 token）、QuickReplyBar（快捷回复）、slash 解析（`lib/slash-menu`）/ summon 发送（`lib/use-summon-send`）/ token 估算（`lib/estimate-tokens`，core 同名函数镜像）/ 补全交互（`Composer` 内）
 │   │       │   ├── content-browser/      # 文件浏览、预览（HTML/markdown/image）、编辑、复制路径/刷新、冲突提示，ContentQueryBridge 集中处理 fs-watch/reconnect 缓存失效；二进制文件拦截渲染占位卡 UnsupportedFileCard（桌面端经 HostCapabilities.openFileExternal 提供「用默认应用打开」按钮）
@@ -318,7 +319,7 @@ spherse/
 │   │       │   ├── side-panel/           # 项目工作区左侧滑动单元：桌面端物理合并 ActivityBar + ProjectPanel 为同一 transform 容器（pinned/hover 滑入滑出）；移动端（useIsMobile 768px 断点）改为左下角浮动按钮 + 常驻 CSS 滑动面板（translate-x + backdrop，关闭态 inert），由解耦的 mobileOpen 状态控制
 │   │       │   ├── user-file-panel/      # Files section（SidebarGroup + AI 读取限制 dialog），复用 base components/file-tree
 │   │       │   ├── skill-panel/          # Skills section（三点菜单：技能市场/创建/安装技能 + CreateSkillDialog + MarketplaceDialog + marketplace-state 卡片状态推导），复用 base components/file-tree（rootPath=".spherse/skills"）
-│   │       │   ├── settings/             # 设置弹窗（文本/图片/通用/关于 tab，文本 tab 含默认模型 + 思考强度选择 ThinkingLevelField、高级采样参数，支持自定义 OpenAI 兼容供应商：CustomProviderDialog 创建/编辑、ModelProviderItem 行渲染、custom-provider-id id 生成）、更新检查 hook（useUpdateChecker reducer + 挂载恢复归位）与 UpdateChecker 组件、UpdateNoticeBridge（自动检测发现新版 → 全局右下角 toast，App 根挂载）、设置 store、WebSearchPanel（搜索配置 REST 读写）、类型与测试
+│   │       │   ├── settings/             # 设置弹窗（文本/图片/通用/关于 tab，文本 tab 含默认模型 + 思考强度选择 ThinkingLevelField、高级采样参数，支持自定义 OpenAI 兼容供应商：CustomProviderDialog 创建/编辑、ModelProviderItem 行渲染、custom-provider-id id 生成）、更新检查 hook（useUpdateChecker reducer + 挂载恢复归位）与 UpdateChecker 组件、UpdateNoticeBridge（自动检测发现新版 → 全局右下角 toast，App 根挂载）、设置 store、WebSearchPanel（搜索配置 REST 读写）、UserSkillsPanel（用户 skill 开关 REST 读写，仅桌面 tab）、类型与测试
 │   │       │   ├── welcome-page/         # 项目欢迎页渲染（HTML iframe / 图片）+ WelcomePageQueryBridge（project.yaml fs-watch/reconnect → welcome-page 查询失效，ProjectRuntimeBridges 挂载）
 │   │       │   ├── web-disconnect/      # Web 端断开连接按钮
 │   │       │   ├── project-settings/     # 项目设置弹窗集合
@@ -372,8 +373,8 @@ spherse/
 │   │   │   │   ├── cloudflare-provider.ts # Cloudflare Quick Tunnel 实现：spawn cloudflared tunnel --url、stdout 抓取 *.trycloudflare.com URL、packaged 二进制路径解析
 │   │   │   │   └── manager.ts         # TunnelManager 单例：start/stop/restart 状态机 + onStateChange 事件订阅
 │   │   │   ├── window.ts             # BrowserWindow 创建与管理（packaged 下 `setAppDetails` 显式申报任务栏身份：appId/icon/relaunch）
-│   │   │   ├── server.ts             # server 实例管理（ensure/restart/stop，恒带 serverToken 鉴权）+ 动态 host 重放（syncAllowedHosts）+ 模型/搜索配置路径透传（ensureServer 传 modelSettingsPath/webSearchSettingsPath）
-│   │   │   └── settings.ts           # electron-store 封装 + env 管理（含 syncCustomProviders）+ openProjects/locale/mobileAccess 持久化 + serverToken（顶层 key，getServerToken 迁移链）+ generateAccessToken
+│   │   │   ├── server.ts             # server 实例管理（ensure/restart/stop，恒带 serverToken 鉴权）+ 动态 host 重放（syncAllowedHosts）+ 模型/搜索/用户 skill 配置路径透传（ensureServer 传 modelSettingsPath/webSearchSettingsPath/skillSettingsPath）
+│   │   │   └── settings.ts           # electron-store 封装 + env 管理（含 syncCustomProviders）+ openProjects/locale/mobileAccess 持久化 + serverToken（顶层 key，getServerToken 迁移链）+ generateAccessToken + userData skill-settings.json 路径
 │   │   │   └── migrate-legacy-settings.ts # 旧 settings 一次性迁移（备份 + 分区落盘 + 删旧键）
 │   │   └── e2e/                      # Playwright E2E 测试
 │   │       ├── helpers/
