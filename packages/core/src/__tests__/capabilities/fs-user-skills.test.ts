@@ -10,7 +10,15 @@ describe("fsCapability read_file user-skill roots follow the agent allowlist", (
   let projectRoot: string;
   let userRoot: string;
   let store: ProjectStore;
+  let disabledStore: ProjectStore;
   let companionAbs: string;
+
+  function makeStore(globallyEnabled: boolean): Promise<ProjectStore> {
+    const next = new ProjectStore(projectRoot, createSilentLogger(), new FileWriteMutex(), {
+      userSkills: { sources: () => [{ key: "t", dir: userRoot }], isEnabled: () => globallyEnabled },
+    });
+    return next.create("TestProject").then(() => next);
+  }
 
   beforeEach(async () => {
     projectRoot = await createTempProject();
@@ -22,29 +30,27 @@ describe("fsCapability read_file user-skill roots follow the agent allowlist", (
     );
     await writeFile(userRoot, "personal/ref.md", "companion content");
     companionAbs = path.join(userRoot, "personal", "ref.md");
-    store = new ProjectStore(projectRoot, createSilentLogger(), new FileWriteMutex(), {
-      userSkills: { sources: () => [{ key: "t", dir: userRoot }], isEnabled: () => true },
-    });
-    await store.create("TestProject");
+    store = await makeStore(true);
+    disabledStore = await makeStore(false);
   });
 
   afterEach(async () => {
     store.close();
+    disabledStore.close();
     await cleanupDir(projectRoot);
     await cleanupDir(userRoot);
   });
 
-  function readFileTool(profile: { userSkills?: string[] }) {
+  function readFileTool(profile: { userSkills?: string[] }, targetStore: ProjectStore = store) {
     const host = {
       agentId: "a1",
       profile,
       projectRoot,
-      projectStore: store,
+      projectStore: targetStore,
       fileWriteMutex: new FileWriteMutex(),
       pathRules: [],
     } as never;
-    const tool = fsCapability().tools!(host).find((t) => t.name === "read_file")!;
-    return tool;
+    return fsCapability().tools!(host).find((t) => t.name === "read_file")!;
   }
 
   it("reads the companion file when the agent follows the global switch", async () => {
@@ -64,6 +70,16 @@ describe("fsCapability read_file user-skill roots follow the agent allowlist", (
   it("rejects the companion file when the agent allowlist is empty", async () => {
     await expect(
       readFileTool({ userSkills: [] }).execute("tc1", { path: companionAbs }, undefined as any),
+    ).rejects.toThrow();
+  });
+
+  it("stays rejected when globally disabled even if named in the agent allowlist", async () => {
+    await expect(
+      readFileTool({ userSkills: ["personal"] }, disabledStore).execute(
+        "tc1",
+        { path: companionAbs },
+        undefined as any,
+      ),
     ).rejects.toThrow();
   });
 });

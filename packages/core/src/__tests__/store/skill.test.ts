@@ -682,12 +682,12 @@ describe("SkillStore with user sources", () => {
     expect((await store.list()).find((s) => s.name === "dup")?.description).toBe("From B");
   });
 
-  it("reports enabled user skill directories", async () => {
+  it("lists only enabled user skills", async () => {
     await writeFile(userDirA, "on/SKILL.md", skillMd("on"));
     await writeFile(userDirA, "off/SKILL.md", skillMd("off"));
     const store = storeWithUser([path.join(userDirA, "on")]);
 
-    await expect(store.enabledUserSkillDirs()).resolves.toEqual([path.join(userDirA, "on")]);
+    expect((await store.listUserSkills()).map((s) => s.name)).toEqual(["on"]);
   });
 
   it("keeps project-only behavior when no user config is given", async () => {
@@ -696,7 +696,7 @@ describe("SkillStore with user sources", () => {
 
     expect(await store.list()).toEqual([]);
     expect(await store.get("hidden")).toBeNull();
-    await expect(store.enabledUserSkillDirs()).resolves.toEqual([]);
+    expect(await store.listUserSkills()).toEqual([]);
   });
 });
 

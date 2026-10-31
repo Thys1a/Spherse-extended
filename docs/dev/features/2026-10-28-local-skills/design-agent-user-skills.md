@@ -3,7 +3,7 @@
 - 日期：2026-10-29
 - 前置：`research-agent-user-skills.md`（方案 B1，AND 语义已决策）
 - 推翻旧决策：design.md“白名单只管项目侧”＋research §六“用户级不进该字段”——本文生效后以本文为准
-- 范围：只做 B1；`read_file` 白名单不跟进；冻结集合不提供
+- 范围：只做 B1（含 `read_file` 按 agent 过滤，见 §一）；冻结集合不提供
 
 ## 一、语义
 
@@ -12,7 +12,7 @@
   - 缺席＝跟随全局（全开已启用的）：旧 agent 行为零变化。
   - `[]`＝该 agent 关闭全部用户 skill；子集＝只用这几个。
   - 全局关闭 ⇒ 全不可见（总闸），agent 名单写了也无效。
-- 同名：`list()` 同名覆盖后只剩项目副本，白名单按名匹配作用于显示项——关即显示项消失，开即显示项目副本。
+- 同名：`list()` 同名覆盖后只剩项目副本，白名单按名匹配作用于显示项——关即显示项消失，开即显示项目副本；`read_file` 仍按 user 名单放行用户副本目录（已知局限：需事先知道绝对路径才可达，关闭显示项后新路径不再输出）。
 - Dialog 名单范围：只列全局已启用的 user skill（关闭的不列，不存“未来生效”脏名）。
 - `read_file` 按 agent 过滤：`externalReadRoots` 改为全局已启用**且**当前 agent 允许的目录；agent 关闭某 skill 后即使历史 tool result 留有绝对路径也拒绝。AND 闸是结构性成立的（`list()`/`get()` 本就不返回未启用的用户 skill），新判断函数只做减法，不叠全局判断。
 
@@ -58,7 +58,7 @@
 
 - core：三路一致性（同一 agent＋同一 user skill 在 catalog/`load_skill`/slash 同隐同显）；缺席兼容（无字段 agent 在全局开/关下行为与现状一致）；AND（全局关＋名单含＝不可见，结构性成立）；`[]` 全关；同名穿透（项目副本受控、用户副本仍被压住）；关闭后 `read_file` 拒绝该 skill 目录；`manage_agent` user 侧 round-trip／拒绝／折叠；`agent-profile` 非数组→未设置。
 - contracts：`userSkills` 正/负向。
-- app：Field 两组渲染与折叠（全选↔缺席）、只有用户组时的渲染、markdown round-trip、`Composer`/`MarketplaceDialog` 回归（未被波及）。
+- app：Field 两组渲染与折叠（全选↔缺席）、只有用户组时的渲染、markdown round-trip（`Composer`/`MarketplaceDialog` 仍走项目 scope，以 grep 为证，不补回归测试）。
 - `manage-agent.test.ts` 既有 3 条 `availableSkills` 数组断言改为新对象形状。
 - server：无新增（现有路由测试覆盖全局开关）。
 

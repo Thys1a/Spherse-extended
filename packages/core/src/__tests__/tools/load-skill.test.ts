@@ -171,10 +171,13 @@ describe("createLoadSkillTool", () => {
       await cleanupDir(userRoot);
     });
 
-    function userTool(profile: { skills?: string[]; userSkills?: string[] }) {
+    function userTool(
+      profile: { skills?: string[]; userSkills?: string[] },
+      globallyEnabled = true,
+    ) {
       const store = new SkillStore(skillDir, undefined, undefined, [], {
         sources: () => [{ key: "t", dir: userRoot }],
-        isEnabled: () => true,
+        isEnabled: () => globallyEnabled,
       });
       const isAllowed = (skill: SkillDefinition) =>
         skill.source === "user"
@@ -204,6 +207,41 @@ describe("createLoadSkillTool", () => {
         undefined as any,
       );
       expect(result.content[0].text).toContain("Personal content.");
+    });
+
+    it("stays hidden when globally disabled even if named in the agent allowlist", async () => {
+      const result = await userTool({ userSkills: ["personal"] }, false).execute(
+        "tc1",
+        { skill_name: "personal" },
+        undefined as any,
+      );
+      expect(result.content[0].text).toContain('skill "personal" not found');
+    });
+
+    it("routes a shadowed name through the project allowlist, not the user one", async () => {
+      await writeFile(
+        skillDir,
+        "shared/SKILL.md",
+        "---\nname: shared\ndescription: Project copy\n---\n\nProject body.",
+      );
+      await writeFile(
+        userRoot,
+        "shared/SKILL.md",
+        "---\nname: shared\ndescription: User copy\n---\n\nUser body.",
+      );
+      const blocked = await userTool({ skills: [], userSkills: ["shared"] }).execute(
+        "tc1",
+        { skill_name: "shared" },
+        undefined as any,
+      );
+      expect(blocked.content[0].text).toContain('skill "shared" not found');
+      const allowed = await userTool({ skills: undefined, userSkills: [] }).execute(
+        "tc1",
+        { skill_name: "shared" },
+        undefined as any,
+      );
+      expect(allowed.content[0].text).toContain("Project body.");
+      expect(allowed.content[0].text).not.toContain("User body.");
     });
   });
 });

@@ -193,14 +193,6 @@ export class SkillStore {
     return out;
   }
 
-  async enabledUserSkillDirs(): Promise<string[]> {
-    const dirs = new Set<string>();
-    for (const skill of await this.listUserSkills()) {
-      dirs.add(path.dirname(skill.filePath));
-    }
-    return [...dirs];
-  }
-
   async get(name: string): Promise<SkillDefinition | null> {
     const projectSkill = await this.parseSkill(this.skillDir, name);
     if (projectSkill) return projectSkill;
