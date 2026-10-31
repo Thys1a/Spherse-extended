@@ -52,7 +52,7 @@ export function isUserSkillAllowedForAgent(
   skillName: string,
 ): boolean {
   const allow = profile?.userSkills;
-  if (allow === undefined) return true;
+  if (allow === undefined) return false;
   return allow.includes(skillName);
 }
 

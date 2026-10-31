@@ -8,10 +8,10 @@
 ## 一、语义
 
 - 新增 `AgentProfile.userSkills?: string[]`，只管用户级（`source === "user"`）skill。
-- 可见性：`visible(name) = globalEnabled(name) AND (userSkills === undefined || userSkills.includes(name))`。
-  - 缺席＝跟随全局（全开已启用的）：旧 agent 行为零变化。
-  - `[]`＝该 agent 关闭全部用户 skill；子集＝只用这几个。
-  - 全局关闭 ⇒ 全不可见（总闸），agent 名单写了也无效。
+- 可见性：`visible(name) = globalEnabled(name) AND userSkills?.includes(name)`（缺席即全关）。
+  - 缺席＝全关：未配置过的 agent 看不到任何用户 skill；`[]` 同义。
+  - 子集＝只用这几个；全局关闭 ⇒ 全不可见（总闸），agent 名单写了也无效。
+  - 后果：未来全局新开的 skill 永不自动出现（无“跟随全局”模式）；既有缺席 agent 升级后立即失去用户 skill（仅影响 dev 构建，已发布版本无此字段，无需迁移）。
 - 同名：`list()` 同名覆盖后只剩项目副本，白名单按名匹配作用于显示项——关即显示项消失，开即显示项目副本；`read_file` 仍按 user 名单放行用户副本目录（已知局限：需事先知道绝对路径才可达，关闭显示项后新路径不再输出）。
 - Dialog 名单范围：只列全局已启用的 user skill（关闭的不列，不存“未来生效”脏名）。
 - `read_file` 按 agent 过滤：`externalReadRoots` 改为全局已启用**且**当前 agent 允许的目录；agent 关闭某 skill 后即使历史 tool result 留有绝对路径也拒绝。AND 闸是结构性成立的（`list()`/`get()` 本就不返回未启用的用户 skill），新判断函数只做减法，不叠全局判断。
@@ -19,7 +19,7 @@
 ## 二、core
 
 - `types.ts`：`AgentProfile` 加 `userSkills?: string[]`。
-- `store/skill.ts`：加 `isUserSkillAllowedForAgent(profile, name): boolean`（`profile?.userSkills === undefined || includes`），旧 `isSkillAllowedForAgent` 不动。
+- `store/skill.ts`：加 `isUserSkillAllowedForAgent(profile, name): boolean`（缺席即 false，与旧 `isSkillAllowedForAgent` 的缺席全开相反），旧函数不动。
 - `store/agent-profile.ts`：解析仿 `skills`（字符串数组才认，否则视为未设置）。
 - `capabilities/skill/index.ts` 三处 user 直通改为新判断：
   - catalog：`s.source !== "user" || isUserSkillAllowedForAgent(view.profile, s.name)` 才列入。
@@ -27,8 +27,8 @@
 - `session/slash.ts`：`projectSkill.source === "user"` 分支追加 `&& isUserSkillAllowedForAgent(agentProfile, name)`。
 - `capabilities/fs/index.ts`：`externalReadRoots` 改为 `(await projectStore.skill.listUserSkills()).filter(按当前 profile 允许).map(取目录)`。
 - `tools/manage-agent.ts`：
-  - `ManageAgentParams` 加 `userSkills`（描述复用 §一规则，注明与 `skills` 分管项目/用户两侧；注明全局已关闭的 skill 不会出现在合法名单里）。
-  - `resolveSkillAllowlist` 加 `scope: "project" | "user"` 参数：user 侧合法名单＝`list()` 中 `source === "user"` 的名字；全量折叠、空数组语义与项目侧一致。
+  - `ManageAgentParams` 加 `userSkills`（描述复用 §一规则，注明与 `skills` 分管项目/用户两侧；注明全局已关闭的 skill 不会出现在合法名单里；注明省略 `userSkills`＝全关，与 `skills` 省略＝全开对比）。
+  - `resolveSkillAllowlist` 加 `scope`＋`foldFullSet` 参数：user 侧合法名单＝`list()` 中 `source === "user"` 的名字；user 侧全量名单写显式数组（`foldFullSet=false`，无折叠），项目侧保留折叠。
   - `summarize` 加 `userSkills: profile.userSkills ?? null` 同形回显；`get` 的 `availableSkills` 改为 `{ project: string[], user: string[] }` 对象（`list` 不加）。
   - 脏值修复仿 `skills`（非数组即删）。
 
@@ -39,9 +39,8 @@
 ## 四、app
 
 - `queries/skills.ts`：**不动** `useProjectSkills`（Composer 菜单、MarketplaceDialog 依赖项目 scope）；新增 `useAllSkills`＋独立 query key，只给 Agent Dialog 用；新增 `invalidateAllSkillQueries(client)`（predicate 限定 `queryKey[0]==="projects" && queryKey[2]==="skills"`，覆盖 `skills` 与 `skills/all`，不碰 `marketplace` 与其他域），供 `UserSkillsPanel.save` 成功后调用（经 `useQueryClient()`）。
-- `AgentSkillsField`：现有项目组不动；新增“全局 skill”分组，只渲染 `source === "user"`（即全局已启用的）user skill，开关写 `userSkills`（缺席↔全选折叠规则与项目组一致）；早返回改为两组都空才返回 null。
+- `AgentSkillsField`：现有项目组不动；新增“全局 skill”分组，只渲染 `source === "user"`（即全局已启用的）user skill，开关写 `userSkills`；`useFoldedToggle` 加 `absentMeansAll` 参数，用户组传 false（缺席全关、`base = value ?? []`、永不折叠），项目组维持 true。
   - 用户组陈旧名策略与项目组不同：toggle 时保留 `value` 中不在当前列表的名字（它们只是全局暂时关闭）；项目组仍剪掉（不在列表＝已删除）。
-  - 后果：一旦对用户组做过显式选择，该 agent 不再“跟随全局新增”（未来新启用的 skill 不会自动加入），属 AND 语义下的既定取舍。
 - `agent-markdown.ts`：解析/写回 `userSkills`，规则同 `skills`（缺席全开、`[]` 全关、全量折叠删字段）。
 - i18n：新增分组标题/提示文案，三语同步。
 
@@ -58,7 +57,7 @@
 
 ## 七、测试
 
-- core：三路一致性（同一 agent＋同一 user skill 在 catalog/`load_skill`/slash 同隐同显）；缺席兼容（无字段 agent 在全局开/关下行为与现状一致）；AND（全局关＋名单含＝不可见，结构性成立）；`[]` 全关；同名穿透（项目副本受控、用户副本仍被压住）；关闭后 `read_file` 拒绝该 skill 目录；`manage_agent` user 侧 round-trip／拒绝／折叠；`agent-profile` 非数组→未设置。
+- core：三路一致性（同一 agent＋同一 user skill 在 catalog/`load_skill`/slash 同隐同显）；缺席＝全关（无字段 agent 在全局开/关下均不可见）；AND（全局关＋名单含＝不可见，结构性成立）；`[]` 全关；同名穿透（项目副本受控、用户副本仍被压住）；关闭后 `read_file` 拒绝该 skill 目录；`manage_agent` user 侧 round-trip／拒绝／全量写显式数组（无折叠）；`agent-profile` 非数组→未设置。
 - contracts：`userSkills` 正/负向。
 - app：Field 两组渲染与折叠（全选↔缺席）、只有用户组时的渲染、markdown round-trip（`Composer`/`MarketplaceDialog` 仍走项目 scope，以 grep 为证，不补回归测试）；设置保存后 `skills`/`skills/all` 缓存被标失效；隐藏项在场时切换可见项，`userSkills` 中隐藏名仍在（项目组仍剪已删除名）。
 - 设置保存失效的测试用 `createTestQueryClient` 包 Provider（`useQueryClient` 无 Provider 会抛）。

@@ -186,9 +186,9 @@ describe("createLoadSkillTool", () => {
       return createLoadSkillTool(skillDir, store, undefined, isAllowed);
     }
 
-    it("loads an enabled user skill when the agent has no user allowlist", async () => {
+    it("blocks the user skill when the agent has no user allowlist (default off)", async () => {
       const result = await userTool({}).execute("tc1", { skill_name: "personal" }, undefined as any);
-      expect(result.content[0].text).toContain("Personal content.");
+      expect(result.content[0].text).toContain('skill "personal" not found');
     });
 
     it("blocks the user skill when the agent allowlist is empty", async () => {

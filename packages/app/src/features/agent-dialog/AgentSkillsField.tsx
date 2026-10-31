@@ -17,15 +17,24 @@ function useFoldedToggle(
   allNames: string[],
   value: string[] | undefined,
   onChange: (next: string[] | undefined) => void,
-  preserveHidden = false,
+  options?: { preserveHidden?: boolean; absentMeansAll?: boolean },
 ) {
-  const checked = (name: string) => value === undefined || value.includes(name);
+  const absentMeansAll = options?.absentMeansAll ?? true;
+  const checked = (name: string) =>
+    value === undefined ? absentMeansAll : value.includes(name);
 
   const toggle = (name: string, on: boolean) => {
-    const base = preserveHidden ? (value ?? allNames) : (value ?? allNames).filter((n) => allNames.includes(n));
+    const fallback = absentMeansAll ? allNames : [];
+    const base = options?.preserveHidden
+      ? (value ?? fallback)
+      : (value ?? fallback).filter((n) => allNames.includes(n));
     const next = on ? [...base, name] : base.filter((n) => n !== name);
     const unique = [...new Set(next)];
-    onChange(unique.length === allNames.length && allNames.every((n) => unique.includes(n)) ? undefined : unique);
+    if (absentMeansAll && unique.length === allNames.length && allNames.every((n) => unique.includes(n))) {
+      onChange(undefined);
+      return;
+    }
+    onChange(unique);
   };
 
   return { checked, toggle };
@@ -38,6 +47,7 @@ function SkillToggleGroup({
   value,
   onChange,
   preserveHidden = false,
+  absentMeansAll = true,
 }: {
   title: string;
   hint: string;
@@ -45,9 +55,13 @@ function SkillToggleGroup({
   value: string[] | undefined;
   onChange: (next: string[] | undefined) => void;
   preserveHidden?: boolean;
+  absentMeansAll?: boolean;
 }) {
   const allNames = useMemo(() => items.map((s) => s.name), [items]);
-  const { checked, toggle } = useFoldedToggle(allNames, value, onChange, preserveHidden);
+  const { checked, toggle } = useFoldedToggle(allNames, value, onChange, {
+    preserveHidden,
+    absentMeansAll,
+  });
 
   return (
     <Field>
@@ -95,6 +109,7 @@ export function AgentSkillsField({ skills, value, onChange, userValue, onUserCha
           value={userValue}
           onChange={onUserChange}
           preserveHidden
+          absentMeansAll={false}
         />
       )}
     </>

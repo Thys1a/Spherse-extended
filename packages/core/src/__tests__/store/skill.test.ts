@@ -717,10 +717,10 @@ describe("isSkillAllowedForAgent", () => {
 });
 
 describe("isUserSkillAllowedForAgent", () => {
-  it("follows the global switch when the profile has no userSkills field", () => {
-    expect(isUserSkillAllowedForAgent(undefined, "anything")).toBe(true);
-    expect(isUserSkillAllowedForAgent({}, "anything")).toBe(true);
-    expect(isUserSkillAllowedForAgent({ skills: ["a"] }, "anything")).toBe(true);
+  it("denies everything when the profile has no userSkills field (default off)", () => {
+    expect(isUserSkillAllowedForAgent(undefined, "anything")).toBe(false);
+    expect(isUserSkillAllowedForAgent({}, "anything")).toBe(false);
+    expect(isUserSkillAllowedForAgent({ skills: ["a"] }, "anything")).toBe(false);
   });
 
   it("denies everything when the user allowlist is empty", () => {

@@ -94,7 +94,8 @@ frontmatter 字段：
 | `model` | 否 | 覆盖全局默认模型；所选模型已不在模型列表（过期）时回退全局默认 |
 | `thinkingLevel` | 否 | 覆盖全局思考强度，取值 `off` / `low` / `medium` / `high`；非法值忽略、未设回退全局设置 |
 | `tools` | 否 | 允许的工具名列表；缺省不分配任何工具 |
-| `skills` | 否 | 项目 skill 白名单（字符串数组）；缺省全开、`[]` 全关；agent 级与已启用的用户级 skill 不受约束；`manage_agent` 全量替换（传全量名单即删字段回全开），Agent Dialog 以勾选列表管理 |
+| `skills` | 否 | 项目 skill 白名单（字符串数组）；缺省全开、`[]` 全关；agent 级 skill 不受约束；`manage_agent` 全量替换（传全量名单即删字段回全开），Agent Dialog 以勾选列表管理 |
+| `userSkills` | 否 | 用户 skill 白名单（字符串数组）；缺省**全关**、`[]` 同义；全局关闭的 skill 恒不可见；`manage_agent` 全量替换（全量名单写显式数组、不折叠），Agent Dialog 以勾选列表管理 |
 | `context` | 否 | 项目根内相对路径列表，构建 system prompt 时预读注入；access policy 不可读的路径静默跳过 |
 | `quickLinks` | 否 | 项目根内相对路径列表，渲染为聊天窗口 header 快捷链接按钮（桌面开文件浮窗、移动端 header 下方滑出面板）；`manage_agent` 全量替换（语义同 `context`），Agent Dialog 亦可改 |
 | `quickReplies` | 否 | 快捷回复条目列表 `{label, description?, text, action}`（当前仅 `fill`），渲染为输入框上方按钮，点击填入文本；label ≤ 16 字符、最多 10 条（超限解析时截断/丢弃非法项）；`manage_agent` 全量替换，Agent Dialog 亦可改 |
@@ -212,7 +213,7 @@ Skill 分为 builtin、project-level、agent-level 和 user-level 四层：
 
 frontmatter 必需字段 `name`、`description`（须为字符串），可选 `version`。`SkillDefinition.source` 标识来源：`.spherse/skills`、`.agents/skills` 与 agent-level 均为 `project`；builtin 为 `builtin`；本机目录为 `user`。
 
-user-level 发现与开关（桌面端）：候选目录按 `~/.agents/skills`、`~/.claude/skills`、`~/.config/opencode/skills`（`XDG_CONFIG_HOME` 覆盖时取其下）、`~/.codex/skills` 顺序扫描，另可添加自定义目录（须绝对路径、项目根外，`~` 展开）；只读解析 `<dir>/<name>/SKILL.md`，不写回。开关默认全关、本机全局生效，存 server 侧 `userData/skill-settings.json`（`{ customDirs, enabled }`，`enabled` 以 skill 目录绝对路径为键），原子写 0600；改动经 `GET/PUT /api/settings/skills` 读写，PUT 后下一条消息生效（全部会话标 reload）。
+user-level 发现与开关（桌面端）：候选目录按 `~/.agents/skills`、`~/.claude/skills`、`~/.config/opencode/skills`（`XDG_CONFIG_HOME` 覆盖时取其下）、`~/.codex/skills` 顺序扫描，另可添加自定义目录（须绝对路径、项目根外，`~` 展开）；只读解析 `<dir>/<name>/SKILL.md`，不写回。开关默认全关、本机全局生效，存 server 侧 `userData/skill-settings.json`（`{ customDirs, enabled }`，`enabled` 以 skill 目录绝对路径为键），原子写 0600；改动经 `GET/PUT /api/settings/skills` 读写，PUT 后下一条消息生效（全部会话标 reload）。agent 纬度默认同样全关：每个 agent 的 `userSkills` 名单缺席即不可见，需在 Agent Dialog 逐项开启（`read_file` 的用户目录白名单同样按 agent 过滤）。
 
 - builtin 的 filePath 是合成路径 `builtin://<dir>/SKILL.md`，`files` 恒为 `[]`
 - project skill 的 `files` 为附加文件 posix 相对路径数组，解析时递归枚举填充（跳过 hidden / `node_modules` / `.git`，排除 `SKILL.md`）

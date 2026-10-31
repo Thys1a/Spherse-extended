@@ -71,7 +71,7 @@ const ManageAgentParams = Type.Object({
   userSkills: Type.Optional(
     Type.Array(Type.String(), {
       description:
-        "Full replacement list of user-level (global) skill names enabled for this agent (use `skills` for project skills). Only globally enabled user skills can be named; other names are rejected. Pass an empty array to disable all user-level skills; passing every currently enabled user skill name clears the field so currently and future enabled user skills are all used. Omit to leave unchanged. A globally disabled skill stays hidden even when named here. Agent-level skills are unaffected by this list.",
+        "Full replacement list of user-level (global) skill names enabled for this agent (use `skills` for project skills). Only globally enabled user skills can be named; other names are rejected. Pass an empty array to disable all user-level skills. Unlike `skills`, omitting this on `create` disables all user-level skills — a missing field means all-off, and there is no follow-global mode; pass explicit names to enable. A globally disabled skill stays hidden even when named here. Agent-level skills are unaffected by this list.",
     }),
   ),
   quick_links: Type.Optional(
@@ -252,6 +252,7 @@ async function resolveSkillAllowlist(
   names: string[],
   available: string[],
   kind: "Project" | "User-level",
+  foldFullSet: boolean,
 ): Promise<string[] | null> {
   const unique = [...new Set(names)];
   if (unique.length === 0) return [];
@@ -261,7 +262,11 @@ async function resolveSkillAllowlist(
       `unknown skill name(s): ${unknown.join(", ")}. ${kind} skills: ${available.join(", ") || "(none)"}. (Agent-level skills are not governed by this allowlist.)`,
     );
   }
-  if (unique.length === available.length && unique.every((name) => available.includes(name))) {
+  if (
+    foldFullSet &&
+    unique.length === available.length &&
+    unique.every((name) => available.includes(name))
+  ) {
     return null;
   }
   return unique;
@@ -340,12 +345,11 @@ export function createManageAgentTool(
             if (params.skills !== undefined || params.userSkills !== undefined) {
               const available = await listAvailableSkillNames(projectStore);
               if (params.skills !== undefined) {
-                const resolved = await resolveSkillAllowlist(params.skills, available.project, "Project");
+                const resolved = await resolveSkillAllowlist(params.skills, available.project, "Project", true);
                 if (resolved !== null) frontmatter.skills = resolved;
               }
               if (params.userSkills !== undefined) {
-                const resolved = await resolveSkillAllowlist(params.userSkills, available.user, "User-level");
-                if (resolved !== null) frontmatter.userSkills = resolved;
+                frontmatter.userSkills = await resolveSkillAllowlist(params.userSkills, available.user, "User-level", false);
               }
             }
             if (params.context && params.context.length > 0) frontmatter.context = params.context;
@@ -386,14 +390,12 @@ export function createManageAgentTool(
             if (params.skills !== undefined || params.userSkills !== undefined) {
               const available = await listAvailableSkillNames(projectStore);
               if (params.skills !== undefined) {
-                const resolved = await resolveSkillAllowlist(params.skills, available.project, "Project");
+                const resolved = await resolveSkillAllowlist(params.skills, available.project, "Project", true);
                 if (resolved === null) delete frontmatter.skills;
                 else frontmatter.skills = resolved;
               }
               if (params.userSkills !== undefined) {
-                const resolved = await resolveSkillAllowlist(params.userSkills, available.user, "User-level");
-                if (resolved === null) delete frontmatter.userSkills;
-                else frontmatter.userSkills = resolved;
+                frontmatter.userSkills = await resolveSkillAllowlist(params.userSkills, available.user, "User-level", false);
               }
             }
             if (params.skills === undefined && frontmatter.skills !== undefined && !Array.isArray(frontmatter.skills)) {

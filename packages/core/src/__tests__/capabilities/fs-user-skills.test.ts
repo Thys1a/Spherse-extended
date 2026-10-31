@@ -53,9 +53,10 @@ describe("fsCapability read_file user-skill roots follow the agent allowlist", (
     return fsCapability().tools!(host).find((t) => t.name === "read_file")!;
   }
 
-  it("reads the companion file when the agent follows the global switch", async () => {
-    const result = await readFileTool({}).execute("tc1", { path: companionAbs }, undefined as any);
-    expect(result.content[0].text).toBe("companion content");
+  it("rejects the companion file when the agent has no user allowlist (default off)", async () => {
+    await expect(
+      readFileTool({}).execute("tc1", { path: companionAbs }, undefined as any),
+    ).rejects.toThrow();
   });
 
   it("reads the companion file when named in the agent allowlist", async () => {

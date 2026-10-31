@@ -201,8 +201,30 @@ describe("expandSlashMessage", () => {
         },
       },
     });
+    d.projectStore.getAgent = (() => ({
+      skills: skillStore({}),
+      getProfile: () => ({ userSkills: ["helper"] }),
+    })) as never;
     const result = await expandSlashMessage(d, "a1", "/skill:helper");
     expect(result?.text).toContain("/home/user/.claude/skills/helper/ref.md");
+  });
+
+  it("blocks user skills when the agent has no user allowlist (default off)", async () => {
+    const d = deps({
+      skills: {
+        helper: {
+          name: "helper",
+          instructions: "Help out.",
+          source: "user",
+          filePath: "/home/user/.claude/skills/helper/SKILL.md",
+          files: ["ref.md"],
+        },
+      },
+    });
+    d.projectStore.getAgent = (() => ({ skills: skillStore({}) })) as never;
+    await expect(expandSlashMessage(d, "a1", "/skill:helper")).rejects.toThrow(
+      'Skill "helper" not found',
+    );
   });
 
   it("blocks project skills outside the agent allowlist", async () => {

@@ -540,7 +540,7 @@ describe("createManageAgentTool", () => {
         });
       });
 
-      it("update with the full user set clears back to follow-global", async () => {
+      it("update with the full user set writes an explicit list (no folding)", async () => {
         await withUserStore(async (tool2, store2, agentId) => {
           const seeded = await tool2.execute(
             "tc",
@@ -554,7 +554,7 @@ describe("createManageAgentTool", () => {
             undefined as any,
           );
           expect(result.details.error).toBeUndefined();
-          expect(store2.getAgent(agentId)!.getProfile().userSkills).toBeUndefined();
+          expect(store2.getAgent(agentId)!.getProfile().userSkills).toEqual(["sidekick", "personal"]);
         });
       });
 

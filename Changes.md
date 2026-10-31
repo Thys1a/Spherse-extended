@@ -19,6 +19,7 @@
 
 - 用户级 skill：自动发现本机全局 skill 目录（`.agents` / `.claude` / opencode / `.codex`，另可自加目录），设置页可按条开关，默认全部关闭；开关存本机、下一条消息生效
 - Agent 项目 skill 白名单：Agent 对话框可勾选启用的项目 skill，默认全开、全关传空数组；`manage_agent` 同样可读写该白名单
+- Agent 用户 skill 白名单：Agent 对话框可逐项开启全局已启用的用户 skill，默认全部关闭（与项目 skill 相反）；`manage_agent` 以 `userSkills` 参数管理
 - 优先级 agent 级 > 项目 > 用户级 > 内置，同名只取最高一项；用户 skill 附加文件仅已启用时可读
 
 ## 升级说明

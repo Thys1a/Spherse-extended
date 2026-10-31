@@ -127,17 +127,27 @@ describe("AgentSkillsField user group", () => {
     expect(screen.getByText(translate("zh-CN", "agent-dialog.userSkillsLabel"))).toBeInTheDocument();
   });
 
-  it("checks the user skill when userValue is undefined (follow global)", () => {
+  it("leaves the user skill unchecked when userValue is undefined (default off)", () => {
     renderField({ skills: [USER_SKILL] });
     expect(switches()).toHaveLength(1);
-    expect(switches()[0]).toHaveAttribute("aria-checked", "true");
+    expect(switches()[0]).toHaveAttribute("aria-checked", "false");
+  });
+
+  it("checking one user skill writes only that name (no all-on inversion)", async () => {
+    const user = userEvent.setup();
+    const onUserChange = vi.fn();
+    renderField({ userValue: undefined, onUserChange });
+    const row = screen.getByText("personal").closest("div.justify-between");
+    if (!row) throw new Error("personal row not rendered");
+    await user.click(within(row as HTMLElement).getByRole("switch"));
+    expect(onUserChange).toHaveBeenCalledWith(["personal"]);
   });
 
   it("unchecking the user skill reports an explicit empty list via onUserChange", async () => {
     const user = userEvent.setup();
     const onUserChange = vi.fn();
     const onChange = vi.fn();
-    renderField({ onUserChange, onChange });
+    renderField({ userValue: ["personal"], onUserChange, onChange });
     const row = screen.getByText("personal").closest("div.justify-between");
     if (!row) throw new Error("personal row not rendered");
     await user.click(within(row as HTMLElement).getByRole("switch"));
@@ -145,14 +155,14 @@ describe("AgentSkillsField user group", () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
-  it("re-checking the user skill collapses back to undefined", async () => {
+  it("re-checking the user skill writes an explicit list (no folding)", async () => {
     const user = userEvent.setup();
     const onUserChange = vi.fn();
     renderField({ userValue: [], onUserChange });
     const row = screen.getByText("personal").closest("div.justify-between");
     if (!row) throw new Error("personal row not rendered");
     await user.click(within(row as HTMLElement).getByRole("switch"));
-    expect(onUserChange).toHaveBeenCalledWith(undefined);
+    expect(onUserChange).toHaveBeenCalledWith(["personal"]);
   });
 
   it("preserves hidden names when toggling a visible user skill", async () => {
