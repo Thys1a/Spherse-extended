@@ -1,9 +1,13 @@
 import { describe, expect, it, vi, afterEach, beforeEach } from "vitest";
-import { cleanup, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, renderHook, screen, waitFor, within } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
+import { QueryClientProvider } from "@tanstack/react-query";
+import type { ReactNode } from "react";
 import { translate } from "@spherse/i18n";
 import { createMockHostBridge } from "../../test/host-bridge";
-import { renderWithProviders } from "../../test/render";
+import { createTestQueryClient, renderWithProviders } from "../../test/render";
+import { useAllSkills } from "../../queries/skills";
+import type { ApiClient } from "../../lib/api";
 import { UserSkillsPanel } from "./UserSkillsPanel";
 import type { UserSkillSettingsResponse } from "@spherse/contracts";
 
@@ -49,6 +53,7 @@ vi.mock("../../lib/use-connection", () => ({
 const selectDirectory = vi.fn(async (): Promise<string | null> => null);
 
 function renderPanel() {
+  const queryClient = createTestQueryClient();
   renderWithProviders(<UserSkillsPanel />, {
     bridge: createMockHostBridge({
       project: {
@@ -56,7 +61,9 @@ function renderPanel() {
         selectSkillZip: vi.fn(async () => null),
       } as never,
     }),
+    queryClient,
   });
+  return queryClient;
 }
 
 beforeEach(() => {
@@ -99,6 +106,32 @@ describe("UserSkillsPanel", () => {
     expect(updateUserSkillSettings).toHaveBeenCalledWith({
       customDirs: [],
       enabled: ["/home/u/.agents/skills/personal"],
+    });
+  });
+
+  it("refetches mounted skill lists after saving", async () => {
+    const user = userEvent.setup();
+    const queryClient = renderPanel();
+    const listSkills = vi.fn().mockResolvedValue([]);
+    const apiClient = { listSkills } as unknown as ApiClient;
+    const { result } = renderHook(() => useAllSkills("p1", apiClient), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      ),
+    });
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
+    expect(listSkills).toHaveBeenCalledTimes(1);
+    await waitFor(() => {
+      expect(screen.getByText("personal")).toBeInTheDocument();
+    });
+    const row = screen.getByText("personal").closest("div.justify-between");
+    if (!row) throw new Error("skill row not rendered");
+    await user.click(within(row as HTMLElement).getByRole("switch"));
+    await waitFor(() => {
+      expect(updateUserSkillSettings).toHaveBeenCalledTimes(1);
+      expect(listSkills).toHaveBeenCalledTimes(2);
     });
   });
 

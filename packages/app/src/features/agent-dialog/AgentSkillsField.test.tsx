@@ -154,4 +154,14 @@ describe("AgentSkillsField user group", () => {
     await user.click(within(row as HTMLElement).getByRole("switch"));
     expect(onUserChange).toHaveBeenCalledWith(undefined);
   });
+
+  it("preserves hidden names when toggling a visible user skill", async () => {
+    const user = userEvent.setup();
+    const onUserChange = vi.fn();
+    renderField({ userValue: ["personal", "globally-hidden"], onUserChange });
+    const row = screen.getByText("personal").closest("div.justify-between");
+    if (!row) throw new Error("personal row not rendered");
+    await user.click(within(row as HTMLElement).getByRole("switch"));
+    expect(onUserChange).toHaveBeenCalledWith(["globally-hidden"]);
+  });
 });

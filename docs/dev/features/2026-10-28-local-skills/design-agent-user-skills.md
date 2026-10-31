@@ -38,8 +38,10 @@
 
 ## 四、app
 
-- `queries/skills.ts`：**不动** `useProjectSkills`（Composer 菜单、MarketplaceDialog 依赖项目 scope）；新增 `useAllSkills`＋独立 query key，只给 Agent Dialog 用。
+- `queries/skills.ts`：**不动** `useProjectSkills`（Composer 菜单、MarketplaceDialog 依赖项目 scope）；新增 `useAllSkills`＋独立 query key，只给 Agent Dialog 用；新增 `invalidateAllSkillQueries(client)`（predicate 限定 `queryKey[0]==="projects" && queryKey[2]==="skills"`，覆盖 `skills` 与 `skills/all`，不碰 `marketplace` 与其他域），供 `UserSkillsPanel.save` 成功后调用（经 `useQueryClient()`）。
 - `AgentSkillsField`：现有项目组不动；新增“全局 skill”分组，只渲染 `source === "user"`（即全局已启用的）user skill，开关写 `userSkills`（缺席↔全选折叠规则与项目组一致）；早返回改为两组都空才返回 null。
+  - 用户组陈旧名策略与项目组不同：toggle 时保留 `value` 中不在当前列表的名字（它们只是全局暂时关闭）；项目组仍剪掉（不在列表＝已删除）。
+  - 后果：一旦对用户组做过显式选择，该 agent 不再“跟随全局新增”（未来新启用的 skill 不会自动加入），属 AND 语义下的既定取舍。
 - `agent-markdown.ts`：解析/写回 `userSkills`，规则同 `skills`（缺席全开、`[]` 全关、全量折叠删字段）。
 - i18n：新增分组标题/提示文案，三语同步。
 
@@ -58,7 +60,8 @@
 
 - core：三路一致性（同一 agent＋同一 user skill 在 catalog/`load_skill`/slash 同隐同显）；缺席兼容（无字段 agent 在全局开/关下行为与现状一致）；AND（全局关＋名单含＝不可见，结构性成立）；`[]` 全关；同名穿透（项目副本受控、用户副本仍被压住）；关闭后 `read_file` 拒绝该 skill 目录；`manage_agent` user 侧 round-trip／拒绝／折叠；`agent-profile` 非数组→未设置。
 - contracts：`userSkills` 正/负向。
-- app：Field 两组渲染与折叠（全选↔缺席）、只有用户组时的渲染、markdown round-trip（`Composer`/`MarketplaceDialog` 仍走项目 scope，以 grep 为证，不补回归测试）。
+- app：Field 两组渲染与折叠（全选↔缺席）、只有用户组时的渲染、markdown round-trip（`Composer`/`MarketplaceDialog` 仍走项目 scope，以 grep 为证，不补回归测试）；设置保存后 `skills`/`skills/all` 缓存被标失效；隐藏项在场时切换可见项，`userSkills` 中隐藏名仍在（项目组仍剪已删除名）。
+- 设置保存失效的测试用 `createTestQueryClient` 包 Provider（`useQueryClient` 无 Provider 会抛）。
 - `manage-agent.test.ts` 既有 3 条 `availableSkills` 数组断言改为新对象形状。
 - server：无新增（现有路由测试覆盖全局开关）。
 

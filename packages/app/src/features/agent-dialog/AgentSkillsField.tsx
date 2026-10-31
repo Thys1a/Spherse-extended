@@ -13,11 +13,16 @@ interface AgentSkillsFieldProps {
   onUserChange: (next: string[] | undefined) => void;
 }
 
-function useFoldedToggle(allNames: string[], value: string[] | undefined, onChange: (next: string[] | undefined) => void) {
+function useFoldedToggle(
+  allNames: string[],
+  value: string[] | undefined,
+  onChange: (next: string[] | undefined) => void,
+  preserveHidden = false,
+) {
   const checked = (name: string) => value === undefined || value.includes(name);
 
   const toggle = (name: string, on: boolean) => {
-    const base = (value ?? allNames).filter((n) => allNames.includes(n));
+    const base = preserveHidden ? (value ?? allNames) : (value ?? allNames).filter((n) => allNames.includes(n));
     const next = on ? [...base, name] : base.filter((n) => n !== name);
     const unique = [...new Set(next)];
     onChange(unique.length === allNames.length && allNames.every((n) => unique.includes(n)) ? undefined : unique);
@@ -32,15 +37,17 @@ function SkillToggleGroup({
   items,
   value,
   onChange,
+  preserveHidden = false,
 }: {
   title: string;
   hint: string;
   items: { name: string; description?: string }[];
   value: string[] | undefined;
   onChange: (next: string[] | undefined) => void;
+  preserveHidden?: boolean;
 }) {
   const allNames = useMemo(() => items.map((s) => s.name), [items]);
-  const { checked, toggle } = useFoldedToggle(allNames, value, onChange);
+  const { checked, toggle } = useFoldedToggle(allNames, value, onChange, preserveHidden);
 
   return (
     <Field>
@@ -87,6 +94,7 @@ export function AgentSkillsField({ skills, value, onChange, userValue, onUserCha
           items={userSkills}
           value={userValue}
           onChange={onUserChange}
+          preserveHidden
         />
       )}
     </>

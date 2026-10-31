@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 import { useI18n } from "@spherse/i18n/react";
 import type { UserSkillSettingsResponse } from "@spherse/contracts";
 import { Button } from "../../components/ui/button";
@@ -7,6 +8,7 @@ import { Field, FieldGroup } from "../../components/ui/field";
 import { Switch } from "../../components/ui/switch";
 import { useGlobalApiClient } from "../../lib/use-connection";
 import { useHostBridge } from "../../context/host-bridge-context";
+import { invalidateAllSkillQueries } from "../../queries/skills";
 import { SectionTitle } from "./SectionTitle";
 
 type UserSkillSource = UserSkillSettingsResponse["sources"][number];
@@ -29,6 +31,7 @@ export function UserSkillsPanel() {
   const { t } = useI18n();
   const bridge = useHostBridge();
   const globalClient = useGlobalApiClient();
+  const queryClient = useQueryClient();
   const [settings, setSettings] = useState<UserSkillSettingsResponse | null>(null);
   const [pending, setPending] = useState(false);
 
@@ -53,13 +56,14 @@ export function UserSkillsPanel() {
       try {
         const res = await globalClient.updateUserSkillSettings(next);
         setSettings(res);
+        await invalidateAllSkillQueries(queryClient);
       } catch (err) {
         toast.error(t("settings.userSkills.saveFailed", { error: (err as Error).message }));
       } finally {
         setPending(false);
       }
     },
-    [globalClient, t],
+    [globalClient, queryClient, t],
   );
 
   const toggleSkill = (dir: string, on: boolean) => {
