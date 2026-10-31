@@ -2,7 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
-import { marketplaceSkillsQueryOptions, useAllSkills, useProjectSkills } from "./skills";
+import {
+  invalidateAllSkillQueries,
+  marketplaceSkillsQueryOptions,
+  useAllSkills,
+  useProjectSkills,
+} from "./skills";
 import { queryClient } from "./client";
 import { projectQueryKeys } from "./keys";
 import type { ApiClient } from "../lib/api";
@@ -61,5 +66,27 @@ describe("useProjectSkills / useAllSkills", () => {
     });
     expect(listSkills).toHaveBeenCalledWith();
     expect(projectQueryKeys.allSkills("p1")).not.toEqual(projectQueryKeys.skills("p1"));
+  });
+});
+
+describe("invalidateAllSkillQueries", () => {
+  beforeEach(() => {
+    queryClient.clear();
+  });
+
+  it("invalidates the skills keys and leaves other domains untouched", async () => {
+    queryClient.setQueryData(projectQueryKeys.skills("p1"), []);
+    queryClient.setQueryData(projectQueryKeys.allSkills("p1"), []);
+    queryClient.setQueryData(projectQueryKeys.marketplaceSkills("p1"), []);
+    queryClient.setQueryData(projectQueryKeys.sessions("p1"), []);
+    await invalidateAllSkillQueries(queryClient);
+    expect(queryClient.getQueryState(projectQueryKeys.skills("p1"))?.isInvalidated).toBe(true);
+    expect(queryClient.getQueryState(projectQueryKeys.allSkills("p1"))?.isInvalidated).toBe(true);
+    expect(
+      queryClient.getQueryState(projectQueryKeys.marketplaceSkills("p1"))?.isInvalidated,
+    ).not.toBe(true);
+    expect(queryClient.getQueryState(projectQueryKeys.sessions("p1"))?.isInvalidated).not.toBe(
+      true,
+    );
   });
 });
