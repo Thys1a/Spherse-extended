@@ -4,6 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { createManageAgentTool, isManageAgentWriteAction } from "../../tools/manage-agent.js";
+import { isUserSkillAllowedForAgent } from "../../store/skill.js";
 import { listAgentCardLinks } from "../../capabilities/card/index.js";
 import { ProjectStore } from "../../store/project.js";
 import { createSilentLogger } from "../../logger.js";
@@ -582,6 +583,20 @@ describe("createManageAgentTool", () => {
           expect(store2.getAgent(result.details.agentId!)!.getProfile().userSkills).toEqual([
             "personal",
           ]);
+        });
+      });
+
+      it("create omits userSkills (default off)", async () => {
+        await withUserStore(async (tool2, store2) => {
+          const result = await tool2.execute(
+            "tc",
+            { action: "create", name: "X", system_prompt: "y" },
+            undefined as any,
+          );
+          expect(result.details.error).toBeUndefined();
+          const profile = store2.getAgent(result.details.agentId!)!.getProfile();
+          expect(profile.userSkills).toBeUndefined();
+          expect(isUserSkillAllowedForAgent(profile, "personal")).toBe(false);
         });
       });
 

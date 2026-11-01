@@ -12,7 +12,7 @@
 
 - `isUserSkillAllowedForAgent`：`undefined` 返回 false（`[]` 同义）。四路判定同步翻转，无需逐处改。
 - `AgentSkillsField` 用户组：`useFoldedToggle` 加 `absentMeansAll` 参数，用户组传 false——`checked` 缺席为 false、`base = value ?? []`（**不是 `allNames`**，否则点一个开关会反转为全开）、**永不折叠为 `undefined`**（全选写显式数组）；项目组传 true 维持现状。`preserveHidden` 保留给用户组。
-- `manage_agent` user 侧三处同步翻：`resolveSkillAllowlist` 加 `fold` 参数（project=true / user=false）；`summarize` 的 `null` 含义变为全关，工具描述重写；`create` 描述补“省略 `userSkills`=全关”（与 `skills` 省略=全开对比说明）。
+- `manage_agent` user 侧三处同步翻：`resolveSkillAllowlist` 加 `foldFullSet` 参数（项目侧传 true 保留折叠，user 侧传 false 永不折叠）；`summarize` 的 `null` 含义变为全关，工具描述重写（含 `get`/`list` 回显图例：`skills: null` 表全开、`userSkills: null` 表全关）；`create` 描述补“省略 `userSkills`=全关”（与 `skills` 省略=全开对比说明）。
 - `agent-markdown`：解析/写回不动（无缺省逻辑）。
 - i18n：`userSkillsHint` 三语改“默认关闭，需逐项开启”；`skillsHint` 补“项目技能默认全部启用”（两组默认值相反，同屏需直说）。
 - contracts：schema 不动（仍是可选数组）。

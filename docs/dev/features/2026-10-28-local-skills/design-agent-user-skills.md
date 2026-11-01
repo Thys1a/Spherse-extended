@@ -14,7 +14,7 @@
   - 后果：未来全局新开的 skill 永不自动出现（无“跟随全局”模式）；既有缺席 agent 升级后立即失去用户 skill（仅影响 dev 构建，已发布版本无此字段，无需迁移）。
 - 同名：`list()` 同名覆盖后只剩项目副本，白名单按名匹配作用于显示项——关即显示项消失，开即显示项目副本；`read_file` 仍按 user 名单放行用户副本目录（已知局限：需事先知道绝对路径才可达，关闭显示项后新路径不再输出）。
 - Dialog 名单范围：只列全局已启用的 user skill（关闭的不列，不存“未来生效”脏名）。
-- `read_file` 按 agent 过滤：`externalReadRoots` 改为全局已启用**且**当前 agent 允许的目录；agent 关闭某 skill 后即使历史 tool result 留有绝对路径也拒绝。AND 闸是结构性成立的（`list()`/`get()` 本就不返回未启用的用户 skill），新判断函数只做减法，不叠全局判断。
+- `read_file` 按 agent 过滤：`externalReadRoots` 改为全局已启用**且**当前 agent 允许的目录；agent 关闭某 skill 后即使历史 tool result 留有绝对路径也拒绝（含缺席 agent：其 companion 目录全部不可读）。AND 闸是结构性成立的（`list()`/`get()` 本就不返回未启用的用户 skill），新判断函数只做减法，不叠全局判断。
 
 ## 二、core
 
@@ -28,7 +28,7 @@
 - `capabilities/fs/index.ts`：`externalReadRoots` 改为 `(await projectStore.skill.listUserSkills()).filter(按当前 profile 允许).map(取目录)`。
 - `tools/manage-agent.ts`：
   - `ManageAgentParams` 加 `userSkills`（描述复用 §一规则，注明与 `skills` 分管项目/用户两侧；注明全局已关闭的 skill 不会出现在合法名单里；注明省略 `userSkills`＝全关，与 `skills` 省略＝全开对比）。
-  - `resolveSkillAllowlist` 加 `scope`＋`foldFullSet` 参数：user 侧合法名单＝`list()` 中 `source === "user"` 的名字；user 侧全量名单写显式数组（`foldFullSet=false`，无折叠），项目侧保留折叠。
+  - `resolveSkillAllowlist` 加 `foldFullSet` 参数（合法名单早已按 `kind` 区分传入）：user 侧全量名单写显式数组（`foldFullSet=false`，无折叠），项目侧传 true 保留折叠。
   - `summarize` 加 `userSkills: profile.userSkills ?? null` 同形回显；`get` 的 `availableSkills` 改为 `{ project: string[], user: string[] }` 对象（`list` 不加）。
   - 脏值修复仿 `skills`（非数组即删）。
 
@@ -41,7 +41,7 @@
 - `queries/skills.ts`：**不动** `useProjectSkills`（Composer 菜单、MarketplaceDialog 依赖项目 scope）；新增 `useAllSkills`＋独立 query key，只给 Agent Dialog 用；新增 `invalidateAllSkillQueries(client)`（predicate 限定 `queryKey[0]==="projects" && queryKey[2]==="skills"`，覆盖 `skills` 与 `skills/all`，不碰 `marketplace` 与其他域），供 `UserSkillsPanel.save` 成功后调用（经 `useQueryClient()`）。
 - `AgentSkillsField`：现有项目组不动；新增“全局 skill”分组，只渲染 `source === "user"`（即全局已启用的）user skill，开关写 `userSkills`；`useFoldedToggle` 加 `absentMeansAll` 参数，用户组传 false（缺席全关、`base = value ?? []`、永不折叠），项目组维持 true。
   - 用户组陈旧名策略与项目组不同：toggle 时保留 `value` 中不在当前列表的名字（它们只是全局暂时关闭）；项目组仍剪掉（不在列表＝已删除）。
-- `agent-markdown.ts`：解析/写回 `userSkills`，规则同 `skills`（缺席全开、`[]` 全关、全量折叠删字段）。
+- `agent-markdown.ts`：解析/写回 `userSkills` 无缺省与折叠逻辑（直通 `undefined`↔缺字段，缺席即全关；`[]` 显式全关），与 `skills` 的缺席全开/全量折叠不同。
 - i18n：新增分组标题/提示文案，三语同步。
 
 ## 五、server
@@ -59,7 +59,7 @@
 
 - core：三路一致性（同一 agent＋同一 user skill 在 catalog/`load_skill`/slash 同隐同显）；缺席＝全关（无字段 agent 在全局开/关下均不可见）；AND（全局关＋名单含＝不可见，结构性成立）；`[]` 全关；同名穿透（项目副本受控、用户副本仍被压住）；关闭后 `read_file` 拒绝该 skill 目录；`manage_agent` user 侧 round-trip／拒绝／全量写显式数组（无折叠）；`agent-profile` 非数组→未设置。
 - contracts：`userSkills` 正/负向。
-- app：Field 两组渲染与折叠（全选↔缺席）、只有用户组时的渲染、markdown round-trip（`Composer`/`MarketplaceDialog` 仍走项目 scope，以 grep 为证，不补回归测试）；设置保存后 `skills`/`skills/all` 缓存被标失效；隐藏项在场时切换可见项，`userSkills` 中隐藏名仍在（项目组仍剪已删除名）。
+- app：Field 项目组渲染与折叠（全选↔缺席）、用户组渲染与永不折叠（全选写显式数组）、只有用户组时的渲染、markdown round-trip（`Composer`/`MarketplaceDialog` 仍走项目 scope，以 grep 为证，不补回归测试）；设置保存后 `skills`/`skills/all` 缓存被标失效；隐藏项在场时切换可见项，`userSkills` 中隐藏名仍在（项目组仍剪已删除名）。
 - 设置保存失效的测试用 `createTestQueryClient` 包 Provider（`useQueryClient` 无 Provider 会抛）。
 - `manage-agent.test.ts` 既有 3 条 `availableSkills` 数组断言改为新对象形状。
 - server：无新增（现有路由测试覆盖全局开关）。

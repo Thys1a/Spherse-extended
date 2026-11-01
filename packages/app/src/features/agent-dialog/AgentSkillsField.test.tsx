@@ -174,4 +174,18 @@ describe("AgentSkillsField user group", () => {
     await user.click(within(row as HTMLElement).getByRole("switch"));
     expect(onUserChange).toHaveBeenCalledWith(["globally-hidden"]);
   });
+
+  it("never folds a full user selection back to undefined", async () => {
+    const user = userEvent.setup();
+    const onUserChange = vi.fn();
+    renderField({
+      skills: [USER_SKILL, { ...USER_SKILL, name: "sidekick", filePath: "/home/u/sidekick/SKILL.md" }],
+      userValue: ["personal"],
+      onUserChange,
+    });
+    const row = screen.getByText("sidekick").closest("div.justify-between");
+    if (!row) throw new Error("sidekick row not rendered");
+    await user.click(within(row as HTMLElement).getByRole("switch"));
+    expect(onUserChange).toHaveBeenCalledWith(["personal", "sidekick"]);
+  });
 });

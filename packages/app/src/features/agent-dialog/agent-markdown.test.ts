@@ -338,7 +338,7 @@ describe("parseAgentMarkdown", () => {
     expect(result.formData.skills).toEqual([]);
   });
 
-  it("returns undefined userSkills when the field is missing (follow global)", () => {
+  it("returns undefined userSkills when the field is missing (default off)", () => {
     const raw = "---\nname: Agent\n---\n\nsystem prompt";
     const result = parseAgentMarkdown(raw);
     expect(result.formData.userSkills).toBeUndefined();
@@ -717,7 +717,7 @@ describe("buildAgentMarkdown", () => {
     expect(parsed.extraFrontmatter).not.toHaveProperty("skills");
   });
 
-  it("omits userSkills from frontmatter when undefined (follow global)", () => {
+  it("omits userSkills from frontmatter when undefined (default off)", () => {
     const md = buildAgentMarkdown(
       { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, unlimitedAsk: false, unlimitedToolCalls: false, userSkills: undefined },
       {},
