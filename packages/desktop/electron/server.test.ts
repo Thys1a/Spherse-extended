@@ -46,6 +46,7 @@ vi.mock("./settings.js", () => ({
   getMobileAccess: () => ({ ...mobileStore, mode: mobileStore.mode ?? "quick" }),
   getModelSettingsPath: () => "/tmp/test-model-settings.json",
   getWebSearchSettingsPath: () => "/tmp/test-web-search-settings.json",
+  getUserSkillSettingsPath: () => "/tmp/test-skill-settings.json",
 }));
 
 vi.mock("./tunnel/manager.js", () => ({

@@ -19,6 +19,7 @@ vi.mock("./settings.js", () => ({
   getServerToken: () => "shutdown-test-token",
   getModelSettingsPath: () => "/tmp/test-model-settings.json",
   getWebSearchSettingsPath: () => "/tmp/test-web-search-settings.json",
+  getUserSkillSettingsPath: () => "/tmp/test-skill-settings.json",
 }));
 vi.mock("@spherse/server", () => ({
   createMultiProjectServer: createServerMock,
