@@ -66,7 +66,7 @@
 |---|---|---|
 | Skill | LLM-facing 指令包：`SKILL.md`（frontmatter + 正文）+ 可选附加文件 | [data-conventions.md](data-conventions.md) |
 | 四层 skill | builtin / project（`.spherse/skills` 与 `.agents/skills`）/ agent-level / user-level（本机全局，默认全关），同名取最高优先级 | [data-conventions.md](data-conventions.md) |
-| 用户 skill | 本机全局 skill 目录中的 skill，开关存 server 侧 `skill-settings.json`，只进 catalog/`load_skill`（已启用才可见） | [data-conventions.md](data-conventions.md) |
+| 用户 skill | 本机全局 skill 目录中的 skill，开关存 server 侧 `skill-settings.json`；全局启用后还须 agent 的 `userSkills` 名单放行（缺席即全关）才进 catalog/`load_skill` | [data-conventions.md](data-conventions.md) |
 | builtin skill | app 内置 skill，从 `PRESET_SKILL_SOURCES` 内存合并、不落盘，随 app 升级 | [packages/presets/README.md](../../packages/presets/README.md) |
 | preset skill | `packages/presets/skills/` 下的 builtin skill 源文件，LLM-facing 内容 | [packages/presets/README.md](../../packages/presets/README.md) |
 | load_skill | 按需加载 skill 全文的工具，输出经 `<skill-content>` 包裹 | [data-conventions.md](data-conventions.md) |
