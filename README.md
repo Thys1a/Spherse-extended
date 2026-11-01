@@ -85,6 +85,7 @@ Spherse 不预设唯一用途。一个项目可以是：
 - **多轮压缩**：发送前预检、截停自动续写、工具输出三层防御、手动压缩入口、历史工具输出自动收缩。
 - **检索防护**：`search_content` 大文件跳过上报，单条/总量截断。
 - **回滚**：`rollback_turn` 一键回滚某一轮的数据与卡片写入。
+- **Skill 白名单**：每个 Agent 可单独勾选启用的项目 skill（默认全开）与本机全局 skill（默认全关，需逐项开启）；`manage_agent` 可读写两份白名单。
 
 ### 自动化事件（上游 trigger 之外的扩展）
 
@@ -106,7 +107,7 @@ Spherse 不预设唯一用途。一个项目可以是：
 | `spherse-create-ui-theme` | 项目级 UI 主题定制 |
 | `spherse-create-agent-chat-theme` | Agent 聊天窗口主题定制 |
 
-Skill 按 `Agent 私有 > .spherse/skills > .agents/skills > 内置` 合并，同名取最高优先级。源码在 `packages/presets/skills/`，自建 skill 放项目 `.spherse/skills/`（左侧 Skill 面板可视化管理）。
+Skill 按 `Agent 私有 > .spherse/skills > .agents/skills > 用户级 > 内置` 合并，同名取最高优先级。源码在 `packages/presets/skills/`，自建 skill 放项目 `.spherse/skills/`（左侧 Skill 面板可视化管理）。本机全局 skill 目录（`~/.agents/skills`、`~/.claude/skills` 等）在设置页按条开关（默认全关），各 Agent 单独勾选启用。
 
 ## 下载与安装
 
@@ -200,7 +201,13 @@ Spherse 提供 macOS、Windows 和 Linux 桌面应用，也可以通过带访问
 
 ## 版本更新
 
-### v1.0.2（当前版本）
+### v1.0.3（当前版本）
+
+- 提问与调用限制按 Agent 配置：`ask_user` 可设永不超时（默认 600s），单轮工具调用次数可解除 30 次上限
+- 内容浏览器：编辑模式大纲边栏跳转、搜索跳转落点与 CRLF 选区错位修复
+- 本地 skill：本机全局 skill 目录自动发现与开关，Agent 可单独勾选项目/用户 skill，`manage_agent` 可读写白名单
+
+### v1.0.2
 
 - 世界书注入扩容：取消条数/token 预算上限，命中条目全量注入；Agent 对话框外链旁展示每卡 token 画像
 - 世界书注入位置可选：系统提示词、历史锚点、当前消息之前等 5 档插入点
@@ -215,6 +222,7 @@ Spherse 提供 macOS、Windows 和 Linux 桌面应用，也可以通过带访问
 
 ## 未来计划
 
+- **v1.0.4**：状态数据外链（`.data.json` + `$state` 声明注入）、Session 级 profile 覆盖
 - **v1.1.0（写作与存储）**：世界观撰写辅助（含数据格式可视化）、SDK 受限写、记忆增强、world book UI、软件内备份
 - **v1.2.0（工具）**：AI 输出解析（chat 渲染/trigger 联动）、气泡翻译与引用样式、信息卡运用、套件导入导出、辅助模型
 - **v1.3.0（移动与备份）**：移动端体验增强

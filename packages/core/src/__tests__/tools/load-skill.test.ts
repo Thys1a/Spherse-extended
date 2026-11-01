@@ -1,6 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { createLoadSkillTool } from "../../tools/load-skill.js";
-import { SkillStore } from "../../store/skill.js";
+import {
+  SkillStore,
+  isSkillAllowedForAgent,
+  isUserSkillAllowedForAgent,
+} from "../../store/skill.js";
+import type { SkillDefinition } from "../../types.js";
 import { createTempProject, cleanupDir, writeFile } from "../helpers.js";
 
 describe("createLoadSkillTool", () => {
@@ -120,6 +125,123 @@ describe("createLoadSkillTool", () => {
       );
       const result = await tool.execute("tc1", { skill_name: "missing" }, undefined as any);
       expect(result.content[0].text).toContain('skill "missing" not found');
+    });
+
+    it("bypasses the allowlist for agent-level skills", async () => {
+      const tool = createLoadSkillTool(
+        skillDir,
+        new SkillStore(skillDir),
+        new SkillStore(agentSkillDir),
+        () => false,
+      );
+      const result = await tool.execute("tc1", { skill_name: "agent-only" }, undefined as any);
+      expect(result.content[0].text).toContain("Agent-only skill content.");
+    });
+
+    it("applies the allowlist to project-level skills", async () => {
+      await writeFile(
+        skillDir,
+        "global-only/SKILL.md",
+        "---\nname: global-only\ndescription: Only global\n---\n\nGlobal-only content.",
+      );
+      const tool = createLoadSkillTool(
+        skillDir,
+        new SkillStore(skillDir),
+        new SkillStore(agentSkillDir),
+        (skill) => skill.name !== "global-only",
+      );
+      const result = await tool.execute("tc1", { skill_name: "global-only" }, undefined as any);
+      expect(result.content[0].text).toContain('skill "global-only" not found');
+    });
+  });
+
+  describe("user-level skill allowlist", () => {
+    let userRoot: string;
+
+    beforeEach(async () => {
+      userRoot = await createTempProject();
+      await writeFile(
+        userRoot,
+        "personal/SKILL.md",
+        "---\nname: personal\ndescription: Personal\n---\n\nPersonal content.",
+      );
+    });
+
+    afterEach(async () => {
+      await cleanupDir(userRoot);
+    });
+
+    function userTool(
+      profile: { skills?: string[]; userSkills?: string[] },
+      globallyEnabled = true,
+    ) {
+      const store = new SkillStore(skillDir, undefined, undefined, [], {
+        sources: () => [{ key: "t", dir: userRoot }],
+        isEnabled: () => globallyEnabled,
+      });
+      const isAllowed = (skill: SkillDefinition) =>
+        skill.source === "user"
+          ? isUserSkillAllowedForAgent(profile, skill.name)
+          : isSkillAllowedForAgent(profile, skill.name);
+      return createLoadSkillTool(skillDir, store, undefined, isAllowed);
+    }
+
+    it("blocks the user skill when the agent has no user allowlist (default off)", async () => {
+      const result = await userTool({}).execute("tc1", { skill_name: "personal" }, undefined as any);
+      expect(result.content[0].text).toContain('skill "personal" not found');
+    });
+
+    it("blocks the user skill when the agent allowlist is empty", async () => {
+      const result = await userTool({ userSkills: [] }).execute(
+        "tc1",
+        { skill_name: "personal" },
+        undefined as any,
+      );
+      expect(result.content[0].text).toContain('skill "personal" not found');
+    });
+
+    it("loads the user skill when named in the agent allowlist", async () => {
+      const result = await userTool({ userSkills: ["personal"] }).execute(
+        "tc1",
+        { skill_name: "personal" },
+        undefined as any,
+      );
+      expect(result.content[0].text).toContain("Personal content.");
+    });
+
+    it("stays hidden when globally disabled even if named in the agent allowlist", async () => {
+      const result = await userTool({ userSkills: ["personal"] }, false).execute(
+        "tc1",
+        { skill_name: "personal" },
+        undefined as any,
+      );
+      expect(result.content[0].text).toContain('skill "personal" not found');
+    });
+
+    it("routes a shadowed name through the project allowlist, not the user one", async () => {
+      await writeFile(
+        skillDir,
+        "shared/SKILL.md",
+        "---\nname: shared\ndescription: Project copy\n---\n\nProject body.",
+      );
+      await writeFile(
+        userRoot,
+        "shared/SKILL.md",
+        "---\nname: shared\ndescription: User copy\n---\n\nUser body.",
+      );
+      const blocked = await userTool({ skills: [], userSkills: ["shared"] }).execute(
+        "tc1",
+        { skill_name: "shared" },
+        undefined as any,
+      );
+      expect(blocked.content[0].text).toContain('skill "shared" not found');
+      const allowed = await userTool({ skills: undefined, userSkills: [] }).execute(
+        "tc1",
+        { skill_name: "shared" },
+        undefined as any,
+      );
+      expect(allowed.content[0].text).toContain("Project body.");
+      expect(allowed.content[0].text).not.toContain("User body.");
     });
   });
 });

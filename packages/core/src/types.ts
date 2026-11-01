@@ -47,10 +47,19 @@ export interface AgentProfile {
   timePerception?: TimePerceptionConfig;
   yolo?: boolean;
   allowInlineHtml?: boolean;
+  unlimitedAsk?: boolean;
+  unlimitedToolCalls?: boolean;
+  skills?: string[];
+  userSkills?: string[];
   placeholder?: string;
   greeting?: string;
   systemPrompt: string;
   filePath: string;
+}
+
+export interface UserSkillSource {
+  key: string;
+  dir: string;
 }
 
 export interface SkillDefinition {
@@ -58,7 +67,7 @@ export interface SkillDefinition {
   description: string;
   instructions: string;
   filePath: string;
-  source: "builtin" | "project";
+  source: "builtin" | "user" | "project";
   files: string[];
   version?: string;
 }

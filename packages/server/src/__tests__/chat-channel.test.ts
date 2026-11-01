@@ -15,6 +15,7 @@ function createRuntime() {
     retryLastTurn: vi.fn().mockResolvedValue(undefined),
     withdrawLastTurn: vi.fn().mockResolvedValue(1),
     abortSession: vi.fn(),
+    hasPendingQuestion: vi.fn(() => false),
     resolveControlRequest: vi.fn(),
     releaseSession: vi.fn(() => true),
     subscribeSessionEvents: vi.fn((_sessionId: string, listener: (event: any) => void) => {
@@ -172,6 +173,46 @@ describe("ChatChannel lifecycle", () => {
     await tick();
 
     expect(mock.runtime.releaseSession).toHaveBeenCalledWith("s1");
+  });
+
+  it("aborts the session when the last attachment closes with a pending question", async () => {
+    const mock = createRuntime();
+    mock.runtime.hasPendingQuestion.mockReturnValue(true);
+    const hub = new ChatSessionHub(logger);
+    const attachment = hub.attach(mock.runtime as never, "a1", "s1", () => {});
+    await attachment.ready;
+
+    attachment.close();
+
+    expect(mock.runtime.hasPendingQuestion).toHaveBeenCalledWith("s1");
+    expect(mock.runtime.abortSession).toHaveBeenCalledWith("s1");
+  });
+
+  it("does not abort when the last attachment closes with no pending question", async () => {
+    const mock = createRuntime();
+    const hub = new ChatSessionHub(logger);
+    const attachment = hub.attach(mock.runtime as never, "a1", "s1", () => {});
+    await attachment.ready;
+
+    attachment.close();
+
+    expect(mock.runtime.abortSession).not.toHaveBeenCalled();
+  });
+
+  it("does not abort while another attachment still holds a lease", async () => {
+    const mock = createRuntime();
+    mock.runtime.hasPendingQuestion.mockReturnValue(true);
+    const hub = new ChatSessionHub(logger);
+    const first = hub.attach(mock.runtime as never, "a1", "s1", () => {});
+    const second = hub.attach(mock.runtime as never, "a1", "s1", () => {});
+    await first.ready;
+    await second.ready;
+
+    first.close();
+    expect(mock.runtime.abortSession).not.toHaveBeenCalled();
+
+    second.close();
+    expect(mock.runtime.abortSession).toHaveBeenCalledWith("s1");
   });
 
   it("stops invoking subscribers and unsubscribes exactly once after close", async () => {

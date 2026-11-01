@@ -87,6 +87,7 @@ The reusable, distributable unit is not merely a prompt. It is a complete Worksp
 
 - **Multi-turn compaction**: pre-send checks, auto-continuation after cutoff, three-layer tool-output defense, manual compaction entry, automatic shrinking of historical tool outputs.
 - **Retrieval guardrails**: `search_content` reports and skips oversized files, with per-line and total truncation.
+- **Skill allowlists**: each agent can individually check its project skills (on by default) and machine-global skills (off by default, opt-in per item); `manage_agent` can read and write both lists.
 
 ### Automation events (beyond upstream triggers)
 
@@ -108,7 +109,7 @@ The reusable, distributable unit is not merely a prompt. It is a complete Worksp
 | `spherse-create-ui-theme` | Project-level UI theming |
 | `spherse-create-agent-chat-theme` | Agent chat window theming |
 
-Skills merge as `agent-private > .spherse/skills > .agents/skills > builtin`; same name wins by highest priority. Sources live in `packages/presets/skills/`; custom skills go in the project's `.spherse/skills/` (managed visually in the Skills panel).
+Skills merge as `agent-private > .spherse/skills > .agents/skills > user-level > builtin`; same name wins by highest priority. Sources live in `packages/presets/skills/`; custom skills go in the project's `.spherse/skills/` (managed visually in the Skills panel). Machine-global skill directories (`~/.agents/skills`, `~/.claude/skills`, etc.) toggle per item in Settings (off by default), and each agent opts in individually.
 
 ## Download and installation
 
@@ -202,7 +203,13 @@ Spherse ships as a macOS, Windows, and Linux desktop app. A token-protected Web 
 
 ## Release notes
 
-### v1.0.2 (current)
+### v1.0.3 (current)
+
+- Per-agent ask and tool-call limits: `ask_user` can wait indefinitely (600s by default), per-turn tool-call cap can be lifted past 30
+- Content browser: edit-mode outline sidebar jumps, search-jump landing and CRLF selection fixes
+- Local skills: auto-discovery and toggles for machine-global skill directories, per-agent project/user skill checklists, `manage_agent` allowlist access
+
+### v1.0.2
 
 - World-book injection scale-up: entry/token budget caps removed, all matching entries are injected; per-link token portraits next to agent dialog links
 - Optional injection positions: five slots across the system prompt, history anchors, and before the current message
@@ -217,6 +224,7 @@ Spherse ships as a macOS, Windows, and Linux desktop app. A token-protected Web 
 
 ## Roadmap
 
+- **v1.0.4**: state data links (`.data.json` + `$state` declaration injection), session-level profile overrides
 - **v1.1.0 (writing & storage)**: worldbuilding aids (with data-format visualization), restricted SDK writes, memory upgrades, world book UI, in-app backup
 - **v1.2.0 (tooling)**: AI output parsing (chat rendering / trigger integration), bubble translation with quote styling, info-card usage, kit import/export, auxiliary models
 - **v1.3.0 (mobile)**: mobile experience improvements

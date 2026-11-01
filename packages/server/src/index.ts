@@ -16,6 +16,8 @@ import { ModelSettingsStore, applyModelSettingsToEnv } from "./model-settings.js
 export { ModelSettingsStore } from "./model-settings.js";
 import { WebSearchSettingsStore, applyWebSearchEnv } from "./web-search-settings.js";
 export { WebSearchSettingsStore } from "./web-search-settings.js";
+import { UserSkillSettingsStore, resolveDefaultUserSkillSources } from "./user-skill-settings.js";
+export { UserSkillSettingsStore } from "./user-skill-settings.js";
 import { createServerLogger, createPrettyStream } from "./logger.js";
 import { HttpError, errorMessage } from "./errors.js";
 import { registerAuthHook, type AuthOptions } from "./middlewares/auth.js";
@@ -48,6 +50,7 @@ export interface MultiProjectServer {
 export interface CreateServerOptions {
   modelSettingsPath?: string;
   webSearchSettingsPath?: string;
+  skillSettingsPath?: string;
   auth?: AuthOptions;
   port?: number;
   modelCatalog?: ModelCatalog;
@@ -128,6 +131,7 @@ export async function createMultiProjectServer(
   if (options?.webSearchSettingsPath && fs.existsSync(options.webSearchSettingsPath)) {
     applyWebSearchEnv(webSearchSettingsStore.get());
   }
+  const userSkillSettingsStore = new UserSkillSettingsStore({ filePath: options?.skillSettingsPath });
 
   const registry = new ProjectRegistry(logger, {
     defaultModel: modelSettingsStore.get().text.defaultModel || undefined,
@@ -135,6 +139,13 @@ export async function createMultiProjectServer(
     thinkingLevel: modelSettingsStore.get().text.thinkingLevel,
     modelCatalog,
     onRuntimeRemoved: (runtime) => chatHub.closeRuntime(runtime),
+    userSkills: () => ({
+      sources: () => [
+        ...userSkillSettingsStore.get().customDirs.map((dir, index) => ({ key: `custom-${index}`, dir, custom: true as const })),
+        ...resolveDefaultUserSkillSources(),
+      ],
+      isEnabled: (skillDir: string) => userSkillSettingsStore.isEnabled(skillDir),
+    }),
   });
 
   registerAuthHook(fastify, options?.auth ?? {});
@@ -144,6 +155,7 @@ export async function createMultiProjectServer(
     modelSettingsStore,
     modelCatalog,
     webSearchSettingsStore,
+    userSkillSettingsStore,
   });
   handleChatWebSocket(fastify, registry, chatHub);
   handleBusWebSocket(fastify, registry);

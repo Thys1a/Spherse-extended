@@ -1,17 +1,36 @@
 import { useRef, useState } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { screen, fireEvent } from "@testing-library/react";
 import { translate } from "@spherse/i18n";
 import { renderWithProviders } from "../../test/render";
 import { EditFindReplaceBar } from "./EditFindReplaceBar";
 
-function Harness({ initial = "foo bar foo" }: { initial?: string }) {
+beforeEach(() => {
+  vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+    callback(0);
+    return 1;
+  });
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+function Harness({ initial = "foo bar foo", onReplace }: { initial?: string; onReplace?: (nextText: string) => void }) {
   const ref = useRef<HTMLTextAreaElement | null>(null);
   const [value, setValue] = useState(initial);
   return (
     <>
       <textarea ref={ref} value={value} onChange={(e) => setValue(e.target.value)} data-testid="editor" />
-      <EditFindReplaceBar text={value} textareaRef={ref} onReplace={setValue} onClose={() => {}} />
+      <EditFindReplaceBar
+        text={value}
+        textareaRef={ref}
+        onReplace={(nextText) => {
+          onReplace?.(nextText);
+          setValue(nextText);
+        }}
+        onClose={() => {}}
+      />
     </>
   );
 }
@@ -77,5 +96,101 @@ describe("EditFindReplaceBar", () => {
     expect(screen.getByText("2/2")).toBeInTheDocument();
     fireEvent.click(screen.getByLabelText(translate("zh-CN", "content-browser.find.previous")));
     expect(screen.getByText("1/2")).toBeInTheDocument();
+  });
+
+  it("selects the match, focuses without scrolling, and writes centered scroll on jump", () => {
+    const focusSpy = vi.spyOn(HTMLTextAreaElement.prototype, "focus");
+    const style = document.createElement("div").style;
+    style.fontFamily = "monospace";
+    style.fontSize = "16px";
+    style.lineHeight = "600px";
+    style.paddingLeft = "0px";
+    style.paddingRight = "0px";
+    const styleSpy = vi.spyOn(window, "getComputedStyle").mockReturnValue(style);
+    try {
+      renderWithProviders(<Harness />);
+      typeQuery("foo");
+
+      const editor = screen.getByTestId("editor") as HTMLTextAreaElement;
+      const setScrollTop = vi.fn();
+      Object.defineProperty(editor, "scrollTop", { set: setScrollTop, get: () => 0, configurable: true });
+      Object.defineProperty(editor, "scrollHeight", { value: 1000, configurable: true });
+      Object.defineProperty(editor, "clientHeight", { value: 200, configurable: true });
+
+      fireEvent.click(screen.getByLabelText(translate("zh-CN", "content-browser.find.next")));
+
+      expect(editor.selectionStart).toBe(8);
+      expect(editor.selectionEnd).toBe(11);
+      expect(focusSpy).toHaveBeenCalledWith({ preventScroll: true });
+      expect(setScrollTop).toHaveBeenCalledWith(200);
+    } finally {
+      focusSpy.mockRestore();
+      styleSpy.mockRestore();
+    }
+  });
+
+  it("skips scroll writes when measurement fails", () => {
+    renderWithProviders(<Harness />);
+    typeQuery("foo");
+
+    const editor = screen.getByTestId("editor") as HTMLTextAreaElement;
+    const setScrollTop = vi.fn();
+    Object.defineProperty(editor, "scrollTop", { set: setScrollTop, get: () => 0, configurable: true });
+
+    fireEvent.click(screen.getByLabelText(translate("zh-CN", "content-browser.find.next")));
+
+    expect(editor.selectionStart).toBe(8);
+    expect(editor.selectionEnd).toBe(11);
+    expect(setScrollTop).not.toHaveBeenCalled();
+  });
+
+  it("restores selection to the same match index after a single replace", () => {
+    renderWithProviders(<Harness />);
+    typeQuery("foo");
+    typeReplacement("baz");
+
+    fireEvent.click(screen.getByText(translate("zh-CN", "content-browser.find.replace")));
+
+    const editor = screen.getByTestId("editor") as HTMLTextAreaElement;
+    expect(editor.value).toBe("baz bar foo");
+    expect(editor.selectionStart).toBe(8);
+    expect(editor.selectionEnd).toBe(11);
+  });
+
+  it("selects the normalized range for a later match in a CRLF file", () => {
+    renderWithProviders(<Harness initial={"line1\r\nfoo bar\r\nline3 foo"} />);
+    typeQuery("foo");
+
+    fireEvent.click(screen.getByLabelText(translate("zh-CN", "content-browser.find.next")));
+
+    const editor = screen.getByTestId("editor") as HTMLTextAreaElement;
+    expect(editor.selectionStart).toBe(20);
+    expect(editor.selectionEnd).toBe(23);
+  });
+
+  it("selects the normalized range for a middle match in a CRLF file", () => {
+    renderWithProviders(<Harness initial={"a\r\nfoo\r\nb\r\nfoo\r\nc\r\nfoo"} />);
+    typeQuery("foo");
+
+    fireEvent.click(screen.getByLabelText(translate("zh-CN", "content-browser.find.next")));
+
+    const editor = screen.getByTestId("editor") as HTMLTextAreaElement;
+    expect(editor.selectionStart).toBe(8);
+    expect(editor.selectionEnd).toBe(11);
+  });
+
+  it("keeps the same match index after replace in a CRLF file, in normalized coordinates", () => {
+    const onReplace = vi.fn();
+    renderWithProviders(<Harness initial={"line1\r\nfoo bar\r\nline3 foo"} onReplace={onReplace} />);
+    typeQuery("foo");
+    typeReplacement("baz");
+
+    fireEvent.click(screen.getByText(translate("zh-CN", "content-browser.find.replace")));
+
+    expect(onReplace).toHaveBeenCalledWith("line1\r\nbaz bar\r\nline3 foo");
+    const editor = screen.getByTestId("editor") as HTMLTextAreaElement;
+    expect(editor.value).toBe("line1\nbaz bar\nline3 foo");
+    expect(editor.selectionStart).toBe(20);
+    expect(editor.selectionEnd).toBe(23);
   });
 });

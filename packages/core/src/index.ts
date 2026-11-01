@@ -105,3 +105,6 @@ export { isValidCron, isReservedEventName, requiresTargetSession } from "./trigg
 export type { Attachment } from "./attachments/index.js";
 export { WEB_SEARCH_API_KEY_ENV, WEB_SEARCH_BASE_URL_ENV, WEB_SEARCH_MODEL_ENV } from "./tools/web-search.js";
 export type { McpTransportType } from "./mcp/index.js";
+export { SkillStore, listSkillsInDir, isSkillAllowedForAgent } from "./store/skill.js";
+export type { UserSkillConfig } from "./store/skill.js";
+export type { UserSkillSource } from "./types.js";

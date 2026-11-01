@@ -11,6 +11,7 @@ import type { AgentMcpConfig } from "../mcp/types.js";
 import { PROJECT_META_DIR } from "../types.js";
 import { ProjectConfigStore } from "./project-config.js";
 import { SkillStore } from "./skill.js";
+import type { UserSkillConfig } from "./skill.js";
 import { CommandStore } from "./command.js";
 import { AgentStore } from "./agent-store.js";
 import { AgentProfileStore, assertSafeSlug } from "./agent-profile.js";
@@ -52,15 +53,22 @@ export class ProjectStore extends EventEmitter {
 
   private _configStore: ProjectConfigStore | null = null;
   private _skillStore: SkillStore | null = null;
+  private readonly userSkills?: UserSkillConfig;
   private _commandStore: CommandStore | null = null;
   private _agents: Map<string, AgentStore> = new Map();
 
-  constructor(rootPath: string, logger?: Logger, fileWriteMutex?: FileWriteMutex) {
+  constructor(
+    rootPath: string,
+    logger?: Logger,
+    fileWriteMutex?: FileWriteMutex,
+    options?: { userSkills?: UserSkillConfig },
+  ) {
     super();
     this.rootPath = path.resolve(rootPath);
     this.spherseDir = path.join(this.rootPath, PROJECT_META_DIR);
     this.logger = logger ?? createSilentLogger();
     this.fileWriteMutex = fileWriteMutex;
+    this.userSkills = options?.userSkills;
   }
 
   async open(): Promise<void> {
@@ -73,6 +81,7 @@ export class ProjectStore extends EventEmitter {
       PRESET_SKILL_SOURCES,
       this.fileWriteMutex,
       [path.join(this.rootPath, ".agents", "skills")],
+      this.userSkills,
     );
 
     this._commandStore = new CommandStore(
@@ -100,6 +109,7 @@ export class ProjectStore extends EventEmitter {
       PRESET_SKILL_SOURCES,
       this.fileWriteMutex,
       [path.join(this.rootPath, ".agents", "skills")],
+      this.userSkills,
     );
 
     this._commandStore = new CommandStore(

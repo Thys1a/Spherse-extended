@@ -153,6 +153,9 @@ export class ChatChannel {
         active = false;
         this.leases = Math.max(0, this.leases - 1);
         if (subscribed) this.subscribers.delete(subscriber);
+        if (this.leases === 0 && this.state === "open" && this.runtime.hasPendingQuestion(this.sessionId)) {
+          this.runtime.abortSession(this.sessionId);
+        }
         this.cleanupIfIdle();
       },
     };

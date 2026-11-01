@@ -30,6 +30,7 @@ function createRuntime() {
       },
     ),
     abortSession: vi.fn(),
+    hasPendingQuestion: vi.fn(() => false),
     resolveControlRequest: vi.fn(),
     releaseSession: vi.fn(() => true),
     subscribeSessionEvents: vi.fn((_sessionId: string, listener: (event: any) => void) => {

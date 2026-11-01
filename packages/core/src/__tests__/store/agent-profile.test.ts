@@ -91,6 +91,58 @@ You are a world building assistant.`;
     expect(profile!.allowInlineHtml).toBe(true);
   });
 
+  it("parses skills allowlist from frontmatter", async () => {
+    await writeProfile("---\nname: Agent\nskills:\n  - review\n  - deploy\n---\n\nprompt");
+    const profile = await store.read();
+    expect(profile).not.toBeNull();
+    expect(profile!.skills).toEqual(["review", "deploy"]);
+  });
+
+  it("coerces non-array skills to undefined", async () => {
+    await writeProfile("---\nname: Agent\nskills: review\n---\n\nprompt");
+    const profile = await store.read();
+    expect(profile).not.toBeNull();
+    expect(profile!.skills).toBeUndefined();
+  });
+
+  it("returns undefined skills when frontmatter omits them", async () => {
+    await writeProfile(VALID_PROFILE);
+    const profile = await store.read();
+    expect(profile).not.toBeNull();
+    expect(profile!.skills).toBeUndefined();
+  });
+
+  it("parses userSkills allowlist from frontmatter", async () => {
+    await writeProfile("---\nname: Agent\nuserSkills:\n  - personal\n---\n\nprompt");
+    const profile = await store.read();
+    expect(profile).not.toBeNull();
+    expect(profile!.userSkills).toEqual(["personal"]);
+    expect(profile!.skills).toBeUndefined();
+  });
+
+  it("coerces non-array userSkills to undefined", async () => {
+    await writeProfile("---\nname: Agent\nuserSkills: personal\n---\n\nprompt");
+    const profile = await store.read();
+    expect(profile).not.toBeNull();
+    expect(profile!.userSkills).toBeUndefined();
+  });
+
+  it("parses unlimitedAsk/unlimitedToolCalls true from frontmatter", async () => {
+    await writeProfile("---\nname: Agent\nunlimitedAsk: true\nunlimitedToolCalls: true\n---\n\nprompt");
+    const profile = await store.read();
+    expect(profile).not.toBeNull();
+    expect(profile!.unlimitedAsk).toBe(true);
+    expect(profile!.unlimitedToolCalls).toBe(true);
+  });
+
+  it("returns undefined unlimited flags when frontmatter omits them", async () => {
+    await writeProfile(VALID_PROFILE);
+    const profile = await store.read();
+    expect(profile).not.toBeNull();
+    expect(profile!.unlimitedAsk).toBeUndefined();
+    expect(profile!.unlimitedToolCalls).toBeUndefined();
+  });
+
   it("returns undefined allowInlineHtml when frontmatter omits it", async () => {
     await writeProfile(VALID_PROFILE);
     const profile = await store.read();

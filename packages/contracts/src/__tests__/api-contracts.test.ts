@@ -135,6 +135,9 @@ describe("api contracts", () => {
     expect(
       parseApiResponse(schemas.agentProfile, { ...profile, allowInlineHtml: true }),
     ).toMatchObject({ allowInlineHtml: true });
+    expect(
+      parseApiResponse(schemas.agentProfile, { ...profile, unlimitedAsk: true, unlimitedToolCalls: true }),
+    ).toMatchObject({ unlimitedAsk: true, unlimitedToolCalls: true });
     expect(parseApiResponse(schemas.agentProfile, { ...profile, quickLinks: ["notes/world.md"] })).toMatchObject({
       quickLinks: ["notes/world.md"],
     });
@@ -168,6 +171,47 @@ describe("api contracts", () => {
     expect(parseApiResponse(schemas.agentCreateRequest, { slugBase: "s", content: "c" })).toEqual({ slugBase: "s", content: "c" });
     expect(() => parseApiResponse(schemas.agentCreateRequest, { content: "c" })).toThrow(/Invalid payload/);
     expect(parseApiResponse(schemas.agentCreateResponse, { ok: true, id: "a1" })).toEqual({ ok: true, id: "a1" });
+  });
+
+  it("validates agent skills allowlist and user skill settings", () => {
+    const profile = {
+      id: "a1",
+      name: "Agent",
+      slug: "agent",
+      systemPrompt: "p",
+      filePath: "agent.md",
+    };
+    expect(parseApiResponse(schemas.agentProfile, { ...profile, skills: ["a", "b"] })).toMatchObject({
+      skills: ["a", "b"],
+    });
+    expect(() => parseApiResponse(schemas.agentProfile, { ...profile, skills: ["a", 1] })).toThrow(
+      /Invalid payload/,
+    );
+    expect(
+      parseApiResponse(schemas.agentProfile, { ...profile, userSkills: ["u"] }),
+    ).toMatchObject({ userSkills: ["u"] });
+    expect(() => parseApiResponse(schemas.agentProfile, { ...profile, userSkills: "u" })).toThrow(
+      /Invalid payload/,
+    );
+    const settings = { customDirs: ["/x/skills"], enabled: ["/x/skills/a"] };
+    expect(parseApiResponse(schemas.userSkillSettings, settings)).toEqual(settings);
+    expect(() => parseApiResponse(schemas.userSkillSettings, { customDirs: "/x" })).toThrow(/Invalid payload/);
+    const withSources = {
+      ...settings,
+      sources: [
+        {
+          key: "custom",
+          dir: "/x/skills",
+          custom: true,
+          exists: true,
+          skills: [{ name: "a", description: "d", dir: "/x/skills/a", enabled: true }],
+        },
+      ],
+    };
+    expect(parseApiResponse(schemas.userSkillSettingsResponse, withSources)).toEqual(withSources);
+    expect(() =>
+      parseApiResponse(schemas.userSkillSettingsResponse, { ...withSources, sources: [{ key: "x" }] }),
+    ).toThrow(/Invalid payload/);
   });
 
   it("validates content mutation requests (mkdir/touch/move)", () => {

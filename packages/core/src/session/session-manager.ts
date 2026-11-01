@@ -132,6 +132,10 @@ export class SessionManager {
     this.sessions.get(sessionId)?.abort();
   }
 
+  hasPendingQuestion(sessionId: string): boolean {
+    return this.sessions.get(sessionId)?.hasPendingQuestion() ?? false;
+  }
+
   async retryLastTurn(
     sessionId: string,
     onEvent: RunnerEventHandler,
@@ -305,6 +309,7 @@ export class SessionManager {
   }
 
   destroySession(sessionId: string): void {
+    this.sessions.get(sessionId)?.abort();
     this.sessions.delete(sessionId);
   }
 
@@ -328,13 +333,23 @@ export class SessionManager {
   evictAgent(agentId: string): void {
     for (const [sessionId, session] of this.sessions) {
       if (session.getAgentId() === agentId) {
+        session.abort();
         this.sessions.delete(sessionId);
       }
     }
   }
 
   async closeAll(): Promise<void> {
+    for (const session of this.sessions.values()) {
+      session.abort();
+    }
     this.sessions.clear();
+  }
+
+  markAllSessionsReloadPending(): void {
+    for (const session of this.sessions.values()) {
+      session.markReloadPending();
+    }
   }
 
   setDefaultModel(model: string | undefined): void {

@@ -130,10 +130,18 @@ export class AgentProfileStore {
           ? data.quickLinks.filter((p): p is string => typeof p === "string")
           : undefined,
         quickReplies: parseQuickReplies(data.quickReplies),
+        skills: Array.isArray(data.skills)
+          ? data.skills.filter((s): s is string => typeof s === "string")
+          : undefined,
+        userSkills: Array.isArray(data.userSkills)
+          ? data.userSkills.filter((s): s is string => typeof s === "string")
+          : undefined,
         output: data.output,
         timePerception: parseTimePerception(data.timePerception),
         yolo: data.yolo === true || undefined,
         allowInlineHtml: data.allowInlineHtml === true || undefined,
+        unlimitedAsk: data.unlimitedAsk === true || undefined,
+        unlimitedToolCalls: data.unlimitedToolCalls === true || undefined,
         placeholder:
           typeof data.placeholder === "string" && data.placeholder.trim()
             ? data.placeholder

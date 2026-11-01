@@ -5,12 +5,13 @@ import type { ProjectRegistry } from "../registry.js";
 import { notFound } from "../errors.js";
 
 export function registerSkillRoutes(fastify: FastifyInstance, _registry: ProjectRegistry): void {
-  fastify.get<{ Params: { projectId: string } }>(
+  fastify.get<{ Params: { projectId: string }; Querystring: { scope?: string } }>(
     "/api/projects/:projectId/skills",
     {
       schema: { response: { 200: schemas.skillListResponse } },
       async handler(req) {
-        const skills = await req.projectCtx!.projectManager.listSkills();
+        const scope = req.query.scope === "project" ? "project" : undefined;
+        const skills = await req.projectCtx!.projectManager.listSkills(scope);
         // 列表只下发摘要；instructions 全文仅 load_skill 工具与单条端点需要
         return skills.map(({ instructions: _instructions, ...summary }) => summary);
       },

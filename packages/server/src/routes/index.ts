@@ -4,6 +4,7 @@ import type { ProjectRegistry, ProjectContextCompat } from "../registry.js";
 import type { ChatSessionHub } from "../chat/index.js";
 import type { ModelSettingsStore } from "../model-settings.js";
 import type { WebSearchSettingsStore } from "../web-search-settings.js";
+import type { UserSkillSettingsStore } from "../user-skill-settings.js";
 import { notFound } from "../errors.js";
 import { registerAgentRoutes } from "./agents.js";
 import { registerAgentWriteRoutes } from "./agent-write.js";
@@ -39,6 +40,7 @@ export interface RouteOptions {
   modelSettingsStore: ModelSettingsStore;
   modelCatalog: ModelCatalog;
   webSearchSettingsStore: WebSearchSettingsStore;
+  userSkillSettingsStore: UserSkillSettingsStore;
 }
 
 export function registerAllRoutes(
@@ -66,6 +68,7 @@ export function registerAllRoutes(
     modelSettingsStore: options.modelSettingsStore,
     modelCatalog: options.modelCatalog,
     webSearchSettingsStore: options.webSearchSettingsStore,
+    userSkillSettingsStore: options.userSkillSettingsStore,
   });
   registerPreviewRoutes(fastify, registry);
   registerSkillRoutes(fastify, registry);

@@ -151,7 +151,7 @@ export type {
   TriggerLogListResponse,
 } from "./trigger.js";
 
-export type { SkillDefinitionContract, SkillSummaryContract, SkillListResponse, SkillCreateRequest, SkillInstallRequest } from "./skills.js";
+export type { SkillDefinitionContract, SkillSummaryContract, SkillListResponse, SkillCreateRequest, SkillInstallRequest, UserSkillSettings, UserSkillSettingsResponse } from "./skills.js";
 export type { CommandDefinitionContract, CommandListResponse, CommandCreateRequest, CommandUpdateRequest } from "./commands.js";
 export type {
   MarketplaceSkillEntry,

@@ -296,12 +296,91 @@ describe("parseAgentMarkdown", () => {
     const result = parseAgentMarkdown(raw);
     expect(result.extraFrontmatter).not.toHaveProperty("yolo");
   });
+
+  it("parses unlimitedAsk/unlimitedToolCalls true when present", () => {
+    const raw = "---\nname: Agent\nunlimitedAsk: true\nunlimitedToolCalls: true\n---\n\nsystem prompt";
+    const result = parseAgentMarkdown(raw);
+    expect(result.formData.unlimitedAsk).toBe(true);
+    expect(result.formData.unlimitedToolCalls).toBe(true);
+  });
+
+  it("returns false unlimited flags when fields are missing", () => {
+    const raw = "---\nname: Agent\n---\n\nsystem prompt";
+    const result = parseAgentMarkdown(raw);
+    expect(result.formData.unlimitedAsk).toBe(false);
+    expect(result.formData.unlimitedToolCalls).toBe(false);
+  });
+
+  it("does not leak unlimited flags into extra frontmatter", () => {
+    const raw = "---\nname: Agent\nunlimitedAsk: true\nunlimitedToolCalls: true\n---\n\nsystem prompt";
+    const result = parseAgentMarkdown(raw);
+    expect(result.extraFrontmatter).not.toHaveProperty("unlimitedAsk");
+    expect(result.extraFrontmatter).not.toHaveProperty("unlimitedToolCalls");
+  });
+
+  it("returns undefined skills when the field is missing (allowlist defaults to all-on)", () => {
+    const raw = "---\nname: Agent\n---\n\nsystem prompt";
+    const result = parseAgentMarkdown(raw);
+    expect(result.formData.skills).toBeUndefined();
+    expect(result.extraFrontmatter).not.toHaveProperty("skills");
+  });
+
+  it("parses an explicit skills allowlist", () => {
+    const raw = "---\nname: Agent\nskills:\n  - research\n  - writing\n---\n\nsystem prompt";
+    const result = parseAgentMarkdown(raw);
+    expect(result.formData.skills).toEqual(["research", "writing"]);
+    expect(result.extraFrontmatter).not.toHaveProperty("skills");
+  });
+
+  it("parses an empty skills list as an explicit all-off", () => {
+    const raw = "---\nname: Agent\nskills: []\n---\n\nsystem prompt";
+    const result = parseAgentMarkdown(raw);
+    expect(result.formData.skills).toEqual([]);
+  });
+
+  it("returns undefined userSkills when the field is missing (default off)", () => {
+    const raw = "---\nname: Agent\n---\n\nsystem prompt";
+    const result = parseAgentMarkdown(raw);
+    expect(result.formData.userSkills).toBeUndefined();
+    expect(result.extraFrontmatter).not.toHaveProperty("userSkills");
+  });
+
+  it("parses an explicit userSkills allowlist", () => {
+    const raw = "---\nname: Agent\nuserSkills:\n  - personal\n---\n\nsystem prompt";
+    const result = parseAgentMarkdown(raw);
+    expect(result.formData.userSkills).toEqual(["personal"]);
+    expect(result.extraFrontmatter).not.toHaveProperty("userSkills");
+  });
+
+  it("parses an empty userSkills list as an explicit all-off", () => {
+    const raw = "---\nname: Agent\nuserSkills: []\n---\n\nsystem prompt";
+    const result = parseAgentMarkdown(raw);
+    expect(result.formData.userSkills).toEqual([]);
+  });
+
+  it("returns undefined userSkills when the value is not an array", () => {
+    const raw = "---\nname: Agent\nuserSkills: personal\n---\n\nsystem prompt";
+    const result = parseAgentMarkdown(raw);
+    expect(result.formData.userSkills).toBeUndefined();
+  });
+
+  it("returns undefined skills when the value is not an array", () => {
+    const raw = "---\nname: Agent\nskills: research\n---\n\nsystem prompt";
+    const result = parseAgentMarkdown(raw);
+    expect(result.formData.skills).toBeUndefined();
+  });
+
+  it("filters non-string entries in the skills array", () => {
+    const raw = "---\nname: Agent\nskills:\n  - research\n  - 42\n---\n\nsystem prompt";
+    const result = parseAgentMarkdown(raw);
+    expect(result.formData.skills).toEqual(["research"]);
+  });
 });
 
 describe("buildAgentMarkdown", () => {
   it("writes tools array into frontmatter", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", tools: ["read_file"], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false },
+      { name: "Agent", tools: ["read_file"], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, unlimitedAsk: false, unlimitedToolCalls: false },
       {},
       false,
     );
@@ -312,7 +391,7 @@ describe("buildAgentMarkdown", () => {
 
   it("omits context when empty", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false },
+      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, unlimitedAsk: false, unlimitedToolCalls: false },
       {},
       false,
     );
@@ -321,7 +400,7 @@ describe("buildAgentMarkdown", () => {
 
   it("writes quickLinks into frontmatter and round-trips", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", tools: [], context: [], quickLinks: ["notes/world.md"], systemPrompt: "hello", yolo: false, allowInlineHtml: false },
+      { name: "Agent", tools: [], context: [], quickLinks: ["notes/world.md"], systemPrompt: "hello", yolo: false, allowInlineHtml: false, unlimitedAsk: false, unlimitedToolCalls: false },
       {},
       false,
     );
@@ -332,7 +411,7 @@ describe("buildAgentMarkdown", () => {
 
   it("omits quickLinks from frontmatter when empty", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false },
+      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, unlimitedAsk: false, unlimitedToolCalls: false },
       {},
       false,
     );
@@ -341,7 +420,7 @@ describe("buildAgentMarkdown", () => {
 
   it("preserves empty tools array through a round-trip", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false },
+      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, unlimitedAsk: false, unlimitedToolCalls: false },
       {},
       false,
     );
@@ -351,7 +430,7 @@ describe("buildAgentMarkdown", () => {
 
   it("writes alias into frontmatter when set", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", alias: "小明", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false },
+      { name: "Agent", alias: "小明", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, unlimitedAsk: false, unlimitedToolCalls: false },
       {},
       false,
     );
@@ -361,7 +440,7 @@ describe("buildAgentMarkdown", () => {
 
   it("omits alias from frontmatter when empty", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", alias: "", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false },
+      { name: "Agent", alias: "", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, unlimitedAsk: false, unlimitedToolCalls: false },
       {},
       false,
     );
@@ -370,7 +449,7 @@ describe("buildAgentMarkdown", () => {
 
   it("omits alias from frontmatter when whitespace-only", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", alias: "   ", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false },
+      { name: "Agent", alias: "   ", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, unlimitedAsk: false, unlimitedToolCalls: false },
       {},
       false,
     );
@@ -379,7 +458,7 @@ describe("buildAgentMarkdown", () => {
 
   it("round-trips placeholder and greeting through frontmatter", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, placeholder: "输入消息…", greeting: "你好" },
+      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, unlimitedAsk: false, unlimitedToolCalls: false, placeholder: "输入消息…", greeting: "你好" },
       {},
       false,
     );
@@ -392,7 +471,7 @@ describe("buildAgentMarkdown", () => {
 
   it("omits blank placeholder/greeting from frontmatter", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, placeholder: "  ", greeting: "" },
+      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, unlimitedAsk: false, unlimitedToolCalls: false, placeholder: "  ", greeting: "" },
       {},
       false,
     );
@@ -402,7 +481,7 @@ describe("buildAgentMarkdown", () => {
 
   it("preserves alias through a round-trip with extra frontmatter", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", alias: "小明", tools: ["read_file"], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false },
+      { name: "Agent", alias: "小明", tools: ["read_file"], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, unlimitedAsk: false, unlimitedToolCalls: false },
       { autoRun: true },
       false,
     );
@@ -414,7 +493,7 @@ describe("buildAgentMarkdown", () => {
 
   it("writes model into frontmatter when set", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, model: "gpt-4" },
+      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, unlimitedAsk: false, unlimitedToolCalls: false, model: "gpt-4" },
       {},
       false,
     );
@@ -426,7 +505,7 @@ describe("buildAgentMarkdown", () => {
 
   it("omits model from frontmatter when not set", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false },
+      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, unlimitedAsk: false, unlimitedToolCalls: false },
       {},
       false,
     );
@@ -435,7 +514,7 @@ describe("buildAgentMarkdown", () => {
 
   it("omits model from frontmatter when whitespace-only", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, model: "   " },
+      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, unlimitedAsk: false, unlimitedToolCalls: false, model: "   " },
       {},
       false,
     );
@@ -444,7 +523,7 @@ describe("buildAgentMarkdown", () => {
 
   it("does not double-write model when it is both form data and extra", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, model: "gpt-4" },
+      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, unlimitedAsk: false, unlimitedToolCalls: false, model: "gpt-4" },
       { model: "claude" },
       false,
     );
@@ -464,6 +543,8 @@ describe("buildAgentMarkdown", () => {
         systemPrompt: "hello",
         yolo: false,
         allowInlineHtml: false,
+        unlimitedAsk: false,
+        unlimitedToolCalls: false,
       },
       {},
       false,
@@ -475,7 +556,7 @@ describe("buildAgentMarkdown", () => {
 
   it("omits model and thinkingLevel when unset", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false },
+      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, unlimitedAsk: false, unlimitedToolCalls: false },
       {},
       false,
     );
@@ -485,7 +566,7 @@ describe("buildAgentMarkdown", () => {
 
   it("drops a previously set model when cleared", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", model: undefined, thinkingLevel: undefined, tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false },
+      { name: "Agent", model: undefined, thinkingLevel: undefined, tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, unlimitedAsk: false, unlimitedToolCalls: false },
       {},
       false,
     );
@@ -502,6 +583,7 @@ describe("buildAgentMarkdown", () => {
         quickLinks: [],
         systemPrompt: "hello",
         yolo: false, allowInlineHtml: false,
+        unlimitedAsk: false, unlimitedToolCalls: false,
         timePerception: {
           enabled: true,
           epochMs: 1700000000000,
@@ -533,6 +615,7 @@ describe("buildAgentMarkdown", () => {
         quickLinks: [],
         systemPrompt: "hello",
         yolo: false, allowInlineHtml: false,
+        unlimitedAsk: false, unlimitedToolCalls: false,
         timePerception: { enabled: false, epochMs: 1700000000000 },
       },
       {},
@@ -543,7 +626,7 @@ describe("buildAgentMarkdown", () => {
 
   it("writes yolo into frontmatter when true", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: true, allowInlineHtml: false },
+      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: true, allowInlineHtml: false, unlimitedAsk: false, unlimitedToolCalls: false },
       {},
       false,
     );
@@ -554,7 +637,7 @@ describe("buildAgentMarkdown", () => {
 
   it("omits yolo from frontmatter when false", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false },
+      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, unlimitedAsk: false, unlimitedToolCalls: false },
       {},
       false,
     );
@@ -563,7 +646,7 @@ describe("buildAgentMarkdown", () => {
 
   it("writes allowInlineHtml into frontmatter when true", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: true },
+      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: true, unlimitedAsk: false, unlimitedToolCalls: false },
       {},
       false,
     );
@@ -574,10 +657,83 @@ describe("buildAgentMarkdown", () => {
 
   it("omits allowInlineHtml from frontmatter when false", () => {
     const md = buildAgentMarkdown(
-      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false },
+      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, unlimitedAsk: false, unlimitedToolCalls: false },
       {},
       false,
     );
     expect(md).not.toContain("allowInlineHtml");
+  });
+
+  it("writes unlimited flags into frontmatter when true", () => {
+    const md = buildAgentMarkdown(
+      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, unlimitedAsk: true, unlimitedToolCalls: true },
+      {},
+      false,
+    );
+    expect(md).toContain("unlimitedAsk");
+    expect(md).toContain("unlimitedToolCalls");
+    const parsed = parseAgentMarkdown(md);
+    expect(parsed.formData.unlimitedAsk).toBe(true);
+    expect(parsed.formData.unlimitedToolCalls).toBe(true);
+  });
+
+  it("omits unlimited flags from frontmatter when false", () => {
+    const md = buildAgentMarkdown(
+      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, unlimitedAsk: false, unlimitedToolCalls: false },
+      {},
+      false,
+    );
+    expect(md).not.toContain("unlimitedAsk");
+    expect(md).not.toContain("unlimitedToolCalls");
+  });
+
+  it("omits skills from frontmatter when undefined (all-on)", () => {
+    const md = buildAgentMarkdown(
+      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, unlimitedAsk: false, unlimitedToolCalls: false, skills: undefined },
+      {},
+      false,
+    );
+    expect(md).not.toContain("skills");
+  });
+
+  it("writes an empty skills list as an explicit all-off and round-trips", () => {
+    const md = buildAgentMarkdown(
+      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, unlimitedAsk: false, unlimitedToolCalls: false, skills: [] },
+      {},
+      false,
+    );
+    expect(md).toContain("skills");
+    expect(parseAgentMarkdown(md).formData.skills).toEqual([]);
+  });
+
+  it("writes a partial skills allowlist and round-trips", () => {
+    const md = buildAgentMarkdown(
+      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, unlimitedAsk: false, unlimitedToolCalls: false, skills: ["research"] },
+      {},
+      false,
+    );
+    const parsed = parseAgentMarkdown(md);
+    expect(parsed.formData.skills).toEqual(["research"]);
+    expect(parsed.extraFrontmatter).not.toHaveProperty("skills");
+  });
+
+  it("omits userSkills from frontmatter when undefined (default off)", () => {
+    const md = buildAgentMarkdown(
+      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, unlimitedAsk: false, unlimitedToolCalls: false, userSkills: undefined },
+      {},
+      false,
+    );
+    expect(md).not.toContain("userSkills");
+  });
+
+  it("writes a partial userSkills allowlist and round-trips", () => {
+    const md = buildAgentMarkdown(
+      { name: "Agent", tools: [], context: [], quickLinks: [], systemPrompt: "hello", yolo: false, allowInlineHtml: false, unlimitedAsk: false, unlimitedToolCalls: false, userSkills: ["personal"] },
+      {},
+      false,
+    );
+    const parsed = parseAgentMarkdown(md);
+    expect(parsed.formData.userSkills).toEqual(["personal"]);
+    expect(parsed.extraFrontmatter).not.toHaveProperty("userSkills");
   });
 });

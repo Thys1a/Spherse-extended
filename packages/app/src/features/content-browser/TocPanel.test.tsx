@@ -1,13 +1,12 @@
 import { useRef } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { screen, fireEvent } from "@testing-library/react";
 import { translate } from "@spherse/i18n";
 import { renderWithProviders } from "../../test/render";
 import { TocPanel } from "./TocPanel";
 import { useContentToc } from "./useContentToc";
 
-function HookHarness({ enabled, docKey = "k" }: { enabled: boolean; docKey?: string }) {
-  const ref = useRef<HTMLDivElement | null>(null);
+function HookHarness({ enabled, docKey = "k" }: { enabled: boolean; docKey?: string }) {  const ref = useRef<HTMLDivElement | null>(null);
   const entries = useContentToc(ref, docKey, enabled);
   return (
     <div ref={ref}>
@@ -29,6 +28,11 @@ function HookHarness({ enabled, docKey = "k" }: { enabled: boolean; docKey?: str
 }
 
 describe("useContentToc", () => {
+  const realScrollIntoView = window.HTMLElement.prototype.scrollIntoView;
+
+  afterEach(() => {
+    window.HTMLElement.prototype.scrollIntoView = realScrollIntoView;
+  });
   it("extracts h1/h2/h3 with ids and skips headings without id", () => {
     renderWithProviders(<HookHarness enabled />);
 
@@ -61,5 +65,30 @@ describe("TocPanel", () => {
 
     expect(scrollIntoView).toHaveBeenCalledWith({ behavior: "smooth", block: "start" });
     document.body.removeChild(root);
+  });
+
+  it("calls onJump with the entry index instead of scrolling when provided", () => {
+    const scrollIntoView = vi.fn();
+    const proto = window.HTMLElement.prototype.scrollIntoView;
+    window.HTMLElement.prototype.scrollIntoView = scrollIntoView;
+    try {
+      const onJump = vi.fn();
+      renderWithProviders(
+        <TocPanel
+          entries={[
+            { id: "edit-0", text: "Title", level: 1 },
+            { id: "edit-1", text: "Section", level: 2 },
+          ]}
+          onJump={onJump}
+        />,
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: "Section" }));
+
+      expect(onJump).toHaveBeenCalledWith(1);
+      expect(scrollIntoView).not.toHaveBeenCalled();
+    } finally {
+      window.HTMLElement.prototype.scrollIntoView = proto;
+    }
   });
 });

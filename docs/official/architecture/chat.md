@@ -22,7 +22,7 @@ Composer.send
 两个横切不变量：
 
 - **persist-before-callback**：`persistMiddleware` 先把事件写入 SessionEventLog 再放行广播——连接故障不能打断 agent 或阻止消息落库（为什么见 [ADR-0004](../../dev/decisions/0004-persist-before-callback.md)）
-- **socket close 只解除 attachment**：Core run 继续执行并持久化，重连后由 hub 补发快照
+- **socket close 只解除 attachment**：Core run 继续执行并持久化，重连后由 hub 补发快照；例外：最后一个 attachment 关闭时若有未回答的提问，直接 abort（无限等待不悬挂）
 
 ## Wire 协议（`contracts/websocket.ts`）
 

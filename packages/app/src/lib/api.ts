@@ -18,8 +18,10 @@ import type {
   AiAccessSettingsResponse,
   ModelSettingsRequest,
   ModelSettingsResponse,
-  WebSearchSettingsRequest,
-  WebSearchSettingsResponse,
+    WebSearchSettingsRequest,
+    WebSearchSettingsResponse,
+    UserSkillSettings,
+    UserSkillSettingsResponse,
   WelcomePageSettingsResponse,
   SidePanelSettingsResponse,
   ThemeSettingsResponse,
@@ -538,8 +540,9 @@ export function createApiClient(baseUrl: string, projectId: string, accessToken?
       return parseJsonResponse<SkillDefinition>(res, schemas.skillDefinition);
     },
 
-    async listSkills(): Promise<SkillSummary[]> {
-      const res = await authedFetch(`${apiBase}/skills`);
+    async listSkills(scope?: "project"): Promise<SkillSummary[]> {
+      const url = scope === "project" ? `${apiBase}/skills?scope=project` : `${apiBase}/skills`;
+      const res = await authedFetch(url);
       await assertOk(res);
       return parseJsonResponse<SkillSummary[]>(res, schemas.skillListResponse);
     },
@@ -1015,6 +1018,22 @@ export function createGlobalApiClient(baseUrl: string, accessToken?: string | nu
       });
       await assertOk(res);
       return parseJsonResponse<WebSearchSettingsResponse>(res, schemas.webSearchSettingsResponse);
+    },
+
+    async getUserSkillSettings(): Promise<UserSkillSettingsResponse> {
+      const res = await authedFetch(`${baseUrl}/api/settings/skills`);
+      await assertOk(res);
+      return parseJsonResponse<UserSkillSettingsResponse>(res, schemas.userSkillSettingsResponse);
+    },
+
+    async updateUserSkillSettings(req: UserSkillSettings): Promise<UserSkillSettingsResponse> {
+      const res = await authedFetch(`${baseUrl}/api/settings/skills`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(req),
+      });
+      await assertOk(res);
+      return parseJsonResponse<UserSkillSettingsResponse>(res, schemas.userSkillSettingsResponse);
     },
 
     async getSupportedProviders(): Promise<ProviderCatalogContract> {

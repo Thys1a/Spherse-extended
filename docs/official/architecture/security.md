@@ -73,8 +73,8 @@
 
 - `SessionControlBus` 提供 core 在 turn 执行中向 renderer 请求并等待响应的通用机制：`requestId` correlation、`kind` 判别 `"approval" | "question"`
 - 决策经 chat WS 的 `resolve_control_request` 回传，`bus.resolve` 唤醒等待中的 execute；server 仅按 contract 做 payload 形状映射，不消费决策语义
-- 超时：审批 5min 自动拒绝；ask_user 默认 600s（clamp 60–3600），超时 resolve `{ timedOut: true }` 提示模型自行判断
-- `abort()` 调 `rejectAll` 使全部 pending 失败
+- 超时：审批 5min 自动拒绝；ask_user 默认 600s（clamp 60–3600），超时 resolve `{ timedOut: true }` 提示模型自行判断；per-agent `unlimitedAsk: true` 时不设 timer、无限等待（`timeout_s` 被忽略）
+- `abort()` 调 `rejectAll` 使全部 pending 失败；`destroySession` / `evictAgent` / `closeAll` 先 abort runner 再移除，无限等待的 ask 不悬挂（`releaseSession` 仍拒绝 busy 会话）
 
 ### withApproval 包装
 

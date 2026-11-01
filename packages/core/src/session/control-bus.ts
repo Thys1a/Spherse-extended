@@ -13,7 +13,7 @@ interface PendingRequest {
   kind: ControlRequestKind;
   resolve: (decision: unknown) => void;
   reject: (err: Error) => void;
-  timer: NodeJS.Timeout;
+  timer?: NodeJS.Timeout;
 }
 
 export class SessionControlBus {
@@ -34,21 +34,37 @@ export class SessionControlBus {
     return this.pending.size;
   }
 
+  hasPendingQuestion(): boolean {
+    for (const entry of this.pending.values()) {
+      if (entry.kind === "question") return true;
+    }
+    return false;
+  }
+
   request<T>(req: ControlRequest, timeoutMs: number, timeoutDecision: T): Promise<T> {
     return new Promise<T>((resolve, reject) => {
-      const timer = setTimeout(() => {
-        if (this.pending.delete(req.requestId)) {
-          (resolve as (d: unknown) => void)(timeoutDecision);
-          this.emitResolved(req.requestId, req.kind, timeoutDecision);
-        }
-      }, timeoutMs);
-      this.pending.set(req.requestId, {
-        requestId: req.requestId,
-        kind: req.kind,
-        resolve: resolve as (d: unknown) => void,
-        reject,
-        timer,
-      });
+      if (timeoutMs === Number.POSITIVE_INFINITY) {
+        this.pending.set(req.requestId, {
+          requestId: req.requestId,
+          kind: req.kind,
+          resolve: resolve as (d: unknown) => void,
+          reject,
+        });
+      } else {
+        const timer = setTimeout(() => {
+          if (this.pending.delete(req.requestId)) {
+            (resolve as (d: unknown) => void)(timeoutDecision);
+            this.emitResolved(req.requestId, req.kind, timeoutDecision);
+          }
+        }, timeoutMs);
+        this.pending.set(req.requestId, {
+          requestId: req.requestId,
+          kind: req.kind,
+          resolve: resolve as (d: unknown) => void,
+          reject,
+          timer,
+        });
+      }
       this.emit({
         type: "control_request",
         requestId: req.requestId,
@@ -63,15 +79,15 @@ export class SessionControlBus {
   resolve(requestId: string, decision: unknown): void {
     const entry = this.pending.get(requestId);
     if (!entry) return;
-    clearTimeout(entry.timer);
     this.pending.delete(requestId);
+    if (entry.timer) clearTimeout(entry.timer);
     entry.resolve(decision);
     this.emitResolved(requestId, entry.kind, decision);
   }
 
   rejectAll(reason: string): void {
     for (const entry of this.pending.values()) {
-      clearTimeout(entry.timer);
+      if (entry.timer) clearTimeout(entry.timer);
       entry.reject(new Error(reason));
       this.emitAborted(entry.requestId, entry.kind);
     }

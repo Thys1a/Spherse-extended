@@ -23,7 +23,7 @@ describe("parseSlashCommand", () => {
   });
 });
 
-function skillStore(skills: Record<string, { name: string; instructions: string; source?: "project"; files?: string[]; filePath?: string }>) {
+function skillStore(skills: Record<string, { name: string; instructions: string; source?: "project" | "user" | "agent"; files?: string[]; filePath?: string }>) {
   return {
     get: vi.fn(async (name: string) => {
       const found = skills[name];
@@ -187,5 +187,98 @@ describe("expandSlashMessage", () => {
     await expect(expandSlashMessage(deps(), "a1", "/command:nope")).rejects.toBeInstanceOf(
       ValidationError,
     );
+  });
+
+  it("resolves user skills with absolute companion paths", async () => {
+    const d = deps({
+      skills: {
+        helper: {
+          name: "helper",
+          instructions: "Help out.",
+          source: "user",
+          filePath: "/home/user/.claude/skills/helper/SKILL.md",
+          files: ["ref.md"],
+        },
+      },
+    });
+    d.projectStore.getAgent = (() => ({
+      skills: skillStore({}),
+      getProfile: () => ({ userSkills: ["helper"] }),
+    })) as never;
+    const result = await expandSlashMessage(d, "a1", "/skill:helper");
+    expect(result?.text).toContain("/home/user/.claude/skills/helper/ref.md");
+  });
+
+  it("blocks user skills when the agent has no user allowlist (default off)", async () => {
+    const d = deps({
+      skills: {
+        helper: {
+          name: "helper",
+          instructions: "Help out.",
+          source: "user",
+          filePath: "/home/user/.claude/skills/helper/SKILL.md",
+          files: ["ref.md"],
+        },
+      },
+    });
+    d.projectStore.getAgent = (() => ({ skills: skillStore({}) })) as never;
+    await expect(expandSlashMessage(d, "a1", "/skill:helper")).rejects.toThrow(
+      'Skill "helper" not found',
+    );
+  });
+
+  it("blocks project skills outside the agent allowlist", async () => {
+    const base = deps({
+      skills: { review: { name: "review", instructions: "Review code.", source: "project" } },
+    });
+    const profile = { skills: ["other"] };
+    base.projectStore.getAgent = (() => ({ skills: skillStore({}), getProfile: () => profile })) as never;
+    await expect(expandSlashMessage(base, "a1", "/skill:review")).rejects.toThrow(
+      'Skill "review" not found',
+    );
+  });
+
+  it("blocks user skills outside the agent user allowlist", async () => {
+    const base = deps({
+      skills: {
+        helper: { name: "helper", instructions: "Help out.", source: "user" },
+      },
+    });
+    base.projectStore.getAgent = (() => ({
+      skills: skillStore({}),
+      getProfile: () => ({ userSkills: [] as string[] }),
+    })) as never;
+    await expect(expandSlashMessage(base, "a1", "/skill:helper")).rejects.toThrow(
+      'Skill "helper" not found',
+    );
+  });
+
+  it("lets user skills through when named in the agent user allowlist", async () => {
+    const base = deps({
+      skills: {
+        helper: { name: "helper", instructions: "Help out.", source: "user" },
+      },
+    });
+    base.projectStore.getAgent = (() => ({
+      skills: skillStore({}),
+      getProfile: () => ({ userSkills: ["helper"] }),
+    })) as never;
+    const result = await expandSlashMessage(base, "a1", "/skill:helper");
+    expect(result?.text).toContain("Help out.");
+  });
+
+  it("lets agent-level skills bypass the allowlist", async () => {
+    const withAgentSkill = deps({
+      skills: { review: { name: "review", instructions: "Review code.", source: "project" } },
+    });
+    const agentSkills = skillStore({
+      secret: { name: "secret", instructions: "Agent only.", source: "agent" },
+    });
+    withAgentSkill.projectStore.getAgent = (() => ({
+      skills: agentSkills,
+      getProfile: () => ({ skills: ["other"] }),
+    })) as never;
+    const result = await expandSlashMessage(withAgentSkill, "a1", "/skill:secret");
+    expect(result?.text).toContain("Agent only.");
   });
 });

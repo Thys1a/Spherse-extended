@@ -1,7 +1,7 @@
 import path from "node:path";
 import { nanoid } from "nanoid";
 import { createProject, ModelCatalog } from "@spherse/core";
-import type { ProjectRuntime, ProjectManager, SessionManager, TriggerManager, Logger, SamplingParams, ThinkingLevel } from "@spherse/core";
+import type { ProjectRuntime, ProjectManager, SessionManager, TriggerManager, Logger, SamplingParams, ThinkingLevel, UserSkillConfig } from "@spherse/core";
 
 export interface ProjectContext {
   runtime: ProjectRuntime;
@@ -35,6 +35,7 @@ export class ProjectRegistry {
   private defaultModel?: string;
   private sampling?: SamplingParams;
   private thinkingLevel?: ThinkingLevel;
+  private userSkills?: () => UserSkillConfig | undefined;
 
   private readonly modelCatalog: ModelCatalog;
 
@@ -50,6 +51,7 @@ export class ProjectRegistry {
       thinkingLevel?: ThinkingLevel;
       modelCatalog?: ModelCatalog;
       onRuntimeRemoved?: (runtime: SessionManager) => void;
+      userSkills?: () => UserSkillConfig | undefined;
     },
   ) {
     this.logger = logger;
@@ -58,6 +60,7 @@ export class ProjectRegistry {
     this.thinkingLevel = options?.thinkingLevel;
     this.modelCatalog = options?.modelCatalog ?? new ModelCatalog();
     this.onRuntimeRemoved = options?.onRuntimeRemoved;
+    this.userSkills = options?.userSkills;
   }
 
   async register(projectRoot: string, options?: RegisterOptions): Promise<ProjectContextCompat> {
@@ -95,6 +98,7 @@ export class ProjectRegistry {
       thinkingLevel: this.thinkingLevel,
       logger: projectLogger,
       ...(this.modelCatalog ? { modelCatalog: this.modelCatalog } : {}),
+      ...(this.userSkills ? { userSkills: this.userSkills() } : {}),
     });
 
     let projectId = runtime.projectId;
@@ -166,6 +170,16 @@ export class ProjectRegistry {
   setLastOpened(projectId: string, lastOpened: string): void {
     if (!this.projects.has(projectId)) return;
     this.lastOpenedMap.set(projectId, lastOpened);
+  }
+
+  markAllSessionsReloadPending(): void {
+    for (const ctx of this.projects.values()) {
+      try {
+        ctx.runtime.sessionRuntime.markAllSessionsReloadPending();
+      } catch (err) {
+        this.logger.error({ err }, "failed to mark sessions for reload");
+      }
+    }
   }
 
   async remove(projectId: string): Promise<void> {

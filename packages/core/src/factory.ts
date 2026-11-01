@@ -1,6 +1,7 @@
 import path from "node:path";
 import { PROJECT_META_DIR } from "./types.js";
 import type { SamplingParams, ThinkingLevel } from "./types.js";
+import type { UserSkillConfig } from "./store/skill.js";
 import { FileWriteMutex } from "./utils/file-write-mutex.js";
 import { ProjectStore } from "./store/project.js";
 import { ProjectManager } from "./project-manager.js";
@@ -35,6 +36,7 @@ export interface AssembleOptions {
   logger?: Logger;
   modelCatalog?: ModelCatalog;
   capabilities?: Capability[] | ((builtin: Capability[]) => Capability[]);
+  userSkills?: UserSkillConfig;
 }
 
 export interface DefaultCapabilitiesOptions {
@@ -65,7 +67,9 @@ export async function assembleProject(
   const logger = options?.logger ?? createSilentLogger();
 
   const fileWriteMutex = new FileWriteMutex();
-  const projectStore = new ProjectStore(projectRoot, logger, fileWriteMutex);
+  const projectStore = new ProjectStore(projectRoot, logger, fileWriteMutex, {
+    userSkills: options?.userSkills,
+  });
   const attribution = new ToolAttributionRegistry();
   const dataStore = createDataStore({ projectRoot, fileWriteMutex, logger, attribution });
   const cardStore = createCardStore({ projectRoot, fileWriteMutex, logger, attribution });
