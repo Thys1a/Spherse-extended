@@ -460,6 +460,8 @@ export const zhCN = {
   "agent-dialog.tabBasic": "基本",
   // Agent dialog "个性化" 标签页标题（收入主题与快捷链接）
   "agent-dialog.tabPersonalization": "个性化",
+  // Agent dialog "技能" 标签页标题（项目/内置/全局 skill 开关）
+  "agent-dialog.tabSkills": "技能",
   // Agent 快捷链接字段标签
   "agent-dialog.quickLinksLabel": "快捷链接",
   // Agent 快捷链接字段 tooltip：说明快捷链接的展示位置与作用
@@ -575,6 +577,10 @@ export const zhCN = {
   "agent-dialog.userSkillsLabel": "全局技能",
   // Agent 全局技能多选提示语，说明默认关闭需逐项开启、只影响当前 Agent
   "agent-dialog.userSkillsHint": "全局技能默认全部关闭，需逐项开启，仅对该 Agent 生效；全局未启用的技能不会列出。",
+  // Agent 内置技能多选标题，列出内置 skill（随项目 skill 名单一起开关）
+  "agent-dialog.builtinSkillsLabel": "内置技能",
+  // Agent 内置技能多选提示语，说明与项目 skill 共用同一份白名单
+  "agent-dialog.builtinSkillsHint": "随 App 内置的技能，与项目技能共用同一份启用名单；取消勾选后该 Agent 将看不到对应技能。",
   // Agent 默认模型选择器首项（跟随全局默认），{model} 为当前全局默认模型
   "agent-dialog.modelFollowGlobal": "跟随全局默认（当前：{model}）",
   // Agent 默认模型选择器：未配置 API Key 时的提示
@@ -860,6 +866,16 @@ export const zhCN = {
   "chat.compactApplied": "上下文已压缩",
   "chat.compactNotNeeded": "当前上下文无需压缩",
   "chat.compactNotDelivered": "压缩请求未能发出",
+  // 压缩结束横条标题行，{count} 为本次压掉的消息条数
+  "chat.compactBannerTitle": "已压缩 {count} 条历史消息",
+  // 压缩结束横条“展开摘要”按钮
+  "chat.compactBannerExpand": "展开摘要",
+  // 压缩结束横条“收起摘要”按钮
+  "chat.compactBannerCollapse": "收起",
+  // 压缩结束横条关闭按钮的无障碍标签
+  "chat.compactBannerClose": "关闭压缩提示",
+  // 压缩摘要懒加载失败时的降级文案
+  "chat.compactBannerDigestFailed": "摘要加载失败",
   // markdown 代码块右上角「复制代码」按钮的悬停提示
   "markdown.copyCode": "复制代码",
   // Chat 关闭按钮悬停提示

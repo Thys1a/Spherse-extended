@@ -19,6 +19,13 @@ export interface PendingEditResend {
 export interface CompactResult {
   applied: boolean;
   digestSource?: string;
+  anchorSeq?: number;
+  excludedCount?: number;
+  origin?: "auto" | "manual";
+}
+
+export function shouldNotifyCompactResult(result: CompactResult): boolean {
+  return result.origin !== "auto";
 }
 
 export interface ChatEntryState {

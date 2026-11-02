@@ -119,14 +119,26 @@ function applyEvent(state: ChatEntryState, event: AgentEvent, now: number): Chat
       return removeSeqs(state, new Set(event.abandonedSeqs), event.seq);
     case "turn_withdrawn":
       return applyWithdraw(state, event.seq);
-    case "compaction_applied":
-      return advanceCursor(state, event.seq);
+    case "compaction_applied": {
+      const advanced = advanceCursor(state, event.seq);
+      return {
+        ...advanced,
+        compactResult: {
+          applied: true,
+          origin: "auto",
+          anchorSeq: event.anchorSeq,
+          excludedCount: event.excludedSeqs.length,
+          ...(event.digestSource !== undefined ? { digestSource: event.digestSource } : {}),
+        },
+      };
+    }
     case "compact_result":
       return {
         ...state,
         pendingCompact: false,
         compactResult: {
           applied: event.applied,
+          origin: "manual",
           ...(event.digestSource !== undefined ? { digestSource: event.digestSource } : {}),
         },
       };
