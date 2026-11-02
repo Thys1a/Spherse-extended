@@ -17,6 +17,7 @@ import { speak } from "./tts/tts-controller";
 import { onAssistantTurnComplete } from "./tts/bridge";
 import { useSettingsStore } from "../../stores/settings-store";
 import { Composer } from "./Composer";
+import { CompactionBanner } from "./CompactionBanner";
 import { Header } from "./Header";
 import { QuickReplyBar } from "./QuickReplyBar";
 import { MessageList } from "./MessageList";
@@ -222,8 +223,7 @@ export function Chat({ sessionId, agent, onNavigateToPath, onOpenSession, initia
     } else {
       toast.info(t("chat.compactNotNeeded"));
     }
-    clearCompactResult();
-  }, [compactResult, clearCompactResult, t, projectId, agent.id, sessionId]);
+  }, [compactResult, t, projectId, agent.id, sessionId]);
 
   useEffect(() => {
     if (!autoRead) return;
@@ -311,6 +311,15 @@ export function Chat({ sessionId, agent, onNavigateToPath, onOpenSession, initia
           onLoadMore={loadMore}
           locateSeq={locateSeq}
         />
+        {compactResult && (
+          <CompactionBanner
+            result={compactResult}
+            sessionId={sessionId}
+            agentId={agent.id}
+            client={client}
+            onDismiss={clearCompactResult}
+          />
+        )}
         {(profileQuery.data?.quickReplies?.length ?? 0) > 0 && (
           <QuickReplyBar sessionId={sessionId} replies={profileQuery.data?.quickReplies ?? []} />
         )}

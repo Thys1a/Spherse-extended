@@ -245,7 +245,7 @@ describe("entry reducer", () => {
       1,
     );
     expect(state.pendingCompact).toBe(true);
-    expect(state.compactResult).toBeNull();
+    expect(state.compactResult).toEqual({ applied: true, anchorSeq: 4, excludedCount: 0 });
     expect(state.cursor).toBe(9);
     state = reduceLiveEvents(
       state,
@@ -266,6 +266,36 @@ describe("entry reducer", () => {
     );
     expect(state.cursor).toBe(9);
     expect(state.entries.map((entry) => entry.id)).toEqual(["a1"]);
+  });
+
+  it("records the banner state on compaction_applied with excluded count", () => {
+    let state = createEntryState();
+    state = reduceLiveEvents(
+      state,
+      [event({ type: "compaction_applied", seq: 9, anchorSeq: 4, excludedSeqs: [1, 2, 3], digestSource: "llm" })],
+      1,
+    );
+    expect(state.compactResult).toEqual({
+      applied: true,
+      anchorSeq: 4,
+      excludedCount: 3,
+      digestSource: "llm",
+    });
+  });
+
+  it("replaces the previous banner state on a new compaction", () => {
+    let state = createEntryState();
+    state = reduceLiveEvents(
+      state,
+      [event({ type: "compaction_applied", seq: 9, anchorSeq: 4, excludedSeqs: [1] })],
+      1,
+    );
+    state = reduceLiveEvents(
+      state,
+      [event({ type: "compaction_applied", seq: 20, anchorSeq: 15, excludedSeqs: [2, 3] })],
+      1,
+    );
+    expect(state.compactResult).toEqual({ applied: true, anchorSeq: 15, excludedCount: 2 });
   });
 
   it("tracks control requests on tool results and resolves them", () => {

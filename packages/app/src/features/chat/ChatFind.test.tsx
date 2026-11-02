@@ -1,4 +1,4 @@
-import { act, fireEvent, screen } from "@testing-library/react";
+import { act, fireEvent, screen, within } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { createTestQueryClient, renderWithProviders } from "../../test/render";
@@ -217,9 +217,22 @@ describe("Chat find bar", () => {
     await vi.waitFor(() => {
       expect(sessionCtl.refreshSessionStatus).toHaveBeenCalledWith("p1", "a1", "s1");
     });
-    expect(sessionCtl.clearCompactResult).toHaveBeenCalled();
+    expect(sessionCtl.clearCompactResult).not.toHaveBeenCalled();
+    expect(document.querySelector("[data-chat-compaction-banner]")).not.toBeNull();
     sessionCtl.compactResult = null;
     rerender(<Chat sessionId="s1" agent={agent} />);
+  });
+
+  it("dismisses the banner through clearCompactResult", async () => {
+    const user = userEvent.setup();
+    sessionCtl.compactResult = { applied: true };
+    sessionCtl.clearCompactResult.mockClear();
+    renderChat();
+    const banner = await screen.findByTestId("compaction-banner");
+    const buttons = within(banner).getAllByRole("button");
+    await user.click(buttons[buttons.length - 1]);
+    expect(sessionCtl.clearCompactResult).toHaveBeenCalledTimes(1);
+    sessionCtl.compactResult = null;
   });
 
   it("does not refresh when compaction reports not needed", async () => {

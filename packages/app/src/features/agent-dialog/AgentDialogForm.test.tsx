@@ -25,6 +25,9 @@ vi.mock("../../lib/use-connection", () => ({
     getSupportedProviders,
     listAgents: vi.fn(async () => []),
     searchFiles: vi.fn(async () => []),
+    listSkills: vi.fn(async () => [
+      { name: "research", description: "Research", filePath: "/p/research/SKILL.md", source: "project", files: [] },
+    ]),
   }),
   useGlobalApiClient: () => mockGlobalClient,
   useConnection: () => ({ baseUrl: "http://localhost:5173", accessToken: null }),
@@ -256,6 +259,16 @@ describe("AgentDialogForm quick reply manager wiring", () => {
     const content = onSubmit.mock.calls[0]?.[1] as unknown as string;
     expect(content).toContain("quickReplies:");
     expect(content).toContain("Hi");
+  });
+});
+
+describe("AgentDialogForm skills tab", () => {
+  it("moves the skills field behind the skills tab", async () => {
+    const user = userEvent.setup();
+    renderForm();
+    expect(screen.queryByText("research")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("tab", { name: translate("zh-CN", "agent-dialog.tabSkills") }));
+    expect(await screen.findByText("research")).toBeInTheDocument();
   });
 });
 

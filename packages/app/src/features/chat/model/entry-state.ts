@@ -19,6 +19,8 @@ export interface PendingEditResend {
 export interface CompactResult {
   applied: boolean;
   digestSource?: string;
+  anchorSeq?: number;
+  excludedCount?: number;
 }
 
 export interface ChatEntryState {
