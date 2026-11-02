@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import { ChevronDownIcon } from "lucide-react";
 import { useI18n } from "@spherse/i18n/react";
 import type { SkillSummaryContract as SkillSummary } from "@spherse/contracts";
-import { HintLabel } from "./HintLabel";
 import { Switch } from "../../components/ui/switch";
 import { Field } from "../../components/ui/field";
 import {
@@ -75,7 +74,7 @@ function SkillToggleGroup({
         </CollapsibleTrigger>
         <CollapsibleContent>
           <div className="mt-2 flex flex-col gap-2">
-            <HintLabel hint={hint}>{title}</HintLabel>
+            <span className="text-xs text-muted-foreground">{hint}</span>
             {items.map((skill) => (
               <div key={skill.name} className="flex items-center justify-between gap-3">
                 <div className="flex min-w-0 flex-col">

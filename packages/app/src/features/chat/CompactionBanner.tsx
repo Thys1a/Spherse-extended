@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ChevronDownIcon, XIcon } from "lucide-react";
 import { useI18n } from "@spherse/i18n/react";
 import { Button } from "../../components/ui/button";
@@ -12,9 +12,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function findLatestDigest(events: { type: string; data: unknown }[]): string | null {
   for (let i = events.length - 1; i >= 0; i--) {
     const data = events[i].data;
-    if (events[i].type === "compaction/applied" && isRecord(data) && typeof data.digestContent === "string") {
-      return data.digestContent;
-    }
+    if (events[i].type !== "compaction/applied" || !isRecord(data)) continue;
+    if (typeof data.digestContent !== "string" || data.digestContent.trim() === "") return null;
+    return data.digestContent;
   }
   return null;
 }
@@ -38,7 +38,18 @@ export function CompactionBanner({
   const [digestFailed, setDigestFailed] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const count = result.excludedCount ?? 0;
+  const resultKey = `${result.applied}-${result.anchorSeq ?? ""}-${result.excludedCount ?? ""}-${result.digestSource ?? ""}`;
+  useEffect(() => {
+    setExpanded(false);
+    setDigest(null);
+    setDigestFailed(false);
+    setLoading(false);
+  }, [resultKey]);
+
+  const title =
+    result.applied && result.excludedCount !== undefined
+      ? t("chat.compactBannerTitle", { count: result.excludedCount })
+      : t(result.applied ? "chat.compactApplied" : "chat.compactNotNeeded");
 
   const toggleExpand = () => {
     const next = !expanded;
@@ -72,9 +83,7 @@ export function CompactionBanner({
       className="shrink-0 border-t border-border bg-background px-3 py-1.5 text-xs text-muted-foreground"
     >
       <div className="flex items-center gap-2">
-        <span className="min-w-0 flex-1 truncate">
-          {result.applied ? t("chat.compactBannerTitle", { count }) : t("chat.compactNotNeeded")}
-        </span>
+        <span className="min-w-0 flex-1 truncate">{title}</span>
         {result.applied && (
           <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-[11px]" onClick={toggleExpand}>
             {expanded ? t("chat.compactBannerCollapse") : t("chat.compactBannerExpand")}

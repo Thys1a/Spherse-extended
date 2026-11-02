@@ -196,7 +196,7 @@ describe("AgentSkillsField user group", () => {
   it("renders the user group when only user skills exist", () => {
     renderField({ skills: [USER_SKILL] });
     expect(screen.getByText("personal")).toBeInTheDocument();
-    expect(screen.getAllByText(translate("zh-CN", "agent-dialog.userSkillsLabel")).length).toBeGreaterThan(0);
+    expect(screen.getByText(translate("zh-CN", "agent-dialog.userSkillsLabel"))).toBeInTheDocument();
   });
 
   it("leaves the user skill unchecked when userValue is undefined (default off)", () => {

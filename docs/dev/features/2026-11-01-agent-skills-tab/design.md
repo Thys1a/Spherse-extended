@@ -8,7 +8,7 @@
 
 - Agent Dialog 新增第三个 tab（skills），现有 `AgentSkillsField` 整体搬入；basic/personalization 不动。
 - 组内按来源拆三段：builtin（`source === "builtin"`）/ project（`source === "project"`，含 `.agents/skills` 兼容目录，不再单列）/ user（`source === "user"`，即全局已启用的）。
-- 每段独立折叠（默认展开，空段不渲染）；折叠态为纯 UI state，不进 profile。
+- 每段独立折叠（project/user 默认展开、builtin 默认折叠，空段不渲染）；折叠态为纯 UI state，不进 profile、不持久化。
 - **状态提升（关键）**：builtin 与 project 同属 `skills` 名单——两段必须共享同一份 `checked`/`toggle`，折叠判定基于**两者并集**。禁止给 builtin 组配独立 value，否则“全选→undefined”判定用各自子集会误折叠。
 - builtin 走 `value` 剪枝路径，不设 `preserveHidden`（builtin 永不“暂时消失”，与 user 段语义不同）。
 - 早返回判定含 builtin：三段都空才返回 null，否则“只有 builtin”的 agent 在 skills tab 看到空白页。

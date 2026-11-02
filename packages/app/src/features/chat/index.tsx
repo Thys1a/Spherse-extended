@@ -22,6 +22,7 @@ import { Header } from "./Header";
 import { QuickReplyBar } from "./QuickReplyBar";
 import { MessageList } from "./MessageList";
 import { toSendable } from "./model/group-derivations";
+import { shouldNotifyCompactResult } from "./model/entry-state";
 import { ConnectionBanner } from "./ConnectionBanner";
 import { QuickLinkPanel, resolveQuickLinkAction } from "./QuickLinkPanel";
 import { ChatAgentProvider } from "./chat-agent-context";
@@ -216,7 +217,7 @@ export function Chat({ sessionId, agent, onNavigateToPath, onOpenSession, initia
   }, [streaming, projectId, agent.id, sessionId]);
 
   useEffect(() => {
-    if (!compactResult) return;
+    if (!compactResult || !shouldNotifyCompactResult(compactResult)) return;
     if (compactResult.applied) {
       toast.success(t("chat.compactApplied"));
       void refreshSessionStatus(projectId, agent.id, sessionId);
@@ -313,6 +314,7 @@ export function Chat({ sessionId, agent, onNavigateToPath, onOpenSession, initia
         />
         {compactResult && (
           <CompactionBanner
+            key={sessionId}
             result={compactResult}
             sessionId={sessionId}
             agentId={agent.id}

@@ -125,6 +125,7 @@ function applyEvent(state: ChatEntryState, event: AgentEvent, now: number): Chat
         ...advanced,
         compactResult: {
           applied: true,
+          origin: "auto",
           anchorSeq: event.anchorSeq,
           excludedCount: event.excludedSeqs.length,
           ...(event.digestSource !== undefined ? { digestSource: event.digestSource } : {}),
@@ -137,6 +138,7 @@ function applyEvent(state: ChatEntryState, event: AgentEvent, now: number): Chat
         pendingCompact: false,
         compactResult: {
           applied: event.applied,
+          origin: "manual",
           ...(event.digestSource !== undefined ? { digestSource: event.digestSource } : {}),
         },
       };

@@ -84,6 +84,28 @@ describe("CompactionBanner", () => {
     ).toBeInTheDocument();
   });
 
+  it("shows the fallback text when the latest digest is missing or empty", async () => {
+    const user = userEvent.setup();
+    renderBanner(
+      {},
+      {
+        getSessionEvents: vi.fn().mockResolvedValue({
+          sessionId: "s1",
+          events: [
+            { seq: 5, type: "compaction/applied", time: 2, data: { anchorSeq: 4, excludedSeqs: [1] } },
+            { seq: 9, type: "compaction/applied", time: 3, data: { anchorSeq: 8, excludedSeqs: [2], digestContent: "  " } },
+          ],
+        }),
+      } as unknown as ApiClient,
+    );
+    await user.click(
+      screen.getByRole("button", { name: translate("zh-CN", "chat.compactBannerExpand") }),
+    );
+    expect(
+      await screen.findByText(translate("zh-CN", "chat.compactBannerDigestFailed")),
+    ).toBeInTheDocument();
+  });
+
   it("calls onDismiss when the close button is clicked", async () => {
     const user = userEvent.setup();
     const onDismiss = vi.fn();
