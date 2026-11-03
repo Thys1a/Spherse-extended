@@ -35,8 +35,7 @@ export const useFloatingChatStore = create<FloatingChatStore>((set, get) => ({
 
   setFloatingChat(projectId, state) {
     if (state && isFloatDetached("chat", projectId, state.sessionId)) {
-      focusNativeFloat("chat", projectId, state.sessionId);
-      return;
+      if (focusNativeFloat("chat", projectId, state.sessionId)) return;
     }
     if (state) {
       writeFloatingChat(projectId, state);

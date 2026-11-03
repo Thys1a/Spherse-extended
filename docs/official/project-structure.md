@@ -382,7 +382,7 @@ spherse/
 │   │   │   ├── window.ts             # BrowserWindow 创建与管理（packaged 下 `setAppDetails` 显式申报任务栏身份：appId/icon/relaunch）；resolveRendererLoad/resolvePreloadPath 供浮窗复用；主窗 closed 连锁关浮窗（tray hide 不触发）
 │   │   │   ├── float-window.ts       # 原生浮窗登记/建窗（frame:false + skipTaskbar + alwaysOnTop，同源 hash 路由加载）/bounds 防抖落盘/screen 钳制/restoreFor 上限 3/closeForProject/closeAllFloats（退出保留 open）；key = kind:projectId:itemKey
 │   │   │   ├── server.ts             # server 实例管理（ensure/restart/stop，恒带 serverToken 鉴权）+ 动态 host 重放（syncAllowedHosts）+ 模型/搜索/用户 skill 配置路径透传（ensureServer 传 modelSettingsPath/webSearchSettingsPath/skillSettingsPath）
-│   │   │   └── settings.ts           # electron-store 封装 + env 管理（含 syncCustomProviders）+ openProjects/locale/mobileAccess 持久化 + serverToken（顶层 key，getServerToken 迁移链）+ generateAccessToken + userData skill-settings.json 路径 + floatWindows（原生浮窗 bounds/open 记录）
+│   │   │   ├── settings.ts           # electron-store 封装 + env 管理（含 syncCustomProviders）+ openProjects/locale/mobileAccess 持久化 + serverToken（顶层 key，getServerToken 迁移链）+ generateAccessToken + userData skill-settings.json 路径 + floatWindows（原生浮窗 bounds/open/updatedAt 持久化）
 │   │   │   └── migrate-legacy-settings.ts # 旧 settings 一次性迁移（备份 + 分区落盘 + 删旧键）
 │   │   └── e2e/                      # Playwright E2E 测试
 │   │       ├── helpers/

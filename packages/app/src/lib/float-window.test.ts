@@ -29,6 +29,18 @@ describe("detached registry", () => {
     expect(isFloatDetached("chat", "p1", "s1")).toBe(true);
   });
 
+  it("clears one project while keeping others", () => {
+    const store = useDetachedFloatStore.getState();
+    store.add(floatKey("chat", "p1", "s1"));
+    store.add(floatKey("content", "p1", "a.md"));
+    store.add(floatKey("chat", "p2", "s9"));
+    store.clearProject("p1");
+    const keys = useDetachedFloatStore.getState().keys;
+    expect(keys.has(floatKey("chat", "p1", "s1"))).toBe(false);
+    expect(keys.has(floatKey("content", "p1", "a.md"))).toBe(false);
+    expect(keys.has(floatKey("chat", "p2", "s9"))).toBe(true);
+  });
+
   it("focuses through the registered callback", () => {
     const focus = vi.fn();
     expect(focusNativeFloat("chat", "p1", "s1")).toBe(false);

@@ -36,7 +36,7 @@
 
 ## settings 持久化
 
-- electron-store 落 userData 下 `settings.json`，键：`hostPrefs`（locale + theme/debugToolsEnabled/closeToTray/tts/proxy/notifications）、`mobileAccess`、`openProjects`、`lastActiveProject`、`serverToken`、`floatWindows`（原生浮窗 `{ kind, projectId, itemKey, bounds, open }` 记录）
+- electron-store 落 userData 下 `settings.json`，键：`hostPrefs`（locale + theme/debugToolsEnabled/closeToTray/tts/proxy/notifications）、`mobileAccess`、`openProjects`、`lastActiveProject`、`serverToken`、`floatWindows`（原生浮窗 `{ kind, projectId, itemKey, bounds, open, updatedAt }` 记录，恢复按 `updatedAt` 取最近 3 个）
 - 模型配置在 server 侧：`model-settings.json`（`ModelSettingsStore`，原子写，0600）与 `web-search-settings.json`；GET 回脱敏版（key 只露 `configured`，custom headers 不出边界），PUT 全量语义（`undefined`=保留、空串=删除、custom 缺 `headers` 回填旧值）
 - **serverToken 是 settingsStore 顶层 key**。`getServerToken()`：`serverToken` → 生成并持久化；legacy `mobileAccess.token` 读取兼容已随旧 `settings` 键删除而终止（迁移时一次性搬运）
 - 启动顺序：`migrateLegacySettings()`（备份旧 `settings` → 分区落盘 → 删旧键）→ `ensureServer()`（server 读 store 并应用 env）；desktop 侧只应用 theme/proxy（`applyHostPrefsToEnv`）

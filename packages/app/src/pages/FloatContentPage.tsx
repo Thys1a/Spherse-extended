@@ -16,7 +16,7 @@ export function FloatContentPage() {
   const bridge = useHostBridge();
   const filePath = searchParams.get("path") ?? "";
   const client = useApiClient(projectId);
-  const { content, binary, loading, error, dataUpdatedAt, reload } = useContentFile(
+  const { content, binary, loading, error, notFound, dataUpdatedAt, reload } = useContentFile(
     projectId,
     client,
     filePath,
@@ -31,7 +31,7 @@ export function FloatContentPage() {
   const reloadRef = useRef(reload);
   useEffect(() => {
     reloadRef.current = reload;
-  });
+  }, [reload]);
   useEffect(() => {
     if (dataRevision > 0) reloadRef.current();
   }, [dataRevision]);
@@ -47,10 +47,10 @@ export function FloatContentPage() {
   }, [filePath, bridge]);
 
   useEffect(() => {
-    if (filePath && !loading && content === null && error) {
+    if (filePath && !loading && content === null && notFound) {
       void bridge.floatWindow?.closeSelf({ forget: true }).catch(() => undefined);
     }
-  }, [filePath, loading, content, error, bridge]);
+  }, [filePath, loading, content, notFound, bridge]);
 
   const fileName = filePath.split("/").pop() ?? filePath;
   const navigateMain = (route: string) => {

@@ -33,6 +33,39 @@ export function FloatChatPage() {
     }
   }, [sessionQuery.isSuccess, session, bridge]);
 
+  if (sessionQuery.isError) {
+    return (
+      <div className="flex h-full min-h-0 flex-col">
+        <FloatTitleBar
+          title=""
+          onDock={handleDock}
+          onClose={handleClose}
+        />
+        <div className="flex flex-1 flex-col items-center justify-center gap-4 text-muted-foreground">
+          <p>{t("float-window.loadFailed")}</p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted"
+              onClick={() => {
+                void sessionQuery.refetch();
+              }}
+            >
+              {t("common.retry")}
+            </button>
+            <button
+              type="button"
+              className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted"
+              onClick={handleClose}
+            >
+              {t("common.close")}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (!session || !agent) {
     return (
       <div className="flex h-full min-h-0 flex-col">

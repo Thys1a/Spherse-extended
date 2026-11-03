@@ -587,6 +587,7 @@ export const zhTW: Record<TranslationKey, string> = {
   "float-window.popOut": "彈出為獨立視窗",
   "float-window.dock": "收回",
   "float-window.expand": "在主視窗中開啟",
+  "float-window.loadFailed": "載入失敗",
   "command-panel.menu": "命令選單",
   "command-panel.create": "新增命令",
   "command-panel.empty": "暫無命令",

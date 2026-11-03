@@ -148,8 +148,7 @@ async function launchWithUserData(
   return { app, page };
 }
 
-test("restart restores the float window at its last bounds", async () => {
-  const project = await createFileTreeProject();
+test("restart restores the float window at its last bounds", async () => {  const project = await createFileTreeProject();
   const userDataDir = await mkdtemp(path.join(tmpdir(), "spherse-e2e-native-float-user-"));
   const { app, page } = await launchWithUserData(project, userDataDir);
   let expected: { x: number; y: number; width: number; height: number } | undefined;
@@ -191,5 +190,80 @@ test("restart restores the float window at its last bounds", async () => {
     expect(Math.abs((bounds?.height ?? 0) - (expected?.height ?? 0))).toBeLessThanOrEqual(10);
   } finally {
     await closeApp(relaunch);
+  }
+});
+
+test("float window shares localStorage but does not disturb main project state", async () => {
+  const project = await createFileTreeProject();
+  const { app, page } = await launchFileTreeApp(project);
+
+  try {
+    await floatFile(page, "README.md");
+    const beforeActive = await page.evaluate(() => window.electronAPI.getLastActiveProject());
+    const beforeRoutes = await page.evaluate(() => {
+      const out: Record<string, string | null> = {};
+      for (let i = 0; i < localStorage.length; i += 1) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith("spherse:last-route:")) out[key] = localStorage.getItem(key);
+      }
+      return out;
+    });
+    await page.evaluate(() => localStorage.setItem("spherse:e2e-probe", "pong"));
+
+    const floatPage = await popOut(page, app);
+    expect(await floatPage.evaluate(() => localStorage.getItem("spherse:e2e-probe"))).toBe("pong");
+
+    await floatPage.locator("[data-float-dock]").click();
+    await expect(page.locator("[data-content-float-root]")).toBeVisible({ timeout: 10_000 });
+
+    expect(await page.evaluate(() => window.electronAPI.getLastActiveProject())).toBe(beforeActive);
+    const afterRoutes = await page.evaluate(() => {
+      const out: Record<string, string | null> = {};
+      for (let i = 0; i < localStorage.length; i += 1) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith("spherse:last-route:")) out[key] = localStorage.getItem(key);
+      }
+      return out;
+    });
+    expect(afterRoutes).toEqual(beforeRoutes);
+  } finally {
+    await closeApp(app);
+  }
+});
+
+async function createSessionViaApi(page: Page, projectId: string, agentId: string): Promise<string> {
+  const port: number = await page.evaluate(() => window.electronAPI.getServerPort());
+  const token = (await page.evaluate(() => window.electronAPI.getMobileAccessState())).token ?? null;
+  const res = await fetch(`http://localhost:${port}/api/projects/${projectId}/agents/${encodeURIComponent(agentId)}/sessions`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  const body = (await res.json()) as Record<string, unknown>;
+  if (!res.ok) throw new Error(`createSession ${res.status}: ${JSON.stringify(body)}`);
+  return (body as { sessionId: string }).sessionId;
+}
+
+test("chat pop-out renders in a native window and docks back", async () => {
+  const project = await createFileTreeProject();
+  const { app, page } = await launchFileTreeApp(project);
+
+  try {
+    const sessionId = await createSessionViaApi(page, project.projectId, "assistant");
+    const opened = await page.evaluate(async ({ projectId, itemKey }) => {
+      return window.electronAPI.floatWindowOpen({ kind: "chat", projectId, itemKey });
+    }, { projectId: project.projectId, itemKey: sessionId });
+    expect(opened).toEqual({ ok: true });
+    expect(await windowCount(app)).toBe(2);
+    expect(await hasAlwaysOnTopWindow(app)).toBe(true);
+
+    const pages = app.windows();
+    const floatPage = pages.length > 1 ? pages[1] : await app.waitForEvent("window", { timeout: 15_000 });
+    await expect(floatPage.locator("[data-float-titlebar]")).toContainText("Assistant", { timeout: 30_000 });
+
+    await floatPage.locator("[data-float-dock]").click();
+    await expect(page.locator("[data-chat-float-root]")).toBeVisible({ timeout: 10_000 });
+    await expect.poll(() => windowCount(app), { timeout: 10_000 }).toBe(1);
+  } finally {
+    await closeApp(app);
   }
 });

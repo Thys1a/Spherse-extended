@@ -79,7 +79,3 @@ export function registerFloatWindowIpc(): void {
 
   ipcMain.handle("float-window:list", () => listFloatKeys());
 }
-
-export function focusMainWindowForFloat(): boolean {
-  return focusMainWindow();
-}

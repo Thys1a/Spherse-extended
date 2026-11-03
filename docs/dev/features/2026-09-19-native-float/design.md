@@ -33,17 +33,18 @@
 - chat 和 content 两个浮窗域都做，只做桌面端。窗口内浮窗保留，web 端继续用。
 - `FloatingFrame` 标题栏加"弹出"按钮，只在 `bridge.floatWindow` 存在且不是 pet 模式时显示。
 - 弹出：从窗口内浮窗的 store 移除这一项，再打开原生窗口。收回：关闭原生窗口，按 clamp 后的位置重新打开窗口内浮窗。同一项任何时刻只在一处出现，两窗口之间不做状态同步。
+- 浮窗内再点"浮窗"（如浮窗里 Chat 的 quick-link）：overlay 条目建在共享 localStorage，主窗口负责渲染。接受该行为，不做拦截。
 - 主窗口的打开动作（点文件、开 session）先查"已弹出集合"：命中则聚焦已有的原生窗口，不再建 overlay，避免同一项两处并存。
 
 ### 2. Main 进程：新建 `desktop/electron/float-window.ts`
 
-- **登记**：`Map<key, BrowserWindow>`，`key = ${kind}:${projectId}:${itemKey}`。`open` 幂等：同 key 已打开只 `focus`。
+- **登记**：`Map<key, BrowserWindow>`，`key = ${kind}:${projectId}:${itemKey}`（不透明字符串，禁止解析；`closeForProject`/恢复按记录的 `projectId` 比对）。`open` 幂等：同 key 已打开只 `focus`。
 - **建窗**：
   - 不设 `parent`，`frame:false`，`skipTaskbar:true`，`setAlwaysOnTop(true)`。
   - `webPreferences` 与主窗口一致（同 preload、`contextIsolation:true`、`nodeIntegration:false`）。
   - `autoHideMenuBar:true`，`setWindowOpenHandler(deny)`，`setupContextMenu(win)`，`will-navigate` 白名单（只允许自身加载地址）。
 - **加载**：把 `window.ts:48-52` 抽成 `loadRenderer(win, hash)`，路由为 `#/float/chat/:projectId/:sessionId` 和 `#/float/content/:projectId?path=`（path 做 `encodeURIComponent`）。
-- **持久化**：electron-store 新增 `floatWindows: Record<key, { kind, projectId, itemKey, bounds, open }>`（未发布格式，不写迁移）。
+- **持久化**：electron-store 新增 `floatWindows: Record<key, { kind, projectId, itemKey, bounds, open, updatedAt }>`（未发布格式，不写迁移）。
   - `move`/`resize` 防抖落盘，关闭时再写一次终值（只靠关闭时写，崩溃即丢）。
   - 恢复时用 `screen.getDisplayMatching` 做范围检查，显示器变化后窗口不落到屏幕外。
 - **生命周期**：
@@ -51,7 +52,7 @@
   - 应用退出：复用 `lifecycle.js` 的 `isQuitting()` 判断，退出路径（`before-quit` / 主窗口 `closed`）下 `closeAll()` 不改 `open`，供下次恢复。
   - 主窗口 `closed`（`window.ts:54`）时连锁 `closeAllFloats()`，否则 `window-all-closed` 不触发、`gracefulShutdown` 不执行；tray 的 `close → hide`（`tray.ts:95-105`）属于隐藏，浮窗保留。`window-all-closed → gracefulShutdown` 本身不变。
   - `close-project` 里调 `closeForProject(id)` 并删除该项目全部记录。
-- **自动恢复**：不在 `did-finish-load` 恢复——项目只在 `restore-projects` IPC 里注册（`server.ts:32` 启动时 `registeredProjects` 为空），早恢复会 404。改为 main 进程在**首次 `restore-projects` 成功后**调 `restoreFor(registeredIds)`（模块级 once 守卫；`refreshProjects` 也会重调 `restore-projects`，见 `app-store.ts:144`）。上限 **3 个**，只恢复仍在注册列表中的项，其余删除记录。
+- **自动恢复**：不在 `did-finish-load` 恢复——项目只在 `restore-projects` IPC 里注册（`server.ts:32` 启动时 `registeredProjects` 为空），早恢复会 404。改为 main 进程在**每次 `restore-projects` 成功后**调 `restoreFloatWindows(registeredIds)`；`restoreFloatWindows` 本身幂等（跳过已打开窗口），`refreshProjects` 重调（bus 重连）无害。上限 **3 个**，按 `updatedAt` 取最近；`open=true` 但项目未注册的记录删除（项目已移除），`open=false` 的保留供手动重开。
 - **失效项清理**：只在明确的 404 / 文件不存在时由浮窗 renderer 调 `closeSelf({ forget:true })` 删记录，网络错误不删。content 侧复用 `FloatingContentBrowserContainer.tsx:47-51` 的判断，chat 侧复用 `FloatingChatManager` 的 session 消失逻辑（`:27-31`）。
 - **崩溃兜底**：浮窗 renderer 崩溃（main 的 `render-process-gone` 对非主窗口直接 return，`main.ts:64`）时，销毁该浮窗并经 `float-window:closed` 通知主窗口把条目收回 overlay，不做自动 reload。
 
@@ -60,7 +61,7 @@
 - **新增通道**：`float-window:open`（幂等聚焦）、`float-window:close-self({forget?})`、`float-window:navigate-main`（main 转发给主窗口做 focus + 路由跳转，用于展开/`onOpenSession`/`onNavigateToPath`，主窗口若被 tray 隐藏先 `showMainWindow`）、`float-window:closed`（main 通知主窗口，收回 overlay / 崩溃回退共用）、`float-window:list`（主窗口 hydration"已弹出集合"用）。
 - **参数校验**：`open` 前校验 `projectId` 已在 `openProjects` 注册，`path` 用 `assertInsideProject` 校验。
 - **取窗规则**：
-  - 按调用窗口取（`BrowserWindow.fromWebContents(event.sender)`）：dialog 类、`debug.ts` 的 devtools/reload。
+  - 按调用窗口取（`BrowserWindow.fromWebContents(event.sender)`）：dialog 类（含 `show-save-dialog`）、`debug.ts` 的 devtools/reload。
   - 保持主窗口专属：`restore-projects`、unsafe 警告、`set-last-active-project`、mobile 广播、notification 点击、updater 事件。
 - **HostBridge**：增加可选字段 `floatWindow?: { open, closeSelf, navigateMain, onClosed, list }`，web bridge 不实现。
 

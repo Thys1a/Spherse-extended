@@ -55,8 +55,7 @@ export const useFloatingContentBrowserStore = create<FloatingContentBrowserStore
 
   openFloat(projectId, filePath) {
     if (isFloatDetached("content", projectId, filePath)) {
-      focusNativeFloat("content", projectId, filePath);
-      return;
+      if (focusNativeFloat("content", projectId, filePath)) return;
     }
     const existing = get().byProject[projectId];
     if (existing && existing[filePath]) return;

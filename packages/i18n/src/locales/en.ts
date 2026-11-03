@@ -587,6 +587,7 @@ export const en: Record<TranslationKey, string> = {
   "float-window.popOut": "Pop out as a separate window",
   "float-window.dock": "Dock back",
   "float-window.expand": "Open in main window",
+  "float-window.loadFailed": "Failed to load",
   "command-panel.menu": "Command menu",
   "command-panel.create": "New command",
   "command-panel.empty": "No commands yet",

@@ -28,6 +28,7 @@ export interface FloatWindowRecord {
   itemKey: string;
   bounds: FloatWindowBounds;
   open: boolean;
+  updatedAt: string;
 }
 
 export interface LegacySettings {

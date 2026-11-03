@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { pathToFileURL } from "node:url";
 import type { FloatWindowRecord } from "./settings.js";
 
 const state = vi.hoisted(() => ({
@@ -125,6 +126,7 @@ import {
   closeFloatsForProject,
   floatWindowKey,
   handleFloatRendererGone,
+  isFloatUrlAllowed,
   listFloatKeys,
   openFloatWindow,
   restoreFloatWindows,
@@ -193,6 +195,7 @@ describe("openFloatWindow", () => {
       itemKey: "s1",
       bounds: { x: 5000, y: 5000, width: 2000, height: 2000 },
       open: false,
+      updatedAt: "2026-01-01T00:00:00.000Z",
     };
     openFloatWindow({ kind: "chat", projectId: "p1", itemKey: "s1" });
     const created = state.windows[0];
@@ -266,6 +269,7 @@ describe("closeFloatsForProject", () => {
       itemKey: "gone",
       bounds: { x: 0, y: 0, width: 420, height: 600 },
       open: false,
+      updatedAt: "2026-01-01T00:00:00.000Z",
     };
     closeFloatsForProject("p1");
     expect(listFloatKeys()).toEqual([floatWindowKey("content", "p2", "b.md")]);
@@ -276,21 +280,22 @@ describe("closeFloatsForProject", () => {
 });
 
 describe("restoreFloatWindows", () => {
-  function seed(key: string, projectId: string, open: boolean): void {
+  function seed(key: string, projectId: string, open: boolean, updatedAt = "2026-01-01T00:00:00.000Z"): void {
     state.records[key] = {
       kind: "chat",
       projectId,
       itemKey: key.split(":").slice(2).join(":"),
       bounds: { x: 10, y: 10, width: 420, height: 600 },
       open,
+      updatedAt,
     };
   }
 
   it("restores open records of registered projects up to the limit and prunes the rest", () => {
-    seed("chat:p1:s1", "p1", true);
-    seed("chat:p1:s2", "p1", true);
-    seed("chat:p1:s3", "p1", true);
-    seed("chat:p1:s4", "p1", true);
+    seed("chat:p1:s1", "p1", true, "2026-01-04T00:00:00.000Z");
+    seed("chat:p1:s2", "p1", true, "2026-01-03T00:00:00.000Z");
+    seed("chat:p1:s3", "p1", true, "2026-01-02T00:00:00.000Z");
+    seed("chat:p1:s4", "p1", true, "2026-01-01T00:00:00.000Z");
     seed("chat:px:s9", "px", true);
     seed("chat:p1:closed", "p1", false);
     restoreFloatWindows(["p1"]);
@@ -299,8 +304,30 @@ describe("restoreFloatWindows", () => {
     expect(state.records["chat:p1:closed"]).toBeDefined();
   });
 
+  it("restores the three most recently updated windows", () => {
+    seed("chat:p1:old", "p1", true, "2026-01-01T00:00:00.000Z");
+    seed("chat:p1:new", "p1", true, "2026-01-05T00:00:00.000Z");
+    seed("chat:p1:mid", "p1", true, "2026-01-03T00:00:00.000Z");
+    seed("chat:p1:older", "p1", true, "2026-01-02T00:00:00.000Z");
+    seed("chat:p1:newest", "p1", true, "2026-01-06T00:00:00.000Z");
+    restoreFloatWindows(["p1"]);
+    expect(state.windows).toHaveLength(3);
+    expect(listFloatKeys()).toEqual(
+      expect.arrayContaining(["chat:p1:newest", "chat:p1:new", "chat:p1:mid"]),
+    );
+    expect(listFloatKeys()).not.toContain("chat:p1:old");
+    expect(listFloatKeys()).not.toContain("chat:p1:older");
+  });
+
   it("skips already-open windows", () => {
     openFloatWindow({ kind: "chat", projectId: "p1", itemKey: "s1" });
+    restoreFloatWindows(["p1"]);
+    expect(state.windows).toHaveLength(1);
+  });
+
+  it("is idempotent across repeated restores", () => {
+    seed("chat:p1:s1", "p1", true);
+    restoreFloatWindows(["p1"]);
     restoreFloatWindows(["p1"]);
     expect(state.windows).toHaveLength(1);
   });
@@ -326,8 +353,7 @@ describe("handleFloatRendererGone", () => {
   });
 });
 
-describe("bounds persistence", () => {
-  it("persists bounds on move after debounce", () => {
+describe("bounds persistence", () => {  it("persists bounds on move after debounce", () => {
     vi.useFakeTimers();
     const key = floatWindowKey("chat", "p1", "s1");
     openFloatWindow({ kind: "chat", projectId: "p1", itemKey: "s1" });
@@ -337,5 +363,24 @@ describe("bounds persistence", () => {
     expect(state.records[key].bounds).toMatchObject({ x: 80, y: 80 });
     vi.advanceTimersByTime(500);
     expect(state.records[key].bounds).toMatchObject({ x: 100, y: 200, width: 500, height: 700 });
+  });
+});
+
+describe("isFloatUrlAllowed", () => {
+  it("only allows the exact renderer entry in file mode", () => {
+    state.rendererLoad = { type: "file", file: "/renderer/index.html" };
+    const entry = pathToFileURL("/renderer/index.html").href;
+    expect(isFloatUrlAllowed(`${entry}#/float/chat/p1/s1`)).toBe(true);
+    expect(isFloatUrlAllowed(entry)).toBe(true);
+    expect(isFloatUrlAllowed(`${entry}other.html`)).toBe(false);
+    expect(isFloatUrlAllowed("file:///etc/passwd")).toBe(false);
+    expect(isFloatUrlAllowed("https://example.com/")).toBe(false);
+  });
+
+  it("allows the same origin in url mode", () => {
+    state.rendererLoad = { type: "url", url: "http://localhost:5173/" };
+    expect(isFloatUrlAllowed("http://localhost:5173/#/float/chat/p1/s1")).toBe(true);
+    expect(isFloatUrlAllowed("http://localhost:53972/api/projects")).toBe(false);
+    expect(isFloatUrlAllowed("not-a-url")).toBe(false);
   });
 });

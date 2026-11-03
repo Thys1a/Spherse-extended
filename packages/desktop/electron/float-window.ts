@@ -1,5 +1,6 @@
 import { BrowserWindow, screen } from "electron";
 import type { WebContents } from "electron";
+import { pathToFileURL } from "node:url";
 import {
   getFloatWindows,
   setFloatWindows,
@@ -72,12 +73,19 @@ function joinUrlHash(base: string, hash: string): string {
 
 function isAllowedFloatUrl(url: string): boolean {
   const load = resolveRendererLoad();
-  if (load.type === "file") return url.startsWith("file://");
+  if (load.type === "file") {
+    const entry = pathToFileURL(load.file).href;
+    return url === entry || url.startsWith(`${entry}#`) || url.startsWith(`${entry}?`);
+  }
   try {
     return new URL(url).origin === new URL(load.url).origin;
   } catch {
     return false;
   }
+}
+
+export function isFloatUrlAllowed(url: string): boolean {
+  return isAllowedFloatUrl(url);
 }
 
 function persistBoundsNow(key: string): void {
@@ -91,7 +99,9 @@ function persistBoundsNow(key: string): void {
   }
   const records = getFloatWindows();
   const rec = records[key];
-  if (rec) setFloatWindows({ ...records, [key]: { ...rec, bounds } });
+  if (rec) {
+    setFloatWindows({ ...records, [key]: { ...rec, bounds, updatedAt: new Date().toISOString() } });
+  }
 }
 
 function scheduleBoundsPersist(key: string): void {
@@ -112,7 +122,7 @@ function notifyMainClosed(payload: FloatWindowClosedPayload): void {
   try {
     main.webContents.send(FLOAT_WINDOW_CLOSED_CHANNEL, payload);
   } catch {
-    // main window gone — nothing to notify
+    return;
   }
 }
 
@@ -184,7 +194,7 @@ export function openFloatWindow(options: FloatWindowOpenOptions): BrowserWindow 
   floatWindows.set(key, win);
   setFloatWindows({
     ...getFloatWindows(),
-    [key]: { kind, projectId, itemKey, bounds, open: true },
+    [key]: { kind, projectId, itemKey, bounds, open: true, updatedAt: new Date().toISOString() },
   });
   win.setAlwaysOnTop(true);
   win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
@@ -289,14 +299,14 @@ export function restoreFloatWindows(registeredIds: string[]): void {
     next[key] = rec;
   }
   setFloatWindows(next);
-  let opened = 0;
-  for (const [key, rec] of Object.entries(next)) {
-    if (opened >= FLOAT_RESTORE_LIMIT) break;
-    if (!rec.open || !registered.has(rec.projectId)) continue;
+  const eligible = Object.entries(next)
+    .filter(([, rec]) => rec.open && registered.has(rec.projectId))
+    .sort(([, a], [, b]) => b.updatedAt.localeCompare(a.updatedAt))
+    .slice(0, FLOAT_RESTORE_LIMIT);
+  for (const [key, rec] of eligible) {
     const existing = floatWindows.get(key);
     if (existing && !existing.isDestroyed()) continue;
-    const win = openFloatWindow({ kind: rec.kind, projectId: rec.projectId, itemKey: rec.itemKey });
-    if (win) opened += 1;
+    openFloatWindow({ kind: rec.kind, projectId: rec.projectId, itemKey: rec.itemKey });
   }
 }
 

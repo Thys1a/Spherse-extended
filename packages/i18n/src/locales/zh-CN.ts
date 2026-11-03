@@ -1175,6 +1175,8 @@ export const zhCN = {
   "float-window.dock": "收回",
   // 原生浮窗标题栏在主窗口中打开按钮的悬停提示
   "float-window.expand": "在主窗口中打开",
+  // 原生浮窗内容加载失败时的错误文案
+  "float-window.loadFailed": "加载失败",
 
   // --- Command Panel ---
   // 命令面板右上角三点菜单按钮的无障碍名称
