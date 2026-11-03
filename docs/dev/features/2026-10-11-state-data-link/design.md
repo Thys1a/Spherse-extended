@@ -5,6 +5,19 @@
 - 排期：与 v1.0.x worldbook 位置修正**同批**（共用「插到当前用户消息之前」的 helper）
 - 关联：`docs/dev/investigation/2026-10-06-cross-project/06-tavern-vs-agent.md` §五 #4；同构参考 `docs/dev/features/2026-09-27-agent-card-links/design.md`
 
+
+### 状态注记（2026-11-02，分支 `feat/native-float-state-data-link` 复核）
+
+- 实现状态：**仍为零实现**——`link_data` / `$state` / `stateProjector` / `data-links` 路由与契约 / `AgentDataLinksField` 全仓库无命中，design.md（“已商定待实现”）依然有效。
+- 镜像前提全部存活，可直接开工：
+  - card 外链三件套：`list/add/removeAgentCardLink`（`capabilities/card/worldbook.ts:288,320,383`），symlink 创建含 Windows 权限不足的明确报错（`:363-368`）。
+  - “插到当前用户消息之前”helper：`userSegmentIndex`（`worldbook.ts:435`，已导出可复用）。
+  - data 侧工具齐备：`getRawByDotPath`（`dot-path.ts:83`，读 `$state` 声明用）、保留键机制（`isReservedSegment` 以 `$` 开头，`stripReservedKeys`）、`resolveDataFile`/`isReservedKey`、`read/mutate/query` 全套工具（含归因与 `rollback_turn` 覆盖）。
+  - `contextProjectors` 机制：`capability.ts:35`＋`agent-assembly.ts:61`，data capability 只需追加 `stateProjector`。
+  - `manage_agent` 有 `link_card`/`unlink_card`＋审批先例；card-links 有 server 路由＋contracts（`agents.ts:94,127-132`）＋`AgentCardLinksField` UI 模式可抄。
+- 开工前唯一待修：design §“文档同步”引用的跨项目文档旧路径（`2026-10-06-cross-project/06-...` → 已更名 `cross-project-v1`），实施时顺手修。
+
+
 ## 背景与目标
 
 游戏 / 角色扮演 Workspace 需要把「当前状态」（数值、旗标、变量）随每轮注入 prompt，让模型据状态决定走向（酒馆式「变量驱动状态机」）。Spherse 现状：
