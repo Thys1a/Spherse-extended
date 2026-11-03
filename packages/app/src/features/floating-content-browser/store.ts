@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { focusNativeFloat, isFloatDetached } from "../../lib/float-window";
 import { getDefaultPosition } from "../../components/floating-frame/defaults";
 import { FLOAT_DEFAULT_WIDTH, FLOAT_DEFAULT_HEIGHT, CASCADE_STEP, CASCADE_WRAP } from "./defaults";
 
@@ -53,6 +54,10 @@ export const useFloatingContentBrowserStore = create<FloatingContentBrowserStore
   byProject: loadFromStorage(),
 
   openFloat(projectId, filePath) {
+    if (isFloatDetached("content", projectId, filePath)) {
+      focusNativeFloat("content", projectId, filePath);
+      return;
+    }
     const existing = get().byProject[projectId];
     if (existing && existing[filePath]) return;
     const count = existing ? Object.keys(existing).length : 0;

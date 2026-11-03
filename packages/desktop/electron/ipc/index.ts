@@ -6,6 +6,7 @@ import { registerSkillIpc } from "./skill.js";
 import { registerUpdaterIpc } from "./updater.js";
 import { registerMobileAccessIpc } from "./mobile.js";
 import { registerNotificationIpc } from "./notifications.js";
+import { registerFloatWindowIpc } from "./float-window.js";
 
 export function registerAllIpc(getWindow: () => BrowserWindow | null): void {
   registerProjectIpc(getWindow);
@@ -15,4 +16,5 @@ export function registerAllIpc(getWindow: () => BrowserWindow | null): void {
   registerUpdaterIpc(getWindow);
   registerMobileAccessIpc(getWindow);
   registerNotificationIpc(getWindow);
+  registerFloatWindowIpc();
 }

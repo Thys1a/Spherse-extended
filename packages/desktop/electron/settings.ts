@@ -13,6 +13,23 @@ export interface OpenProjectEntry {
   lastOpened: string;
 }
 
+export type FloatWindowKind = "chat" | "content";
+
+export interface FloatWindowBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface FloatWindowRecord {
+  kind: FloatWindowKind;
+  projectId: string;
+  itemKey: string;
+  bounds: FloatWindowBounds;
+  open: boolean;
+}
+
 export interface LegacySettings {
   locale?: string;
   models?: { text?: Partial<ModelGroupSettings>; image?: Partial<ModelGroupSettings> };
@@ -34,6 +51,7 @@ type SettingsSchema = {
   openProjects?: OpenProjectEntry[];
   lastActiveProject?: string | null;
   serverToken?: string;
+  floatWindows?: Record<string, FloatWindowRecord>;
 };
 
 export const settingsStore = new Store<SettingsSchema>({
@@ -196,6 +214,14 @@ export function bumpLastOpenedById(projectId: string): string | null {
   entry.lastOpened = ts;
   settingsStore.set("openProjects", projects);
   return ts;
+}
+
+export function getFloatWindows(): Record<string, FloatWindowRecord> {
+  return settingsStore.get("floatWindows") ?? {};
+}
+
+export function setFloatWindows(records: Record<string, FloatWindowRecord>): void {
+  settingsStore.set("floatWindows", records);
 }
 
 export function getLastActiveProject(): string | null {

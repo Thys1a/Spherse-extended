@@ -136,7 +136,7 @@ test("close button removes floating chat", async () => {
     await page.getByRole("menuitem", { name: "浮窗" }).click();
     await expect(page.locator("[data-chat-float-root]")).toBeVisible({ timeout: 5000 });
 
-    await page.locator("[data-chat-float-titlebar] button").click();
+    await page.locator("[data-chat-float-close]").click();
 
     await expect(page.locator("[data-chat-float-root]")).toHaveCount(0, { timeout: 5000 });
   } finally {

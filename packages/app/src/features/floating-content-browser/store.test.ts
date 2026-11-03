@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { useDetachedFloatStore } from "../../stores/detached-float-store";
+import { floatKey, registerNativeFloatFocus } from "../../lib/float-window";
 import { useFloatingContentBrowserStore } from "./store";
 
 const { FLOAT_DEFAULT_WIDTH, FLOAT_DEFAULT_HEIGHT, CASCADE_STEP } = await import("./defaults");
@@ -31,6 +33,8 @@ describe("useFloatingContentBrowserStore", () => {
     vi.stubGlobal("innerWidth", 1920);
     vi.stubGlobal("innerHeight", 1080);
     useFloatingContentBrowserStore.setState({ byProject: {} });
+    useDetachedFloatStore.setState({ keys: new Set() });
+    registerNativeFloatFocus(null);
   });
 
   afterEach(() => {
@@ -135,5 +139,16 @@ describe("useFloatingContentBrowserStore", () => {
 
     expect(() => useFloatingContentBrowserStore.getState().openFloat("project-1", "x.md")).not.toThrow();
     expect(useFloatingContentBrowserStore.getState().byProject["project-1"]?.["x.md"]).toBeDefined();
+  });
+
+  it("focuses the native window instead of creating an overlay when detached", () => {
+    const focus = vi.fn();
+    registerNativeFloatFocus(focus);
+    useDetachedFloatStore.getState().add(floatKey("content", "project-1", "notes.md"));
+
+    useFloatingContentBrowserStore.getState().openFloat("project-1", "notes.md");
+
+    expect(focus).toHaveBeenCalledWith("content", "project-1", "notes.md");
+    expect(useFloatingContentBrowserStore.getState().byProject["project-1"]).toBeUndefined();
   });
 });

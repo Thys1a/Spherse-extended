@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
-import { CatIcon, XIcon } from "lucide-react";
+import { CatIcon, PictureInPicture2Icon, XIcon } from "lucide-react";
 import { useI18n } from "@spherse/i18n/react";
 import { useSidePanelStore } from "../../stores/side-panel-store";
 import { useDrag } from "./use-drag";
@@ -27,6 +27,8 @@ interface FloatingFrameBaseProps {
   onSizeCommit?: (size: { width: number; height: number }, pos: { x: number; y: number }) => void;
   onClose: () => void;
   onExpand?: () => void;
+  onPopOut?: () => void;
+  popOutTitle?: string;
   variant?: "full" | "pet";
   children: ReactNode;
 }
@@ -46,6 +48,8 @@ export function FloatingFrame({
   onSizeCommit = () => {},
   onClose,
   onExpand,
+  onPopOut,
+  popOutTitle,
   onTogglePet,
   petToggleTitle,
   variant = "full",
@@ -59,6 +63,7 @@ export function FloatingFrame({
   const rootAttr = { [`data-${hookPrefix}-float-root`]: true };
   const titlebarAttr = { [`data-${hookPrefix}-float-titlebar`]: true };
   const closeAttr = { [`data-${hookPrefix}-float-close`]: true };
+  const popOutAttr = { [`data-${hookPrefix}-float-popout`]: true };
 
   const drag = useDrag({
     position,
@@ -108,6 +113,17 @@ export function FloatingFrame({
       >
         <span className="text-xs font-medium truncate">{title}</span>
         <div className="ml-auto flex items-center gap-0.5" onDoubleClick={(e) => e.stopPropagation()}>
+          {onPopOut && (
+            <button
+              {...popOutAttr}
+              onClick={onPopOut}
+              title={popOutTitle}
+              aria-label={popOutTitle}
+              className="inline-flex h-5 w-5 items-center justify-center rounded-sm hover:bg-muted-foreground/10"
+            >
+              <PictureInPicture2Icon className="h-3.5 w-3.5" />
+            </button>
+          )}
           {onTogglePet && (
             <button
               onClick={onTogglePet}

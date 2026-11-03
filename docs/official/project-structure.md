@@ -226,10 +226,10 @@ spherse/
 │   │   └── src/
 │   │       ├── App.tsx               # App shell：Activity Bar、设置弹窗、全局初始化
 │   │       ├── main.tsx              # renderer 入口，挂载 QueryClientProvider 与 RouterProvider
-│   │       ├── router.tsx            # React Router Hash Router 路由表
+│   │       ├── router.tsx            # React Router Hash Router 路由表（/float 原生浮窗分支：FloatRoot + FloatProjectScope，见 layouts/）
 │   │       ├── styles.css            # Tailwind CSS v4 + shadcn 语义 token（单一 token 体系）
 │   │       ├── lib/
-│   │       │   ├── api.ts            # HTTP/WS 客户端封装
+│   │       │   ├── api.ts            # HTTP/WS 客户端封装（含 getProjectInfo：浮窗 ensureProject 轻量取项目信息用）
 │   │       │   ├── semver.ts         # semver 解析与比较（parseSemver/isValidSemver/compareSemver，市场技能版本比较用）
 │   │       │   ├── agent-markdown.ts # Agent 定义 Markdown 生成/解析辅助
 │   │       │   ├── project-key.ts    # project path → URL projectKey 生成
@@ -252,17 +252,20 @@ spherse/
 │   │       │   └── project-context.tsx # ProjectProvider / useProjectCtx — project scope 的 ctx 注入（projectId/projectRoot）
 │   │       ├── queries/                 # TanStack Query 基础设施：client、key factory、project/content/skills/welcome-page/theme-settings/triggers/custom-side-panel/session-search/marketplace-projects/marketplace-prompts 服务端状态
 │   │       ├── stores/
-│   │       │   ├── app-store.ts          # 打开项目集合、当前项目（含 lastOpened 排序）、Electron IPC 动作
+│   │       │   ├── app-store.ts          # 打开项目集合、当前项目（含 lastOpened 排序）、Electron IPC 动作；ensureProject 按 id 轻量取项目信息（浮窗用，不碰 active/lastRoute）
 │   │       │   ├── project-data-store.ts # 前端运行时投影（当前仅 initialMessage 交接）
 │   │       │   ├── app-ui-store.ts       # 应用级临时 UI 状态（settings 弹窗 open 状态等）
 │   │       │   ├── settings-store.ts     # 应用级 locale/theme/debugTools 等持久化设置（与设置文件同步）
 │   │       │   ├── side-panel-store.ts   # side panel pinned/hover 折叠机制（全局 UI 状态，localStorage 持久化）+ 移动端 mobileOpen 滑出态（与桌面解耦）
 │   │       │   ├── custom-side-panel-store.ts # 自定义侧边面板显隐态（per-project 缺省显示，localStorage 只存显式关闭）
-│   │       │   └── bus-store.ts          # 全局多路复用 WebSocket 连接 store
+│   │       │   ├── bus-store.ts          # 全局多路复用 WebSocket 连接 store
+│   │       │   └── detached-float-store.ts # 已弹出原生浮窗 key 集合（overlay 打开动作命中即聚焦原生窗，不建 overlay）
 │   │       ├── layouts/
 │   │       │   ├── ProjectScope.tsx      # 项目工作区 layout route（真嵌套路由），挂 ProjectProvider + Outlet 与项目级 hook
 │   │       │   ├── ProjectRuntimeBridges.tsx # 项目级桥纯挂载 fragment（FeatureGate manager + 各自治 bridge）
-│   │       │   └── project-lifecycle.ts  # closeProjectCascade：项目关闭级联清理单一入口（structure test 强制清理面完整）
+│   │       │   ├── project-lifecycle.ts  # closeProjectCascade：项目关闭级联清理单一入口（structure test 强制清理面完整）
+│   │       │   ├── FloatRoot.tsx         # 原生浮窗顶层路由根（connection/settings/bus + ApprovalNoticeBridge；不做 restoreProjects/last-route/UpdateNotice）
+│   │       │   └── FloatProjectScope.tsx # 浮窗项目作用域（ensureProject + ProjectProvider + bus/theme hook；不写 activeProject/lastRoute）
 │   │       ├── hooks/
 │   │       │   ├── useSidePanel.ts       # side panel pinned/hover/mobileOpen 状态合并派生 + clickAway props
 │   │       │   ├── useCustomTheme.ts
@@ -310,8 +313,8 @@ spherse/
 │   │       │   ├── custom-side-panel/   # 自定义侧边面板（透明 iframe + CustomSidePanelQueryBridge fs-watch 刷新）
 │   │       │   ├── debug-tools/         # 调试菜单（开发模式或设置开启 debugToolsEnabled 时显示）+ Streaming Log 悬浮面板 + 事件日志查看器（TurnContextDialog/EventLogRow/event-log-display）
 │   │       │   ├── docked-chat/          # 聊天 HtmlCard 嵌入的实时聊天面板（store 按 iframe source 记 dock 条目，DockedChatManager 合成 viewport rect portal 渲染 Chat；ui-sdk chat.dock/rect/undock 的消费方）
-│   │       │   ├── floating-chat/         # 浮动聊天窗口（Portal overlay、主题隔离），复用 components/floating-frame；含 useFloatingSessionId
-│   │       │   ├── floating-content-browser/ # 浮窗内容浏览器（多窗口、复用 ContentView 只读渲染 + components/floating-frame），含 useFloatedFilePaths；从文件树右键「浮窗」触发
+│   │       │   ├── floating-chat/         # 浮动聊天窗口（Portal overlay、主题隔离），复用 components/floating-frame；含 useFloatingSessionId；弹出走原生窗口（setFloatingChat 对已弹出项转聚焦原生窗，见 stores/detached-float-store）
+│   │       │   ├── floating-content-browser/ # 浮窗内容浏览器（多窗口、复用 ContentView 只读渲染 + components/floating-frame），含 useFloatedFilePaths；从文件树右键「浮窗」触发；弹出走原生窗口（openFloat 对已弹出项转聚焦原生窗）
 │   │       │   ├── global-search/           # 项目内全局搜索 dialog（聊天内容 + 文件名，快捷键定位跳转）
 │   │       │   ├── onboarding/           # 新用户引导页（无项目时 `/` 路由）：打开或创建项目 / 打开示例项目
 │   │   │   ├── project-panel/         # 项目侧栏内容（AgentSessionList/UserFilePanel/SkillPanel 薄组合层 + 顶部全局搜索按钮），作为 SidePanel 的静态 flex child
@@ -331,11 +334,14 @@ spherse/
 │   │       │   ├── ChatPage.tsx          # Chat 路由 page，从 URL :sessionId 解析 session/agent 后渲染 Chat
 │   │       │   ├── ContentBrowserPage.tsx # Content 路由 page，从 ?path= 查询参数渲染 ContentBrowser
 │   │       │   ├── OnboardingPage.tsx    # App index 路由 page，re-export onboarding 引导页（无项目时显示）
-│   │       │   └── WelcomePagePage.tsx   # Project index 路由 page，渲染 WelcomePage 空状态
+│   │       │   ├── WelcomePagePage.tsx   # Project index 路由 page，渲染 WelcomePage 空状态
+│   │       │   ├── FloatChatPage.tsx     # 原生浮窗 chat page（agent 解析 + hideHeader Chat + FloatTitleBar；session 消失自动 forget 关闭）
+│   │       │   └── FloatContentPage.tsx  # 原生浮窗 content page（useContentFile + 只读 ContentView + FloatTitleBar；error 自动 forget 关闭）
 │   │       ├── components/
 │   │       │   ├── ui/                   # shadcn/ui 本地基础组件（Base UI 底层原语）与 TreeRow 等通用 UI 样式组件
 │   │       │   ├── file-tree/            # 可复用文件树基础组件（FileTree + 树模型 + controller hook + dnd 拖拽上传检测 + 通用 dialog），支持可选 rootPath/emptyLabel/onFloatFile/floatedFilePaths，被 user-file-panel 与 skill-panel 共用
-│   │       │   ├── floating-frame/       # 通用浮动窗口 chrome（拖拽/调整大小、titlebar、close），由 floating-chat 与 floating-content-browser 复用；hookPrefix 参数生成各自 data-*-float-* 主题钩子
+│   │       │   ├── floating-frame/       # 通用浮动窗口 chrome（拖拽/调整大小、titlebar、close），由 floating-chat 与 floating-content-browser 复用；hookPrefix 参数生成各自 data-*-float-* 主题钩子；onPopOut 弹出按钮（有 floatWindow capability 且非 pet 时显示）
+│   │       │   ├── float-window/         # 原生浮窗自绘细标题栏 FloatTitleBar（收回/展开/关闭，app-region 拖拽，data-float-* 钩子）
 │   │       │   ├── find-bar/               # 通用查找条：FindBar（containerRef/contentKey/onClose 三 prop）+ useContentFind + find-engine（DOM 文本检索 + 高亮 + 滚动），由 content-browser 与 chat 共用
 │   │       │   ├── markdown-content/     # Markdown 渲染域：MarkdownContent（统一渲染组件，plain 模式用于用户消息）、CodeBlock、markdown-code-text（代码块文本抽取）、remark-plain-structure（plain 模式 remark 插件：list/table/thematicBreak 还原为带字面标记的文本行，保序号/行结构）
 │   │       └── test/                    # 组件测试共享工具：render.tsx（renderWithProviders + createTestQueryClient）、host-bridge.ts（createMockHostBridge）、mock-web-socket.ts（createMockWebSocket：readyState/closeSpy/instances 收集）、bus.ts（MockWebSocket bus harness：connectMockBus/emitBusEvent/bumpBusResumedAt）、jest-dom.d.ts（vitest matcher 类型入口）
@@ -350,31 +356,33 @@ spherse/
 │   │   │   ├── bootstrap.ts          # Electron 入口引导：dev 环境重定向 userData 后加载 main
 │   │   │   ├── app-id.ts             # Windows AppUserModelId 解析：仅 packaged 返回 `com.spherse.app`，dev 用 Electron 默认（任务栏不混组）
 │   │   │   ├── stale-electron-shortcut.ts # 同 ID 残留 `Electron.lnk` 清理：lnk 二进制直读 AUMID/target，三条件谓词命中才删（`Spherse.lnk`/异 ID 一律保留）
-│   │   │   ├── main.ts               # Electron 主进程：启动时 fixPath（打包版 PATH 修复）→ migrateLegacySettings → 组装窗口、IPC、项目 server 管理、启动延迟静默更新检查
+│   │   │   ├── main.ts               # Electron 主进程：启动时 fixPath（打包版 PATH 修复）→ migrateLegacySettings → 组装窗口、IPC、项目 server 管理、启动延迟静默更新检查；浮窗 renderer 崩溃分流 handleFloatRendererGone（非主窗口 render-process-gone 销毁浮窗并通知主窗收回 overlay）
 │   │   │   ├── lifecycle.ts         # 退出生命周期（beginQuit/isQuitting 守卫，quit 统一入口）
 │   │   │   ├── tray.ts             # 系统托盘（closeToTray 常驻与退出菜单）
 │   │   │   ├── fix-path.ts           # 打包版 PATH 修复：仅 packaged + darwin/linux，spawn 用户登录 shell（$SHELL -lic 'echo $PATH'，TERM=dumb，3s 超时）拉取登录 shell 的 PATH，剥离 ANSI/控制字节后按去重保序前置合并进 process.env.PATH（dev/test/win32 no-op，失败保留原 PATH 不阻断启动）；修复 GUI 进程不继承 shell PATH 导致 stdio MCP server（uvx/npx/python）找不到可执行文件
 │   │   │   ├── crash-log.ts          # 崩溃取证落盘（userData/logs/crash.jsonl）+ renderer 自愈决策纯函数（reload/recreate/退避）
-│   │   │   ├── preload.ts            # contextBridge，IPC 白名单（含更新检查 main→renderer 事件订阅）
+│   │   │   ├── preload.ts            # contextBridge，IPC 白名单（含更新检查 main→renderer 事件订阅；float-window open/close-self/navigate-main/list + closed/navigate 事件订阅）
 │   │   │   ├── updater.ts            # 更新检测：本仓库 GitHub Releases（latest 非预发布）+ compareVersions + 平台 downloadUrl 解析（electron-updater 仅保留 Windows in-app 下载 API，feed 已废弃）、silent 检测不改写交互状态、startAutoUpdateChecks 调度（启动 5s + 每小时 tick，≥24h 且用户活动时静默检测）
 │   │   │   ├── unsafe-location.ts    # 项目路径「易失区」判定：getUnsafeZoneRoot 计算更新时会被覆盖清空的目录（win32 = dirname(process.execPath)，NSIS 卸载器 RMDir /r $INSTDIR 作用域；darwin = .app bundle 目录；dev/linux 无，dev 下 SPHERSE_UNSAFE_ZONE env 可覆盖供 E2E 指定），isInsideUnsafeZone 经 @spherse/core 的 isPathInside 判断（打开/示例项目 IPC 弹警告框用）
 │   │   │   ├── ipc/                  # IPC handler 注册，按业务域拆分
 │   │   │   │   ├── index.ts          # registerAllIpc 聚合
 │   │   │   │   ├── host-prefs.ts    # 通用/桌面偏好读写 IPC（get/save-general-prefs、get/save-desktop-prefs）
-│   │   │   │   ├── project.ts        # 项目选择、server 启停、打开项目持久化、打开示例项目、打开项目文件夹（shell.openPath）、用默认应用打开文件（openFileExternal）；confirmUnsafeLocation 对安装目录内路径弹警告框（默认取消），restore-projects 恢复后对存量易失区项目每会话弹一次迁移警告
+│   │   │   │   ├── project.ts        # 项目选择、server 启停、打开项目持久化、打开示例项目、打开项目文件夹（shell.openPath）、用默认应用打开文件（openFileExternal）；confirmUnsafeLocation 对安装目录内路径弹警告框（默认取消），restore-projects 恢复后对存量易失区项目每会话弹一次迁移警告；dialog 按 sender 取窗（浮窗调起落到本窗）；close-project 连锁关浮窗；restore-projects 成功后恢复 open 浮窗
 │   │   │   │   ├── open-file-path.ts # isInsideAnyOpenProject 路径校验辅助（openFileExternal handler 使用，校验路径在已打开项目内）
 │   │   │   │   ├── updater.ts        # 更新检查 IPC（check/download/install/cancel/get-state/get-app-version/open-external）
 │   │   │   │   ├── skill.ts          # 技能 zip 安装原生文件选择器（select-skill-zip）
 │   │   │   │   ├── context-menu.ts   # 文本框原生右键菜单：webContents 'context-menu' 事件（isEditable 门控，editFlags 控制 enable，i18n 本地化 undo/redo/cut/copy/paste/selectAll）
-│   │   │   │   ├── debug.ts          # 开发模式 debug 动作
+│   │   │   │   ├── debug.ts          # 开发模式 debug 动作（toggle/is-open/reload 按 sender 取窗）
+│   │   │   │   ├── float-window.ts   # 原生浮窗 IPC（open 幂等聚焦 + project 注册/path 越界校验、close-self、navigate-main 转发主窗、list）
 │   │   │   │   └── mobile.ts         # 移动端访问 IPC（get/enable/disable/regenerate-token/restart-tunnel/set-mode/set-public-domain）+ tunnel 状态推送；quick 模式自动启动 cloudflared，manual 模式仅暴露端口 + 用户自填域名
 │   │   │   ├── tunnel/                # Cloudflare Quick Tunnel 集成（移动端远程访问中继，仅 quick 模式使用）
 │   │   │   │   ├── provider.ts        # TunnelProvider / TunnelSession 抽象接口（预留未来扩展）
 │   │   │   │   ├── cloudflare-provider.ts # Cloudflare Quick Tunnel 实现：spawn cloudflared tunnel --url、stdout 抓取 *.trycloudflare.com URL、packaged 二进制路径解析
 │   │   │   │   └── manager.ts         # TunnelManager 单例：start/stop/restart 状态机 + onStateChange 事件订阅
-│   │   │   ├── window.ts             # BrowserWindow 创建与管理（packaged 下 `setAppDetails` 显式申报任务栏身份：appId/icon/relaunch）
+│   │   │   ├── window.ts             # BrowserWindow 创建与管理（packaged 下 `setAppDetails` 显式申报任务栏身份：appId/icon/relaunch）；resolveRendererLoad/resolvePreloadPath 供浮窗复用；主窗 closed 连锁关浮窗（tray hide 不触发）
+│   │   │   ├── float-window.ts       # 原生浮窗登记/建窗（frame:false + skipTaskbar + alwaysOnTop，同源 hash 路由加载）/bounds 防抖落盘/screen 钳制/restoreFor 上限 3/closeForProject/closeAllFloats（退出保留 open）；key = kind:projectId:itemKey
 │   │   │   ├── server.ts             # server 实例管理（ensure/restart/stop，恒带 serverToken 鉴权）+ 动态 host 重放（syncAllowedHosts）+ 模型/搜索/用户 skill 配置路径透传（ensureServer 传 modelSettingsPath/webSearchSettingsPath/skillSettingsPath）
-│   │   │   └── settings.ts           # electron-store 封装 + env 管理（含 syncCustomProviders）+ openProjects/locale/mobileAccess 持久化 + serverToken（顶层 key，getServerToken 迁移链）+ generateAccessToken + userData skill-settings.json 路径
+│   │   │   └── settings.ts           # electron-store 封装 + env 管理（含 syncCustomProviders）+ openProjects/locale/mobileAccess 持久化 + serverToken（顶层 key，getServerToken 迁移链）+ generateAccessToken + userData skill-settings.json 路径 + floatWindows（原生浮窗 bounds/open 记录）
 │   │   │   └── migrate-legacy-settings.ts # 旧 settings 一次性迁移（备份 + 分区落盘 + 删旧键）
 │   │   └── e2e/                      # Playwright E2E 测试
 │   │       ├── helpers/
@@ -397,6 +405,7 @@ spherse/
 │   │       ├── project-marketplace.spec.ts    # 项目市场 E2E
 │   │       ├── prompts-marketplace.spec.ts   # 提示词模板市场 E2E
 │   │       ├── floating-chat.spec.ts            # 浮窗聊天 E2E 测试（浮窗/关闭/拖动/调整大小/项目切换）
+│   │       ├── native-float.spec.ts             # 原生浮窗 E2E 测试（弹出置顶/收回/关闭/主窗关闭退出/重启恢复位置）
 │   │       ├── text-selection-session.spec.ts  # 划选会话 E2E 测试
 │   │       ├── ui-sdk.spec.ts          # UI SDK postMessage action E2E 测试
 │   │       ├── ui-sdk-dock-chat.spec.ts # 聊天卡片嵌入实时聊天面板 E2E 测试（占位元素 auto-dock → 面板 → 面板内发消息）

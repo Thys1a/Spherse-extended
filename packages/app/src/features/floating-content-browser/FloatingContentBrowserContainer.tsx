@@ -7,6 +7,9 @@ import { ContentView } from "../content-browser/ContentView";
 import { classifyFileKind } from "../content-browser/file-kind";
 import { useContentFile } from "../content-browser/hooks/useContentFile";
 import { useApiClient } from "../../lib/use-connection";
+import { useHostBridge } from "../../context/host-bridge-context";
+import { useI18n } from "@spherse/i18n/react";
+import { popOutFloat } from "../../lib/float-window";
 import { useFloatingContentBrowserStore, type FloatingContentWindow } from "./store";
 
 interface FloatingContentBrowserContainerProps {
@@ -20,6 +23,8 @@ export function FloatingContentBrowserContainer({
 }: FloatingContentBrowserContainerProps) {
   const { filePath, position, size } = floatWindow;
   const navigate = useNavigate();
+  const { t } = useI18n();
+  const bridge = useHostBridge();
   const client = useApiClient(projectId);
   const { content, binary, loading, error, dataUpdatedAt, reload } = useContentFile(projectId, client, filePath);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -52,6 +57,12 @@ export function FloatingContentBrowserContainer({
 
   const fileName = filePath.split("/").pop() ?? filePath;
 
+  const handlePopOut = () => {
+    void popOutFloat(bridge, "content", projectId, filePath, () => {
+      closeFloat(projectId, filePath);
+    });
+  };
+
   return createPortal(
     <FloatingFrame
       hookPrefix="content"
@@ -65,6 +76,8 @@ export function FloatingContentBrowserContainer({
         closeFloat(projectId, filePath);
         navigate(`/project/${projectId}/content?path=${encodeURIComponent(filePath)}`);
       }}
+      onPopOut={bridge.floatWindow ? handlePopOut : undefined}
+      popOutTitle={t("float-window.popOut")}
     >
       <div className="flex h-full flex-col">
         <ContentView

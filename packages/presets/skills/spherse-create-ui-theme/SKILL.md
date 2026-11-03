@@ -274,6 +274,7 @@ Spherse 支持通过项目级 CSS 变量覆盖来自定义 UI 外观。在项目
 | `data-content-float-root` | 浮窗根容器（`position: fixed`）。定制 border、border-radius、box-shadow、background、backdrop-filter |
 | `data-content-float-titlebar` | 标题栏（文件名 + 关闭按钮）。定制 background、text color、padding |
 | `data-content-float-close` | 关闭按钮。定制图标颜色、hover 态 |
+| `data-content-float-popout` | 弹出为独立窗口按钮。定制图标颜色、hover 态 |
 
 示例：
 
@@ -287,6 +288,33 @@ Spherse 支持通过项目级 CSS 变量覆盖来自定义 UI 外观。在项目
   background: var(--sp-muted);
 }
 [data-content-float-root] [data-content-float-close]:hover {
+  background: var(--sp-destructive);
+  color: white;
+}
+```
+
+## 原生浮窗窗口（独立窗口）
+
+从浮窗标题栏「弹出为独立窗口」打开的原生窗口是独立 BrowserWindow（桌面端 always-on-top），内容区的 `data-chat-root` / `data-content-doc` 等钩子照常生效；窗口 chrome 暴露了 `data-float-*` 钩子，可在 `.spherse/theme.css` 中定制。
+
+可用钩子：
+
+| 钩子 | 作用对象 |
+|------|---------|
+| `data-float-root` | 原生窗口根容器。定制 background |
+| `data-float-titlebar` | 自绘细标题栏（标题 + 收回/展开/关闭按钮）。定制 background、text color |
+| `data-float-dock` | 收回按钮。定制图标颜色、hover 态 |
+| `data-float-expand` | 在主窗口中打开按钮。定制图标颜色、hover 态 |
+| `data-float-close` | 关闭按钮。定制图标颜色、hover 态 |
+
+示例：
+
+```css
+/* .spherse/theme.css —— 原生浮窗窗口样式 */
+[data-float-root] [data-float-titlebar] {
+  background: var(--sp-muted);
+}
+[data-float-root] [data-float-close]:hover {
   background: var(--sp-destructive);
   color: white;
 }

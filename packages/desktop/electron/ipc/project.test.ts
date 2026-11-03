@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { BrowserWindow } from "electron";
 
-const { dialogMock, unsafeMock, serverMock, translateMock, settingsMock } = vi.hoisted(() => {
+const { dialogMock, unsafeMock, serverMock, translateMock, settingsMock, floatMock, electronMock } = vi.hoisted(() => {
   const dialogMock = {
     showMessageBox: vi.fn(),
     showOpenDialog: vi.fn(),
@@ -24,7 +24,14 @@ const { dialogMock, unsafeMock, serverMock, translateMock, settingsMock } = vi.h
   const settingsMock = {
     openProjects: [] as Array<{ id: string; path: string; name: string; lastOpened: string }>,
   };
-  return { dialogMock, unsafeMock, serverMock, translateMock, settingsMock };
+  const floatMock = {
+    closeFloatsForProject: vi.fn(),
+    restoreFloatWindows: vi.fn(),
+  };
+  const electronMock = {
+    fromWebContents: vi.fn((): unknown => null),
+  };
+  return { dialogMock, unsafeMock, serverMock, translateMock, settingsMock, floatMock, electronMock };
 });
 
 const handlers = new Map<string, (...args: unknown[]) => unknown>();
@@ -34,6 +41,9 @@ vi.mock("electron", () => ({
     handle: vi.fn((channel: string, fn: (...args: unknown[]) => unknown) => {
       handlers.set(channel, fn);
     }),
+  },
+  BrowserWindow: {
+    fromWebContents: electronMock.fromWebContents,
   },
   dialog: dialogMock,
   shell: {
@@ -45,6 +55,11 @@ vi.mock("electron", () => ({
 vi.mock("../unsafe-location.js", () => unsafeMock);
 
 vi.mock("../server.js", () => serverMock);
+
+vi.mock("../float-window.js", () => ({
+  closeFloatsForProject: floatMock.closeFloatsForProject,
+  restoreFloatWindows: floatMock.restoreFloatWindows,
+}));
 
 vi.mock("../settings.js", () => ({
   getOpenProjects: () => settingsMock.openProjects,
@@ -77,6 +92,12 @@ function invoke(channel: string, ...args: unknown[]): Promise<unknown> {
   return Promise.resolve(fn(undefined, ...args));
 }
 
+function invokeWithEvent(event: unknown, channel: string, ...args: unknown[]): Promise<unknown> {
+  const fn = handlers.get(channel);
+  if (!fn) throw new Error(`no handler registered for ${channel}`);
+  return Promise.resolve(fn(event, ...args));
+}
+
 beforeEach(() => {
   handlers.clear();
   dialogMock.showMessageBox.mockReset();
@@ -86,6 +107,10 @@ beforeEach(() => {
   serverMock.registerProject.mockReset();
   settingsMock.openProjects = [];
   translateMock.mockClear();
+  floatMock.closeFloatsForProject.mockClear();
+  floatMock.restoreFloatWindows.mockClear();
+  electronMock.fromWebContents.mockReset();
+  electronMock.fromWebContents.mockReturnValue(null);
   delete process.env.SPHERSE_E2E_DIALOG_RESPONSE;
   delete process.env.SPHERSE_E2E_SELECT_DIRECTORY;
   (globalThis as { __spherseTestDialogs?: unknown }).__spherseTestDialogs = undefined;
@@ -290,5 +315,64 @@ describe("select directory seam (SPHERSE_E2E_SELECT_DIRECTORY)", () => {
   it("returns null when the native dialog is canceled", async () => {
     dialogMock.showOpenDialog.mockResolvedValue({ canceled: true, filePaths: [] });
     await expect(invoke("select-directory")).resolves.toBeNull();
+  });
+});
+
+describe("sender-scoped dialogs", () => {
+  const senderWin = { id: "sender" } as unknown as BrowserWindow;
+
+  it("parents select-directory to the sender window", async () => {
+    electronMock.fromWebContents.mockReturnValue(senderWin);
+    dialogMock.showOpenDialog.mockResolvedValue({ canceled: false, filePaths: ["/tmp/native"] });
+    await expect(
+      invokeWithEvent({ sender: {} }, "select-directory"),
+    ).resolves.toBe("/tmp/native");
+    expect(dialogMock.showOpenDialog).toHaveBeenCalledWith(
+      senderWin,
+      expect.objectContaining({ properties: ["openDirectory", "createDirectory"] }),
+    );
+  });
+
+  it("falls back to the main window when the sender has no window", async () => {
+    electronMock.fromWebContents.mockReturnValue(null);
+    dialogMock.showOpenDialog.mockResolvedValue({ canceled: false, filePaths: ["/tmp/native"] });
+    await expect(
+      invokeWithEvent({ sender: {} }, "select-directory"),
+    ).resolves.toBe("/tmp/native");
+    expect(dialogMock.showOpenDialog).toHaveBeenCalledWith(
+      win,
+      expect.objectContaining({ properties: ["openDirectory", "createDirectory"] }),
+    );
+  });
+
+  it("parents the unsafe-location confirm to the sender window", async () => {
+    electronMock.fromWebContents.mockReturnValue(senderWin);
+    unsafeMock.isInsideUnsafeZone.mockReturnValue(true);
+    dialogMock.showMessageBox.mockResolvedValue({ response: 0 });
+    serverMock.registerProject.mockResolvedValue({ projectId: "pid-1" });
+    await invokeWithEvent({ sender: {} }, "open-project", "/unsafe/proj");
+    expect(dialogMock.showMessageBox).toHaveBeenCalledWith(
+      senderWin,
+      expect.objectContaining({ type: "warning" }),
+    );
+  });
+});
+
+describe("float window hooks", () => {
+  it("restores float windows for successfully registered projects", async () => {
+    settingsMock.openProjects = [
+      { id: "a", path: "/p1", name: "p1", lastOpened: "2026-01-02T00:00:00.000Z" },
+      { id: "b", path: "/p2", name: "p2", lastOpened: "2026-01-01T00:00:00.000Z" },
+    ];
+    serverMock.registerProject.mockImplementation(async (root: string) => ({
+      projectId: `pid-${root}`,
+    }));
+    await invoke("restore-projects");
+    expect(floatMock.restoreFloatWindows).toHaveBeenCalledWith(["pid-/p1", "pid-/p2"]);
+  });
+
+  it("closes float windows when the project is closed", async () => {
+    await invoke("close-project", "pid-1", "/p1");
+    expect(floatMock.closeFloatsForProject).toHaveBeenCalledWith("pid-1");
   });
 });

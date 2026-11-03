@@ -59,6 +59,7 @@ import type {
   MarketplacePromptManifestResponse,
   ProjectMarketplaceInstallRequest,
   ProjectMarketplaceInstallResponse,
+  ProjectInfoResponse,
 } from "@spherse/contracts";
 import { parseApiResponse, schemas } from "@spherse/contracts";
 import { Type } from "@sinclair/typebox";
@@ -132,6 +133,12 @@ export function createApiClient(baseUrl: string, projectId: string, accessToken?
   return {
     baseUrl,
     accessToken: accessToken ?? null,
+    async getProjectInfo(): Promise<ProjectInfoResponse> {
+      const res = await authedFetch(`${apiBase}/info`);
+      await assertOk(res);
+      return parseJsonResponse<ProjectInfoResponse>(res, schemas.projectInfoResponse);
+    },
+
     async listAgents(): Promise<AgentSummary[]> {
       const res = await authedFetch(`${apiBase}/agents`);
       await assertOk(res);
