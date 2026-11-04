@@ -8,6 +8,7 @@ import { assertSafeSlug } from "../../store/agent-profile.js";
 import { isPathInside, resolveProjectPath } from "../../utils/path-safety.js";
 import { estimateTokens } from "../../context/token-estimate.js";
 import { escapeXmlAttr } from "../../utils/xml-escape.js";
+import { STATE_BLOCK_TAG } from "../shared/state-block.js";
 import { getByDotPath, splitDotPath, stripReservedKeys } from "./dot-path.js";
 import { toPosixRelative } from "./path-guard.js";
 import { userSegmentIndex } from "../shared/user-segments.js";
@@ -331,7 +332,7 @@ export function listAgentDataLinks(projectRoot: string, slug: string): AgentData
   }
   const root = path.resolve(projectRoot);
   const out: AgentDataLink[] = [];
-  for (const name of names) {
+  for (const name of names.sort()) {
     if (!name.endsWith(DATA_LINK_EXTENSION)) continue;
     const full = path.join(dir, name);
     try {
@@ -359,6 +360,10 @@ export function addAgentDataLink(
   targetRelPath: string,
   options?: AddAgentDataLinkOptions,
 ): AgentDataLink {
+  const normalized: AddAgentDataLinkOptions = {
+    statePath: options?.statePath?.trim() || undefined,
+    label: options?.label?.trim() || undefined,
+  };
   const root = path.resolve(projectRoot);
   const targetAbs = resolveProjectPath(root, targetRelPath);
   let targetStat: fs.Stats;
@@ -386,7 +391,7 @@ export function addAgentDataLink(
     if (fs.lstatSync(linkPath).isSymbolicLink()) {
       const existing = linkTargetRealpath(linkPath);
       if (existing === targetReal) {
-        ensureStateDeclaration(targetReal, targetRelPath, options);
+        ensureStateDeclaration(targetReal, targetRelPath, normalized);
         invalidateStateLinkCache(root, slug);
         return {
           name,
@@ -401,7 +406,6 @@ export function addAgentDataLink(
   } catch (err) {
     if ((err as NodeJS.ErrnoException)?.code !== "ENOENT") throw err;
   }
-  ensureStateDeclaration(targetReal, targetRelPath, options);
   try {
     fs.symlinkSync(path.relative(dir, targetAbs), linkPath, "file");
   } catch (err) {
@@ -414,6 +418,7 @@ export function addAgentDataLink(
     }
     throw err;
   }
+  ensureStateDeclaration(targetReal, targetRelPath, normalized);
   invalidateStateLinkCache(root, slug);
   return {
     name,
@@ -445,7 +450,7 @@ export function renderStateBlock(
 ): string {
   const attrs = [`file="${escapeXmlAttr(file)}"`, `path="${escapeXmlAttr(declaration.path)}"`];
   if (declaration.label !== undefined) attrs.push(`label="${escapeXmlAttr(declaration.label)}"`);
-  return `<state ${attrs.join(" ")}>\n${JSON.stringify(value ?? null, null, 2)}\n</state>`;
+  return `<${STATE_BLOCK_TAG} ${attrs.join(" ")}>\n${JSON.stringify(value ?? null, null, 2)}\n</${STATE_BLOCK_TAG}>`;
 }
 
 export const stateProjector: ContextProjector = (view: SessionView) => {

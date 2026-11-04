@@ -110,7 +110,6 @@ describe("data link validation (no symlinks needed)", () => {
 
   it("rejects invalid state_path and label at add time", () => {
     fs.writeFileSync(path.join(root, "lore", "game.data.json"), dataFile({ _state: {} }));
-    expect(() => addAgentDataLink(root, "hero", "lore/game.data.json", { statePath: "" })).toThrow();
     expect(() => addAgentDataLink(root, "hero", "lore/game.data.json", { statePath: "$evil" })).toThrow();
     expect(() =>
       addAgentDataLink(root, "hero", "lore/game.data.json", { label: 7 as never }),
@@ -201,11 +200,38 @@ describe.runIf(canCreateSymlinks())("agent data links", () => {
     expect(targetDoc.$state).toEqual({ path: "stats", label: "RPG" });
   });
 
+  it("treats blank state_path and label as absent", () => {
+    const rel = outsideData("game.data.json", { gold: 1 });
+    const added = addAgentDataLink(root, "hero", rel, { statePath: "  ", label: "" });
+    expect(added).toMatchObject({ statePath: "_state", hasState: true });
+    const targetDoc = JSON.parse(fs.readFileSync(path.join(root, rel), "utf8")) as Record<string, unknown>;
+    expect(targetDoc.$state).toEqual({ path: "_state" });
+  });
+
   it("add is idempotent for the same target", () => {
     const rel = outsideData("game.data.json", {});
     addAgentDataLink(root, "hero", rel);
     expect(addAgentDataLink(root, "hero", rel)).toMatchObject({ name: "game.data.json" });
     expect(listAgentDataLinks(root, "hero")).toHaveLength(1);
+  });
+
+  it("lists links sorted by name", () => {
+    const relB = outsideData("b.data.json", { _state: {}, $state: { path: "_state" } });
+    const relA = outsideData("a.data.json", { _state: {}, $state: { path: "_state" } });
+    addAgentDataLink(root, "hero", relB);
+    addAgentDataLink(root, "hero", relA);
+    expect(listAgentDataLinks(root, "hero").map((l) => l.name)).toEqual([
+      "a.data.json",
+      "b.data.json",
+    ]);
+  });
+
+  it("leaves a declared-less link behind when the target is not valid JSON", () => {
+    const rel = path.join("lore", "broken.data.json");
+    fs.writeFileSync(path.join(root, rel), "{oops");
+    expect(() => addAgentDataLink(root, "hero", rel)).toThrow(/valid JSON/);
+    expect(listAgentDataLinks(root, "hero")).toMatchObject([{ name: "broken.data.json", hasState: false }]);
+    expect(readAgentState(root, "hero")).toHaveLength(0);
   });
 
   it("add conflicts on same name with different target", () => {

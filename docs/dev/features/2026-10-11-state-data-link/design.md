@@ -27,6 +27,7 @@
   - `$state` 声明必须直接读 `doc["$state"]`，`getRawByDotPath(doc, "$state")` 因 `splitDotPath` 拒绝 `$` 段而读不到。
   - 链接路径被 data `path-guard` 禁写，模型只能按目标项目相对路径回写，故 `<state>` 必须带 `file` 属性。
   - `persistLocked` 的 temp+rename 若作用于链接路径会把 symlink 换成普通文件；当前因 path-guard 禁写而碰不到，记 backlog。
+  - `$state` 落盘直写目标文件（`fs` 同步读-改-写，不经 `DataStore` 门面 / `FileWriteMutex` / 归因）：`link_data` 是低频管理操作且写路径无 await（事件循环内原子），与在途 `mutate_data` 的竞态窗口极窄；`rawSet` 按设计拒绝 `$` 键故无法复用写门面。此为显式豁免（core README「写入走门面」红线的例外），若未来出现并发覆盖丢失实证再 plumb 互斥（见 backlog 条件触发项）。
 
 
 ## 背景与目标

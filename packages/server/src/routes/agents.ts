@@ -13,7 +13,7 @@ import {
 } from "@spherse/core";
 import { schemas, parseContract } from "@spherse/contracts";
 import type { ProjectRegistry } from "../registry.js";
-import { conflict, forbidden, notFound } from "../errors.js";
+import { badRequest, conflict, forbidden, notFound } from "../errors.js";
 
 export function registerAgentRoutes(fastify: FastifyInstance, _registry: ProjectRegistry): void {
   fastify.get("/api/projects/:projectId/agents", {
@@ -145,7 +145,7 @@ export function registerAgentRoutes(fastify: FastifyInstance, _registry: Project
     "/api/projects/:projectId/agents/:id/data-links",
     {
       schema: { body: schemas.dataLinkAddRequest, response: { 200: schemas.dataLinkAddResponse } },
-      async handler(req, reply) {
+      async handler(req) {
         const body = parseContract(schemas.dataLinkAddRequest, req.body);
         const ctx = req.projectCtx!;
         const slug = agentSlugOr404(ctx.projectManager, req.params.id);
@@ -157,7 +157,7 @@ export function registerAgentRoutes(fastify: FastifyInstance, _registry: Project
           return parseContract(schemas.dataLinkAddResponse, link);
         } catch (err) {
           if (err instanceof NotFoundError) throw notFound(err.message);
-          if (err instanceof ValidationError) return reply.code(400).send({ error: err.message });
+          if (err instanceof ValidationError) throw badRequest(err.message);
           if (err instanceof AccessDeniedError) throw forbidden(err.message);
           if (err instanceof ConflictError) throw conflict(err.message);
           throw err;
@@ -170,7 +170,7 @@ export function registerAgentRoutes(fastify: FastifyInstance, _registry: Project
     "/api/projects/:projectId/agents/:id/data-links/:name",
     {
       schema: { response: { 200: schemas.okResponse } },
-      async handler(req, reply) {
+      async handler(req) {
         const ctx = req.projectCtx!;
         const slug = agentSlugOr404(ctx.projectManager, req.params.id);
         try {
@@ -178,7 +178,7 @@ export function registerAgentRoutes(fastify: FastifyInstance, _registry: Project
           return { ok: true };
         } catch (err) {
           if (err instanceof NotFoundError) throw notFound(err.message);
-          if (err instanceof ValidationError) return reply.code(400).send({ error: err.message });
+          if (err instanceof ValidationError) throw badRequest(err.message);
           throw err;
         }
       },

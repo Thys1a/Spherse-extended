@@ -11,6 +11,7 @@ import { toParsedCard } from "./parser.js";
 import { matchKeys } from "./search.js";
 import { escapeXmlAttr } from "../../utils/xml-escape.js";
 import { userSegmentIndex } from "../shared/user-segments.js";
+import { STATE_BLOCK_PATTERN } from "../shared/state-block.js";
 import type { CardEntry } from "./types.js";
 
 const RECENT_SCAN_MESSAGES = 10;
@@ -114,7 +115,6 @@ function messageText(message: AgentMessage): string {
 }
 
 const WORLDBOOK_BLOCK_PATTERN = /<worldbook>[\s\S]*?<\/worldbook>/g;
-const STATE_BLOCK_PATTERN = /<state(\s[^>]*)?>[\s\S]*?<\/state>/g;
 
 export function recentTextOf(messages: readonly AgentMessage[]): string {
   const chunks: string[] = [];
