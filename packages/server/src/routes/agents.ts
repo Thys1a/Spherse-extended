@@ -5,8 +5,11 @@ import {
   NotFoundError,
   ValidationError,
   addAgentCardLink,
+  addAgentDataLink,
   listAgentCardLinks,
+  listAgentDataLinks,
   removeAgentCardLink,
+  removeAgentDataLink,
 } from "@spherse/core";
 import { schemas, parseContract } from "@spherse/contracts";
 import type { ProjectRegistry } from "../registry.js";
@@ -113,6 +116,65 @@ export function registerAgentRoutes(fastify: FastifyInstance, _registry: Project
         const slug = agentSlugOr404(ctx.projectManager, req.params.id);
         try {
           removeAgentCardLink(ctx.projectManager.getRootPath(), slug, req.params.name);
+          return { ok: true };
+        } catch (err) {
+          if (err instanceof NotFoundError) throw notFound(err.message);
+          if (err instanceof ValidationError) return reply.code(400).send({ error: err.message });
+          throw err;
+        }
+      },
+    },
+  );
+
+  fastify.get<{ Params: { projectId: string; id: string } }>(
+    "/api/projects/:projectId/agents/:id/data-links",
+    {
+      schema: { response: { 200: schemas.dataLinkListResponse } },
+      async handler(req) {
+        const ctx = req.projectCtx!;
+        const slug = agentSlugOr404(ctx.projectManager, req.params.id);
+        return parseContract(
+          schemas.dataLinkListResponse,
+          listAgentDataLinks(ctx.projectManager.getRootPath(), slug),
+        );
+      },
+    },
+  );
+
+  fastify.post<{ Params: { projectId: string; id: string } }>(
+    "/api/projects/:projectId/agents/:id/data-links",
+    {
+      schema: { body: schemas.dataLinkAddRequest, response: { 200: schemas.dataLinkAddResponse } },
+      async handler(req, reply) {
+        const body = parseContract(schemas.dataLinkAddRequest, req.body);
+        const ctx = req.projectCtx!;
+        const slug = agentSlugOr404(ctx.projectManager, req.params.id);
+        try {
+          const link = addAgentDataLink(ctx.projectManager.getRootPath(), slug, body.path, {
+            statePath: body.statePath,
+            label: body.label,
+          });
+          return parseContract(schemas.dataLinkAddResponse, link);
+        } catch (err) {
+          if (err instanceof NotFoundError) throw notFound(err.message);
+          if (err instanceof ValidationError) return reply.code(400).send({ error: err.message });
+          if (err instanceof AccessDeniedError) throw forbidden(err.message);
+          if (err instanceof ConflictError) throw conflict(err.message);
+          throw err;
+        }
+      },
+    },
+  );
+
+  fastify.delete<{ Params: { projectId: string; id: string; name: string } }>(
+    "/api/projects/:projectId/agents/:id/data-links/:name",
+    {
+      schema: { response: { 200: schemas.okResponse } },
+      async handler(req, reply) {
+        const ctx = req.projectCtx!;
+        const slug = agentSlugOr404(ctx.projectManager, req.params.id);
+        try {
+          removeAgentDataLink(ctx.projectManager.getRootPath(), slug, req.params.name);
           return { ok: true };
         } catch (err) {
           if (err instanceof NotFoundError) throw notFound(err.message);

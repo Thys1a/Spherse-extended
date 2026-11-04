@@ -9,7 +9,6 @@ export {
   worldbookProjector,
   worldbookStats,
   selectWorldbookEntries,
-  userSegmentIndex,
   listAgentCardLinks,
   addAgentCardLink,
   removeAgentCardLink,
@@ -17,6 +16,7 @@ export {
   type WorldbookInsertionGroup,
   type AgentCardLink,
 } from "./worldbook.js";
+export { userSegmentIndex } from "../shared/user-segments.js";
 export { createReadCardTool, createSearchCardTool, createEditCardTool } from "./tools.js";
 export { cardCapability, worldbookSystemCapability } from "./capability.js";
 export type {

@@ -28,7 +28,7 @@ spherse/
 │   │       │   ├── agent-mgmt/       # manage_agent 工具（工具名校验用运行时 toolCatalog）
 │   │       │   ├── interaction/      # run_command / ask_user 工具（经 kernel gates）
 │   │       │   ├── project-config/   # manage_project_config 工具（项目级配置：欢迎页设置）
-│   │       │   ├── data/                # DataStore（*.data.json 读写：manifest 校验/mutate 原子写/undo 回滚；经 factory 挂 runtime.dataStore，server data 路由消费）
+│   │       │   ├── data/                # DataStore（*.data.json 读写：manifest 校验/mutate 原子写/undo 回滚；经 factory 挂 runtime.dataStore，server data 路由消费）+ state-link.ts（$state 声明读写 + agent 数据外链增删查 + state contextProjector 逐轮注入 + token 画像）
 │   │       │   ├── trigger/          # TriggerManager + TimerService（只见 SessionPort，循环依赖消解）
 │   │       │   ├── mcp/              # McpConnectionManager + turnHooks（按配置版本 memo 的工具合并）+ mcp-context block
 │   │       │   ├── attachments/      # image processor 贡献 + contextProjector（convertToLlm 前剥 _attachments/空 image block）

@@ -10,6 +10,7 @@ import { estimateTokens } from "../../context/token-estimate.js";
 import { toParsedCard } from "./parser.js";
 import { matchKeys } from "./search.js";
 import { escapeXmlAttr } from "../../utils/xml-escape.js";
+import { userSegmentIndex } from "../shared/user-segments.js";
 import type { CardEntry } from "./types.js";
 
 const RECENT_SCAN_MESSAGES = 10;
@@ -113,12 +114,13 @@ function messageText(message: AgentMessage): string {
 }
 
 const WORLDBOOK_BLOCK_PATTERN = /<worldbook>[\s\S]*?<\/worldbook>/g;
+const STATE_BLOCK_PATTERN = /<state(\s[^>]*)?>[\s\S]*?<\/state>/g;
 
 export function recentTextOf(messages: readonly AgentMessage[]): string {
   const chunks: string[] = [];
   let chars = 0;
   for (let i = messages.length - 1; i >= 0 && chunks.length < RECENT_SCAN_MESSAGES; i--) {
-    const text = messageText(messages[i]).replace(WORLDBOOK_BLOCK_PATTERN, "");
+    const text = messageText(messages[i]).replace(WORLDBOOK_BLOCK_PATTERN, "").replace(STATE_BLOCK_PATTERN, "");
     if (!text) continue;
     chunks.unshift(text);
     chars += text.length;
@@ -430,17 +432,6 @@ export function selectWorldbookEntries(
     }
   }
   return [...byKey.values()];
-}
-
-export function userSegmentIndex(messages: readonly AgentMessage[], depth: number): number {
-  let seen = 0;
-  for (let i = messages.length - 1; i >= 0; i--) {
-    if (messages[i].role === "user") {
-      seen += 1;
-      if (seen === depth) return i;
-    }
-  }
-  return 0;
 }
 
 export const worldbookProjector: ContextProjector = (view: SessionView) => {

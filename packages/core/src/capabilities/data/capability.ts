@@ -3,12 +3,14 @@ import type { Capability } from "../../kernel/capability.js";
 import type { DataStore } from "./types.js";
 import { createDataStore } from "./data-store.js";
 import { createMutateDataTool, createQueryDataTool, createReadDataTool } from "./tools.js";
+import { stateProjector } from "./state-link.js";
 import { llmPolicyOf } from "../shared/llm-policy.js";
 
 export function dataCapability(shared?: DataStore): Capability {
   let own: DataStore | null = null;
   return {
     id: "data",
+    contextProjectors: [stateProjector],
     tools: (host) => {
       const store = shared ?? (own ??= createDataStore({
         projectRoot: host.projectRoot,

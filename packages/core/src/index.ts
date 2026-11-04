@@ -72,6 +72,10 @@ export {
   DataValidationError,
   DataFileCorruptedError,
   ForbiddenKeyError,
+  listAgentDataLinks,
+  addAgentDataLink,
+  removeAgentDataLink,
+  type AgentDataLink,
 } from "./capabilities/data/index.js";
 export { resolveProjectPath, isProjectMetaPath, assertInsideProject, isPathInside } from "./utils/path-safety.js";
 export { categorizePath } from "./access/path-category.js";

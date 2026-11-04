@@ -501,6 +501,14 @@ export const zhCN = {
   "agent-dialog.cardLinksTokens": "{count}条 · 常驻{always} / ≤{max} tok",
   "agent-dialog.cardLinksTotal": "合计 常驻{tAlways} / ≤{tMax} tok",
   "agent-dialog.cardLinksTotalWithRatio": "合计 常驻{tAlways} / ≤{tMax} tok（占窗口{ratio}%）",
+  "agent-dialog.dataLinksLabel": "状态数据外链",
+  "agent-dialog.dataLinksHint": "把项目内 .data.json 文件链入该 Agent，其 $state 声明子树每轮自动注入其 prompt",
+  "agent-dialog.dataLinksPlaceholder": "添加 .data.json 文件…",
+  "agent-dialog.dataLinksDangling": "{name}（已丢失）",
+  "agent-dialog.dataLinksTokens": "约{tokens} tok",
+  "agent-dialog.dataLinksNoState": "未声明 $state",
+  "agent-dialog.dataLinksTotal": "合计 约{total} tok",
+  "agent-dialog.dataLinksTotalWithRatio": "合计 约{total} tok（占窗口{ratio}%）",
   // 预设模板入口按钮：打开提示词模板市场 dialog
   "agent-dialog.templates.browse": "浏览提示词模板…",
   // 提示词模板市场 dialog 标题

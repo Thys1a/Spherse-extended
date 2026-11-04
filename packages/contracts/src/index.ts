@@ -59,6 +59,10 @@ export type {
   CardLinkListResponse,
   CardLinkAddRequest,
   CardLinkAddResponse,
+  DataLinkContract,
+  DataLinkListResponse,
+  DataLinkAddRequest,
+  DataLinkAddResponse,
 } from "./agents.js";
 
 export type {

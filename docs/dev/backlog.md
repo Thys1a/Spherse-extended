@@ -80,6 +80,9 @@
 - [ ] **agent 世界书卡目录 op（条件触发：世界书管理 UI 立项时）**：`CardStore.agentCards(slug)` → contracts → server → SDK（`card.agentList`），方案 A。参见 `docs/dev/features/2026-10-12-worldbook-position/positions-card-op.md` §3.2。
 - [ ] **顶层自定义字段 `meta.custom` 透传（条件触发：世界书管理 UI 需要展示卡级自定义时）**：`meta` 加 `custom?: Record`。参见 `docs/dev/features/2026-10-22-data-query-exposure/design.md` §五。
 - [ ] **SDK data 方法类型收紧（条件触发：下次动 SDK 类型时）**：六个 `data.*` 共用 `Record<string, unknown>`，`query` 误传 `args` 等到运行时静默失败才发现；收紧属 breaking，要么六个一起、要么至少给 `query` 加独立 `QueryParams`。review 发现，暂记。
+- [ ] **data 外链写链接路径的 symlink 替换防护（条件触发：未来放开经链接路径写入时）**：`persistLocked` 的 tmp+rename 若作用于 symlink 本身会把链接替换成普通文件；当前 data path-guard 禁写 `.spherse/` 故碰不到。方向：写前 `lstat` 判 symlink，解析到 realpath 再落盘。参见 `docs/dev/features/2026-10-11-state-data-link/design.md` 修订注记。
+- [ ] **state 注入轮内冻结（条件触发：state 高频改动致前缀缓存 miss 成痛点时）**：现为每次 LLM 调用重读，轮内被 `mutate_data` 改动即重算块之后全部内容。方向：本轮首次投影缓存内容复用至轮末（mutate 返回已告知模型新值），下一轮失效。参见 `docs/dev/features/2026-10-11-state-data-link/plan.md` Step 7。
+- [ ] **`$state` 多路径注入（条件触发：单子树不够用、需多块注入时）**：本期只支持单个 `$state.path`。方向：扩展为 `$state: [...]`，多块同消息拼接（排序与 token 画像沿用现有机制）。参见 `docs/dev/features/2026-10-11-state-data-link/design.md` 非目标节。
 
 ## 功能增强
 
@@ -115,6 +118,7 @@
 - [ ] **补齐 `openFile` action 的 `newTab` 参数**：文件右键已直调 `openTab force`，HTML 卡片等程序化调用方只能 `navigate`（触发单复用槽替换）无法开新标签。方向：`open-file.ts` 加 `newTab?: boolean`（`force: true` 建 tab，tabs 关时降级 navigate，门控与 `onOpenInNewTab` 一致），补 handler 单测 + HTML 卡片调用示例。参见 `docs/dev/features/2026-09-10-file-list-ops/design.md` 增补调研 P2
 - [ ] **服务端草稿 token 精确预估接口**：输入框计数器现为草稿纯文本启发式（不含 profile/skills/worldbook/工具定义/历史），pill 为累计值，两者相加只是近似（v1.0.1 已落地）。方向：server 新增估算接口，把草稿套进当前会话 prompt 组装走一遍 core 现成 estimator（`pendingPromptEstimate` 同款），renderer 每键 debounce + 缓存调用；需定超时/失败降级。参见 `docs/dev/features/2026-10-12-token-display/design.md` §四。
 - [ ] **Agent 对话框关闭加未保存校验**：编辑页改动只活在本地草稿，取消/X 直接丢弃且无任何提示，易误读为“删了没生效”（2026-10-19 quick-reply 跟进实证：删徽章不点保存，聊天窗口自然不变）。方向：有关闭确认的 dirty 守卫（改动后关闭先问），与上条「脏文件切 tab」同类，可合并设计。参见 `docs/dev/features/2026-10-12-quick-reply/followup-2026-10-19.md`。
+- [ ] **数据外链 `enabled` 开关 UI**：`$state.enabled` 现只支持文件手写，`AgentDataLinksField` 有意不做开关（保持界面最小）。方向：contracts AddRequest 与 `link_data` 先补 `enabled` 入参，再在链接徽章旁加启用/停用切换。参见 `docs/dev/features/2026-10-11-state-data-link/design.md`。
 ## 基础设施
 
 - [ ] **Linux 发行打磨（条件触发：出现 Linux 用户实际诉求时）**：当前 Linux 发布为 x64 AppImage + deb（CI linux matrix job，executableName 三平台统一 `Spherse`）。潜在跟进：arm64 构建、rpm/snap 等格式、Ubuntu 23.10+（AppArmor 限制 unprivileged userns）下 Electron SUID sandbox 启动失败的更优解（现为 README/下载页 sysctl workaround）。

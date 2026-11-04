@@ -262,6 +262,16 @@ Full skill instructions in Markdown...
   - 执行时锁内现场校验 manifest 健康，失配报 `manifest_stale` / `unknown_entry`（附 valid names），不信任缓存健康度
 - 损坏（撕裂 JSON）报 `file_corrupted`，不自动修复；server 路由错误映射——version_conflict 409、unknown_entry 404、manifest_stale 409、validation_failed 400、forbidden_key 400、file_corrupted 422
 
+## 状态数据外链（`$state` 注入）
+
+把项目内 `.data.json` 软链进 `.spherse/agents/{slug}/`，由 data capability 的 `stateProjector` 每轮按文件内 `$state` 声明注入子树（游戏 / 角色扮演的数值、旗标、变量驱动）。落地设计见 `docs/dev/features/2026-10-11-state-data-link/design.md`。
+
+- 链接名须为纯文件名且以 `.data.json` 结尾，目标须为项目内已存在的 JSON 对象文件（越界 / 悬空读取时跳过，列表标悬空）；建链只能经 agent 对话框、`manage_agent` 的 `link_data` / `unlink_data` 或 `POST / DELETE .../data-links`，删链只删本体不动源文件
+- `$state` 声明 `{ path, label?, enabled? }`：`$` 前缀键为平台保留——SDK / 数据工具写入拒绝、keys 列表不返回、dot-path 不可达；写入入口只有 `link_data`（默认 `_state` 并建空节点，已有合法声明不覆盖）或 `edit_file` / `write_file` 手写
+- 注入子树经 `getByDotPath(doc, path)` 取值、顶层保留键剥离后渲染为 `<state file="目标项目相对路径" path="…" label="…">` user 块，插到当前用户消息之前；每次 LLM 调用重读目标文件，即时生效；注入只在 wire 视图生效、不落盘
+- `_state` 本体是普通键，模型用 `mutate_data` 回写（归因 + `rollback_turn` 覆盖与普通 data 写入一致）；回写一律按目标项目相对路径（`<state file>` 即该路径），链接路径被 data 路径守卫拒绝
+- 无上限截断；`list` / `add` 返回 `estimatedTokens`（渲染块启发式估算），Agent 对话框展示约数与占窗口比（与世界书外链画像同款）
+
 ## 世界书卡片文件（`*.card.json`）
 
 酒馆角色卡（`chara_card_v3` 兼容）的条目级读写载体：agent 经 `read_card` / `search_card` / `edit_card` 等工具、UI SDK 经 `card.*` action、server 经 `/card/*` 路由共同读写，汇入 core `CardStore` 单例（工具 10 op 见 `architecture/server.md`）。

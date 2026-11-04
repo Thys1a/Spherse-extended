@@ -11,7 +11,7 @@
 - 实现状态：**仍为零实现**——`link_data` / `$state` / `stateProjector` / `data-links` 路由与契约 / `AgentDataLinksField` 全仓库无命中，design.md（“已商定待实现”）依然有效。
 - 镜像前提全部存活，可直接开工：
   - card 外链三件套：`list/add/removeAgentCardLink`（`capabilities/card/worldbook.ts:288,320,383`），symlink 创建含 Windows 权限不足的明确报错（`:363-368`）。
-  - “插到当前用户消息之前”helper：`userSegmentIndex`（`worldbook.ts:435`，已导出可复用）。
+  - “插到当前用户消息之前”helper：`userSegmentIndex`（已移至 `capabilities/shared/user-segments.ts`，`card/index` 保持 re-export；能力目录互 import 禁止）。
   - data 侧工具齐备：`getRawByDotPath`（`dot-path.ts:83`，读 `$state` 声明用）、保留键机制（`isReservedSegment` 以 `$` 开头，`stripReservedKeys`）、`resolveDataFile`/`isReservedKey`、`read/mutate/query` 全套工具（含归因与 `rollback_turn` 覆盖）。
   - `contextProjectors` 机制：`capability.ts:35`＋`agent-assembly.ts:61`，data capability 只需追加 `stateProjector`。
   - `manage_agent` 有 `link_card`/`unlink_card`＋审批先例；card-links 有 server 路由＋contracts（`agents.ts:94,127-132`）＋`AgentCardLinksField` UI 模式可抄。
@@ -83,6 +83,6 @@
 
 ## 文档同步
 
-- `06-tavern-vs-agent.md` §五 #4、`README` 判定：把「不吸收为内核机制」更新为「通用机制方案（state 数据外链），见本 design」。
+- `06-tavern-vs-agent.md` §五 #4 与同目录 `README`：已核实两者均含「通用机制方案（状态数据外链）」verdict 并链接本 design，无需改动（历史 investigation 文档按 doc-sync 规范保持原样）。
 - `data-conventions.md`：新增「状态数据外链与 `$state` / `_state` 约定」一节（含 `$state` 只能手写或经 `link_data`、 `_state` 可用数据工具回写、回写路径说明）。
 - `architecture/capabilities.md`：data capability 增 `contextProjectors` 一行。
