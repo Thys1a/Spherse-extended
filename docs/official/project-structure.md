@@ -243,6 +243,7 @@ spherse/
 │   │       │   ├── electron-api.ts   # 全局 Window.electronAPI 类型声明（类型来自 @shared/electron-api）
 │   │       │   ├── use-project-navigation.ts # 项目级导航 hook（back 不跨项目边界，模块级 per-project 历史栈）
 │   │       │   ├── use-connection.ts  # useApiClient(projectId) / useConnection() + useGlobalApiClient()（全局 REST 客户端，模型/搜索配置用） — 基于 app-store connection 派生 ApiClient
+│   │       │   ├── float-window.ts     # 原生浮窗 renderer 侧编排：floatKey、已弹出注册表读写、原生聚焦回调、popOut（先开窗成功再删 overlay）、bounds clamp 纯函数
 │   │       │   ├── urls.ts            # 官网域派生的集中 URL 常量（WEB_APP_URL/DOCS_URL/EXPLORE_URL/DOWNLOAD_PAGE_URL）
 │   │       │   ├── ws/                # 通用 WS 连接抽象：ws-connection.ts（WsConnection 状态机——idle/connecting/open/waiting-backoff/failed/fatal/closed、心跳 awaitingPongSince、退避重试、probe；bus 与 chat（PR3 起）共用）
 │   │       │   ├── utils.ts          # shadcn/ui cn() 工具
@@ -266,6 +267,8 @@ spherse/
 │   │       │   ├── project-lifecycle.ts  # closeProjectCascade：项目关闭级联清理单一入口（structure test 强制清理面完整）
 │   │       │   ├── FloatRoot.tsx         # 原生浮窗顶层路由根（connection/settings/bus + ApprovalNoticeBridge；不做 restoreProjects/last-route/UpdateNotice）
 │   │       │   └── FloatProjectScope.tsx # 浮窗项目作用域（ensureProject + ProjectProvider + bus/theme hook；不写 activeProject/lastRoute）
+│   │       ├── bridges/
+│   │       │   └── FloatSyncBridge.tsx   # 主窗专属桥：已弹出集合 hydration、收回 overlay（dock/crash）、转发浮窗导航请求、注册原生聚焦回调
 │   │       ├── hooks/
 │   │       │   ├── useSidePanel.ts       # side panel pinned/hover/mobileOpen 状态合并派生 + clickAway props
 │   │       │   ├── useCustomTheme.ts
