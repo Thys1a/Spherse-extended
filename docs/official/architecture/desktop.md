@@ -12,8 +12,9 @@
   - E2E 由 Playwright 传 `--user-data-dir` + `NODE_ENV=test` 跳过重定向
 - `app.whenReady` 顺序：清残留 `Electron.lnk` → `fixPath` → `migrateLegacySettings`（备份旧 `settings` → 分区落盘 → 删旧键）→ `ensureServer()`（恒传 server token）→ 创建窗口与右键菜单 → 注册全部 IPC → quick 模式启动 tunnel；更新检查另起 `setTimeout` 5s 调度，与 tunnel 无先后依赖
 - BrowserWindow：1200×800、`contextIsolation: true`、`nodeIntegration: false`、preload 白名单桥
+- 原生浮窗（`electron/float-window.ts`）：无 parent 独立窗口，`frame: false` + `skipTaskbar: true` + `setAlwaysOnTop(true)`，与主窗同源加载（同 `loadFile` / dev server，只换 `#/float/...` hash，localStorage 共享）；`key = kind:projectId:itemKey` 登记，open 幂等聚焦；bounds 防抖落盘 + `screen.getDisplayMatching` 恢复钳制；`restoreFloatWindows` 只在 `restore-projects` 成功后跑（上限 3，只开已注册项目）；renderer 崩溃销毁浮窗并通知主窗收回 overlay
 - `fixPath` 仅 packaged + darwin/linux：spawn 登录 shell 取 `$PATH` 去重合并，保证 GUI 启动拿到 CLI 环境
-- 优雅退出：`window-all-closed` / `before-quit`（幂等标记）→ tunnel stop → `stopServer()` → quit；`stopServer` / `restartServer` 委托 `MultiProjectServer.close()`（注入 10s 阶段超时与日志回调），不再手工编排 registry/fastify 顺序
+- 优雅退出：`window-all-closed` / `before-quit`（幂等标记）→ tunnel stop → `stopServer()` → quit；`stopServer` / `restartServer` 委托 `MultiProjectServer.close()`（注入 10s 阶段超时与日志回调），不再手工编排 registry/fastify 顺序；主窗 `closed` 连锁 `closeAllFloats()`（否则 `window-all-closed` 不触发；tray 的 close→hide 不触发，浮窗保留；退出路径保留 `open` 供重启恢复）
 
 ## IPC 面
 
@@ -27,13 +28,15 @@
 | skill | zip 文件选择（本地安装用） |
 | updater | check / download / install / cancel / get-state / get-version |
 | mobile | mobile-access 的 get-state / enable / disable / regenerate-token / restart-tunnel / set-mode / set-public-domain |
+| float-window | 原生浮窗 open（幂等聚焦；project 须已注册，content path 越界拒绝）/ close-self / navigate-main（转交主窗）/ list |
+- IPC 取窗规则：dialog / devtools / reload 按 `BrowserWindow.fromWebContents(event.sender)` 取调用窗（fallback 主窗）；restore-projects、unsafe 警告、`set-last-active-project`、mobile 广播、notification 点击、updater 事件保持主窗专属；浮窗建窗即调 `setupContextMenu(win)` + `webContents.setWindowOpenHandler(deny)` + `will-navigate` 白名单
 
 - preload 经 `contextBridge` 暴露 `window.electronAPI`（类型即 `ElectronAPI`），renderer 由 `createElectronHostBridge()` 包装为 HostBridge
 - mobile 域变更经 `mutationChain` 串行化防并发
 
 ## settings 持久化
 
-- electron-store 落 userData 下 `settings.json`，键：`hostPrefs`（locale + theme/debugToolsEnabled/closeToTray/tts/proxy/notifications）、`mobileAccess`、`openProjects`、`lastActiveProject`、`serverToken`
+- electron-store 落 userData 下 `settings.json`，键：`hostPrefs`（locale + theme/debugToolsEnabled/closeToTray/tts/proxy/notifications）、`mobileAccess`、`openProjects`、`lastActiveProject`、`serverToken`、`floatWindows`（原生浮窗 `{ kind, projectId, itemKey, bounds, open, updatedAt }` 记录，恢复按 `updatedAt` 取最近 3 个）
 - 模型配置在 server 侧：`model-settings.json`（`ModelSettingsStore`，原子写，0600）与 `web-search-settings.json`；GET 回脱敏版（key 只露 `configured`，custom headers 不出边界），PUT 全量语义（`undefined`=保留、空串=删除、custom 缺 `headers` 回填旧值）
 - **serverToken 是 settingsStore 顶层 key**。`getServerToken()`：`serverToken` → 生成并持久化；legacy `mobileAccess.token` 读取兼容已随旧 `settings` 键删除而终止（迁移时一次性搬运）
 - 启动顺序：`migrateLegacySettings()`（备份旧 `settings` → 分区落盘 → 删旧键）→ `ensureServer()`（server 读 store 并应用 env）；desktop 侧只应用 theme/proxy（`applyHostPrefsToEnv`）

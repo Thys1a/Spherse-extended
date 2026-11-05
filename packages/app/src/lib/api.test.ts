@@ -108,6 +108,38 @@ describe("createApiClient", () => {
     });
   });
 
+  describe("getProjectInfo", () => {
+    it("fetches and parses the project info response", async () => {
+      const fetchMock = vi.fn().mockResolvedValue(jsonResponse({
+        id: "project-1",
+        name: "proj",
+        rootPath: "/proj",
+        lastOpened: "2026-01-01T00:00:00.000Z",
+      }));
+      vi.stubGlobal("fetch", fetchMock);
+
+      await expect(
+        createApiClient("http://localhost:1234", "project-1", "tok-abc").getProjectInfo(),
+      ).resolves.toMatchObject({ id: "project-1", name: "proj", rootPath: "/proj" });
+      expect(fetchMock).toHaveBeenCalledWith(
+        "http://localhost:1234/api/projects/project-1/info",
+        expect.objectContaining({
+          headers: expect.objectContaining({ Authorization: "Bearer tok-abc" }),
+        }),
+      );
+    });
+
+    it("throws ApiError on unknown project", async () => {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(
+        jsonResponse({ error: "Unknown project" }, { status: 404 }),
+      ));
+
+      await expect(
+        createApiClient("http://localhost:1234", "project-1").getProjectInfo(),
+      ).rejects.toMatchObject({ status: 404 });
+    });
+  });
+
   describe("buildWsUrl", () => {
     it("converts http to ws and appends path", () => {
       expect(buildWsUrl("http://localhost:1234", "/ws/bus")).toBe("ws://localhost:1234/ws/bus");

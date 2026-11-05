@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
-import { useNavigate } from "react-router";
+import { useMatch, useNavigate } from "react-router";
 import { useI18n } from "@spherse/i18n/react";
 import { useChatSessionStore } from "./runtime/session-store";
 import { assembleGroups } from "./model/message-group";
@@ -40,6 +40,7 @@ export function ApprovalNoticeBridge() {
   const navigate = useNavigate();
   const { t } = useI18n();
   const bridge = useHostBridge();
+  const inFloatWindow = useMatch("/float/*") !== null;
 
   const notifiedRef = useRef<Set<string>>(new Set());
   const tRef = useRef(t);
@@ -70,7 +71,14 @@ export function ApprovalNoticeBridge() {
         toast.success(title, {
           action: {
             label: tRef.current("chat.approvalToastAction"),
-            onClick: () => navigate(`/project/${item.projectId}/chat/${item.sessionId}`),
+            onClick: () => {
+              const route = `/project/${item.projectId}/chat/${item.sessionId}`;
+              if (inFloatWindow) {
+                void bridge.floatWindow?.navigateMain(route).catch(() => undefined);
+              } else {
+                navigate(route);
+              }
+            },
           },
         });
         if (useSettingsStore.getState().notifications.approval ?? true) {
@@ -83,7 +91,7 @@ export function ApprovalNoticeBridge() {
     check();
     const unsubscribe = useChatSessionStore.subscribe(check);
     return unsubscribe;
-  }, [navigate, bridge]);
+  }, [navigate, bridge, inFloatWindow]);
 
   return null;
 }

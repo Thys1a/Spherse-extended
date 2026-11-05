@@ -9,6 +9,7 @@ import { useAgentSessionListUiStore } from "../features/agent-session-list/store
 import { useTriggerStore } from "../features/agent-trigger/store";
 import { useFloatingChatStore } from "../features/floating-chat/store";
 import { useFloatingContentBrowserStore } from "../features/floating-content-browser/store";
+import { useDetachedFloatStore } from "../stores/detached-float-store";
 import { useBrowserStore } from "../features/browser/store";
 import { useTabStore } from "../features/tabs/tab-store";
 import { useSplitStore } from "../features/tabs/split-store";
@@ -26,6 +27,7 @@ export async function closeProjectCascade(
   useTriggerStore.getState().clearProject(projectId);
   useFloatingChatStore.getState().clearProject(projectId);
   useFloatingContentBrowserStore.getState().clearProject(projectId);
+  useDetachedFloatStore.getState().clearProject(projectId);
   useBrowserStore.getState().clearProject(projectId);
   useTabStore.getState().clearProject(projectId);
   useSplitStore.getState().clearProject(projectId);

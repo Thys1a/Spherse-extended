@@ -323,6 +323,44 @@ describe("api contracts", () => {
     ).toThrow(/Invalid payload/);
   });
 
+  it("validates agent data link list response", () => {
+    const link = {
+      name: "game.data.json",
+      target: "lore/game.data.json",
+      dangling: false,
+      hasState: true,
+      statePath: "_state",
+      estimatedTokens: 40,
+    };
+    expect(parseApiResponse(schemas.dataLinkListResponse, [link])).toEqual([link]);
+    expect(parseApiResponse(schemas.dataLinkAddResponse, link)).toEqual(link);
+    expect(() =>
+      parseApiResponse(schemas.dataLinkListResponse, [{ name: "game.data.json" }]),
+    ).toThrow(/Invalid payload/);
+    expect(() =>
+      parseApiResponse(schemas.dataLinkListResponse, [{ ...link, estimatedTokens: -1 }]),
+    ).toThrow(/Invalid payload/);
+  });
+
+  it("validates agent data link add request", () => {
+    expect(
+      parseApiResponse(schemas.dataLinkAddRequest, { path: "lore/game.data.json" }),
+    ).toEqual({ path: "lore/game.data.json" });
+    expect(
+      parseApiResponse(schemas.dataLinkAddRequest, {
+        path: "lore/game.data.json",
+        statePath: "stats",
+        label: "RPG",
+      }),
+    ).toEqual({ path: "lore/game.data.json", statePath: "stats", label: "RPG" });
+    expect(() => parseApiResponse(schemas.dataLinkAddRequest, { path: "" })).toThrow(
+      /Invalid payload/,
+    );
+    expect(() =>
+      parseApiResponse(schemas.dataLinkAddRequest, { path: "lore/game.data.json", statePath: "" }),
+    ).toThrow(/Invalid payload/);
+  });
+
   it("validates session search response", () => {
     const hit = {
       agentId: "a1",

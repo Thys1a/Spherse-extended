@@ -24,6 +24,7 @@ import { PathListField } from "./PathListField";
 import { QuickReplyField } from "./QuickReplyField";
 import { QuickReplyManagerDialog } from "./QuickReplyManagerDialog";
 import { AgentCardLinksField } from "./AgentCardLinksField";
+import { AgentDataLinksField } from "./AgentDataLinksField";
 import { TimePerceptionField } from "./TimePerceptionField";
 import { HintLabel } from "./HintLabel";
 import { PromptTemplatesDialog } from "./PromptTemplatesDialog";
@@ -323,6 +324,16 @@ export function AgentDialogForm({ initial, mode, agentId, onSubmit, onCancel }: 
             )}
             {mode === "edit" && agentId && client && (
               <AgentCardLinksField
+                agentId={agentId}
+                client={client}
+                contextWindow={resolveModelContextWindow(
+                  formData.model || textDefaultModel || undefined,
+                  providers ?? {},
+                )}
+              />
+            )}
+            {mode === "edit" && agentId && client && (
+              <AgentDataLinksField
                 agentId={agentId}
                 client={client}
                 contextWindow={resolveModelContextWindow(

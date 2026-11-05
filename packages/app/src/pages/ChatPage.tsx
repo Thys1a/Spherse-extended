@@ -32,10 +32,10 @@ export function ChatPage() {
   }, [consumeInitialMessage, initialMessage, projectId, session]);
 
   useEffect(() => {
-    if (sessionQuery.isSuccess && sessionQuery.data === null) {
+    if (sessionQuery.isError || (sessionQuery.isSuccess && sessionQuery.data === null)) {
       navigate(`/project/${projectId}`, { replace: true });
     }
-  }, [navigate, projectId, sessionQuery.data, sessionQuery.isSuccess]);
+  }, [navigate, projectId, sessionQuery.data, sessionQuery.isError, sessionQuery.isSuccess]);
 
   const handleLocated = () => {
     if (!searchParams.has("messageId")) return;

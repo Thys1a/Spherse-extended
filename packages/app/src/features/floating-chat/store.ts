@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { focusNativeFloat, isFloatDetached } from "../../lib/float-window";
 
 export interface FloatingChatState {
   sessionId: string;
@@ -33,6 +34,9 @@ export const useFloatingChatStore = create<FloatingChatStore>((set, get) => ({
   },
 
   setFloatingChat(projectId, state) {
+    if (state && isFloatDetached("chat", projectId, state.sessionId)) {
+      if (focusNativeFloat("chat", projectId, state.sessionId)) return;
+    }
     if (state) {
       writeFloatingChat(projectId, state);
       set((s) => ({

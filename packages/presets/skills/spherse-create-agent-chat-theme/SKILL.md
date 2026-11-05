@@ -86,6 +86,7 @@ Agent chat themes live in the agent directory as `theme.css` (`.spherse/agents/{
 | `data-chat-float-root` | 浮动窗根容器 |
 | `data-chat-float-titlebar` | 浮动窗标题栏 |
 | `data-chat-float-close` | 浮动窗关闭按钮 |
+| `data-chat-float-popout` | 浮动窗弹出为独立窗口按钮 |
 | `data-md-code` | 代码块（`<pre>`） |
 | `data-md-code-inline` | 行内代码（`<code>`） |
 | `data-md-quote` | 引用块（`<blockquote>`） |
@@ -252,6 +253,7 @@ Composer 有两套布局，主题 CSS 对两者同时生效：
 | `[data-chat-float-root]` | 浮动窗口容器。定制 border、border-radius、box-shadow、background、backdrop-filter |
 | `[data-chat-float-titlebar]` | 标题栏。定制 background、text color、padding |
 | `[data-chat-float-close]` | 关闭按钮。定制图标颜色、hover 态 |
+| `[data-chat-float-popout]` | 弹出为独立窗口按钮。定制图标颜色、hover 态 |
 
 示例：
 

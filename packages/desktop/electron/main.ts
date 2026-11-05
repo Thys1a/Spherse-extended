@@ -19,6 +19,7 @@ import {
   safeAppendCrashLog,
 } from "./crash-log.js";
 import { beginQuit, isQuitting } from "./lifecycle.js";
+import { handleFloatRendererGone } from "./float-window.js";
 import { removeStaleElectronShortcut } from "./stale-electron-shortcut.js";
 import { attachCloseToTray, destroyTray, showMainWindow, syncTray } from "./tray.js";
 
@@ -61,7 +62,10 @@ app.on("render-process-gone", (_event, webContents, details) => {
     url: readWebContentsUrl(webContents),
   });
   const main = getMainWindow();
-  if (main && webContents !== main.webContents) return;
+  if (main && webContents !== main.webContents) {
+    handleFloatRendererGone(webContents, details.reason);
+    return;
+  }
   const cleanExit = details.reason === "clean-exit";
   const destroyed = !main || main.isDestroyed();
   const now = Date.now();

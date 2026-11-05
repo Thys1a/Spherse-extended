@@ -101,6 +101,15 @@ const cardLink = Type.Object({
   maxTurnTokens: Type.Integer({ minimum: 0 }),
 });
 
+const dataLink = Type.Object({
+  name: Type.String(),
+  target: Type.String(),
+  dangling: Type.Boolean(),
+  hasState: Type.Boolean(),
+  statePath: Type.Optional(Type.String()),
+  estimatedTokens: Type.Integer({ minimum: 0 }),
+});
+
 export const schemas = {
   agentProfile,
   agentSummary,
@@ -130,6 +139,14 @@ export const schemas = {
     path: Type.String({ minLength: 1 }),
   }),
   cardLinkAddResponse: cardLink,
+  dataLink,
+  dataLinkListResponse: Type.Array(dataLink),
+  dataLinkAddRequest: Type.Object({
+    path: Type.String({ minLength: 1 }),
+    statePath: Type.Optional(Type.String({ minLength: 1 })),
+    label: Type.Optional(Type.String()),
+  }),
+  dataLinkAddResponse: dataLink,
 } as const;
 
 export type AgentProfileContract = Static<typeof agentProfile>;
@@ -147,3 +164,7 @@ export type CardLinkContract = Static<typeof schemas.cardLink>;
 export type CardLinkListResponse = Static<typeof schemas.cardLinkListResponse>;
 export type CardLinkAddRequest = Static<typeof schemas.cardLinkAddRequest>;
 export type CardLinkAddResponse = Static<typeof schemas.cardLinkAddResponse>;
+export type DataLinkContract = Static<typeof schemas.dataLink>;
+export type DataLinkListResponse = Static<typeof schemas.dataLinkListResponse>;
+export type DataLinkAddRequest = Static<typeof schemas.dataLinkAddRequest>;
+export type DataLinkAddResponse = Static<typeof schemas.dataLinkAddResponse>;

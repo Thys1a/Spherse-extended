@@ -1,9 +1,13 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { useDetachedFloatStore } from "../../stores/detached-float-store";
+import { floatKey, registerNativeFloatFocus } from "../../lib/float-window";
 import { useFloatingChatStore } from "./store";
 
 describe("useFloatingChatStore", () => {
   beforeEach(() => {
     useFloatingChatStore.setState({ byProject: {} });
+    useDetachedFloatStore.setState({ keys: new Set() });
+    registerNativeFloatFocus(null);
   });
 
   it("sets and reads floating chat per project", () => {
@@ -42,8 +46,7 @@ describe("useFloatingChatStore", () => {
     expect(useFloatingChatStore.getState().byProject["project-1"]).toBeUndefined();
   });
 
-  it("preserves the mode across position and size commits", () => {
-    useFloatingChatStore.getState().setFloatingChat("project-1", {
+  it("preserves the mode across position and size commits", () => {    useFloatingChatStore.getState().setFloatingChat("project-1", {
       sessionId: "session-1",
       position: { x: 0, y: 0 },
       size: { width: 400, height: 300 },
@@ -56,5 +59,28 @@ describe("useFloatingChatStore", () => {
     });
 
     expect(useFloatingChatStore.getState().byProject["project-1"]?.mode).toBe("pet");
+  });
+
+  it("focuses the native window instead of creating an overlay when detached", () => {
+    const focus = vi.fn();
+    registerNativeFloatFocus(focus);
+    useDetachedFloatStore.getState().add(floatKey("chat", "project-1", "session-1"));
+
+    useFloatingChatStore.getState().setFloatingChat("project-1", {
+      sessionId: "session-1",
+      position: { x: 0, y: 0 },
+      size: { width: 400, height: 300 },
+      mode: "full",
+    });
+
+    expect(focus).toHaveBeenCalledWith("chat", "project-1", "session-1");
+    expect(useFloatingChatStore.getState().byProject["project-1"]).toBeUndefined();
+  });
+
+  it("still clears detached entries when set to null", () => {
+    useDetachedFloatStore.getState().add(floatKey("chat", "project-1", "session-1"));
+    useFloatingChatStore.getState().setFloatingChat("project-1", null);
+
+    expect(useFloatingChatStore.getState().byProject["project-1"]).toBeUndefined();
   });
 });

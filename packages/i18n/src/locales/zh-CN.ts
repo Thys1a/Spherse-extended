@@ -360,6 +360,8 @@ export const zhCN = {
   "common.send": "发送",
   // 通用「清除输入框内容」按钮的无障碍标签（输入框尾部叉号）
   "common.clear": "清除",
+  // 通用重试按钮
+  "common.retry": "重试",
 
   // --- Activity Bar ---
   // 左侧活动栏设置图标悬停提示
@@ -499,6 +501,14 @@ export const zhCN = {
   "agent-dialog.cardLinksTokens": "{count}条 · 常驻{always} / ≤{max} tok",
   "agent-dialog.cardLinksTotal": "合计 常驻{tAlways} / ≤{tMax} tok",
   "agent-dialog.cardLinksTotalWithRatio": "合计 常驻{tAlways} / ≤{tMax} tok（占窗口{ratio}%）",
+  "agent-dialog.dataLinksLabel": "状态数据外链",
+  "agent-dialog.dataLinksHint": "把项目内 .data.json 文件链入该 Agent，其 $state 声明子树每轮自动注入其 prompt",
+  "agent-dialog.dataLinksPlaceholder": "添加 .data.json 文件…",
+  "agent-dialog.dataLinksDangling": "{name}（已丢失）",
+  "agent-dialog.dataLinksTokens": "约{tokens} tok",
+  "agent-dialog.dataLinksNoState": "未声明 $state",
+  "agent-dialog.dataLinksTotal": "合计 约{total} tok",
+  "agent-dialog.dataLinksTotalWithRatio": "合计 约{total} tok（占窗口{ratio}%）",
   // 预设模板入口按钮：打开提示词模板市场 dialog
   "agent-dialog.templates.browse": "浏览提示词模板…",
   // 提示词模板市场 dialog 标题
@@ -1167,6 +1177,14 @@ export const zhCN = {
   "floating-chat.enterPetMode": "桌宠模式",
   // 桌宠模式悬浮条返回完整模式按钮的悬停提示
   "floating-chat.exitPetMode": "完整模式",
+  // 浮窗标题栏弹出为原生独立窗口按钮的悬停提示
+  "float-window.popOut": "弹出为独立窗口",
+  // 原生浮窗标题栏收回按钮的悬停提示
+  "float-window.dock": "收回",
+  // 原生浮窗标题栏在主窗口中打开按钮的悬停提示
+  "float-window.expand": "在主窗口中打开",
+  // 原生浮窗内容加载失败时的错误文案
+  "float-window.loadFailed": "加载失败",
 
   // --- Command Panel ---
   // 命令面板右上角三点菜单按钮的无障碍名称

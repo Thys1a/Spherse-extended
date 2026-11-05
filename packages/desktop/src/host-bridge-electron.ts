@@ -1,4 +1,5 @@
 import type {
+  FloatWindowHostApi,
   HostBridge,
   HostCapabilities,
   ProjectHostApi,
@@ -63,6 +64,15 @@ export function createElectronHostBridge(): HostBridge {
     onMobileAccessEvent: api.onMobileAccessEvent,
   };
 
+  const floatWindow: FloatWindowHostApi = {
+    open: api.floatWindowOpen,
+    closeSelf: api.floatWindowCloseSelf,
+    navigateMain: api.floatWindowNavigateMain,
+    list: api.floatWindowList,
+    onClosed: api.onFloatWindowClosed,
+    onNavigateMain: api.onFloatWindowNavigateMain,
+  };
+
   return {
     kind: "electron",
     capabilities: ELECTRON_CAPABILITIES,
@@ -100,5 +110,6 @@ export function createElectronHostBridge(): HostBridge {
     updater,
     devTools,
     mobile,
+    floatWindow,
   };
 }

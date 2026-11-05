@@ -155,6 +155,46 @@ export interface DevToolsHostApi {
   resetAppData(): Promise<void>;
 }
 
+export type FloatWindowKind = "chat" | "content";
+
+export interface FloatWindowBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export type FloatWindowClosedReason = "dock" | "closed" | "crashed";
+
+export interface FloatWindowClosedPayload {
+  key: string;
+  kind: FloatWindowKind;
+  projectId: string;
+  itemKey: string;
+  bounds: FloatWindowBounds;
+  reason: FloatWindowClosedReason;
+}
+
+export interface FloatWindowOpenOptions {
+  kind: FloatWindowKind;
+  projectId: string;
+  itemKey: string;
+}
+
+export interface FloatWindowCloseSelfOptions {
+  forget?: boolean;
+  dock?: boolean;
+}
+
+export interface FloatWindowHostApi {
+  open: (options: FloatWindowOpenOptions) => Promise<{ ok: true } | null>;
+  closeSelf: (options?: FloatWindowCloseSelfOptions) => Promise<boolean>;
+  navigateMain: (route: string) => Promise<boolean>;
+  list: () => Promise<string[]>;
+  onClosed: (callback: (payload: FloatWindowClosedPayload) => void) => () => void;
+  onNavigateMain: (callback: (payload: { route: string }) => void) => () => void;
+}
+
 export interface NotificationOptions {
   route?: string;
 }
@@ -176,5 +216,6 @@ export interface HostBridge {
   readonly updater?: UpdaterHostApi;
   readonly devTools?: DevToolsHostApi;
   readonly mobile?: MobileAccessHostApi;
+  readonly floatWindow?: FloatWindowHostApi;
   readonly renderConnectPage?: () => ReactNode;
 }

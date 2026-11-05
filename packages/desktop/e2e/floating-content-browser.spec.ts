@@ -62,7 +62,7 @@ test("close button removes floating content window", async () => {
     await floatFile(page, "README.md");
     await expect(page.locator("[data-content-float-root]")).toBeVisible({ timeout: 5000 });
 
-    await page.locator("[data-content-float-titlebar] button").click();
+    await page.locator("[data-content-float-close]").click();
 
     await expect(page.locator("[data-content-float-root]")).toHaveCount(0, { timeout: 5000 });
   } finally {

@@ -54,11 +54,14 @@ import type {
   EntryPatchContract,
   CardLinkListResponse,
   CardLinkAddResponse,
+  DataLinkListResponse,
+  DataLinkAddResponse,
   UploadResponse,
   MarketplaceProjectManifestResponse,
   MarketplacePromptManifestResponse,
   ProjectMarketplaceInstallRequest,
   ProjectMarketplaceInstallResponse,
+  ProjectInfoResponse,
 } from "@spherse/contracts";
 import { parseApiResponse, schemas } from "@spherse/contracts";
 import { Type } from "@sinclair/typebox";
@@ -132,6 +135,12 @@ export function createApiClient(baseUrl: string, projectId: string, accessToken?
   return {
     baseUrl,
     accessToken: accessToken ?? null,
+    async getProjectInfo(): Promise<ProjectInfoResponse> {
+      const res = await authedFetch(`${apiBase}/info`);
+      await assertOk(res);
+      return parseJsonResponse<ProjectInfoResponse>(res, schemas.projectInfoResponse);
+    },
+
     async listAgents(): Promise<AgentSummary[]> {
       const res = await authedFetch(`${apiBase}/agents`);
       await assertOk(res);
@@ -694,6 +703,31 @@ export function createApiClient(baseUrl: string, projectId: string, accessToken?
     async removeAgentCardLink(id: string, name: string): Promise<{ ok: boolean }> {
       const res = await authedFetch(
         `${apiBase}/agents/${encodeURIComponent(id)}/card-links/${encodeURIComponent(name)}`,
+        { method: "DELETE" },
+      );
+      await assertOk(res);
+      return parseJsonResponse<{ ok: boolean }>(res, schemas.okResponse);
+    },
+
+    async listAgentDataLinks(id: string): Promise<DataLinkListResponse> {
+      const res = await authedFetch(`${apiBase}/agents/${encodeURIComponent(id)}/data-links`);
+      await assertOk(res);
+      return parseJsonResponse<DataLinkListResponse>(res, schemas.dataLinkListResponse);
+    },
+
+    async addAgentDataLink(id: string, path: string): Promise<DataLinkAddResponse> {
+      const res = await authedFetch(`${apiBase}/agents/${encodeURIComponent(id)}/data-links`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path }),
+      });
+      await assertOk(res);
+      return parseJsonResponse<DataLinkAddResponse>(res, schemas.dataLinkAddResponse);
+    },
+
+    async removeAgentDataLink(id: string, name: string): Promise<{ ok: boolean }> {
+      const res = await authedFetch(
+        `${apiBase}/agents/${encodeURIComponent(id)}/data-links/${encodeURIComponent(name)}`,
         { method: "DELETE" },
       );
       await assertOk(res);

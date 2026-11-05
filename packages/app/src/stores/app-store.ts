@@ -1,5 +1,6 @@
 import { create, type StoreApi } from "zustand";
 import { getLastRoute, setLastRoute } from "../lib/localstorage/last-route";
+import { createApiClient } from "../lib/api";
 import type { HostBridge } from "../lib/host-bridge";
 
 export interface ConnectionConfig {
@@ -27,6 +28,7 @@ interface AppStore {
   restoreProjects: (bridge: HostBridge, opts?: RestoreProjectsOptions) => Promise<string | null>;
   refreshProjects: (bridge: HostBridge) => Promise<void>;
   refreshConnection: (bridge: HostBridge) => Promise<void>;
+  ensureProject: (bridge: HostBridge, projectId: string) => Promise<ProjectState | null>;
   openProject: (bridge: HostBridge) => Promise<string | null>;
   openProjectAtPath: (bridge: HostBridge, projectRoot: string) => Promise<string | null>;
   closeProject: (bridge: HostBridge, projectId: string) => Promise<string | null>;
@@ -182,6 +184,30 @@ export const useAppStore = create<AppStore>((set, get) => ({
   async refreshConnection(bridge) {
     const connection = await fetchConnection(bridge);
     set((state) => (state.connection === connection ? {} : { connection }));
+  },
+
+  async ensureProject(bridge, projectId) {
+    const existing = get().projects.get(projectId);
+    if (existing) return existing;
+    const connection = await fetchConnection(bridge);
+    if (!connection.baseUrl) return null;
+    if (!connectionEquals(get().connection, connection)) set({ connection });
+    const client = createApiClient(connection.baseUrl, projectId, connection.accessToken);
+    const info = await client.getProjectInfo();
+    const project: ProjectState = {
+      id: info.id,
+      path: info.rootPath,
+      name: info.name,
+      lastRoute: getLastRoute(info.id) ?? undefined,
+      lastOpened: info.lastOpened ?? new Date().toISOString(),
+    };
+    set((state) => {
+      if (state.projects.has(info.id)) return {};
+      const projects = new Map(state.projects);
+      projects.set(info.id, project);
+      return { projects };
+    });
+    return get().projects.get(info.id) ?? null;
   },
 
   async openProject(bridge) {

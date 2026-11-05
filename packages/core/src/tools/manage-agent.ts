@@ -6,6 +6,7 @@ import type { AgentProfile } from "../types.js";
 import { MAX_QUICK_REPLIES, MAX_QUICK_REPLY_LABEL_LENGTH } from "../types.js";
 import { ValidationError, NotFoundError } from "../errors.js";
 import { addAgentCardLink, removeAgentCardLink } from "../capabilities/card/worldbook.js";
+import { addAgentDataLink, removeAgentDataLink } from "../capabilities/data/state-link.js";
 
 const ManageAgentParams = Type.Object({
   action: Type.Union(
@@ -16,10 +17,12 @@ const ManageAgentParams = Type.Object({
       Type.Literal("update"),
       Type.Literal("link_card"),
       Type.Literal("unlink_card"),
+      Type.Literal("link_data"),
+      Type.Literal("unlink_data"),
     ],
     {
       description:
-        "`list` returns every agent in the project (metadata only). `get` returns one agent including its full system prompt. `create` adds a new agent. `update` patches an existing agent — only the fields you pass are changed. `link_card` symlinks a project `.card.json` file into the agent's directory so its entries auto-inject into the prompt. `unlink_card` removes such a link (never deletes real files).",
+        "`list` returns every agent in the project (metadata only). `get` returns one agent including its full system prompt. `create` adds a new agent. `update` patches an existing agent — only the fields you pass are changed. `link_card` symlinks a project `.card.json` file into the agent's directory so its entries auto-inject into the prompt. `unlink_card` removes such a link (never deletes real files). `link_data` symlinks a project `.data.json` file into the agent's directory so its `$state` subtree auto-injects into the prompt. `unlink_data` removes such a link (never deletes real files).",
     },
   ),
   agent_id: Type.Optional(
@@ -123,7 +126,18 @@ const ManageAgentParams = Type.Object({
   path: Type.Optional(
     Type.String({
       description:
-        "For `link_card`: project-relative path of a `.card.json` file to link (must exist inside the project). For `unlink_card`: the link file name (e.g. `lore.card.json`) to remove.",
+        "For `link_card`: project-relative path of a `.card.json` file to link (must exist inside the project). For `unlink_card`: the link file name (e.g. `lore.card.json`) to remove. For `link_data`: project-relative path of a `.data.json` file to link (must exist inside the project; a `$state` declaration is written into it unless present). For `unlink_data`: the link file name (e.g. `game.data.json`) to remove.",
+    }),
+  ),
+  state_path: Type.Optional(
+    Type.String({
+      description:
+        "For `link_data`: dot path of the subtree to inject (e.g. `_state`). Defaults to the target file's existing `$state` declaration, or `_state` when absent.",
+    }),
+  ),
+  label: Type.Optional(
+    Type.String({
+      description: "For `link_data`: label recorded on the `$state` declaration.",
     }),
   ),
 });
@@ -151,7 +165,14 @@ function fail(action: string, text: string): ManageAgentResult {
 
 export function isManageAgentWriteAction(params: unknown): boolean {
   const action = (params as { action?: unknown } | null)?.action;
-  return action === "create" || action === "update" || action === "link_card" || action === "unlink_card";
+  return (
+    action === "create" ||
+    action === "update" ||
+    action === "link_card" ||
+    action === "unlink_card" ||
+    action === "link_data" ||
+    action === "unlink_data"
+  );
 }
 
 function summarize(profile: AgentProfile): Record<string, unknown> {
@@ -453,6 +474,39 @@ export function createManageAgentTool(
             if (!store) return fail(action, `agent "${agentId}" not found. Use action "list" to see valid ids.`);
             removeAgentCardLink(projectStore.getRootPath(), store.getProfile().slug, name);
             return ok(action, `Card link "${name}" removed. The source file is untouched.`, {
+              agentId,
+              slug: store.getProfile().slug,
+            });
+          }
+          case "link_data": {
+            const agentId = params.agent_id ?? currentAgentId;
+            if (!agentId) return fail(action, "`agent_id` is required for `link_data`.");
+            const target = params.path?.trim();
+            if (!target) return fail(action, "`path` is required for `link_data`.");
+            const store = projectStore.getAgent(agentId);
+            if (!store) return fail(action, `agent "${agentId}" not found. Use action "list" to see valid ids.`);
+            const link = addAgentDataLink(projectStore.getRootPath(), store.getProfile().slug, target, {
+              statePath: params.state_path?.trim() || undefined,
+              label: params.label?.trim() || undefined,
+            });
+            return ok(
+              action,
+              `Data linked as "${link.name}". Its "$state" subtree now auto-injects into the agent's prompt (~${link.estimatedTokens} tok).`,
+              {
+                agentId,
+                slug: store.getProfile().slug,
+              },
+            );
+          }
+          case "unlink_data": {
+            const agentId = params.agent_id ?? currentAgentId;
+            if (!agentId) return fail(action, "`agent_id` is required for `unlink_data`.");
+            const name = params.path?.trim();
+            if (!name) return fail(action, "`path` (link file name) is required for `unlink_data`.");
+            const store = projectStore.getAgent(agentId);
+            if (!store) return fail(action, `agent "${agentId}" not found. Use action "list" to see valid ids.`);
+            removeAgentDataLink(projectStore.getRootPath(), store.getProfile().slug, name);
+            return ok(action, `Data link "${name}" removed. The source file is untouched.`, {
               agentId,
               slug: store.getProfile().slug,
             });
