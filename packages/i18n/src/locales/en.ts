@@ -258,6 +258,7 @@ export const en: Record<TranslationKey, string> = {
   "agent-dialog.dataLinksDangling": "{name} (missing)",
   "agent-dialog.dataLinksTokens": "~{tokens} tok (est.)",
   "agent-dialog.dataLinksNoState": "no $state declared",
+  "agent-dialog.dataLinksInactive": "{path} · not injected",
   "agent-dialog.dataLinksTotal": "Total ~{total} tok (est.)",
   "agent-dialog.dataLinksTotalWithRatio": "Total ~{total} tok (est., {ratio}% of window)",
   "agent-dialog.templates.browse": "Browse prompt templates…",

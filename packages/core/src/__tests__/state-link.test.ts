@@ -264,6 +264,18 @@ describe.runIf(canCreateSymlinks())("agent data links", () => {
     });
   });
 
+  it("list keeps the declared path for disabled or missing-node links", () => {
+    const off = outsideData("off.data.json", { _state: {}, $state: { path: "_state", enabled: false } });
+    const ghost = outsideData("ghost.data.json", { $state: { path: "nope" } });
+    addAgentDataLink(root, "hero", off);
+    addAgentDataLink(root, "hero", ghost);
+    expect(listAgentDataLinks(root, "hero")).toMatchObject([
+      { name: "ghost.data.json", hasState: false, statePath: "nope", estimatedTokens: 0 },
+      { name: "off.data.json", hasState: false, statePath: "_state", estimatedTokens: 0 },
+    ]);
+    expect(readAgentState(root, "hero")).toHaveLength(0);
+  });
+
   it("reader ignores regular files in the agent dir", () => {
     const dir = path.join(root, ".spherse", "agents", "hero");
     fs.mkdirSync(dir, { recursive: true });
@@ -342,8 +354,8 @@ describe.runIf(canCreateSymlinks())("stateProjector", () => {
     fs.writeFileSync(path.join(root, rel), dataFile(doc));
     fs.mkdirSync(slugDir, { recursive: true });
     fs.symlinkSync(
-      path.relative(dir, path.join(root, rel)),
-      path.join(dir, path.basename(rel)),
+      path.relative(slugDir, path.join(root, rel)),
+      path.join(slugDir, path.basename(rel)),
       "file",
     );
   }

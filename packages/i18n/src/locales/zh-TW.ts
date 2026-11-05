@@ -258,6 +258,7 @@ export const zhTW: Record<TranslationKey, string> = {
   "agent-dialog.dataLinksDangling": "{name}（已遺失）",
   "agent-dialog.dataLinksTokens": "約{tokens} tok",
   "agent-dialog.dataLinksNoState": "未宣告 $state",
+  "agent-dialog.dataLinksInactive": "{path} · 未注入",
   "agent-dialog.dataLinksTotal": "合計 約{total} tok",
   "agent-dialog.dataLinksTotalWithRatio": "合計 約{total} tok（佔視窗{ratio}%）",
   "agent-dialog.templates.browse": "瀏覽提示詞範本…",

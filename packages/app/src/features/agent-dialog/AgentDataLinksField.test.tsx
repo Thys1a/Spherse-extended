@@ -72,10 +72,20 @@ describe("AgentDataLinksField", () => {
 
   it("flags links without a state declaration", async () => {
     const client = mockClient({
-      listAgentDataLinks: vi.fn(async () => [link({ hasState: false, estimatedTokens: 0 })]),
+      listAgentDataLinks: vi.fn(async () => [link({ hasState: false, statePath: undefined, estimatedTokens: 0 })]),
     });
     renderField(client);
     await waitFor(() => expect(screen.getByText(/未声明/)).not.toBeNull());
+    expect(screen.queryByText(/合计/)).toBeNull();
+  });
+
+  it("shows declared-but-inactive state path instead of no-declaration", async () => {
+    const client = mockClient({
+      listAgentDataLinks: vi.fn(async () => [link({ hasState: false, statePath: "stats", estimatedTokens: 0 })]),
+    });
+    renderField(client);
+    await waitFor(() => expect(screen.getByText("stats · 未注入")).not.toBeNull());
+    expect(screen.queryByText(/未声明/)).toBeNull();
     expect(screen.queryByText(/合计/)).toBeNull();
   });
 

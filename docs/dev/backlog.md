@@ -82,6 +82,7 @@
 - [ ] **SDK data 方法类型收紧（条件触发：下次动 SDK 类型时）**：六个 `data.*` 共用 `Record<string, unknown>`，`query` 误传 `args` 等到运行时静默失败才发现；收紧属 breaking，要么六个一起、要么至少给 `query` 加独立 `QueryParams`。review 发现，暂记。
 - [ ] **data 外链写链接路径的 symlink 替换防护（条件触发：未来放开经链接路径写入时）**：`persistLocked` 的 tmp+rename 若作用于 symlink 本身会把链接替换成普通文件；当前 data path-guard 禁写 `.spherse/` 故碰不到。方向：写前 `lstat` 判 symlink，解析到 realpath 再落盘。参见 `docs/dev/features/2026-10-11-state-data-link/design.md` 修订注记。
 - [ ] **`link_data` 写 `$state` 经 DataStore 门面/互斥（条件触发：出现并发覆盖丢失实证时）**：当前为 `fs` 同步直写（不经门面、无 `ifVersion`、无归因），与在途 `mutate_data` 同文件并发时后写覆盖先写。方向：plumb `FileWriteMutex` 或经门面写（需先解 `$` 键禁写）；当前为显式豁免（低频管理操作 + 事件循环原子），见 `docs/dev/features/2026-10-11-state-data-link/design.md` 修订注记。
+- [ ] **显式 `state_path` 是否复位已有 `enabled:false`（条件触发：出现用户困惑实证时）**：`ensureStateDeclaration` 原样保留已有 `enabled`，对已手动禁用的文件执行 `link_data state_path=…` 会改声明路径但仍不注入，与"显式指定即想注入"的预期相悖。方向：显式传参时复位 `enabled:true`，或文档明确"先手写删 `enabled:false`"；联动 UI `enabled` 开关条目。参见 `docs/dev/features/2026-10-11-state-data-link/design.md`。
 - [ ] **state 注入轮内冻结（条件触发：state 高频改动致前缀缓存 miss 成痛点时）**：现为每次 LLM 调用重读，轮内被 `mutate_data` 改动即重算块之后全部内容。方向：本轮首次投影缓存内容复用至轮末（mutate 返回已告知模型新值），下一轮失效。参见 `docs/dev/features/2026-10-11-state-data-link/plan.md` Step 7。
 - [ ] **`$state` 多路径注入（条件触发：单子树不够用、需多块注入时）**：本期只支持单个 `$state.path`。方向：扩展为 `$state: [...]`，多块同消息拼接（排序与 token 画像沿用现有机制）。参见 `docs/dev/features/2026-10-11-state-data-link/design.md` 非目标节。
 

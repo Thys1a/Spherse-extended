@@ -225,15 +225,21 @@ function readLinkedState(
     if (real === null || !isPathInside(projectRoot, real)) return null;
     const targetStat = fs.statSync(linkPath);
     if (!targetStat.isFile()) return null;
-    return readTargetState(projectRoot, real);
+    const target = readTargetState(projectRoot, real);
+    if (!target || !target.injectable) return null;
+    return {
+      file: target.file,
+      block: { file: target.file, declaration: target.declaration, value: target.value },
+    };
   }
   return null;
 }
 
-function readTargetState(
-  projectRoot: string,
-  real: string,
-): { file: string; block: StateBlock } | null {
+type TargetState =
+  | { file: string; declaration: StateLinkDeclaration; injectable: false }
+  | { file: string; declaration: StateLinkDeclaration; injectable: true; value: unknown };
+
+function readTargetState(projectRoot: string, real: string): TargetState | null {
   let doc: unknown;
   try {
     doc = JSON.parse(fs.readFileSync(real, "utf8"));
@@ -241,15 +247,16 @@ function readTargetState(
     return null;
   }
   const declaration = readStateDeclaration(doc);
-  if (!declaration || declaration.enabled === false) return null;
+  if (!declaration) return null;
+  const file = toPosixRelative(projectRoot, real);
+  if (declaration.enabled === false) return { file, declaration, injectable: false };
   const resolved = getByDotPath(doc, declaration.path);
-  if (resolved.missing) return null;
+  if (resolved.missing) return { file, declaration, injectable: false };
   const value =
     typeof resolved.value === "object" && resolved.value !== null && !Array.isArray(resolved.value)
       ? stripReservedKeys(resolved.value as Record<string, unknown>)
       : resolved.value;
-  const file = toPosixRelative(projectRoot, real);
-  return { file, block: { file, declaration, value } };
+  return { file, declaration, injectable: true, value };
 }
 
 export function readAgentState(projectRoot: string, slug: string): StateBlock[] {
@@ -305,15 +312,17 @@ function statsOfDataFile(
   if (cached && cached.fingerprint === fingerprint) return cached.stats;
   let stats: Omit<AgentDataLink, "name" | "target" | "dangling"> = EMPTY_STATS;
   try {
-    const found = readTargetState(projectRoot, real);
-    if (found) {
+    const target = readTargetState(projectRoot, real);
+    if (target && target.injectable) {
       stats = {
         hasState: true,
-        statePath: found.block.declaration.path,
+        statePath: target.declaration.path,
         estimatedTokens: estimateTokens(
-          renderStateBlock(found.file, found.block.declaration, found.block.value),
+          renderStateBlock(target.file, target.declaration, target.value),
         ),
       };
+    } else if (target) {
+      stats = { hasState: false, statePath: target.declaration.path, estimatedTokens: 0 };
     }
   } catch {
     stats = EMPTY_STATS;

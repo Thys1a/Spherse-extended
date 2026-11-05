@@ -82,7 +82,9 @@ export function AgentDataLinksField({
                     ? t("agent-dialog.dataLinksTokens", {
                         tokens: link.estimatedTokens.toLocaleString(),
                       })
-                    : t("agent-dialog.dataLinksNoState")}
+                    : link.statePath
+                      ? t("agent-dialog.dataLinksInactive", { path: link.statePath })
+                      : t("agent-dialog.dataLinksNoState")}
                 </span>
               )}
               <Button

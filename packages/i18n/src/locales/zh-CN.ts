@@ -507,6 +507,7 @@ export const zhCN = {
   "agent-dialog.dataLinksDangling": "{name}（已丢失）",
   "agent-dialog.dataLinksTokens": "约{tokens} tok",
   "agent-dialog.dataLinksNoState": "未声明 $state",
+  "agent-dialog.dataLinksInactive": "{path} · 未注入",
   "agent-dialog.dataLinksTotal": "合计 约{total} tok",
   "agent-dialog.dataLinksTotalWithRatio": "合计 约{total} tok（占窗口{ratio}%）",
   // 预设模板入口按钮：打开提示词模板市场 dialog
