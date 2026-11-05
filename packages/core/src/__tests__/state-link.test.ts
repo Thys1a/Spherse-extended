@@ -266,9 +266,13 @@ describe.runIf(canCreateSymlinks())("agent data links", () => {
 
   it("list keeps the declared path for disabled or missing-node links", () => {
     const off = outsideData("off.data.json", { _state: {}, $state: { path: "_state", enabled: false } });
-    const ghost = outsideData("ghost.data.json", { $state: { path: "nope" } });
     addAgentDataLink(root, "hero", off);
-    addAgentDataLink(root, "hero", ghost);
+    // 缺失节点必须手工建链：走 add() 会被 ensureStateDeclaration 自动补上空节点
+    const ghostRel = path.join("lore", "ghost.data.json");
+    fs.writeFileSync(path.join(root, ghostRel), dataFile({ $state: { path: "nope" } }));
+    const dir = path.join(root, ".spherse", "agents", "hero");
+    fs.mkdirSync(dir, { recursive: true });
+    fs.symlinkSync(path.relative(dir, path.join(root, ghostRel)), path.join(dir, "ghost.data.json"), "file");
     expect(listAgentDataLinks(root, "hero")).toMatchObject([
       { name: "ghost.data.json", hasState: false, statePath: "nope", estimatedTokens: 0 },
       { name: "off.data.json", hasState: false, statePath: "_state", estimatedTokens: 0 },
