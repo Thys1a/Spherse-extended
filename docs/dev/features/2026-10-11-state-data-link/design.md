@@ -1,7 +1,7 @@
 # 状态数据外链（state data link）
 
 - 日期：2026-10-11
-- 状态：已商定，待实现
+- 状态：已实现并合入 dev（`feat/native-float-state-data-link`，commits `f2d8cfd` + `3d70a94`，含 code-review 整改）
 - 排期：独立实施（原「与 v1.0.x worldbook 位置修正同批」已失效：worldbook 默认即插到当前用户消息之前）
 - 关联：`docs/dev/investigation/2026-10-06-cross-project-v1/06-tavern-vs-agent.md` §五 #4；同构参考 `docs/dev/features/2026-09-27-agent-card-links/design.md`
 
