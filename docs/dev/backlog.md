@@ -64,6 +64,7 @@
 - [ ] **chat WS 出站背压**：`ChatChannel.publish` 同步 `socket.send`，慢客户端（手机 PWA 走公网 tunnel）的 ws 发送缓冲无上限增长（`message_update` 为累积快照，帧大且高频），无人看 `bufferedAmount`。方向：ws-chat 的 send 闭包按 `bufferedAmount` 分级——软阈值（~1MB）丢弃流式 update 帧（累积快照语义下丢中间帧无损，下一条即全量）、硬上限（~16MB）close 断开，客户端经游标重放 + 快照无损恢复。参见 `docs/dev/features/2026-09-05-chat-refactor/design.md`（hub 缺陷分析节）。
 - [ ] **server/core 错误消息 i18n**：ws error frame 的 `message` 由 renderer 直接展示（`entry-reducer.applyError`），但 server/core 硬编码英文（新增 `RuntimeClosedError` / `ChannelClosedError` 等），两包均不依赖 `@spherse/i18n`。方向：wire 以稳定 code 为主、renderer 按 code 映射文案；或在 server 注入翻译函数。2026-09-15 hub 收口 review 记录。
 - [ ] **抽取共享的平台判断小工具**：`isMacPlatform()`（`userAgentData.platform ?? navigator.platform` 回退链）在 `packages/app/src/features/chat/Header.tsx` 与 `features/project-panel/index.tsx` 逐字重复。方向：收敛到 `app/src/lib/` 小 util 并复用，避免后续补 Linux/Windows 区分时漏改。2026-10-18 ui-triage review 发现（m1，非阻塞）
+- [ ] **统一 content-browser 查找可见性判定**：`index.tsx` 的 `findable` 与 `ContentView.tsx` 的 `findEnabled` 是两套高度相似但不同的门控（后者多 `content !== null`、前置 `!isEditing`），本次"HTML 直接点编辑无搜索按钮"bug 即两处漂移所致。方向：收敛到同一纯谓词（如 `findability.ts`），`findEnabled = isFindable({..., isEditing: false}) && content !== null`。参见 `docs/dev/bugfix/2026-11-05-html-edit-find-button/design.md`
 
 ## 条件触发（设计决策）
 
