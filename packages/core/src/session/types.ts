@@ -1,3 +1,6 @@
+import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
+import type { SamplingParams } from "../types.js";
+
 export interface TurnContextSnapshot {
   sessionId: string;
   capturedAt: string;
@@ -8,6 +11,10 @@ export interface TurnContextSnapshot {
     description: string;
     parameters: unknown;
   }>;
+  model?: string | null;
+  thinkingLevel?: ThinkingLevel;
+  sampling?: SamplingParams;
+  currentTokens?: number;
 }
 
 export type ControlRequestKind = "approval" | "question";

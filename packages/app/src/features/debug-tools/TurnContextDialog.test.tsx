@@ -119,6 +119,53 @@ describe("TurnContextDialog", () => {
     expect(revokeObjectURL).toHaveBeenCalledWith("blob:mock");
   });
 
+  it("shows the snapshot in tabs with model params", async () => {
+    const getTurnContext = vi.fn().mockResolvedValue({
+      sessionId,
+      capturedAt: "t",
+      systemPrompt: "system prompt here",
+      messages: [{ role: "user", content: "hello" }],
+      tools: [{ name: "read_file", description: "reads", parameters: {} }],
+      model: "openai/gpt-4o",
+      thinkingLevel: "medium",
+      sampling: { temperature: 0.7 },
+      currentTokens: 128,
+    });
+    renderWithProviders(
+      <TurnContextDialog
+        projectId="p1"
+        client={createClient({ getTurnContext })}
+        sessionId={sessionId}
+        onClose={vi.fn()}
+      />,
+    );
+    await user.click(screen.getByRole("tab", { name: "System" }));
+    expect(await screen.findByText("system prompt here")).toBeInTheDocument();
+    expect(screen.getByText("openai/gpt-4o")).toBeInTheDocument();
+    await user.click(screen.getByRole("tab", { name: "Messages" }));
+    await user.click(screen.getByRole("button", { name: /user/ }));
+    expect(screen.getByText(/"role": "user"/)).toBeInTheDocument();
+    await user.click(screen.getByRole("tab", { name: "Tools" }));
+    expect(screen.getByText("read_file")).toBeInTheDocument();
+  });
+
+  it("keeps events visible when the snapshot fails to load", async () => {
+    const getTurnContext = vi.fn().mockRejectedValue(new Error("offline"));
+    renderWithProviders(
+      <TurnContextDialog
+        projectId="p1"
+        client={createClient({ getTurnContext })}
+        sessionId={sessionId}
+        onClose={vi.fn()}
+      />,
+    );
+    await screen.findByText("user/message");
+    await user.click(screen.getByRole("tab", { name: "System" }));
+    expect(await screen.findByText("Snapshot unavailable")).toBeInTheDocument();
+    await user.click(screen.getByRole("tab", { name: "Events" }));
+    expect(await screen.findByText("user/message")).toBeInTheDocument();
+  });
+
   it("shows the load-failure state with a retry button", async () => {
     const getSessionEvents = vi.fn().mockRejectedValue(new Error("boom"));
     renderWithProviders(

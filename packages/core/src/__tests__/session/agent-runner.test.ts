@@ -435,6 +435,21 @@ Agent with time perception.`,
     expect(Array.isArray(snapshot.messages)).toBe(true);
   });
 
+  it("getTurnContext exposes model/thinking/sampling/currentTokens as plain scalars", async () => {
+    const agentStore = getAgentStore(runtime, agentId);
+    const sessionId = agentStore.sessions.createSession();
+    const runner = await AgentRunner.initForRestore(deps, agentId, sessionId);
+
+    const snapshot = runner.getTurnContext();
+    expect(snapshot.model === null || typeof snapshot.model === "string").toBe(true);
+    if (typeof snapshot.model === "string") expect(snapshot.model).toContain("/");
+    expect(typeof snapshot.thinkingLevel).toBe("string");
+    if (snapshot.sampling !== undefined) {
+      expect(typeof snapshot.sampling).toBe("object");
+    }
+    expect(typeof snapshot.currentTokens).toBe("number");
+  });
+
   it("getTurnContext messages deep-equal what the LLM receives on a real turn (wire parity)", async () => {
     const projectStore = runtime.projectManager.projectStore as any;
     const tpAgent = await projectStore.createAgent(

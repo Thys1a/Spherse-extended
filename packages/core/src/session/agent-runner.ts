@@ -490,6 +490,7 @@ export class AgentRunner {
         llmMessages = transform(llmMessages);
       }
     }
+    const snapshotModel = this.agent.state.model;
     return {
       sessionId: this.sessionId,
       capturedAt: new Date().toISOString(),
@@ -500,6 +501,10 @@ export class AgentRunner {
         description: tool.description ?? "",
         parameters: structuredClone(tool.parameters),
       })),
+      model: snapshotModel ? `${snapshotModel.provider}/${snapshotModel.id}` : null,
+      thinkingLevel: this.agent.state.thinkingLevel,
+      sampling: this.deps.runConfig.current().sampling,
+      currentTokens: readCurrentTokens(llmMessages, this.agent.state.systemPrompt),
     };
   }
 

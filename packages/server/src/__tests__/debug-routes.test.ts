@@ -18,6 +18,10 @@ function createRuntime() {
       systemPrompt: "p",
       messages: [],
       tools: [],
+      model: "openai/gpt-4o",
+      thinkingLevel: "medium",
+      sampling: { temperature: 0.7 },
+      currentTokens: 128,
     })),
     readSessionEventsAfter: vi.fn(() => [
       { seq: 0, type: "user/message", time: 1, data: { message: { role: "user" } } },
@@ -77,5 +81,22 @@ describe("debug routes", () => {
     });
     expect(res.statusCode).toBe(400);
     expect(res.json()).toMatchObject({ error: "agentId is required" });
+  });
+
+  it("returns the turn context snapshot with model and sampling fields", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/projects/p1/debug/sessions/s1/turn-context",
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({
+      sessionId: "s1",
+      systemPrompt: "p",
+      model: "openai/gpt-4o",
+      thinkingLevel: "medium",
+      sampling: { temperature: 0.7 },
+      currentTokens: 128,
+    });
+    expect(runtime.sessionRuntime.getTurnContext).toHaveBeenCalledWith("s1");
   });
 });
