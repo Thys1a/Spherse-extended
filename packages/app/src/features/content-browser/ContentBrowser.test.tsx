@@ -14,6 +14,7 @@ vi.mock("../../lib/use-connection", () => ({
     getPreviewUrl: (path: string) => `http://localhost:5173/api/projects/p1/preview/${path}`,
     getContent: vi.fn(),
     readContent: mockReadContent,
+    saveContent: vi.fn(async () => ({})),
   }),
   useConnection: () => ({ baseUrl: "http://localhost:5173", accessToken: null }),
 }));
@@ -42,6 +43,21 @@ describe("ContentBrowser html edit find", () => {
     const findButton = await screen.findByRole("button", { name: "查找" });
     await user.click(findButton);
     expect(document.querySelector("[data-content-edit-findbar]")).not.toBeNull();
+  });
+
+  it("hides the find toggle after leaving edit", async () => {
+    const user = userEvent.setup();
+    renderBrowser();
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "编辑" })).toBeInTheDocument());
+    await user.click(screen.getByRole("button", { name: "编辑" }));
+    const findButton = await screen.findByRole("button", { name: "查找" });
+    await user.click(findButton);
+    expect(document.querySelector("[data-content-edit-findbar]")).not.toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "取消" }));
+    await waitFor(() => expect(screen.queryByRole("button", { name: "查找" })).toBeNull());
+    expect(document.querySelector("[data-content-edit-findbar]")).toBeNull();
   });
 
   it("shows the find toggle when entering edit from source", async () => {

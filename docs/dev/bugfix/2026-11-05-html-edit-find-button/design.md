@@ -1,7 +1,7 @@
 # HTML 直接点编辑无搜索按钮：方案
 
 - 日期：2026-11-05
-- 状态：待评审
+- 状态：已实现，待验收（code-review 无阻塞项，4 minor 已处理 3 项、1 项接受现状）
 - 版本：v1.0.4
 - 来源：同目录 `research.md`
 
@@ -51,13 +51,13 @@ export function isFindable(i: FindableInput): boolean {
 ## 四、测试
 
 - 新增 `findability.test.ts`：状态矩阵全覆盖——(html, preview, 非编辑)=false；（html, preview, 编辑）=**true（本次修复点）**；(html, source, ±编辑)=true；(非 html, ±编辑)=true；loading/error/binary/image 任意组合=false。
-- 交互回归（`ContentView.test.tsx` 既有 harness 可复用 render 方式）：`htmlView="preview"` + `isEditing=true` 时 `getByRole("button", { name: "查找" })` 存在，点击后出现 `[data-content-edit-findbar]`（`EditFindReplaceBar.tsx:102`）；退出编辑后阅读态 `FindBar` 不被意外打开（`onFindToggle` 分流，`index.tsx:122-125`）。
+- 交互回归（新文件 `ContentBrowser.test.tsx`，复用 `ContentView.test.tsx` 的 render harness 模式）：`preview→编辑` 与 `source→编辑` 下 `getByRole("button", { name: "查找" })` 存在，点击后出现 `[data-content-edit-findbar]`（`EditFindReplaceBar.tsx:102`）；新增退出编辑用例：取消编辑后放大镜消失、查找条关闭（`onFindToggle` 分流，`index.tsx:122-125`）。
 - `Ctrl+F` 两路径不断言新增（已有 handler 逻辑；新增 `htmlView` 条件的回归由矩阵覆盖语义，handler 本就不查 `htmlView`）。
 - 现有用例全量回归（`ContentView.test.tsx`、`Header.test.tsx`、`EditFindReplaceBar.test.tsx`）。
 
 ## 五、验收与改动清单
 
-改动文件：`content-browser/index.tsx`（改 1 行调用）＋ 新文件 `content-browser/findability.ts` ＋ `findability.test.ts`（＋交互用例进 `ContentView.test.tsx`）。
+改动文件：`content-browser/index.tsx`（改 1 行调用）＋ 新文件 `content-browser/findability.ts` ＋ `findability.test.ts` ＋ `ContentBrowser.test.tsx`（交互用例）。code-review 结论：查找条断言用 `[data-content-edit-findbar]` 保留（app README 语义查询优先，但该钩子是代码库自有稳定钩子，等价可接受）。
 
 验收：HTML 文件 `preview→编辑` 与 `source→编辑` 下 Header 放大镜都可见，点击都弹出查找替换条；阅读态 preview 下放大镜仍隐藏（iframe 内无文本可搜）；lint、typecheck 通过。
 
