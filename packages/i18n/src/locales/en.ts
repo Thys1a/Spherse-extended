@@ -840,7 +840,7 @@ export const en: Record<TranslationKey, string> = {
   "debug.promptTopP": "Top P",
   "debug.promptTokens": "Tokens",
   "debug.promptCapturedAt": "Captured",
-  "debug.promptFoldNote": "Folded + projected view (approximation of the next request), not the exact bytes sent",
+  "debug.promptFoldNote": "Folded + projected view (approximation of the next request), not the exact bytes sent; attachments stripped during projection",
   "debug.promptSnapshotFailed": "Snapshot unavailable",
   "welcome-page.fileMissing": "Welcome page file not found: {path}",
   "welcome-page.loadFailed": "Failed to load welcome page",

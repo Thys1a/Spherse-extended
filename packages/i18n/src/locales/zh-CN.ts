@@ -1682,7 +1682,7 @@ export const zhCN = {
   "debug.promptTopP": "Top P",
   "debug.promptTokens": "Tokens",
   "debug.promptCapturedAt": "Captured",
-  "debug.promptFoldNote": "Folded + projected view (approximation of the next request), not the exact bytes sent",
+  "debug.promptFoldNote": "Folded + projected view (approximation of the next request), not the exact bytes sent; attachments stripped during projection",
   "debug.promptSnapshotFailed": "Snapshot unavailable",
 
   // 欢迎页文件缺失时的错误提示，{path} 为文件路径

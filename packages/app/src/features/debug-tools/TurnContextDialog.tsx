@@ -117,9 +117,13 @@ export function TurnContextDialog({ projectId, client, sessionId, onClose }: Tur
 
   useEffect(() => {
     let cancelled = false;
-    if (!client) return;
+    if (!client) {
+      setSnapshotFailed(true);
+      return;
+    }
     setSnapshotLoading(true);
     setSnapshotFailed(false);
+    setSnapshot(null);
     client
       .getTurnContext(sessionId)
       .then((data) => {
@@ -136,7 +140,7 @@ export function TurnContextDialog({ projectId, client, sessionId, onClose }: Tur
     return () => {
       cancelled = true;
     };
-  }, [client, sessionId, reloadToken]);
+  }, [client, projectId, sessionId, reloadToken]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -302,10 +306,10 @@ export function TurnContextDialog({ projectId, client, sessionId, onClose }: Tur
               emptyText={t("debug.promptSnapshotFailed")}
               retryText={t("debug.eventLogRefresh")}
             >
-              <div className="rounded-md border border-border">
-                {(snapshot?.tools ?? []).map((tool) => (
-                  <SnapshotRow
-                    key={tool.name}
+      <div className="rounded-md border border-border">
+        {(snapshot?.tools ?? []).map((tool, index) => (
+          <SnapshotRow
+            key={`${tool.name}:${index}`}
                     title={
                       <>
                         <span className="font-mono text-xs text-foreground">{tool.name}</span>
@@ -341,8 +345,9 @@ function SnapshotBody({
   retryText: string;
   children: React.ReactNode;
 }) {
+  const { t } = useI18n();
   if (loading) {
-    return <div className="p-4 text-xs text-muted-foreground">{`${emptyText}…`}</div>;
+    return <div className="p-4 text-xs text-muted-foreground">{t("common.loading")}</div>;
   }
   if (failed) {
     return (

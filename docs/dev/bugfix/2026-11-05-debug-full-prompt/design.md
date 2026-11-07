@@ -41,15 +41,19 @@ currentTokens: Type.Optional(Type.Integer({ minimum: 0 })),      // 上次用量
 
 ### 2. core（`session/agent-runner.ts:getTurnContext` ＋ `session/types.ts`）
 
-- `TurnContextSnapshot` 同步加上述四字段（`model: string | null`，`thinkingLevel: ThinkingLevel`，`sampling?: SamplingParams`，`currentTokens?: number`）。
+- `TurnContextSnapshot` 同步加上述四字段（`model: string | null`，`thinkingLevel: ThinkingLevel`（取 pi-agent-core 的 7 档定义——core 自有 `types.ts:134` 的 4 档（settings/profile 管线）是其子集，`thinkingLevel` 在透传路径上恒为 pi 侧类型；contract 有意为超集，settings 不跟进），`sampling?: SamplingParams`，`currentTokens?: number`（整数，非负；`readCurrentTokens` 结果取整钳零后返回，保证契约 `Integer/minimum:0` 恒成立）。
 - `getTurnContext` 返回体追加：
   ```ts
-  model: this.agent.state.model ? `${this.agent.state.model.provider}/${this.agent.state.model.id}` : null,
-  thinkingLevel: this.agent.state.thinkingLevel,
-  sampling: this.deps.runConfig.current().sampling,
-  currentTokens: readCurrentTokens(llmMessages, this.agent.state.systemPrompt),
+  const snapshotModel = this.agent.state.model;
+  const snapshotSampling = this.deps.runConfig.current().sampling;
+  const estimate = readCurrentTokens(llmMessages, this.agent.state.systemPrompt);
+  // …return {
+    model: snapshotModel ? `${snapshotModel.provider}/${snapshotModel.id}` : null,
+    thinkingLevel: this.agent.state.thinkingLevel,
+    sampling: snapshotSampling ? { ...snapshotSampling } : undefined,  // 拷贝，不外泄可变 runConfig
+    currentTokens: Math.max(0, Math.floor(estimate)),                  // 恒为非负整数
   ```
-  model 取 `provider/id`（与 app 侧模型 id 约定一致，`catalog.ts:276-283` 按 `/` 切分；`pi-ai` `Model` 含不可序列化成员与敏感 `headers`，`models.d.ts:59,716-737`，绝不整体透传）；thinkingLevel 恒有值；sampling/currentTokens 缺配置时为 undefined/估算值，透传即可（`readCurrentTokens` 已在 `getStatus` 使用，`agent-runner.ts:510-516`）。
+  model 取 `provider/id`（与 app 侧模型 id 约定一致，`catalog.ts:276-283` 按 `/` 切分；`pi-ai` `Model` 含不可序列化成员与敏感 `headers`，`models.d.ts:59,716-737`，绝不整体透传）；thinkingLevel 恒有值；sampling 拷贝后透传（不外泄可变 runConfig）；currentTokens 取整钳零后返回，保证契约成立。
 - server 路由无改动（`parseContract(schemas.turnContextSnapshot, …)` 自动覆盖新字段）。
 
 ### 3. app（`features/debug-tools/TurnContextDialog.tsx`）
@@ -72,7 +76,7 @@ currentTokens: Type.Optional(Type.Integer({ minimum: 0 })),      // 上次用量
 
 - contracts：`api-contracts.test.ts:768` 既有用例追加新字段正样本（含 `model: "openai/gpt-4o"`、`model: null`、`sampling` 部分字段）＋缺字段仍通过（可选性回归）＋非法 `thinkingLevel` / 非数字 `estimatedTokens` 抛错。
 - core：`agent-runner.test.ts:366,428,438` 既有 `getTurnContext` 用例旁加断言——`model` 为 `provider/id`（未配置模型时为 null，单独覆盖该分支）、`thinkingLevel` 恒有值、`sampling` 缺配置时为 undefined、`currentTokens` 为非负整数；投影 messages 不变（现有 wire parity 用例 `:438-502` 即回归）。
-- server：`debug-routes.test.ts` 新增 turn-context 用例（mock `sessionRuntime.getTurnContext` 返回含新字段快照，断言 200＋字段透传；沿用该文件既有 Fastify inject 模式）。
+- server：`debug-routes.test.ts` 新增 turn-context 用例（mock `sessionRuntime.getTurnContext` 返回含新字段快照，断言 200＋字段透传；沿用该文件既有 Fastify inject 模式）；404 用例 mock 必须用同步 `throw`（`mockImplementationOnce(() => { throw … })`，因为真实 `getTurnContext` 是同步函数——若用 `mockRejectedValueOnce`，未 await 的 rejected promise 会直接掉进 `parseContract` 变成误导性的 422/500，而不是预期的 404。
 - app：`TurnContextDialog.test.tsx` 扩展 mock（`getTurnContext` 返回含新字段快照）：断言四页签存在、System 页含 systemPrompt 全文、参数行含 model 名与 token 数；`model: null` 时显示占位不断言崩；**`getTurnContext` reject 时事件列表仍渲染、快照页签显示内联错误**（降级用例）。
 - 全量回归：`agent-assembly.test.ts`（projector 管线未动，防抖）、`TurnContextDialog` 既有用例、`api.ts` 无改动。
 

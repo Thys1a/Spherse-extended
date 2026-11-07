@@ -840,7 +840,7 @@ export const zhTW: Record<TranslationKey, string> = {
   "debug.promptTopP": "Top P",
   "debug.promptTokens": "Tokens",
   "debug.promptCapturedAt": "Captured",
-  "debug.promptFoldNote": "Folded + projected view (approximation of the next request), not the exact bytes sent",
+  "debug.promptFoldNote": "Folded + projected view (approximation of the next request), not the exact bytes sent; attachments stripped during projection",
   "debug.promptSnapshotFailed": "Snapshot unavailable",
   "welcome-page.fileMissing": "歡迎頁檔案不存在：{path}",
   "welcome-page.loadFailed": "歡迎頁載入失敗",

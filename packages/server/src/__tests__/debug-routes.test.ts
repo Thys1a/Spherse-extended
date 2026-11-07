@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
+import { NotFoundError } from "@spherse/core";
 import { registerDebugRoutes } from "../routes/debug.js";
 import { HttpError } from "../errors.js";
 import type { ProjectRegistry } from "../registry.js";
@@ -43,6 +44,8 @@ describe("debug routes", () => {
     });
     app.setErrorHandler((err, _req, reply) => {
       if (err instanceof HttpError) return reply.code(err.statusCode).send({ error: err.message });
+      // Mirrors the production mapping in server/src/index.ts.
+      if (err instanceof NotFoundError) return reply.code(404).send({ error: err.message });
       reply.code(500).send({ error: err.message });
     });
     registerDebugRoutes(app, {} as ProjectRegistry);
@@ -98,5 +101,20 @@ describe("debug routes", () => {
       currentTokens: 128,
     });
     expect(runtime.sessionRuntime.getTurnContext).toHaveBeenCalledWith("s1");
+  });
+
+  it("responds 404 when the session runtime is not active", async () => {
+    // NOTE: the real getTurnContext throws synchronously (plain sync function),
+    // so the mock must throw too — mockRejectedValueOnce would hand a rejected
+    // promise to parseContract instead, producing a misleading 500.
+    vi.mocked(runtime.sessionRuntime.getTurnContext).mockImplementationOnce(() => {
+      throw new NotFoundError('No active session "ghost"');
+    });
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/projects/p1/debug/sessions/ghost/turn-context",
+    });
+    expect(res.statusCode).toBe(404);
+    expect(res.json()).toEqual({ error: 'No active session "ghost"' });
   });
 });
