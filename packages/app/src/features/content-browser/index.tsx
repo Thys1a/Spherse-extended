@@ -7,6 +7,7 @@ import { useHostBridge } from "../../context/host-bridge-context";
 import { useFeature } from "../../lib/use-feature";
 import { ConflictBanner } from "./ConflictBanner";
 import { ConfirmDialogs } from "./ConfirmDialogs";
+import { isFindable } from "./findability";
 import { ContentView } from "./ContentView";
 import { Header } from "./Header";
 import { classifyFileKind } from "./file-kind";
@@ -97,7 +98,15 @@ export function ContentBrowser({
 
   const { isMarkdown, isHtml, isImage } = classifyFileKind(filePath);
   const isEditable = !isImage && !binary && !loading && bridge.capabilities.content.editable;
-  const findable = !loading && !error && !binary && !isImage && !(isHtml && htmlView === "preview");
+  const findable = isFindable({
+    loading,
+    error,
+    binary,
+    isImage,
+    isHtml,
+    htmlView,
+    isEditing: editor.isEditing,
+  });
 
   return (
     <div ref={rootRef} data-content-browser className="flex flex-col h-full">

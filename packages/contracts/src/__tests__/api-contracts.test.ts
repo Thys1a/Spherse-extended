@@ -777,6 +777,36 @@ describe("api contracts", () => {
     expect(() => parseApiResponse(schemas.turnContextSnapshot, { sessionId: "s1" })).toThrow(/Invalid payload/);
   });
 
+  it("validates turn context snapshot model/sampling/currentTokens options", () => {
+    const base = {
+      sessionId: "s1",
+      capturedAt: "2024-01-01T00:00:00.000Z",
+      systemPrompt: "p",
+      messages: [],
+      tools: [],
+    };
+    const full = {
+      ...base,
+      model: "openai/gpt-4o",
+      thinkingLevel: "medium",
+      sampling: { temperature: 0.7 },
+      currentTokens: 128,
+    };
+    expect(parseApiResponse(schemas.turnContextSnapshot, full)).toEqual(full);
+    expect(
+      parseApiResponse(schemas.turnContextSnapshot, { ...base, model: null }),
+    ).toMatchObject({ model: null });
+    expect(
+      parseApiResponse(schemas.turnContextSnapshot, { ...base, thinkingLevel: "minimal" }),
+    ).toMatchObject({ thinkingLevel: "minimal" });
+    expect(() =>
+      parseApiResponse(schemas.turnContextSnapshot, { ...base, thinkingLevel: "ultra" }),
+    ).toThrow(/Invalid payload/);
+    expect(() =>
+      parseApiResponse(schemas.turnContextSnapshot, { ...base, currentTokens: -1 }),
+    ).toThrow(/Invalid payload/);
+  });
+
   it("validates session event log", () => {
     const log = {
       sessionId: "s1",

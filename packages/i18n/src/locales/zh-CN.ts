@@ -1671,6 +1671,19 @@ export const zhCN = {
   "debug.eventLogLoadFailed": "Failed to load event log",
   // Turn Context 弹窗：单条事件一键复制按钮的提示
   "debug.eventLogCopy": "Copy",
+  // Turn Context 弹窗：完整 prompt 页签与参数行
+  "debug.promptTabEvents": "Events",
+  "debug.promptTabSystem": "System",
+  "debug.promptTabMessages": "Messages",
+  "debug.promptTabTools": "Tools",
+  "debug.promptModel": "Model",
+  "debug.promptThinking": "Thinking",
+  "debug.promptTemperature": "Temperature",
+  "debug.promptTopP": "Top P",
+  "debug.promptTokens": "Tokens",
+  "debug.promptCapturedAt": "Captured",
+  "debug.promptFoldNote": "Folded + projected view (approximation of the next request), not the exact bytes sent; attachments stripped during projection",
+  "debug.promptSnapshotFailed": "Snapshot unavailable",
 
   // 欢迎页文件缺失时的错误提示，{path} 为文件路径
   "welcome-page.fileMissing": "欢迎页文件不存在：{path}",

@@ -64,6 +64,7 @@
 - [ ] **chat WS 出站背压**：`ChatChannel.publish` 同步 `socket.send`，慢客户端（手机 PWA 走公网 tunnel）的 ws 发送缓冲无上限增长（`message_update` 为累积快照，帧大且高频），无人看 `bufferedAmount`。方向：ws-chat 的 send 闭包按 `bufferedAmount` 分级——软阈值（~1MB）丢弃流式 update 帧（累积快照语义下丢中间帧无损，下一条即全量）、硬上限（~16MB）close 断开，客户端经游标重放 + 快照无损恢复。参见 `docs/dev/features/2026-09-05-chat-refactor/design.md`（hub 缺陷分析节）。
 - [ ] **server/core 错误消息 i18n**：ws error frame 的 `message` 由 renderer 直接展示（`entry-reducer.applyError`），但 server/core 硬编码英文（新增 `RuntimeClosedError` / `ChannelClosedError` 等），两包均不依赖 `@spherse/i18n`。方向：wire 以稳定 code 为主、renderer 按 code 映射文案；或在 server 注入翻译函数。2026-09-15 hub 收口 review 记录。
 - [ ] **抽取共享的平台判断小工具**：`isMacPlatform()`（`userAgentData.platform ?? navigator.platform` 回退链）在 `packages/app/src/features/chat/Header.tsx` 与 `features/project-panel/index.tsx` 逐字重复。方向：收敛到 `app/src/lib/` 小 util 并复用，避免后续补 Linux/Windows 区分时漏改。2026-10-18 ui-triage review 发现（m1，非阻塞）
+- [ ] **统一 content-browser 查找可见性判定**：`index.tsx` 的 `findable` 与 `ContentView.tsx` 的 `findEnabled` 是两套高度相似但不同的门控（后者多 `content !== null`、前置 `!isEditing`），本次"HTML 直接点编辑无搜索按钮"bug 即两处漂移所致。方向：收敛到同一纯谓词（如 `findability.ts`），`findEnabled = isFindable({..., isEditing: false}) && content !== null`。参见 `docs/dev/bugfix/2026-11-05-html-edit-find-button/design.md`
 
 ## 条件触发（设计决策）
 
@@ -98,7 +99,6 @@
 - [ ] **补齐 web 端 agent 管理的移动端触屏入口**：agent 编辑/删除、触发器、MCP 配置的唯一入口是 AgentRow 右键 ContextMenu（`AgentRow.tsx`），移动端依赖 Base UI 长按（500ms）；iOS 长按与系统放大镜/预览手势的竞争未真机验证，SearchFileField 建议项用 `onMouseDown` 也依赖合成 mouse 事件。方向：真机验证长按可达性，不可靠则给 AgentRow 补显式 `…` 菜单（与「新建 Agent」的 DropdownMenu 同款），顺带过一遍 TriggerForm/McpServerForm 窄屏表单。参见 `docs/dev/investigation/2026-08-28-web-disabled-features/investigation.md`
 - [ ] **移动端 MobileLayout 打磨 + 移动专属 UI**：当前 web 端复用桌面 ActivityBar 的 avatar 列表做项目切换。需要做移动专属的项目列表 UI（取代 avatar 列表）+ 移动专属 settings 入口（locale/theme 本地化 + 断开连接）+ bottom-sheet 风格统一应用到所有 Dialog。参见 `docs/dev/features/2026-07-20-mobile-app/design.md` §3.2 与 `design-pr4b.md`
 - [ ] **GitHub Copilot OAuth 登录**：当前 GitHub Copilot 走 apiKey 路径（用户手动粘贴 `COPILOT_GITHUB_TOKEN`）。pi-ai 的 `githubCopilotProvider()` 同时声明了 `lazyOAuth` device-flow；接入需 electron 层调用 pi-ai OAuth helper + 持久化 refresh token + 前端「用 GitHub 登录」按钮，实现免粘贴 token。
-- [ ] **Chat Debug 模式**：在对话界面提供 debug 模式，展示 agent 的 tool call 请求、响应、system prompt 等原始数据，方便开发和调试
 - [ ] **思考强度 composer 会话级覆盖（二期）**：全局默认已落地（settings → RunConfig 传播链）；二期在聊天输入框加快捷档位切换，仅当前会话生效。要点：chat WS `message` payload 加 `thinkingLevel?` 字段（contracts + 契约测试）、`AgentRunner.sendMessage` turn 前一次性覆盖 `agent.state.thinkingLevel`、composer 按 sessionId sticky 状态（同 draft 键控模式）、档位按当前生效模型 `getSupportedThinkingLevels` 动态显示。参见 `docs/dev/features/2026-08-28-model-thinking-intensity/design.md` 二期草图
 - [ ] **Presets i18n**：为 `@spherse/presets` 内置模板和预置内容增加多语言支持，作为 i18n 基础设施完成后的独立任务
 - [ ] **moveEntry 路径判断改用 isPathInside（upstream merge review C1）**：`packages/core/src/project-manager.ts:396` 用 `dest.startsWith(src + path.sep)` 做子路径判断，违反路径安全红线。方向：改 `isPathInside(dest, src)` 并补单测。pre-existing（`ba9d342`），merge 未动。

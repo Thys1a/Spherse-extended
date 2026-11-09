@@ -12,6 +12,25 @@ const turnContextSnapshot = Type.Object({
       parameters: Type.Unknown(),
     }),
   ),
+  model: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+  thinkingLevel: Type.Optional(
+    Type.Union([
+      Type.Literal("off"),
+      Type.Literal("minimal"),
+      Type.Literal("low"),
+      Type.Literal("medium"),
+      Type.Literal("high"),
+      Type.Literal("xhigh"),
+      Type.Literal("max"),
+    ]),
+  ),
+  sampling: Type.Optional(
+    Type.Object({
+      temperature: Type.Optional(Type.Number()),
+      topP: Type.Optional(Type.Number()),
+    }),
+  ),
+  currentTokens: Type.Optional(Type.Integer({ minimum: 0 })),
 });
 
 const debugSessionEvent = Type.Object({
