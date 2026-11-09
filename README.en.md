@@ -83,11 +83,20 @@ The reusable, distributable unit is not merely a prompt. It is a complete Worksp
 - **Rollback**: `rollback_turn` undoes one turn's data and card writes in a single call.
 - **Long-term memory**: `memory_save` / `memory_recall` remember facts across sessions.
 
+### Native floating windows (desktop)
+
+- Chat and content floats can pop out as native windows via the title-bar button; the in-window floats stay available and the web build keeps the old behavior.
+- Native windows are frameless and always-on-top; each item lives in exactly one place (popped-out items leave the overlay, closing one restores it with a clamped position).
+- Window position and size persist across moves and resizes with multi-monitor clamping; reopened floats restore on restart (up to 3).
+
 ### Context engineering (not in upstream)
 
 - **Multi-turn compaction**: pre-send checks, auto-continuation after cutoff, three-layer tool-output defense, manual compaction entry, automatic shrinking of historical tool outputs.
+- **Compaction banner**: a small banner appears above the composer after compaction, showing the result and compacted message count; expandable for the summary, dismissible; covers both manual and automatic compactions.
 - **Retrieval guardrails**: `search_content` reports and skips oversized files, with per-line and total truncation.
 - **Skill allowlists**: each agent can individually check its project skills (on by default) and machine-global skills (off by default, opt-in per item); `manage_agent` can read and write both lists.
+- **Agent skills tab**: the agent dialog gains a "Skills" tab listing builtin/project/global skills in three collapsible sections; global skills stay off by default and require opt-in per item.
+- **State data links**: link a project's `.data.json` into an agent; the subtree declared by `$state` is injected into the prompt before every turn; edits to the target file take effect immediately, with total token usage shown against the context window.
 
 ### Automation events (beyond upstream triggers)
 
@@ -203,7 +212,13 @@ Spherse ships as a macOS, Windows, and Linux desktop app. A token-protected Web 
 
 ## Release notes
 
-### v1.0.3 (current)
+### v1.0.4 (current)
+
+- New "Skills" tab in the agent dialog; small banner above the composer shows compaction results
+- Chat and content floats can pop out as native desktop windows; state data links inject `.data.json` + `$state` subtrees into the prompt every turn
+- Debug dialog gains a full prompt snapshot view (System/Messages/Tools); fixed missing search button when entering HTML edit mode directly
+
+### v1.0.3
 
 - Per-agent ask and tool-call limits: `ask_user` can wait indefinitely (600s by default), per-turn tool-call cap can be lifted past 30
 - Content browser: edit-mode outline sidebar jumps, search-jump landing and CRLF selection fixes
@@ -224,7 +239,6 @@ Spherse ships as a macOS, Windows, and Linux desktop app. A token-protected Web 
 
 ## Roadmap
 
-- **v1.0.4**: state data links (`.data.json` + `$state` declaration injection), session-level profile overrides
 - **v1.1.0 (writing & storage)**: worldbuilding aids (with data-format visualization), restricted SDK writes, memory upgrades, world book UI, in-app backup
 - **v1.2.0 (tooling)**: AI output parsing (chat rendering / trigger integration), bubble translation with quote styling, info-card usage, kit import/export, auxiliary models
 - **v1.3.0 (mobile)**: mobile experience improvements
