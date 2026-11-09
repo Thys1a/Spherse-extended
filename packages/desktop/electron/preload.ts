@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { ElectronAPI, UpdateEvent } from "./types.js";
+import type { ElectronAPI, FloatWindowCloseSelfOptions, FloatWindowOpenOptions, UpdateEvent } from "./types.js";
 import type { MobileAccessEvent } from "@spherse/app/host-bridge";
 
 const UPDATE_EVENT_CHANNELS = [
@@ -12,6 +12,8 @@ const UPDATE_EVENT_CHANNELS = [
 
 const MOBILE_EVENT_CHANNEL = "mobile-access:event";
 const NOTIFICATION_CLICK_CHANNEL = "notification-clicked";
+const FLOAT_WINDOW_CLOSED_CHANNEL = "float-window:closed";
+const FLOAT_WINDOW_NAVIGATE_CHANNEL = "float-window:navigate-main";
 
 contextBridge.exposeInMainWorld("electronAPI", {
   selectDirectory: () => ipcRenderer.invoke("select-directory"),
@@ -80,5 +82,38 @@ contextBridge.exposeInMainWorld("electronAPI", {
     const handler = (_e: unknown, payload: MobileAccessEvent) => callback(payload);
     ipcRenderer.on(MOBILE_EVENT_CHANNEL, handler);
     return () => ipcRenderer.removeListener(MOBILE_EVENT_CHANNEL, handler);
+  },
+  floatWindowOpen: (options: FloatWindowOpenOptions) =>
+    ipcRenderer.invoke("float-window:open", options),
+  floatWindowCloseSelf: (options?: FloatWindowCloseSelfOptions) =>
+    ipcRenderer.invoke("float-window:close-self", options ?? {}),
+  floatWindowNavigateMain: (route: string) =>
+    ipcRenderer.invoke("float-window:navigate-main", route),
+  floatWindowList: () => ipcRenderer.invoke("float-window:list"),
+  onFloatWindowClosed: (
+    callback: (payload: {
+      key: string;
+      kind: "chat" | "content";
+      projectId: string;
+      itemKey: string;
+      bounds: { x: number; y: number; width: number; height: number };
+      reason: "dock" | "closed" | "crashed";
+    }) => void,
+  ) => {
+    const handler = (_e: unknown, payload: {
+      key: string;
+      kind: "chat" | "content";
+      projectId: string;
+      itemKey: string;
+      bounds: { x: number; y: number; width: number; height: number };
+      reason: "dock" | "closed" | "crashed";
+    }) => callback(payload);
+    ipcRenderer.on(FLOAT_WINDOW_CLOSED_CHANNEL, handler);
+    return () => ipcRenderer.removeListener(FLOAT_WINDOW_CLOSED_CHANNEL, handler);
+  },
+  onFloatWindowNavigateMain: (callback: (payload: { route: string }) => void) => {
+    const handler = (_e: unknown, payload: { route: string }) => callback(payload);
+    ipcRenderer.on(FLOAT_WINDOW_NAVIGATE_CHANNEL, handler);
+    return () => ipcRenderer.removeListener(FLOAT_WINDOW_NAVIGATE_CHANNEL, handler);
   },
 } satisfies ElectronAPI);

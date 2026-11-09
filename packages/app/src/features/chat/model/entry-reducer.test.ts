@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { ErrorEventCode } from "@spherse/contracts";
 import type { AssistantEntry, ErrorEntry, ToolResultEntry, UserEntry } from "./entry";
 import { markRetrying, reduceLiveEvents } from "./entry-reducer";
-import { createEntryState, type ChatEntryState } from "./entry-state";
+import { createEntryState, shouldNotifyCompactResult, type ChatEntryState } from "./entry-state";
 import type { AgentEvent } from "./agent-event-parse";
 
 function event(payload: object): AgentEvent {
@@ -225,7 +225,7 @@ describe("entry reducer", () => {
       1,
     );
     expect(state.pendingCompact).toBe(false);
-    expect(state.compactResult).toEqual({ applied: true, digestSource: "llm" });
+    expect(state.compactResult).toEqual({ applied: true, origin: "manual", digestSource: "llm" });
     expect(state.entries.map((entry) => entry.id)).toEqual(["a1"]);
   });
 
@@ -233,7 +233,14 @@ describe("entry reducer", () => {
     let state = { ...createEntryState(), pendingCompact: true };
     state = reduceLiveEvents(state, [event({ type: "compact_result", applied: false })], 1);
     expect(state.pendingCompact).toBe(false);
-    expect(state.compactResult).toEqual({ applied: false });
+    expect(state.compactResult).toEqual({ applied: false, origin: "manual" });
+  });
+
+  it("notifies toasts only for manual compactions", () => {
+    expect(shouldNotifyCompactResult({ applied: true, origin: "manual" })).toBe(true);
+    expect(shouldNotifyCompactResult({ applied: false, origin: "manual" })).toBe(true);
+    expect(shouldNotifyCompactResult({ applied: true, origin: "auto" })).toBe(false);
+    expect(shouldNotifyCompactResult({ applied: true })).toBe(true);
   });
 
   it("keeps pending across compaction_applied and settles on compact_result", () => {
@@ -245,7 +252,7 @@ describe("entry reducer", () => {
       1,
     );
     expect(state.pendingCompact).toBe(true);
-    expect(state.compactResult).toBeNull();
+    expect(state.compactResult).toEqual({ applied: true, origin: "auto", anchorSeq: 4, excludedCount: 0 });
     expect(state.cursor).toBe(9);
     state = reduceLiveEvents(
       state,
@@ -253,7 +260,7 @@ describe("entry reducer", () => {
       1,
     );
     expect(state.pendingCompact).toBe(false);
-    expect(state.compactResult).toEqual({ applied: true, digestSource: "llm" });
+    expect(state.compactResult).toEqual({ applied: true, origin: "manual", digestSource: "llm" });
     expect(state.cursor).toBe(9);
   });
 
@@ -266,6 +273,37 @@ describe("entry reducer", () => {
     );
     expect(state.cursor).toBe(9);
     expect(state.entries.map((entry) => entry.id)).toEqual(["a1"]);
+  });
+
+  it("records the banner state on compaction_applied with excluded count", () => {
+    let state = createEntryState();
+    state = reduceLiveEvents(
+      state,
+      [event({ type: "compaction_applied", seq: 9, anchorSeq: 4, excludedSeqs: [1, 2, 3], digestSource: "llm" })],
+      1,
+    );
+    expect(state.compactResult).toEqual({
+      applied: true,
+      origin: "auto",
+      anchorSeq: 4,
+      excludedCount: 3,
+      digestSource: "llm",
+    });
+  });
+
+  it("replaces the previous banner state on a new compaction", () => {
+    let state = createEntryState();
+    state = reduceLiveEvents(
+      state,
+      [event({ type: "compaction_applied", seq: 9, anchorSeq: 4, excludedSeqs: [1] })],
+      1,
+    );
+    state = reduceLiveEvents(
+      state,
+      [event({ type: "compaction_applied", seq: 20, anchorSeq: 15, excludedSeqs: [2, 3] })],
+      1,
+    );
+    expect(state.compactResult).toEqual({ applied: true, origin: "auto", anchorSeq: 15, excludedCount: 2 });
   });
 
   it("tracks control requests on tool results and resolves them", () => {

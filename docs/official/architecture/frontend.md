@@ -29,6 +29,7 @@ renderer 单份代码、宿主差异经此接口抽象的决策见 [ADR-0006](..
   - `/` → App shell（errorElement 为全局错误边界），index → OnboardingPage
   - `project/:projectId` → `ProjectScope`（layout route，经 `<Outlet />` 渲染子页面）
     - index → 欢迎页；`chat/:sessionId` → ChatPage；`content` → ContentBrowserPage；`browser` → BrowserPage
+  - `/float` → `FloatRoot`（原生浮窗顶层分支，与 `/` 平级）：`float/chat/:projectId/:sessionId` → FloatChatPage，`float/content/:projectId`（`?path=`）→ FloatContentPage；经 `FloatProjectScope` 取项目（`ensureProject`，不写 activeProject/lastRoute）
 - Settings 不是路由——是 App shell 级全局 modal（app-ui-store 控制开关与 tab 定位）
 - **remount 下放 page 级**：ProjectScope 作为 layout 不因项目/路由切换重挂；需要重建的视图由各 page 自持 key——`<Chat key={sessionId}>`、ContentBrowser 按 path、WelcomePage 按 projectId
 - `pages/` 是薄 route adapter：参数解析与缺参重定向，不承载业务逻辑
@@ -39,7 +40,7 @@ renderer 单份代码、宿主差异经此接口抽象的决策见 [ADR-0006](..
 
 | 层 | 内容 | 持久化 |
 |---|---|---|
-| app-store | connection、打开项目集合、activeProjectId | 项目集合与 lastActive 经 bridge.project 子 API（desktop 落 electron settings，web 走 HTTP + localStorage）；lastRoute 在 localStorage |
+| app-store | connection、打开项目集合、activeProjectId | 项目集合与 lastActive 经 bridge.project 子 API（desktop 落 electron settings，web 走 HTTP + localStorage）；lastRoute 在 localStorage；`ensureProject` 按 id 轻量取项目信息（浮窗用，不碰 active/lastRoute） |
 | settings-store | locale / theme / debugTools | 经 bridge `prefs` / `desktopPrefs`（desktop 读写 electron-store hostPrefs，web 读写 localStorage `spherse:prefs`）；模型与搜索配置走 REST（`ApiClient` 全宿主） |
 | TanStack Query | agents / sessions / content / directories / fileTree / skills / marketplace-skills / triggers / welcome-page / theme-settings | 内存 cache，项目关闭清除 |
 | project-data-store | 只保存 initialMessage 一个运行时投影 | 内存 |
@@ -49,6 +50,7 @@ renderer 单份代码、宿主差异经此接口抽象的决策见 [ADR-0006](..
 - feature store 持久化分布：
   - localStorage：floating-chat（`spherse:floating-chat:<projectId>`）、floating-content-browser 与 browser（全局单 key）
   - 纯内存（关项目即清）：agent-session-list 折叠、agent-trigger 运行态
+  - 已弹出原生浮窗的项只在一处存在：`detached-float-store` 记 key 集合（主窗 `FloatSyncBridge` 从 `float-window:list` hydration），overlay store 的打开动作命中即经注册回调聚焦原生窗、不建 overlay；弹出先开原生窗成功再删 overlay，失败保留 overlay
 - **query key 一律 `["projects", projectId, ...]`**（`queries/keys.ts` factory）；文件内容 query 定义在 `features/content-browser/hooks/useContentFile.ts`——域 key 统一，定义位置按消费方就近
 - **项目关闭清缓存**：`clearProjectQueries` 三步——generation++ → cancelQueries → removeQueries；generation 递增使迟到异步结果拒绝写入已清缓存
 - 总线层 `bus-store`：全局多路复用 WS（`/ws/bus`），channels trigger / agent / fs-watch / debug；连接委托 `lib/ws/ws-connection.ts`（backoff `[1,2,5,10,30]s`、心跳 30s/60s、probe 5s；store 只保留 resumedAt 与订阅派发）
@@ -65,7 +67,7 @@ renderer 单份代码、宿主差异经此接口抽象的决策见 [ADR-0006](..
 | UiSdkBridge（event 桥） | fs-watch | 变更事件 debounce 后定向转发给订阅的 iframe（见 [ui-sdk.md](ui-sdk.md)） |
 | useDataLinkedRefresh（hook） | fs-watch | 只订阅自身文件 + HTML 内联 data 引用（`extractDataFileRefs`），防抖后 bump revision 触发重取；`HtmlCard` 与浮窗内容容器同构复用 |
 
-- 项目级桥统一挂 `ProjectRuntimeBridges`（ProjectScope 内的纯挂载 fragment：3 个 FeatureGate manager + 5 个 bridge）；带运行态的域（trigger）用专属桥；跨会话 toast（ApprovalNoticeBridge，订阅 chat session store）与自动更新 toast（UpdateNoticeBridge，订阅 host-bridge updater 事件）挂 App 级
+- 项目级桥统一挂 `ProjectRuntimeBridges`（ProjectScope 内的纯挂载 fragment：3 个 FeatureGate manager + 5 个 bridge）；带运行态的域（trigger）用专属桥；跨会话 toast（ApprovalNoticeBridge，订阅 chat session store，浮窗内点击走 `floatWindow.navigateMain`）与自动更新 toast（UpdateNoticeBridge，订阅 host-bridge updater 事件）挂 App 级；`FloatSyncBridge` 挂 App 级（主窗专属：hydration 已弹出集合、收回 overlay、转发浮窗导航请求）
 - **重连补偿**：bus 重连置 `resumedAt`，各桥经 `useReconnectedSync` 批量失效缓存——错过的事件不重放，靠失效重拉对齐
 - App 级补偿：重连后 refreshProjects；路由指向已消失项目时重定向
 
@@ -83,10 +85,10 @@ renderer 单份代码、宿主差异经此接口抽象的决策见 [ADR-0006](..
   - 内容与浏览：content-browser、browser、welcome-page、text-selection-session
   - 会话：chat、floating-chat、floating-content-browser
   - 应用级：settings、project-settings、onboarding、debug-tools
-- `layouts/`：`ProjectScope`（项目工作区 layout route）+ `ProjectRuntimeBridges`（项目级桥挂载）+ `project-lifecycle.ts`（项目关闭级联清理）；跨 feature 编排放 layout 或自治 bridge
+- `layouts/`：`ProjectScope`（项目工作区 layout route）+ `ProjectRuntimeBridges`（项目级桥挂载）+ `project-lifecycle.ts`（项目关闭级联清理）+ `FloatRoot` / `FloatProjectScope`（原生浮窗分支，见路由模型）；跨 feature 编排放 layout 或自治 bridge
 - `components/` 收 shadcn/ui 与跨 feature 复用组件；两个可复用子系统：
   - `file-tree/`：`FileTree` 支持 rootPath / emptyLabel，user-file-panel 与 skill-panel 共用；目录数据全走 directory query（每个目录节点组件自持 `useProjectDirectory`，`enabled: expanded`），controller 只保存交互状态（expandedPaths / creating / deleteTarget）
-  - `floating-frame/`：拖拽 / resize chrome，`hookPrefix` 生成 `data-*-float-*` 主题钩子，三个浮窗 feature 复用
+  - `floating-frame/`：拖拽 / resize chrome，`hookPrefix` 生成 `data-*-float-*` 主题钩子，三个浮窗 feature 复用；`onPopOut` 弹出为原生窗口按钮
 - side-panel 双形态：桌面 pinned 常驻或 hover 展开（clickAway 收起）；移动端（768px 断点）浮动按钮 + transform 滑出面板 + backdrop，关闭态 `inert` 防焦点泄漏
 
 ## 杂项机制

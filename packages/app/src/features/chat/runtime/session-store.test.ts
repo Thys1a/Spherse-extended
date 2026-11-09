@@ -267,12 +267,25 @@ describe("chat session store", () => {
     socket.onmessage?.({ data: JSON.stringify({ type: "compact_result", applied: true }) } as MessageEvent);
     await flush();
     expect(session().pendingCompact).toBe(false);
-    expect(session().compactResult).toEqual({ applied: true });
+    expect(session().compactResult).toEqual({ applied: true, origin: "manual" });
 
     expect(useChatSessionStore.getState().compactSession("s1")).toBe(true);
     socket.onmessage?.({ data: JSON.stringify({ type: "compact_result", applied: false }) } as MessageEvent);
     await flush();
-    expect(session().compactResult).toEqual({ applied: false });
+    expect(session().compactResult).toEqual({ applied: false, origin: "manual" });
+  });
+
+  it("clears the compact result only for the dismissed session", async () => {
+    const socket = await attachAndOpen();
+    socket.onmessage?.({ data: JSON.stringify({ type: "compact_result", applied: true }) } as MessageEvent);
+    const socket2 = await attachAndOpen("s2");
+    socket2.onmessage?.({ data: JSON.stringify({ type: "compact_result", applied: true }) } as MessageEvent);
+    await flush();
+    expect(session("s1").compactResult).toEqual({ applied: true, origin: "manual" });
+    expect(session("s2").compactResult).toEqual({ applied: true, origin: "manual" });
+    useChatSessionStore.getState().clearCompactResult("s1");
+    expect(session("s1").compactResult).toBeNull();
+    expect(session("s2").compactResult).toEqual({ applied: true, origin: "manual" });
   });
 
   it("resends edited content after turn_withdrawn and clears the intent", async () => {

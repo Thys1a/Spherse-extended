@@ -1,10 +1,11 @@
-import { ipcMain, dialog, shell } from "electron";
-import type { BrowserWindow } from "electron";
+import { ipcMain, dialog, shell, BrowserWindow } from "electron";
+import type { IpcMainInvokeEvent } from "electron";
 import path from "node:path";
 import { isInsideAnyOpenProject } from "./open-file-path.js";
 import { isInsideUnsafeZone } from "../unsafe-location.js";
 import { translate, normalizeLocale } from "@spherse/i18n";
 import { registerProject, unregisterProject, getServerPort, setProjectLastOpened } from "../server.js";
+import { closeFloatsForProject, restoreFloatWindows } from "../float-window.js";
 import {
   getOpenProjects,
   addOpenProject,
@@ -73,6 +74,14 @@ export function registerProjectIpc(
 ): void {
   let unsafeStartupWarningShown = false;
 
+  function senderWindow(event: IpcMainInvokeEvent): BrowserWindow | null {
+    try {
+      return BrowserWindow.fromWebContents(event.sender) ?? getWindow();
+    } catch {
+      return getWindow();
+    }
+  }
+
   async function warnUnsafeRestoredProjects(
     restored: Array<{ name: string; path: string }>,
   ): Promise<void> {
@@ -112,10 +121,10 @@ export function registerProjectIpc(
     }
   }
 
-  ipcMain.handle("select-directory", async () => {
+  ipcMain.handle("select-directory", async (event) => {
     const forcedDir = process.env.SPHERSE_E2E_SELECT_DIRECTORY;
     if (forcedDir) return forcedDir;
-    const win = getWindow();
+    const win = senderWindow(event);
     if (!win) return null;
     const result = await dialog.showOpenDialog(win, {
       properties: ["openDirectory", "createDirectory"],
@@ -123,8 +132,8 @@ export function registerProjectIpc(
     return result.canceled ? null : result.filePaths[0];
   });
 
-  ipcMain.handle("open-project", async (_event, projectRoot: string) => {
-    if (!(await confirmUnsafeLocation(projectRoot, getWindow()))) return null;
+  ipcMain.handle("open-project", async (event, projectRoot: string) => {
+    if (!(await confirmUnsafeLocation(projectRoot, senderWindow(event)))) return null;
     return registerProject(projectRoot, { lastOpened: new Date().toISOString() });
   });
 
@@ -148,12 +157,14 @@ export function registerProjectIpc(
       }
     }
     await warnUnsafeRestoredProjects(results);
+    restoreFloatWindows(results.map((r) => r.id));
     return results;
   });
 
   ipcMain.handle("close-project", async (_event, projectId: string, projectPath: string) => {
     await unregisterProject(projectId);
     removeOpenProject(projectPath);
+    closeFloatsForProject(projectId);
     if (getLastActiveProject() === projectId) {
       setLastActiveProject(null);
     }
@@ -201,8 +212,8 @@ export function registerProjectIpc(
     return getLastActiveProject();
   });
 
-  ipcMain.handle("show-save-dialog", async (_event, options: { defaultPath?: string; filters?: Array<{ name: string; extensions: string[] }> }) => {
-    const win = getWindow();
+  ipcMain.handle("show-save-dialog", async (event, options: { defaultPath?: string; filters?: Array<{ name: string; extensions: string[] }> }) => {
+    const win = senderWindow(event);
     if (!win) return null;
     const result = await dialog.showSaveDialog(win, {
       defaultPath: options.defaultPath,

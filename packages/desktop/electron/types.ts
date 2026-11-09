@@ -22,6 +22,37 @@ export type {
   UpdateState,
 };
 
+export type FloatWindowKind = "chat" | "content";
+
+export interface FloatWindowOpenOptions {
+  kind: FloatWindowKind;
+  projectId: string;
+  itemKey: string;
+}
+
+export interface FloatWindowCloseSelfOptions {
+  forget?: boolean;
+  dock?: boolean;
+}
+
+export interface FloatWindowBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export type FloatWindowClosedReason = "dock" | "closed" | "crashed";
+
+export interface FloatWindowClosedPayload {
+  key: string;
+  kind: FloatWindowKind;
+  projectId: string;
+  itemKey: string;
+  bounds: FloatWindowBounds;
+  reason: FloatWindowClosedReason;
+}
+
 export interface ElectronAPI {
   selectDirectory: () => Promise<string | null>;
   selectSkillZip: () => Promise<string | null>;
@@ -63,4 +94,10 @@ export interface ElectronAPI {
   setMobileMode: (mode: MobileTunnelMode) => Promise<MobileAccessState>;
   setPublicDomain: (domain: string) => Promise<MobileAccessState>;
   onMobileAccessEvent: (callback: (event: MobileAccessEvent) => void) => () => void;
+  floatWindowOpen: (options: FloatWindowOpenOptions) => Promise<{ ok: true } | null>;
+  floatWindowCloseSelf: (options?: FloatWindowCloseSelfOptions) => Promise<boolean>;
+  floatWindowNavigateMain: (route: string) => Promise<boolean>;
+  floatWindowList: () => Promise<string[]>;
+  onFloatWindowClosed: (callback: (payload: FloatWindowClosedPayload) => void) => () => void;
+  onFloatWindowNavigateMain: (callback: (payload: { route: string }) => void) => () => void;
 }

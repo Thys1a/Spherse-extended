@@ -24,6 +24,7 @@ import { PathListField } from "./PathListField";
 import { QuickReplyField } from "./QuickReplyField";
 import { QuickReplyManagerDialog } from "./QuickReplyManagerDialog";
 import { AgentCardLinksField } from "./AgentCardLinksField";
+import { AgentDataLinksField } from "./AgentDataLinksField";
 import { TimePerceptionField } from "./TimePerceptionField";
 import { HintLabel } from "./HintLabel";
 import { PromptTemplatesDialog } from "./PromptTemplatesDialog";
@@ -153,6 +154,7 @@ export function AgentDialogForm({ initial, mode, agentId, onSubmit, onCancel }: 
       <Tabs defaultValue="basic" className="min-h-0 flex-1 flex flex-col">
         <TabsList className="mx-4 mt-1 mb-2">
           <TabsTrigger value="basic">{t("agent-dialog.tabBasic")}</TabsTrigger>
+          <TabsTrigger value="skills">{t("agent-dialog.tabSkills")}</TabsTrigger>
           <TabsTrigger value="personalization">{t("agent-dialog.tabPersonalization")}</TabsTrigger>
         </TabsList>
         <TabsContent value="basic" className="flex-1 min-h-0 overflow-y-auto px-4">
@@ -241,13 +243,6 @@ export function AgentDialogForm({ initial, mode, agentId, onSubmit, onCancel }: 
                 />
               </div>
             )}
-            <AgentSkillsField
-              skills={allSkills}
-              value={formData.skills}
-              onChange={(skills) => setFormData((prev) => ({ ...prev, skills }))}
-              userValue={formData.userSkills}
-              onUserChange={(userSkills) => setFormData((prev) => ({ ...prev, userSkills }))}
-            />
             <PathListField
               paths={formData.context}
               onAdd={addContext}
@@ -284,6 +279,17 @@ export function AgentDialogForm({ initial, mode, agentId, onSubmit, onCancel }: 
             {error && <p className="text-xs text-destructive">{error}</p>}
           </FieldGroup>
         </TabsContent>
+        <TabsContent value="skills" className="flex-1 min-h-0 overflow-y-auto px-4">
+          <FieldGroup>
+            <AgentSkillsField
+              skills={allSkills}
+              value={formData.skills}
+              onChange={(skills) => setFormData((prev) => ({ ...prev, skills }))}
+              userValue={formData.userSkills}
+              onUserChange={(userSkills) => setFormData((prev) => ({ ...prev, userSkills }))}
+            />
+          </FieldGroup>
+        </TabsContent>
         <TabsContent value="personalization" className="flex-1 min-h-0 flex flex-col px-4">
           <FieldGroup className="flex-1 min-h-0 flex flex-col">
             <Field>
@@ -318,6 +324,16 @@ export function AgentDialogForm({ initial, mode, agentId, onSubmit, onCancel }: 
             )}
             {mode === "edit" && agentId && client && (
               <AgentCardLinksField
+                agentId={agentId}
+                client={client}
+                contextWindow={resolveModelContextWindow(
+                  formData.model || textDefaultModel || undefined,
+                  providers ?? {},
+                )}
+              />
+            )}
+            {mode === "edit" && agentId && client && (
+              <AgentDataLinksField
                 agentId={agentId}
                 client={client}
                 contextWindow={resolveModelContextWindow(

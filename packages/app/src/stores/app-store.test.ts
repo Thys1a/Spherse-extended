@@ -574,3 +574,53 @@ describe("useAppStore restoreProjects initialGate", () => {
     expect(useAppStore.getState().activeProjectId).toBe("project-a");
   });
 });
+
+describe("useAppStore ensureProject", () => {
+  beforeEach(() => {
+    setupStoreTest(false);
+    vi.unstubAllGlobals();
+  });
+
+  function infoResponse(body: unknown, status = 200): Response {
+    return new Response(JSON.stringify(body), {
+      status,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  it("fetches project info without touching active project or lastRoute", async () => {
+    const bridge = createMockHostBridge();
+    const setLastActive = bridge.project?.setLastActiveProject as ReturnType<typeof vi.fn>;
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(infoResponse({
+      id: "project-a",
+      name: "project-a",
+      rootPath: "/tmp/project-a",
+      lastOpened: "2026-01-01T00:00:00.000Z",
+    })));
+
+    const project = await useAppStore.getState().ensureProject(bridge, "project-a");
+
+    expect(project).toMatchObject({ id: "project-a", path: "/tmp/project-a", name: "project-a" });
+    expect(useAppStore.getState().activeProjectId).toBeNull();
+    expect(setLastActive).not.toHaveBeenCalled();
+  });
+
+  it("returns the cached project without fetching", async () => {
+    const bridge = createMockHostBridge();
+    useAppStore.setState({ projects: new Map([["project-a", projectState()]]) });
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(useAppStore.getState().ensureProject(bridge, "project-a")).resolves.toMatchObject({
+      id: "project-a",
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("returns null without a server connection", async () => {
+    const bridge = createMockHostBridge({
+      getServerBaseUrl: vi.fn().mockResolvedValue(""),
+    });
+    await expect(useAppStore.getState().ensureProject(bridge, "project-a")).resolves.toBeNull();
+  });
+});

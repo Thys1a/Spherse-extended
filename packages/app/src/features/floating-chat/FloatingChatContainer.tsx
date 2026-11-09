@@ -6,6 +6,8 @@ import type { AgentSummary } from "../../lib/types";
 import { FloatingFrame } from "../../components/floating-frame";
 import { Chat } from "../chat";
 import { stopIfSession } from "../chat/tts/tts-controller";
+import { useHostBridge } from "../../context/host-bridge-context";
+import { popOutFloat } from "../../lib/float-window";
 import { PetComposer } from "./PetComposer";
 import { useFloatingChatStore, type FloatingChatState } from "./store";
 import { FLOAT_PET_HEIGHT, FLOAT_PET_WIDTH } from "./defaults";
@@ -23,6 +25,7 @@ export function FloatingChatContainer({
 }: FloatingChatContainerProps) {
   const navigate = useNavigate();
   const { t } = useI18n();
+  const bridge = useHostBridge();
   const setFloatingChat = useFloatingChatStore((s) => s.setFloatingChat);
 
   const handleClose = () => {
@@ -41,6 +44,12 @@ export function FloatingChatContainer({
   const handleExpand = () => {
     setFloatingChat(projectId, null);
     navigate(`/project/${projectId}/chat/${floatingChat.sessionId}`);
+  };
+
+  const handlePopOut = () => {
+    void popOutFloat(bridge, "chat", projectId, floatingChat.sessionId, () => {
+      setFloatingChat(projectId, null);
+    });
   };
 
   const handlePositionCommit = (pos: { x: number; y: number }) => {
@@ -98,18 +107,20 @@ export function FloatingChatContainer({
 
   return createPortal(
     <div className="floating-chat-portal">
-      <FloatingFrame
-        hookPrefix="chat"
-        title={agent.name}
-        position={floatingChat.position}
-        size={floatingChat.size}
-        onPositionCommit={handlePositionCommit}
-        onSizeCommit={handleSizeCommit}
-        onClose={handleClose}
-        onExpand={handleExpand}
-        onTogglePet={handlePetMode}
-        petToggleTitle={t("floating-chat.enterPetMode")}
-      >
+        <FloatingFrame
+          hookPrefix="chat"
+          title={agent.name}
+          position={floatingChat.position}
+          size={floatingChat.size}
+          onPositionCommit={handlePositionCommit}
+          onSizeCommit={handleSizeCommit}
+          onClose={handleClose}
+          onExpand={handleExpand}
+          onPopOut={bridge.floatWindow ? handlePopOut : undefined}
+          popOutTitle={t("float-window.popOut")}
+          onTogglePet={handlePetMode}
+          petToggleTitle={t("floating-chat.enterPetMode")}
+        >
         <Chat
           key={floatingChat.sessionId}
           sessionId={floatingChat.sessionId}

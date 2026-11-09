@@ -136,6 +136,14 @@ async function findProjectSession(
   for (const probe of probes) {
     if (probe.status === "fulfilled") return probe.value;
   }
+  for (const probe of probes) {
+    if (
+      probe.status === "rejected" &&
+      !(probe.reason instanceof ApiError && probe.reason.status === 404)
+    ) {
+      throw probe.reason;
+    }
+  }
   return null;
 }
 

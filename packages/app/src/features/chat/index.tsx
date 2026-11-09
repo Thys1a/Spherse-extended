@@ -17,10 +17,12 @@ import { speak } from "./tts/tts-controller";
 import { onAssistantTurnComplete } from "./tts/bridge";
 import { useSettingsStore } from "../../stores/settings-store";
 import { Composer } from "./Composer";
+import { CompactionBanner } from "./CompactionBanner";
 import { Header } from "./Header";
 import { QuickReplyBar } from "./QuickReplyBar";
 import { MessageList } from "./MessageList";
 import { toSendable } from "./model/group-derivations";
+import { shouldNotifyCompactResult } from "./model/entry-state";
 import { ConnectionBanner } from "./ConnectionBanner";
 import { QuickLinkPanel, resolveQuickLinkAction } from "./QuickLinkPanel";
 import { ChatAgentProvider } from "./chat-agent-context";
@@ -215,15 +217,14 @@ export function Chat({ sessionId, agent, onNavigateToPath, onOpenSession, initia
   }, [streaming, projectId, agent.id, sessionId]);
 
   useEffect(() => {
-    if (!compactResult) return;
+    if (!compactResult || !shouldNotifyCompactResult(compactResult)) return;
     if (compactResult.applied) {
       toast.success(t("chat.compactApplied"));
       void refreshSessionStatus(projectId, agent.id, sessionId);
     } else {
       toast.info(t("chat.compactNotNeeded"));
     }
-    clearCompactResult();
-  }, [compactResult, clearCompactResult, t, projectId, agent.id, sessionId]);
+  }, [compactResult, t, projectId, agent.id, sessionId]);
 
   useEffect(() => {
     if (!autoRead) return;
@@ -311,6 +312,16 @@ export function Chat({ sessionId, agent, onNavigateToPath, onOpenSession, initia
           onLoadMore={loadMore}
           locateSeq={locateSeq}
         />
+        {compactResult && (
+          <CompactionBanner
+            key={sessionId}
+            result={compactResult}
+            sessionId={sessionId}
+            agentId={agent.id}
+            client={client}
+            onDismiss={clearCompactResult}
+          />
+        )}
         {(profileQuery.data?.quickReplies?.length ?? 0) > 0 && (
           <QuickReplyBar sessionId={sessionId} replies={profileQuery.data?.quickReplies ?? []} />
         )}

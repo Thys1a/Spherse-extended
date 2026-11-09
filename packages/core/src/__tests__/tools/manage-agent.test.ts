@@ -6,6 +6,7 @@ import path from "node:path";
 import { createManageAgentTool, isManageAgentWriteAction } from "../../tools/manage-agent.js";
 import { isUserSkillAllowedForAgent } from "../../store/skill.js";
 import { listAgentCardLinks } from "../../capabilities/card/index.js";
+import { listAgentDataLinks } from "../../capabilities/data/index.js";
 import { ProjectStore } from "../../store/project.js";
 import { createSilentLogger } from "../../logger.js";
 import { createTempProject, cleanupDir, writeFile } from "../helpers.js";
@@ -974,6 +975,32 @@ describe("createManageAgentTool", () => {
     expect(missing.content[0].text).toContain("not found");
   });
 
+  it("link_data requires agent and path", async () => {
+    const noAgent = await makeTool().execute("tc", { action: "link_data", path: "lore/a.data.json" }, undefined as any);
+    expect(noAgent.content[0].text).toContain("agent_id");
+    const profile = await seedAgent();
+    const noPath = await makeTool().execute("tc", { action: "link_data", agent_id: profile.id }, undefined as any);
+    expect(noPath.content[0].text).toContain("path");
+    const missing = await makeTool().execute(
+      "tc",
+      { action: "link_data", agent_id: profile.id, path: "lore/missing.data.json" },
+      undefined as any,
+    );
+    expect(missing.content[0].text).toContain("not found");
+  });
+
+  it("unlink_data requires agent and path and refuses missing links", async () => {
+    const profile = await seedAgent();
+    const noPath = await makeTool().execute("tc", { action: "unlink_data", agent_id: profile.id }, undefined as any);
+    expect(noPath.content[0].text).toContain("path");
+    const missing = await makeTool().execute(
+      "tc",
+      { action: "unlink_data", agent_id: profile.id, path: "ghost.data.json" },
+      undefined as any,
+    );
+    expect(missing.content[0].text).toContain("not found");
+  });
+
   it.runIf(
     (() => {
       const probe = fs.mkdtempSync(path.join(os.tmpdir(), "wb-tool-probe-"));
@@ -1008,6 +1035,50 @@ describe("createManageAgentTool", () => {
     expect(unlinked.content[0].text).toContain("kings.card.json");
     expect(listAgentCardLinks(projectRoot, profile.slug)).toHaveLength(0);
   });
+
+  it.runIf(
+    (() => {
+      const probe = fs.mkdtempSync(path.join(os.tmpdir(), "sl-tool-probe-"));
+      try {
+        fs.symlinkSync(path.join(probe, "t"), path.join(probe, "l"), "file");
+        return true;
+      } catch {
+        return false;
+      } finally {
+        fs.rmSync(probe, { recursive: true, force: true });
+      }
+    })(),
+  )("link_data and unlink_data round-trip through the tool", async () => {
+    const profile = await seedAgent();
+    fs.mkdirSync(path.join(projectRoot, "lore"), { recursive: true });
+    fs.writeFileSync(
+      path.join(projectRoot, "lore", "game.data.json"),
+      JSON.stringify({ gold: 10 }),
+    );
+    const linked = await makeTool().execute(
+      "tc",
+      { action: "link_data", agent_id: profile.id, path: "lore/game.data.json", state_path: "_state", label: "RPG" },
+      undefined as any,
+    );
+    expect(linked.content[0].text).toContain("game.data.json");
+    expect(listAgentDataLinks(projectRoot, profile.slug)).toHaveLength(1);
+    expect(listAgentDataLinks(projectRoot, profile.slug)[0]).toMatchObject({
+      name: "game.data.json",
+      statePath: "_state",
+      hasState: true,
+    });
+    const targetDoc = JSON.parse(
+      fs.readFileSync(path.join(projectRoot, "lore", "game.data.json"), "utf8"),
+    ) as Record<string, unknown>;
+    expect(targetDoc.$state).toEqual({ path: "_state", label: "RPG" });
+    const unlinked = await makeTool().execute(
+      "tc",
+      { action: "unlink_data", agent_id: profile.id, path: "game.data.json" },
+      undefined as any,
+    );
+    expect(unlinked.content[0].text).toContain("game.data.json");
+    expect(listAgentDataLinks(projectRoot, profile.slug)).toHaveLength(0);
+  });
 });
 
 describe("isManageAgentWriteAction", () => {
@@ -1016,6 +1087,8 @@ describe("isManageAgentWriteAction", () => {
     expect(isManageAgentWriteAction({ action: "update" })).toBe(true);
     expect(isManageAgentWriteAction({ action: "link_card" })).toBe(true);
     expect(isManageAgentWriteAction({ action: "unlink_card" })).toBe(true);
+    expect(isManageAgentWriteAction({ action: "link_data" })).toBe(true);
+    expect(isManageAgentWriteAction({ action: "unlink_data" })).toBe(true);
     expect(isManageAgentWriteAction({ action: "list" })).toBe(false);
     expect(isManageAgentWriteAction({ action: "get" })).toBe(false);
     expect(isManageAgentWriteAction(null)).toBe(false);

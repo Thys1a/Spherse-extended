@@ -37,6 +37,7 @@
 - [ ] **重做任务栏小尺寸图标可辨识度**：`packages/desktop/build/spherse-icon.png`（512）与 exe 提取小图标角落+中心全为不透明白（255,255,255,255），白底+浅灰细线在浅色任务栏上近乎隐形、呈“默认图标”观感。方向：图标去白底改透明，或为 16/32 尺寸做加粗简化版；同步验证 exe 内嵌与任务栏/托盘观感。参见 `docs/dev/bugfix/2026-10-17-ui-triage/design.md` 追记五
 - [ ] **补 data.query manifest-stale 409 的 server 测试**：`sendDataError` 有 409 分支、core 会抛 `ManifestStaleError`，但 query 路径无触发该分支的 fixture 覆盖（mutate 侧有）。参见 `docs/dev/features/2026-10-22-data-query-exposure/design.md` §3.2。
 - [ ] **编辑态查找跳转后焦点离开查找框、Enter 误改文档**：`EditFindReplaceBar` 跳转 effect 把焦点移进 textarea（`EditFindReplaceBar.tsx:48-56`），此后 `Enter` 落在 textarea 会插入换行并弄脏文档（查找框的 `Enter` 跳转只在焦点还在框内时有效）。方向：跳转后焦点保留在查找框（选区仍可用 `setSelectionRange` 预置，聚焦时机另定），或 Enter 行为与焦点位置解耦。2026-10-24 edit-search-shift review 发现（pre-existing）。参见 `docs/dev/bugfix/2026-10-24-edit-search-shift/design.md` §4
+- [ ] **清理 skill 删除后 agent 名单残留死名**：删除项目/用户 skill 后 agent 的 `skills`/`userSkills` 名单仍留死名（按名匹配天然 miss，等价关闭，语义安全；同名重建会被“复活”）。方向：接受现状，仅当出现实际受害场景再做主动 prune（SkillStore 删除入口＋全 agent 改写＋reload 标记，约 1 天）。参见 `docs/dev/bugfix/2026-11-01-skill-delete-stale-names/research.md`
 
 ## 技术债（重构与收敛）
 
@@ -63,6 +64,7 @@
 - [ ] **chat WS 出站背压**：`ChatChannel.publish` 同步 `socket.send`，慢客户端（手机 PWA 走公网 tunnel）的 ws 发送缓冲无上限增长（`message_update` 为累积快照，帧大且高频），无人看 `bufferedAmount`。方向：ws-chat 的 send 闭包按 `bufferedAmount` 分级——软阈值（~1MB）丢弃流式 update 帧（累积快照语义下丢中间帧无损，下一条即全量）、硬上限（~16MB）close 断开，客户端经游标重放 + 快照无损恢复。参见 `docs/dev/features/2026-09-05-chat-refactor/design.md`（hub 缺陷分析节）。
 - [ ] **server/core 错误消息 i18n**：ws error frame 的 `message` 由 renderer 直接展示（`entry-reducer.applyError`），但 server/core 硬编码英文（新增 `RuntimeClosedError` / `ChannelClosedError` 等），两包均不依赖 `@spherse/i18n`。方向：wire 以稳定 code 为主、renderer 按 code 映射文案；或在 server 注入翻译函数。2026-09-15 hub 收口 review 记录。
 - [ ] **抽取共享的平台判断小工具**：`isMacPlatform()`（`userAgentData.platform ?? navigator.platform` 回退链）在 `packages/app/src/features/chat/Header.tsx` 与 `features/project-panel/index.tsx` 逐字重复。方向：收敛到 `app/src/lib/` 小 util 并复用，避免后续补 Linux/Windows 区分时漏改。2026-10-18 ui-triage review 发现（m1，非阻塞）
+- [ ] **统一 content-browser 查找可见性判定**：`index.tsx` 的 `findable` 与 `ContentView.tsx` 的 `findEnabled` 是两套高度相似但不同的门控（后者多 `content !== null`、前置 `!isEditing`），本次"HTML 直接点编辑无搜索按钮"bug 即两处漂移所致。方向：收敛到同一纯谓词（如 `findability.ts`），`findEnabled = isFindable({..., isEditing: false}) && content !== null`。参见 `docs/dev/bugfix/2026-11-05-html-edit-find-button/design.md`
 
 ## 条件触发（设计决策）
 
@@ -79,6 +81,11 @@
 - [ ] **agent 世界书卡目录 op（条件触发：世界书管理 UI 立项时）**：`CardStore.agentCards(slug)` → contracts → server → SDK（`card.agentList`），方案 A。参见 `docs/dev/features/2026-10-12-worldbook-position/positions-card-op.md` §3.2。
 - [ ] **顶层自定义字段 `meta.custom` 透传（条件触发：世界书管理 UI 需要展示卡级自定义时）**：`meta` 加 `custom?: Record`。参见 `docs/dev/features/2026-10-22-data-query-exposure/design.md` §五。
 - [ ] **SDK data 方法类型收紧（条件触发：下次动 SDK 类型时）**：六个 `data.*` 共用 `Record<string, unknown>`，`query` 误传 `args` 等到运行时静默失败才发现；收紧属 breaking，要么六个一起、要么至少给 `query` 加独立 `QueryParams`。review 发现，暂记。
+- [ ] **data 外链写链接路径的 symlink 替换防护（条件触发：未来放开经链接路径写入时）**：`persistLocked` 的 tmp+rename 若作用于 symlink 本身会把链接替换成普通文件；当前 data path-guard 禁写 `.spherse/` 故碰不到。方向：写前 `lstat` 判 symlink，解析到 realpath 再落盘。参见 `docs/dev/features/2026-10-11-state-data-link/design.md` 修订注记。
+- [ ] **`link_data` 写 `$state` 经 DataStore 门面/互斥（条件触发：出现并发覆盖丢失实证时）**：当前为 `fs` 同步直写（不经门面、无 `ifVersion`、无归因），与在途 `mutate_data` 同文件并发时后写覆盖先写。方向：plumb `FileWriteMutex` 或经门面写（需先解 `$` 键禁写）；当前为显式豁免（低频管理操作 + 事件循环原子），见 `docs/dev/features/2026-10-11-state-data-link/design.md` 修订注记。
+- [ ] **显式 `state_path` 是否复位已有 `enabled:false`（条件触发：出现用户困惑实证时）**：`ensureStateDeclaration` 原样保留已有 `enabled`，对已手动禁用的文件执行 `link_data state_path=…` 会改声明路径但仍不注入，与"显式指定即想注入"的预期相悖。方向：显式传参时复位 `enabled:true`，或文档明确"先手写删 `enabled:false`"；联动 UI `enabled` 开关条目。参见 `docs/dev/features/2026-10-11-state-data-link/design.md`。
+- [ ] **state 注入轮内冻结（条件触发：state 高频改动致前缀缓存 miss 成痛点时）**：现为每次 LLM 调用重读，轮内被 `mutate_data` 改动即重算块之后全部内容。方向：本轮首次投影缓存内容复用至轮末（mutate 返回已告知模型新值），下一轮失效。参见 `docs/dev/features/2026-10-11-state-data-link/plan.md` Step 7。
+- [ ] **`$state` 多路径注入（条件触发：单子树不够用、需多块注入时）**：本期只支持单个 `$state.path`。方向：扩展为 `$state: [...]`，多块同消息拼接（排序与 token 画像沿用现有机制）。参见 `docs/dev/features/2026-10-11-state-data-link/design.md` 非目标节。
 
 ## 功能增强
 
@@ -92,7 +99,6 @@
 - [ ] **补齐 web 端 agent 管理的移动端触屏入口**：agent 编辑/删除、触发器、MCP 配置的唯一入口是 AgentRow 右键 ContextMenu（`AgentRow.tsx`），移动端依赖 Base UI 长按（500ms）；iOS 长按与系统放大镜/预览手势的竞争未真机验证，SearchFileField 建议项用 `onMouseDown` 也依赖合成 mouse 事件。方向：真机验证长按可达性，不可靠则给 AgentRow 补显式 `…` 菜单（与「新建 Agent」的 DropdownMenu 同款），顺带过一遍 TriggerForm/McpServerForm 窄屏表单。参见 `docs/dev/investigation/2026-08-28-web-disabled-features/investigation.md`
 - [ ] **移动端 MobileLayout 打磨 + 移动专属 UI**：当前 web 端复用桌面 ActivityBar 的 avatar 列表做项目切换。需要做移动专属的项目列表 UI（取代 avatar 列表）+ 移动专属 settings 入口（locale/theme 本地化 + 断开连接）+ bottom-sheet 风格统一应用到所有 Dialog。参见 `docs/dev/features/2026-07-20-mobile-app/design.md` §3.2 与 `design-pr4b.md`
 - [ ] **GitHub Copilot OAuth 登录**：当前 GitHub Copilot 走 apiKey 路径（用户手动粘贴 `COPILOT_GITHUB_TOKEN`）。pi-ai 的 `githubCopilotProvider()` 同时声明了 `lazyOAuth` device-flow；接入需 electron 层调用 pi-ai OAuth helper + 持久化 refresh token + 前端「用 GitHub 登录」按钮，实现免粘贴 token。
-- [ ] **Chat Debug 模式**：在对话界面提供 debug 模式，展示 agent 的 tool call 请求、响应、system prompt 等原始数据，方便开发和调试
 - [ ] **思考强度 composer 会话级覆盖（二期）**：全局默认已落地（settings → RunConfig 传播链）；二期在聊天输入框加快捷档位切换，仅当前会话生效。要点：chat WS `message` payload 加 `thinkingLevel?` 字段（contracts + 契约测试）、`AgentRunner.sendMessage` turn 前一次性覆盖 `agent.state.thinkingLevel`、composer 按 sessionId sticky 状态（同 draft 键控模式）、档位按当前生效模型 `getSupportedThinkingLevels` 动态显示。参见 `docs/dev/features/2026-08-28-model-thinking-intensity/design.md` 二期草图
 - [ ] **Presets i18n**：为 `@spherse/presets` 内置模板和预置内容增加多语言支持，作为 i18n 基础设施完成后的独立任务
 - [ ] **moveEntry 路径判断改用 isPathInside（upstream merge review C1）**：`packages/core/src/project-manager.ts:396` 用 `dest.startsWith(src + path.sep)` 做子路径判断，违反路径安全红线。方向：改 `isPathInside(dest, src)` 并补单测。pre-existing（`ba9d342`），merge 未动。
@@ -104,14 +110,17 @@
 - [ ] **TTS 跨会话串音窄竞态（upstream merge review U4，低优先）**：`tts-controller` 为模块级单例；turn complete 恰落在会话切换 cleanup/重订阅之间时可能朗读旧会话文本；主窗 + 浮窗两实例共享单 synth 互打断。方向：朗读前用 store 当前 sessionId 二次校验，或判定下沉到 controller。
 - [ ] **重落地聊天 AI 回复删除回填（R6.3，upstream merge 丢失）**：`deleteAiTurn`（withdraw 末轮 + composer 草稿回填、不重发）随 `66fef68` 落地，后在 upstream merge `9a9e9b6`（ADR-0014）port 时丢失，当前树只有 withdraw/editAndResend；phase2 plan T6 的 `[x]` 已过期。方向：在新运行时分层（outbound-actions/session-store + AssistantBubble 入口）按 design 原语义重实现并补单测，withdraw/edit/delete 互斥语义沿用。参见 `docs/dev/features/2026-09-19-game-engine-phase2/plan.md` T6 与审计 `docs/dev/investigation/2026-10-11-engine-float-swipe-audit.md` §二。
 - [ ] **实现 swipe 多候选（R6.2）**：方向已锁定（分支带走 active 版、切换记新事件，见 `docs/dev/features/2026-09-23-swipe/plan.md`），实现零代码，4 个开放问题未关。方向：reducer 分支状态 + 持久化 + WS 事件（contracts + chat-wire-projector）+ swipe UI；前置：先与本节「会话分支」项定义关系（合并/复用其虚拟 seq 映射/并行两套），否则两套分支语义冲突。
-- [ ] **原生子窗口浮窗（native-float 拆分之一）**：当前两浮窗域是主窗口内 Portal overlay（`FloatingContentBrowserContainer`/`FloatingChatContainer`），`pinned` 只是 z-index，拖拽钳在窗口内。方向：Electron 原生子窗口（`parent: mainWindow` + `alwaysOnTop`）+ `http://localhost:{serverPort}` 承载；renderer 新增顶层浮窗路由（上提至 ProjectScope 之外）；IPC 改多窗口；关闭策略（`window-all-closed` 即退，主窗关后浮窗孤儿）；位置持久化复用现有 `byProject` store。参见 `docs/dev/features/2026-09-19-native-float/design.md` §一§三。
+- [ ] **修 floating-chat.spec.ts 整文件失败（pre-existing）**：`agentTrigger` 定位器 `[data-slot="context-menu-trigger"]:has-text("Assistant")` 同时命中侧栏 aside（`project-panel/index.tsx` 把整个 aside 包成 ContextMenuTrigger）与 agent 按钮，strict mode  violation，11 条全挂。方向：定位器限定到 button（或给行级 trigger 专用钩子），先在干净树复现确认非回归。2026-11-03 native-float 验收时在干净树（stash + 重构建）复现确认，参见 `docs/dev/features/2026-09-19-native-float/plan.md` C4
+- [ ] **原生浮窗审批双通知去重**：同一 session 在主窗与浮窗同时打开时，审批 toast + 系统通知各出现一次（两边 ApprovalNoticeBridge 各自订阅各自 session store）。方向：主进程或 renderer 侧按 requestId 跨窗去重（如 `float-window` 通知仲裁）。首期接受重复，参见 `docs/dev/features/2026-09-19-native-float/design.md` §5
 - [ ] **接通 File System Access API（native-float 拆分之二）**：打包版 `file://` opaque origin、跨源 iframe、零权限放行三层拦截（见 design §二）。方向：与原生子窗口同载体（localhost 安全上下文）；主进程 `session.setPermissionRequestHandler` 按路径/来源白名单放行 `fileSystem` 权限；HtmlCard/srcDoc 场景另需 `allow-modals` 沙箱安全评估；简易浏览器内跨源页仍不可用（spec 硬限制，只能走顶层/子窗口打开）。参见同上 §二§三。
+- [ ] **原生浮窗设置跨窗口实时同步**：locale / 主题切换不跨窗口实时同步（主窗与浮窗是两个 JS context，无 storage 监听；`FloatRoot` 只保证初始语言和项目主题正确）。方向：settings-store 写透时经 `float-window:closed` 同类广播或 storage 事件同步，或明确声明不跟随只在重载生效。参见 `docs/dev/features/2026-09-19-native-float/design.md` §5
 - [ ] **脏文件切 tab 疑似静默丢失（先真机确认）**：`useContentEditor` 的 requestLeave 只保 Back/Close 两个按钮，切 tab/点侧栏/换项目等导航路径无人问 dirty 态（dirty-paths store 只被文件树删除/移动消费）；editor state 随 unmount 消失。方向：先真机确认（脏文件→点别的 tab 看是否丢），确认后按上游 #104 的 `useBlocker` 方案收敛（fork 为 createHashRouter，data router 可用），替换 requestLeave 机制。参见上游 `ca3059b` design「未保存编辑守卫」节。
 - [ ] **更新弹窗显示目标版本更新日志（GitHub 源重做）**：上游 #126 经 OSS `changelog.json` 取 notes，fork 无 OSS 不可直接合（`df36455` 机制前提不存在）。方向：desktop 更新检查改经 GitHub Releases API 取目标版本 notes，填入既有 `releaseNotes` 槽位（`packages/desktop/electron/updater.ts` 已有字段透传、当前恒空），mac/Linux 对话框展示；主进程出网失败留空。landing 已有 releases 拉取解析 precedent（`packages/landing/src/lib/release.ts`、`changelog.ts）。
 
 - [ ] **补齐 `openFile` action 的 `newTab` 参数**：文件右键已直调 `openTab force`，HTML 卡片等程序化调用方只能 `navigate`（触发单复用槽替换）无法开新标签。方向：`open-file.ts` 加 `newTab?: boolean`（`force: true` 建 tab，tabs 关时降级 navigate，门控与 `onOpenInNewTab` 一致），补 handler 单测 + HTML 卡片调用示例。参见 `docs/dev/features/2026-09-10-file-list-ops/design.md` 增补调研 P2
 - [ ] **服务端草稿 token 精确预估接口**：输入框计数器现为草稿纯文本启发式（不含 profile/skills/worldbook/工具定义/历史），pill 为累计值，两者相加只是近似（v1.0.1 已落地）。方向：server 新增估算接口，把草稿套进当前会话 prompt 组装走一遍 core 现成 estimator（`pendingPromptEstimate` 同款），renderer 每键 debounce + 缓存调用；需定超时/失败降级。参见 `docs/dev/features/2026-10-12-token-display/design.md` §四。
 - [ ] **Agent 对话框关闭加未保存校验**：编辑页改动只活在本地草稿，取消/X 直接丢弃且无任何提示，易误读为“删了没生效”（2026-10-19 quick-reply 跟进实证：删徽章不点保存，聊天窗口自然不变）。方向：有关闭确认的 dirty 守卫（改动后关闭先问），与上条「脏文件切 tab」同类，可合并设计。参见 `docs/dev/features/2026-10-12-quick-reply/followup-2026-10-19.md`。
+- [ ] **数据外链 `enabled` 开关 UI**：`$state.enabled` 现只支持文件手写，`AgentDataLinksField` 有意不做开关（保持界面最小）。方向：contracts AddRequest 与 `link_data` 先补 `enabled` 入参，再在链接徽章旁加启用/停用切换。参见 `docs/dev/features/2026-10-11-state-data-link/design.md`。
 ## 基础设施
 
 - [ ] **Linux 发行打磨（条件触发：出现 Linux 用户实际诉求时）**：当前 Linux 发布为 x64 AppImage + deb（CI linux matrix job，executableName 三平台统一 `Spherse`）。潜在跟进：arm64 构建、rpm/snap 等格式、Ubuntu 23.10+（AppArmor 限制 unprivileged userns）下 Electron SUID sandbox 启动失败的更优解（现为 README/下载页 sysctl workaround）。

@@ -1,4 +1,18 @@
 export { createDataStore, type CreateDataStoreOptions } from "./data-store.js";
+export {
+  readStateDeclaration,
+  renderStateBlock,
+  readAgentState,
+  invalidateStateLinkCache,
+  listAgentDataLinks,
+  addAgentDataLink,
+  removeAgentDataLink,
+  stateProjector,
+  type StateLinkDeclaration,
+  type AgentDataLink,
+  type AddAgentDataLinkOptions,
+  type StateBlock,
+} from "./state-link.js";
 export { parseManifest, parseManifestWithDiagnostics, readManifestFromDoc, readManifestWithDiagnosticsFromDoc, checkManifestHealth, dataManifestSchema } from "./manifest.js";
 export { getByDotPath, getRawByDotPath, stripReservedKeys } from "./dot-path.js";
 export { runQuery, decodeCursor } from "./query-engine.js";

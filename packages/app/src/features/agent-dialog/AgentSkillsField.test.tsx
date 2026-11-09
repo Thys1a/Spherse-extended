@@ -34,6 +34,14 @@ const USER_SKILL = {
   files: [],
 } as SkillSummary;
 
+const BUILTIN_SKILL = {
+  name: "guide",
+  description: "Builtin skill",
+  filePath: "builtin://guide/SKILL.md",
+  source: "builtin",
+  files: [],
+} as SkillSummary;
+
 const SKILLS = [PROJECT_A, PROJECT_B, USER_SKILL];
 
 function renderField(props: Partial<Parameters<typeof AgentSkillsField>[0]> = {}) {
@@ -115,6 +123,70 @@ describe("AgentSkillsField project group", () => {
     renderField({ skills: [PROJECT_A, PROJECT_B], value: ["research"], onChange });
     const row = screen.getByText("writing").closest("div.justify-between");
     if (!row) throw new Error("writing row not rendered");
+    await user.click(within(row as HTMLElement).getByRole("switch"));
+    expect(onChange).toHaveBeenCalledWith(undefined);
+  });
+
+  it("renders only the project group when no builtin skills exist", () => {
+    renderField({ skills: [PROJECT_A] });
+    expect(
+      screen.queryByText(translate("zh-CN", "agent-dialog.builtinSkillsLabel")),
+    ).not.toBeInTheDocument();
+  });
+});
+
+describe("AgentSkillsField builtin group", () => {
+  it("renders the builtin group collapsed by default", () => {
+    renderField({ skills: [BUILTIN_SKILL] });
+    expect(
+      screen.getAllByText(translate("zh-CN", "agent-dialog.builtinSkillsLabel")).length,
+    ).toBeGreaterThan(0);
+    expect(screen.queryByText("guide")).not.toBeInTheDocument();
+  });
+
+  it("expanding the builtin group reveals its rows", async () => {
+    const user = userEvent.setup();
+    renderField({ skills: [BUILTIN_SKILL] });
+    const triggers = screen.getAllByRole("button", {
+      name: translate("zh-CN", "agent-dialog.builtinSkillsLabel"),
+    });
+    await user.click(triggers[0]);
+    expect(screen.getByText("guide")).toBeInTheDocument();
+  });
+
+  it("builtin switches follow the project allowlist (checked when undefined)", async () => {
+    const user = userEvent.setup();
+    renderField({ skills: [BUILTIN_SKILL], value: undefined });
+    await user.click(
+      screen.getAllByRole("button", { name: translate("zh-CN", "agent-dialog.builtinSkillsLabel") })[0],
+    );
+    const row = screen.getByText("guide").closest("div.justify-between");
+    if (!row) throw new Error("guide row not rendered");
+    expect(within(row as HTMLElement).getByRole("switch")).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("unchecking the last project skill while a builtin is checked reports the builtin", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    renderField({ skills: [PROJECT_A, BUILTIN_SKILL], value: undefined, onChange });
+    await user.click(
+      screen.getAllByRole("button", { name: translate("zh-CN", "agent-dialog.builtinSkillsLabel") })[0],
+    );
+    const row = screen.getByText("research").closest("div.justify-between");
+    if (!row) throw new Error("research row not rendered");
+    await user.click(within(row as HTMLElement).getByRole("switch"));
+    expect(onChange).toHaveBeenCalledWith(["guide"]);
+  });
+
+  it("checking every project and builtin skill collapses back to undefined", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    renderField({ skills: [PROJECT_A, BUILTIN_SKILL], value: ["research"], onChange });
+    await user.click(
+      screen.getAllByRole("button", { name: translate("zh-CN", "agent-dialog.builtinSkillsLabel") })[0],
+    );
+    const row = screen.getByText("guide").closest("div.justify-between");
+    if (!row) throw new Error("guide row not rendered");
     await user.click(within(row as HTMLElement).getByRole("switch"));
     expect(onChange).toHaveBeenCalledWith(undefined);
   });

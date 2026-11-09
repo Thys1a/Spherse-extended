@@ -58,20 +58,23 @@
 |---|---|---|---|
 | **v1.0.2** | 扩大 worldbook 注入（取消 `≤8 条 / 2000 token` 预算上限） | 06 §四；04 §六 | ✅ |
 | **v1.0.2** | worldbook 注入位置修正（从队尾 user 挪到当前用户消息之前） | 06 §四 / §五 | ✅ |
-| ~~v1.0.4~~ | ~~Session 级 profile 覆盖（最小集，复用 session model 覆盖管道）~~ | 07 | – |
+| **v1.0.4** | Session 级 profile 覆盖（最小集，复用 session model 覆盖管道） | 07 | 待定 |
 | **v1.0.1** | 对话 token 数据 + 输入框预计 token 展示 | 09 | ✅ |
-| **v1.0.4** | 状态数据外链（`.data.json` + `$state` 声明 + projector 注入；与 worldbook 位置修正同批，共用「插到当前用户之前」helper；设计见 `features/2026-10-11-state-data-link/design.md`） | 06 §五 #4 | – |
+| **v1.0.4** | 状态数据外链（`.data.json` + `$state` 声明 + projector 注入；与 worldbook 位置修正同批，共用「插到当前用户之前」helper；设计见 `features/2026-10-11-state-data-link/design.md`） | 06 §五 #4 | ✅ |
 | **v1.0.1** | 小助手agent初始profile增加“如有疑问，向用户提问而非自作主张；如需执行，先给出计划并提问方案是否可行。” | -- | ✅ |
 | **v1.0.1** | agent所属快捷回复 | -- | ✅ |
 | **v1.0.1** | 合并上游版本 | -- | ✅ |
-|**v1.0.x**| game engine p2 | | – |
+|**v1.0.5**| game engine p2+float+swipe | | – |
+|**v1.0.4**| native-float | | ✅ |
 | **v1.0.3** | 编辑模式下搜索移位 | bug | ✅ |
 |**v1.1.x**| 事件触发器优化调整 | | – |
 |待评估| SDK 会话消息订阅（`events.on("session:message")`，= G3）：可行，机制现成（订阅注册表加分支 + 桥订阅 chat store 推送）；四条硬约束——只许订阅自己会话（host 侧 source→session 映射强制，跨会话拒绝）、只推结算事件（不推 `message_update`，最小字段）、推送节流 + 订阅上限、外泄归沙箱（I6/U1）不归订阅 | 11 §七 | – |
 |**v1.1.x**| world book UI | | – |
 | **v1.0.3** | ask工具阻塞，工具限制 | - | ✅ |
 | **v1.0.3** | skill兼容与选择性skill注入 | - | ✅ |
-
+| **v1.0.4** | agent编辑新增基础个性化外的第三个按钮技能 skill分隔（内置与项目）、折叠与展开（三个部分） | - | ✅ |
+| **v1.0.x** | skill删除后agent不同步bug | - | 待定 |
+| **v1.0.4** | 压缩结束后聊天框小字横条展示压缩情况（展开/收起） | - | ✅ |
 进度：✅ = 已完成，– = 未开始。
 
 ## 共同结论
